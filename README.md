@@ -31,6 +31,51 @@ pnpm db:up                      # docker compose up -d postgres
 pnpm install
 ```
 
+## Backend (Phase 1 · auth + user creation)
+
+NestJS API on `:4000` with email/password auth (**access + refresh tokens**) and a
+shared Prisma database package. Implemented modules: **Config · Prisma · Keys (JWKS) ·
+Auth**. Full route/payload reference for frontend integration:
+**[`backend/routes.md`](backend/routes.md)**.
+
+**Auth model:** short-lived **access JWT** (`ACCESS_TOKEN_TTL_SEC`, default 15 min) +
+longer-lived **refresh token** (`REFRESH_TOKEN_TTL_SEC`, default 24 h) that is persisted
+hashed, **rotating**, and **revocable**. Endpoints: `register`, `login`, `refresh`,
+`logout`, `me`. Passwords hashed with bcrypt (cost 12).
+
+### Run it
+
+```bash
+cp .env.example .env                              # see "Files to change" below
+pnpm db:up                                        # Postgres 16 in Docker
+
+# backend + database only (skips frontend/rtc, so no GITHUB_TOKEN needed)
+pnpm install --filter backend --filter @app/database
+pnpm --filter @app/database generate              # prisma client → packages/database/generated
+pnpm --filter @app/database migrate               # create tables (fresh DB)
+pnpm --filter @app/database seed                  # demo users, password: password123
+
+pnpm dev:backend                                  # http://localhost:4000
+pnpm --filter backend test:e2e                    # e2e: every auth/users route (needs DB up)
+```
+
+### Files to change
+
+| File | Change |
+|------|--------|
+| `.env` | copy from `.env.example`; set `DATABASE_URL` and a **real `JWT_USER_SECRET` (required, ≥32 chars** — `openssl rand -hex 32`). Optional: `ACCESS_TOKEN_TTL_SEC`, `REFRESH_TOKEN_TTL_SEC`, `CORS_ORIGINS`. |
+| `packages/database/prisma/schema.prisma` | source of truth for the data model; re-run `generate` + `migrate`/`db push` after edits. |
+| `packages/database/prisma/seed.ts` | demo users / shared login password. |
+| `backend/src/config/env.ts` | add an env var here (zod-validated) before using it in a module. |
+
+### Notes
+
+- Routes: app routes under `/api`; `GET /health` and `GET /.well-known/rtc-jwks.json` are unprefixed.
+- Access tokens are Bearer JWTs (HS256); refresh tokens are opaque, rotating, revocable (table `refresh_tokens`).
+- Security: `JWT_USER_SECRET` is **required** (no insecure default); CORS is restricted to `CORS_ORIGINS` (no wildcard); bcrypt cost 12. Token lifetimes are env-tunable.
+- The RS256 JWKS endpoint exists for the rtc-server to consume later — the keypair is generated on first boot into `./.keys/` (gitignored).
+- **Realms are created internally — no public API** for them yet; workspace/RBAC endpoints land in the RBAC phase (`docs/realm-workspace-rbac.md`).
+
 ## Doc-editor integration (`@toddle-edu/ds-doc-editor`)
 
 The collaborative editor is **not** built in this repo — it lives in the separate

@@ -1,12 +1,19 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import ReactDOM from 'react-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { App } from './App';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element #root not found');
 
-createRoot(rootEl).render(
+// React 17 uses ReactDOM.render (createRoot is React 18+).
+ReactDOM.render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+      </Routes>
+    </BrowserRouter>
   </StrictMode>,
+  rootEl,
 );

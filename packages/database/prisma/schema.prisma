@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+// Realm hierarchy (cumulative): OWNER > MAINTAINER > MEMBER.
+// OWNER is the seeded static realm owner; MAINTAINER can create workspaces and
+// run all realm/workspace operations; MEMBER belongs to the realm only.
+enum RealmRole {
+  OWNER
+  MAINTAINER
+  MEMBER
+}
+
+// Per-workspace role (cumulative): READ < COMMENT < EDIT < ADMIN.
+// ADMIN can manage workspace members and create/edit pages.
+enum WorkspaceRole {
+  READ
+  COMMENT
+  EDIT
+  ADMIN
+}
+
+// Lifecycle of a request to join a PRIVATE workspace.
+enum JoinRequestState {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Realm {
+  id         String        @id @default(cuid())
+  name       String
+  createdAt  DateTime      @default(now()) @map("created_at")
+  members    RealmMember[]
+  workspaces Workspace[]
+
+  @@map("realms")
+}
+
+model RealmMember {
+  realmId   String    @map("realm_id")
+  realm     Realm     @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      RealmRole @default(MEMBER)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@id([realmId, userId])
+  @@index([userId])
+  @@map("realm_members")
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  realmId   String            @map("realm_id")
+  realm     Realm             @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  name      String
+  // PUBLIC → anyone in the realm self-joins as `defaultRole`; PRIVATE → request + approval.
+  visibility  Visibility    @default(PRIVATE)
+  defaultRole WorkspaceRole @default(READ) @map("default_role")
+  createdAt DateTime          @default(now()) @map("created_at")
+  members      WorkspaceMember[]
+  joinRequests JoinRequest[]
+
+  @@index([realmId])
+  @@map("workspaces")
+}
+
+model JoinRequest {
+  id            String           @id @default(cuid())
+  workspaceId   String           @map("workspace_id")
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId        String           @map("user_id")
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state         JoinRequestState @default(PENDING)
+  requestedRole WorkspaceRole    @default(READ) @map("requested_role")
+  decidedById   String?          @map("decided_by_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  decidedAt     DateTime?        @map("decided_at")
+
+  @@index([workspaceId, state])
+  @@index([userId])
+  @@map("join_requests")
+}
+
+model WorkspaceMember {
+  workspaceId String        @map("workspace_id")
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(READ)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  name          String
+  color         String         @default("#f04c54")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  documents     Document[]
+  folders       Folder[]
+  refreshTokens RefreshToken[]
+  realmMemberships     RealmMember[]
+  workspaceMemberships WorkspaceMember[]
+  joinRequests         JoinRequest[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at") // set on rotation / logout
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Folder {
+  id         String     @id @default(cuid())
+  name       String
+  icon       String     @default("📁")
+  isPersonal Boolean    @default(false) @map("is_personal")
+  ownerId    String     @map("owner_id")
+  owner      User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parentId   String?    @map("parent_id")
+  parent     Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Folder[]   @relation("FolderTree")
+  documents  Document[]
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@index([parentId])
+  @@map("folders")
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  title      String       @default("Untitled")
+  icon       String       @default("📄")
+  ownerId    String       @map("owner_id")
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folderId   String?      @map("folder_id")
+  folder     Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  visibility Visibility   @default(PRIVATE)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  rtc        RtcDocument?
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([folderId])
+  @@map("documents")
+}
+
+model RtcDocument {
+  id            String   @id
+  document      Document @relation(fields: [id], references: [id], onDelete: Cascade)
+  yjsState      Bytes?   @map("yjs_state")
+  lexicalJson   String?  @map("lexical_json")
+  plainText     String?  @map("plain_text")
+  version       Int      @default(0)
+  updatedAt     BigInt   @map("updated_at")
+  snapshotAtSeq Int      @default(0) @map("snapshot_at_seq")
+
+  @@map("rtc_documents")
+}
+
+model RtcDocumentUpdate {
+  id         BigInt  @id @default(autoincrement())
+  docId      String  @map("doc_id")
+  seq        Int
+  updateBlob Bytes   @map("update_blob")
+  byteLen    Int     @map("byte_len")
+  origin     String?
+  clientSub  String? @map("client_sub")
+  createdAt  BigInt  @map("created_at")
+
+  @@unique([docId, seq])
+  @@index([docId, seq])
+  @@map("rtc_document_updates")
+}

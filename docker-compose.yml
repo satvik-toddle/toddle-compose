@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: toddle-compose-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: toddle
+      POSTGRES_PASSWORD: toddle
+      POSTGRES_DB: toddlecompose
+    ports:
+      - "5432:5432"
+    volumes:
+      - toddle_compose_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U toddle -d toddlecompose"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  toddle_compose_pgdata:

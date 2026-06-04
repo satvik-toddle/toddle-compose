@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Visibility {
+  PRIVATE
+  PUBLIC
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  name          String
+  color         String         @default("#f04c54")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  documents     Document[]
+  folders       Folder[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at") // set on rotation / logout
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Folder {
+  id         String     @id @default(cuid())
+  name       String
+  icon       String     @default("📁")
+  isPersonal Boolean    @default(false) @map("is_personal")
+  ownerId    String     @map("owner_id")
+  owner      User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parentId   String?    @map("parent_id")
+  parent     Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Folder[]   @relation("FolderTree")
+  documents  Document[]
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@index([parentId])
+  @@map("folders")
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  title      String       @default("Untitled")
+  icon       String       @default("📄")
+  ownerId    String       @map("owner_id")
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folderId   String?      @map("folder_id")
+  folder     Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  visibility Visibility   @default(PRIVATE)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  rtc        RtcDocument?
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([folderId])
+  @@map("documents")
+}
+
+model RtcDocument {
+  id            String   @id
+  document      Document @relation(fields: [id], references: [id], onDelete: Cascade)
+  yjsState      Bytes?   @map("yjs_state")
+  lexicalJson   String?  @map("lexical_json")
+  plainText     String?  @map("plain_text")
+  version       Int      @default(0)
+  updatedAt     BigInt   @map("updated_at")
+  snapshotAtSeq Int      @default(0) @map("snapshot_at_seq")
+
+  @@map("rtc_documents")
+}
+
+model RtcDocumentUpdate {
+  id         BigInt  @id @default(autoincrement())
+  docId      String  @map("doc_id")
+  seq        Int
+  updateBlob Bytes   @map("update_blob")
+  byteLen    Int     @map("byte_len")
+  origin     String?
+  clientSub  String? @map("client_sub")
+  createdAt  BigInt  @map("created_at")
+
+  @@unique([docId, seq])
+  @@index([docId, seq])
+  @@map("rtc_document_updates")
+}

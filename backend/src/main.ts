@@ -1,14 +1,30 @@
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
-import { AppModule } from './app.module';
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import { Logger, ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AppModule } from "./app.module";
+import { corsOrigins, type Env } from "./config/env";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api', { exclude: ['health'] });
-  const port = Number(process.env.BACKEND_PORT ?? 4000);
+  const config = app.get<ConfigService<Env, true>>(ConfigService);
+
+  // Restrict CORS to the configured allowlist (no wildcard).
+  app.enableCors({
+    origin: corsOrigins(config.get("CORS_ORIGINS", { infer: true })),
+    credentials: true,
+  });
+
+  // /api prefix for app routes; health + JWKS stay at the root.
+  app.setGlobalPrefix("api", {
+    exclude: ["health", ".well-known/rtc-jwks.json"],
+  });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.enableShutdownHooks();
+
+  const port = config.get("BACKEND_PORT", { infer: true });
   await app.listen(port);
-  new Logger('Bootstrap').log(`backend listening on http://localhost:${port}`);
+  new Logger("Bootstrap").log(`backend listening on http://localhost:${port}`);
 }
 
 void bootstrap();

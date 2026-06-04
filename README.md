@@ -59,52 +59,52 @@ git checkout temp/lexical-yjs
 | `package.json` (root) | add the `pnpm.overrides` block below to link the local branch + pin Lexical/Yjs to one instance |
 | `.npmrc` | already wired — used only when installing the **published** version from GitHub Packages (needs `GITHUB_TOKEN`) |
 
-### Working against the `temp/lexical-yjs` branch
+### Pinning Lexical / Yjs to a single instance
 
-**Recommended — `link:` overrides + watch build** (single source of truth, hot updates):
+Yjs and Lexical **must resolve to exactly one physical copy** across this repo and the
+editor — two copies break CRDT convergence (`Type … is not registered`, failed sync).
+Pin the versions doc-editor uses via plain version overrides and let pnpm dedupe to one
+copy in the store (CI-safe, no sibling-path coupling):
 
 ```jsonc
 // package.json (root) → "pnpm": { "overrides": { ... } }
 {
   "pnpm": {
     "overrides": {
-      "@toddle-edu/ds-doc-editor": "link:../doc-editor/packages/doc-editor",
-      "lexical": "link:../doc-editor/node_modules/lexical",
-      "@lexical/react": "link:../doc-editor/node_modules/@lexical/react",
-      "@lexical/yjs": "link:../doc-editor/node_modules/@lexical/yjs",
-      "yjs": "link:../doc-editor/node_modules/yjs",
+      "lexical": "0.30.0",
+      "@lexical/react": "0.30.0",
+      "@lexical/yjs": "0.30.0",
+      "yjs": "13.6.27",
       "y-websocket": "2.0.4"
     }
   }
 }
 ```
 
-Then run the editor's webpack in watch mode so `dist/` rebuilds on every edit — the link
-resolves to the fresh `dist` with no reinstall:
+> Add **every** `@lexical/*` subpackage you actually import (code, list, rich-text, table,
+> utils, selection, history, markdown, …), all pinned to `0.30.0`. These versions track the
+> `temp/lexical-yjs` branch of doc-editor — bump them in lockstep when the editor upgrades.
+
+**Build-time backstops** (keep regardless of the pins):
+
+- **Frontend (Vite):** `resolve.dedupe: ['yjs', 'lexical', '@lexical/*', …]` forces one copy
+  at bundle time even if install dedup slips.
+- **rtc-server (`/server`):** esbuild-bundle the server nodes with `yjs`/`lexical`/`@lexical/*`
+  **externalized**, so the bundle shares rtc-server's single instance (Phase 2 `bundle:nodes`).
+
+### Testing branch changes locally
+
+Build the branch and drop its `dist` into this repo's installed copy — good for a quick check:
 
 ```bash
-# terminal 1 — rebuild doc-editor on change
-cd /Users/apple/Documents/doc-editor/packages/doc-editor && yarn dev   # webpack --watch
-
-# terminal 2 — run this app (Vite HMR picks up the rebuilt bundle)
-cd /Users/apple/Documents/toddle-compose && pnpm dev
-```
-
-> Add **every** `@lexical/*` subpackage you actually import to the overrides (code, list, rich-text,
-> table, utils, selection, history, markdown, …), each `link:`ed to `../doc-editor/node_modules/<pkg>`.
-> Mixing two Lexical/Yjs instances throws `Type … is not registered` or breaks CRDT convergence.
-
-**Quick alternative — replace `dist` in place** (no linking; good for a one-off check):
-
-```bash
-# build the branch once, then drop its dist into this repo's installed copy
 cd /Users/apple/Documents/doc-editor/packages/doc-editor && yarn build
 cp -R dist/* \
   /Users/apple/Documents/toddle-compose/node_modules/@toddle-edu/ds-doc-editor/dist/
 ```
 
-Crude (overwritten on the next `pnpm install`, no Lexical/Yjs de-dup), so prefer the `link:`
-approach for anything beyond a smoke test.
+Overwritten on the next `pnpm install`, so it's a smoke-test path only. For sustained
+branch work, consume doc-editor as a workspace package (`workspace:*`) or its published
+version and rebuild it on change.
 
 **The `/server` export caveat:** `./server` ships raw ESM source pulling its own Lexical/Yjs.
 For rtc-server (CJS), esbuild-bundle the server nodes with `lexical`/`@lexical/*`/`yjs`

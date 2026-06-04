@@ -1,15 +1,26 @@
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
-import { AppModule } from './app.module';
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import { Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // HTTP port for the internal API + health. The raw Yjs WebSocket server
-  // (RTC_PORT) is wired in Phase 2.
-  const port = Number(process.env.RTC_INTERNAL_PORT ?? 4002);
-  await app.listen(port);
-  new Logger('Bootstrap').log(`rtc-server (http) listening on http://localhost:${port}`);
+  app.enableShutdownHooks();
+  const config = app.get(ConfigService);
+  const internalPort = config.get<number>("RTC_INTERNAL_PORT") ?? 4002;
+  const wsPort = config.get<number>("RTC_PORT") ?? 4001;
+  await app.listen(internalPort);
+  new Logger("bootstrap").log(
+    `rtc-server: internal HTTP on :${internalPort}, WS on :${wsPort}`
+  );
 }
 
-void bootstrap();
+process.on("uncaughtException", (e) =>
+  new Logger("rtc").error("uncaughtException", e)
+);
+process.on("unhandledRejection", (e) =>
+  new Logger("rtc").error("unhandledRejection", e as Error)
+);
+
+bootstrap();

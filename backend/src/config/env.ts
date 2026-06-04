@@ -30,6 +30,15 @@ export const envSchema = z.object({
   // RS256 keypair backing the JWKS endpoint (rtc-server verifies against it later).
   RTC_PRIVATE_KEY_PATH: z.string().default("./.keys/rtc-private.pem"),
   RTC_PUBLIC_KEY_PATH: z.string().default("./.keys/rtc-public.pem"),
+
+  // RTC access tokens the backend mints (RS256, verified by the rtc-server via JWKS).
+  RTC_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(3600),
+  RTC_TOKEN_ISS: z.string().default("toddlecompose-backend"),
+  RTC_TOKEN_AUD: z.string().default("rtc-server"),
+
+  // Internal HTTP channel to the rtc-server (shared-secret authed).
+  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
+  INTERNAL_TOKEN: z.string().min(1).default("dev-internal-secret-change-me"),
 });
 
 export type Env = z.infer<typeof envSchema>;

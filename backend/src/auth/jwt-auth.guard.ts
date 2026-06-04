@@ -22,6 +22,7 @@ export class JwtAuthGuard implements CanActivate {
     }
     const token = header.slice(7);
     let sub: string;
+    let activeWorkspaceId: string | null = null;
     try {
       const payload = await this.jwt.verifyAsync(token);
       // Reject refresh-type or otherwise non-access tokens used as a bearer.
@@ -29,6 +30,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException("not an access token");
       }
       sub = payload.sub;
+      activeWorkspaceId = payload.activeWorkspaceId ?? null;
     } catch {
       throw new UnauthorizedException("invalid token");
     }
@@ -39,6 +41,7 @@ export class JwtAuthGuard implements CanActivate {
       email: user.email,
       name: user.name,
       color: user.color,
+      activeWorkspaceId,
     };
     return true;
   }

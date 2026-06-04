@@ -11,7 +11,11 @@ Conventions:
 - `POST` success → HTTP **201**; `GET` → **200**.
 - CORS is restricted to the `CORS_ORIGINS` allowlist (no wildcard).
 
-> **Realm/workspaces:** not exposed. Realms are created **internally** (no public API) for now; workspace/RBAC endpoints come in the later RBAC phase (`docs/realm-workspace-rbac.md`).
+> **Realm/workspaces:** this backend instance is pinned to ONE realm via the `REALM_ID` env
+> var; it refuses to boot if no realm row matches (run `pnpm db:seed`, which provisions the realm
+> + a static `OWNER`). Realm + workspace RBAC endpoints are documented below. Roles are resolved
+> per-request server-side (never trusted from the JWT). See `docs/realm-workspace-rbac.md` for the
+> broader design and `docs/realm-workspace-ui-brief.md` for the UI.
 
 ---
 
@@ -67,6 +71,71 @@ Public (the refresh token itself is the credential).
 ### GET `/api/auth/me` — current user
 **Guarded** (`Authorization: Bearer <accessToken>`).
 `200` → `{ "user": { "id", "email", "name", "color" } }`. Errors: `401` missing / non-Bearer / invalid / expired / non-access token, or user no longer exists.
+
+---
+
+## Realm / Workspace RBAC
+
+Roles. **Realm:** `OWNER` > `MAINTAINER` > `MEMBER`. **Workspace (cumulative):** `READ` < `COMMENT`
+< `EDIT` < `ADMIN`. Realm `OWNER`/`MAINTAINER` act as workspace `ADMIN` on every workspace (overlay).
+All routes below are **guarded** (`Authorization: Bearer <accessToken>`). Roles are resolved
+per-request from the DB — never read from the JWT.
+
+### Workspace session (enter / leave)
+The access token from login is identity-only. To act inside a workspace, "enter" it to get a token
+scoped to that workspace; "leave" to drop back to the realm-wide view (realm admins then see all).
+
+- `POST /api/auth/workspace/enter` — `{ workspaceId }` → `{ accessToken, expiresIn, workspaceId, role }`.
+  `403` if you have no access to the workspace · `404` if it isn't in this realm.
+- `POST /api/auth/workspace/leave` — → `{ accessToken, expiresIn, workspaceId: null }`.
+
+### Realm
+- `GET /api/realm` → `{ id, name, role }` (`role` is your realm role, or `null` if not a member).
+- `GET /api/realm/users` → `[{ user, role, createdAt }]`. Requires realm `MEMBER`+. `?skip&?take`.
+- `POST /api/realm/users` — `{ email, role: "MAINTAINER" | "MEMBER" }` → add an existing user.
+  `MAINTAINER`+ required; granting `MAINTAINER` is **owner-only**. `OWNER` is not assignable.
+  `404` unknown email · `409` already a member · `400` invalid role (incl. `OWNER`).
+- `PATCH /api/realm/users/:userId` — `{ role }` → change role (owner-only for anything touching a
+  `MAINTAINER`). Cannot target/produce `OWNER`.
+- `DELETE /api/realm/users/:userId` — remove from realm. Cannot remove the `OWNER`.
+
+### Workspaces
+Each workspace has a `visibility` (`PUBLIC` → anyone in the realm self-joins as `defaultRole`;
+`PRIVATE` → request + approval) and a `defaultRole` (default `READ`).
+
+- `GET /api/workspaces` → realm admins see all; members see their own. `[]` when none. `?skip&?take`.
+- `POST /api/workspaces` — `{ name, visibility?, defaultRole? }` → create (realm `MAINTAINER`+);
+  creator becomes workspace `ADMIN`. `visibility` defaults to `PRIVATE`.
+- `GET /api/workspaces/discoverable` → `PUBLIC` workspaces in the realm you can join (not already a
+  member): `[{ id, name, visibility, defaultRole }]`. `?skip&?take`.
+- `GET /api/workspaces/:id` → `{ ...workspace, role }`. Requires effective `READ`+ (`403` if no access,
+  `404` if not in this realm).
+- `PATCH /api/workspaces/:id` — `{ name?, visibility?, defaultRole? }` → requires workspace `ADMIN`.
+- `DELETE /api/workspaces/:id` — requires workspace `ADMIN`.
+
+### Joining workspaces
+Realm admins (`OWNER`/`MAINTAINER`) are the approvers (they act as workspace `ADMIN` everywhere).
+
+- `POST /api/workspaces/:id/join` — self-join a `PUBLIC` workspace as its `defaultRole`. `403` if the
+  workspace is `PRIVATE` (request instead) · `409` if already a member. Side effect: ensures realm `MEMBER`.
+- `POST /api/workspaces/:id/requests` — `{ requestedRole? }` → request to join a `PRIVATE` workspace
+  (`PENDING`). `400` if the workspace is `PUBLIC` (join directly) · `409` if already a member or a request
+  is already pending.
+- `GET /api/workspaces/join-requests?state=PENDING&workspaceId=…` — **realm-wide inbox**: realm admins see
+  every request in the realm (workspace admins see requests for the workspaces they administer). Optional
+  `workspaceId` narrows to one workspace; `state` defaults to `PENDING`.
+- `GET /api/workspaces/:id/requests?state=PENDING` — one workspace's requests. Requires `ADMIN`.
+- `POST /api/workspaces/:id/requests/:requestId/approve` — `{ role? }` → adds the member (role defaults to
+  the requested role) and marks the request `APPROVED`. Requires `ADMIN`. `409` if already decided.
+- `POST /api/workspaces/:id/requests/:requestId/reject` — marks the request `REJECTED`. Requires `ADMIN`.
+
+### Workspace members
+- `GET /api/workspaces/:id/users` → `[{ user, role }]`. Requires `READ`+.
+- `POST /api/workspaces/:id/users` — `{ email, role: READ|COMMENT|EDIT|ADMIN }` → add an existing user
+  (requires `ADMIN`). Side effect: the user is ensured to be at least a realm `MEMBER`. `404` unknown
+  email · `409` already a member.
+- `PATCH /api/workspaces/:id/users/:userId` — `{ role }` → requires `ADMIN`.
+- `DELETE /api/workspaces/:id/users/:userId` — requires `ADMIN`; refuses to remove the **last** `ADMIN` (`409`).
 
 ---
 

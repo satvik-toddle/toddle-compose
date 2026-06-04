@@ -4,6 +4,8 @@ import { validateEnv } from "./config/env";
 import { PrismaModule } from "./prisma/prisma.module";
 import { KeysModule } from "./keys/keys.module";
 import { AuthModule } from "./auth/auth.module";
+import { RealmModule } from "./realm/realm.module";
+import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -16,6 +18,8 @@ import { HealthController } from "./health.controller";
     PrismaModule,
     KeysModule,
     AuthModule,
+    RealmModule,
+    WorkspacesModule,
   ],
   controllers: [HealthController],
 })

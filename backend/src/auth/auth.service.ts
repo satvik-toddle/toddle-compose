@@ -104,14 +104,32 @@ export class AuthService {
     return { ok: true };
   }
 
-  private async issueTokens(user: DbUser): Promise<TokenPair> {
+  /**
+   * Mint a standalone access JWT. `activeWorkspaceId` scopes the session to one
+   * workspace (set on workspace "enter", cleared on "leave"). Roles are never put
+   * in the token — they are resolved per request by AuthzService.
+   */
+  async mintAccessToken(
+    user: { id: string; email: string },
+    opts?: { activeWorkspaceId?: string | null }
+  ): Promise<{ accessToken: string; expiresIn: number }> {
     const accessTtl = this.config.get("ACCESS_TOKEN_TTL_SEC", { infer: true });
+    const payload: Record<string, unknown> = {
+      sub: user.id,
+      email: user.email,
+      type: "access",
+    };
+    if (opts?.activeWorkspaceId) payload.activeWorkspaceId = opts.activeWorkspaceId;
+    const accessToken = await this.jwt.signAsync(payload, {
+      expiresIn: `${accessTtl}s`,
+    });
+    return { accessToken, expiresIn: accessTtl };
+  }
+
+  private async issueTokens(user: DbUser): Promise<TokenPair> {
     const refreshTtl = this.config.get("REFRESH_TOKEN_TTL_SEC", { infer: true });
 
-    const accessToken = await this.jwt.signAsync(
-      { sub: user.id, email: user.email, type: "access" },
-      { expiresIn: `${accessTtl}s` }
-    );
+    const { accessToken, expiresIn } = await this.mintAccessToken(user);
 
     const refreshToken = randomBytes(32).toString("base64url");
     await this.prisma.refreshToken.create({
@@ -125,7 +143,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: accessTtl,
+      expiresIn,
       user: this.sanitize(user),
     };
   }
@@ -140,6 +158,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       color: user.color,
+      activeWorkspaceId: null,
     };
   }
 }

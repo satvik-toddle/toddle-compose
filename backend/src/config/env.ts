@@ -8,6 +8,11 @@ import { z } from "zod";
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
+  // The single realm this backend instance is pinned to. Every realm/workspace
+  // operation scopes to it; the backend refuses to boot if no realm row matches
+  // (run the seed to create it). See packages/database/prisma/seed.ts.
+  REALM_ID: z.string().min(1, "REALM_ID is required"),
+
   // Signs access JWTs (HS256). Required; must be long/high-entropy. No default.
   JWT_USER_SECRET: z
     .string()

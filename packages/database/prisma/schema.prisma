@@ -13,6 +13,100 @@ enum Visibility {
   PUBLIC
 }
 
+// Realm hierarchy (cumulative): OWNER > MAINTAINER > MEMBER.
+// OWNER is the seeded static realm owner; MAINTAINER can create workspaces and
+// run all realm/workspace operations; MEMBER belongs to the realm only.
+enum RealmRole {
+  OWNER
+  MAINTAINER
+  MEMBER
+}
+
+// Per-workspace role (cumulative): READ < COMMENT < EDIT < ADMIN.
+// ADMIN can manage workspace members and create/edit pages.
+enum WorkspaceRole {
+  READ
+  COMMENT
+  EDIT
+  ADMIN
+}
+
+// Lifecycle of a request to join a PRIVATE workspace.
+enum JoinRequestState {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Realm {
+  id         String        @id @default(cuid())
+  name       String
+  createdAt  DateTime      @default(now()) @map("created_at")
+  members    RealmMember[]
+  workspaces Workspace[]
+
+  @@map("realms")
+}
+
+model RealmMember {
+  realmId   String    @map("realm_id")
+  realm     Realm     @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      RealmRole @default(MEMBER)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@id([realmId, userId])
+  @@index([userId])
+  @@map("realm_members")
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  realmId   String            @map("realm_id")
+  realm     Realm             @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  name      String
+  // PUBLIC → anyone in the realm self-joins as `defaultRole`; PRIVATE → request + approval.
+  visibility  Visibility    @default(PRIVATE)
+  defaultRole WorkspaceRole @default(READ) @map("default_role")
+  createdAt DateTime          @default(now()) @map("created_at")
+  members      WorkspaceMember[]
+  joinRequests JoinRequest[]
+
+  @@index([realmId])
+  @@map("workspaces")
+}
+
+model JoinRequest {
+  id            String           @id @default(cuid())
+  workspaceId   String           @map("workspace_id")
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId        String           @map("user_id")
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state         JoinRequestState @default(PENDING)
+  requestedRole WorkspaceRole    @default(READ) @map("requested_role")
+  decidedById   String?          @map("decided_by_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  decidedAt     DateTime?        @map("decided_at")
+
+  @@index([workspaceId, state])
+  @@index([userId])
+  @@map("join_requests")
+}
+
+model WorkspaceMember {
+  workspaceId String        @map("workspace_id")
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(READ)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -23,6 +117,9 @@ model User {
   documents     Document[]
   folders       Folder[]
   refreshTokens RefreshToken[]
+  realmMemberships     RealmMember[]
+  workspaceMemberships WorkspaceMember[]
+  joinRequests         JoinRequest[]
 
   @@map("users")
 }

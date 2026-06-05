@@ -4,6 +4,62 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Toddle Compose</title>
+    <style>
+      /* Notion-ish: near-monochrome, soft grays, generous spacing, subtle hovers */
+      :root {
+        --txt: #37352f; --muted: #787774; --line: #e9e9e7; --hover: #f1f1ef;
+        --surface: #fbfbfa; --accent: #2f3437; --danger: #c0392b;
+      }
+      body { margin: 0; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--txt); background: #fff; }
+      * { box-sizing: border-box; }
+      h1 { font-size: 19px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+      h2 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--txt); }
+      table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+      th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: middle; }
+      th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: none; }
+      tbody tr { transition: background .1s; }
+      tbody tr:hover { background: var(--hover); }
+      button { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer; color: var(--txt); transition: background .1s, border-color .1s, box-shadow .1s; }
+      button:hover:not(:disabled) { background: var(--hover); }
+      button:active:not(:disabled) { background: #e9e9e7; }
+      button:disabled { opacity: .45; cursor: default; }
+      button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+      button.primary:hover:not(:disabled) { background: #1f2327; }
+      button.danger { color: var(--danger); border-color: var(--line); }
+      button.danger:hover:not(:disabled) { background: #fdf0ee; border-color: #f0c2bd; }
+      input, select { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--txt); transition: border-color .1s, box-shadow .1s; }
+      input:hover, select:hover { border-color: #d3d3d0; }
+      input:focus, select:focus { outline: none; border-color: #b9b9b6; box-shadow: 0 0 0 3px rgba(55,53,47,.08); }
+      input::placeholder { color: #b9b9b6; }
+      label { font-size: 13px; color: var(--muted); }
+      a { color: #337ea9; cursor: pointer; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .muted { color: var(--muted); }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--hover); color: var(--muted); }
+      /* headings — scoped so the editor's own h1/h2 keep their DS styling */
+      .ah1 { font-size: 20px; font-weight: 600; line-height: 1.3; margin: 0; letter-spacing: -.01em; color: var(--txt); }
+      .ah2 { font-size: 14px; font-weight: 600; line-height: 1.4; margin: 0 0 10px; color: var(--txt); }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+      /* full-screen auth / request-access (no sidebar) */
+      .auth-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 14px; background: #fff; }
+      .card { width: 100%; max-width: 380px; border: 1px solid var(--line); border-radius: 12px; padding: 28px 28px 26px; background: #fff; box-shadow: 0 1px 2px rgba(15,15,15,.04), 0 10px 30px rgba(15,15,15,.05); }
+      .card.wide { max-width: 600px; }
+      .brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+      .brand span { color: var(--muted); }
+      .foot { font-size: 12px; color: var(--muted); }
+      /* request-access list rows */
+      .ws-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+      .ws-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); transition: background .1s; }
+      .ws-row:last-child { border-bottom: 0; }
+      .ws-row:hover { background: var(--hover); }
+      .ws-emoji { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; background: var(--hover); flex-shrink: 0; }
+      .ws-meta { flex: 1; min-width: 0; }
+      .ws-meta .nm { font-weight: 500; }
+      .badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+      .badge.pub { background: #e7f5ef; color: #137a52; }
+      .badge.priv { background: var(--hover); color: var(--muted); }
+    </style>
   </head>
   <body>
     <div id="root"></div>

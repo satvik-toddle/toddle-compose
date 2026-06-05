@@ -136,12 +136,16 @@ export class WorkspacesService {
 
   // ----------------------------------------------------------- join lifecycle
 
-  /** PUBLIC workspaces in the realm the caller can self-join (not already a member). */
+  /**
+   * Discoverable workspaces in the realm the caller isn't already in.
+   * `discoverable` and `visibility` are independent axes: a PRIVATE workspace
+   * can still be listed (metadata only) so a user can REQUEST access to it;
+   * PUBLIC ones can be self-joined. Contents stay hidden until membership.
+   */
   async discoverable(userId: string, skip = 0, take = 50) {
     return this.prisma.workspace.findMany({
       where: {
         realmId: this.realm.id,
-        visibility: "PUBLIC",
         members: { none: { userId } },
       },
       select: { id: true, name: true, visibility: true, defaultRole: true },

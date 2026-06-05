@@ -9,6 +9,7 @@ import { RealmModule } from "./realm/realm.module";
 import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { FoldersModule } from "./folders/folders.module";
 import { DocumentsModule } from "./documents/documents.module";
+import { StorageModule } from "./storage/storage.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -26,6 +27,7 @@ import { HealthController } from "./health.controller";
     WorkspacesModule,
     FoldersModule,
     DocumentsModule,
+    StorageModule,
   ],
   controllers: [HealthController],
 })

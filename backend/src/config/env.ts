@@ -39,6 +39,32 @@ export const envSchema = z.object({
   // Internal HTTP channel to the rtc-server (shared-secret authed).
   RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
   INTERNAL_TOKEN: z.string().min(1).default("dev-internal-secret-change-me"),
+
+  // --- Object storage ---------------------------------------------------------
+  // Public origin of THIS backend; used to build absolute URLs for stored objects
+  // served by the local driver (e.g. <BACKEND_PUBLIC_URL>/api/uploads/<key>).
+  BACKEND_PUBLIC_URL: z.string().url().default("http://localhost:4000"),
+  // Which ObjectStorage provider to use. `local` = filesystem (dev default);
+  // `s3` = S3-compatible (AWS S3 / MinIO / Cloudflare R2). Swappable with no
+  // consumer code changes — see backend/src/storage.
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  // Local driver: directory uploaded files are written to (gitignored).
+  STORAGE_DIR: z.string().default("./.storage"),
+  // Max accepted upload size, in megabytes (both drivers).
+  STORAGE_MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
+
+  // S3 driver settings — only consulted when STORAGE_DRIVER=s3. Left optional so
+  // the app boots on the local driver without them; the S3 provider validates
+  // what it needs at init and tells you exactly what's missing.
+  STORAGE_S3_BUCKET: z.string().optional(),
+  STORAGE_S3_REGION: z.string().optional(),
+  STORAGE_S3_ENDPOINT: z.string().optional(), // custom endpoint for MinIO / R2
+  STORAGE_S3_ACCESS_KEY_ID: z.string().optional(),
+  STORAGE_S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // If the bucket is fronted by a public/CDN base URL, objects link there;
+  // otherwise the provider returns time-limited pre-signed GET URLs.
+  STORAGE_S3_PUBLIC_URL: z.string().optional(),
+  STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
 });
 
 export type Env = z.infer<typeof envSchema>;

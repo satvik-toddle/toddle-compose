@@ -10,6 +10,10 @@ import '@toddle-edu/ds-web/dist/assets/main.css';
 // Import the editor stylesheet by its real path (the package's exports map
 // doesn't expose ./dist/main.css and resets across editor-repo branch switches).
 import '/Users/apple/Documents/doc-editor/packages/doc-editor/dist/main.css';
+// Toddle DS tokens + the RBAC / workspace-management surface styles (scoped to
+// `.rbac`, so they don't collide with the editor's own type rules).
+import './ds-tokens.css';
+import './rbac.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element #root not found');

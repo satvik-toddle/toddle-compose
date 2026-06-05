@@ -1,0 +1,445 @@
+### Toddle Compose backend — full API test suite
+#
+# How to run:
+#   - JetBrains IDEs (WebStorm/IntelliJ): open this file, pick the "dev" env in the
+#     top-right dropdown, then click the green ▶ gutter icon per request.
+#   - VS Code: install the "REST Client" extension and click "Send Request".
+#
+# Prereqs:
+#   1. Postgres up + schema applied + seed run (demo users incl. owner@toddle.test):
+#        export $(grep -E '^(DATABASE_URL|REALM_ID)=' .env | xargs)
+#        pnpm --filter @app/database exec prisma db push
+#        pnpm --filter @app/database exec tsx prisma/seed.ts
+#   2. Backend running:  pnpm --filter backend dev   (:4000, app routes under /api)
+#
+# Demo users (all password "password123"): owner@toddle.test (realm OWNER),
+# alice/bob/carol/dave/...@toddle.test (plain users until added to a realm/workspace).
+#
+# Run top-to-bottom: tokens + ids are captured into client globals via the
+# `> {% ... %}` response handlers, so requests chain automatically.
+
+# =============================================================================
+# 0. HEALTH & WELL-KNOWN  (no auth; not under /api)
+# =============================================================================
+
+### Liveness
+GET http://localhost:4000/health
+
+### RTC JWKS public keys (consumed by the rtc-server to verify tokens)
+GET http://localhost:4000/.well-known/rtc-jwks.json
+
+# =============================================================================
+# 1. AUTH  (/api/auth)
+# =============================================================================
+
+### Register a brand-new user (idempotent only by email — 409 if it already exists)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "email": "tester@toddle.test", "password": "password123", "name": "Tester" }
+
+### Login as the realm owner → capture access + refresh tokens
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{ownerEmail}}", "password": "{{ownerPassword}}" }
+
+> {%
+  client.global.set("ownerToken", response.body.accessToken);
+  client.global.set("refreshToken", response.body.refreshToken);
+  client.test("got owner token", () => client.assert(response.body.accessToken));
+%}
+
+### Who am I (verifies the bearer token)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{ownerToken}}
+
+### Refresh → rotate tokens (capture the new pair)
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refreshToken}}" }
+
+> {%
+  if (response.body.accessToken) client.global.set("ownerToken", response.body.accessToken);
+  if (response.body.refreshToken) client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### Logout (revokes the refresh token) — run last if you want the session to persist
+# POST {{baseUrl}}/auth/logout
+# Content-Type: application/json
+#
+# { "refreshToken": "{{refreshToken}}" }
+
+# =============================================================================
+# 2. REALM  (/api/realm)  — realm-level membership management
+# =============================================================================
+
+### Realm info (name + caller's realm role)
+GET {{baseUrl}}/realm
+Authorization: Bearer {{ownerToken}}
+
+### List realm users (OWNER/MAINTAINER)
+GET {{baseUrl}}/realm/users?skip=0&take=50
+Authorization: Bearer {{ownerToken}}
+
+### Add a realm user (role: MAINTAINER | MEMBER) → capture their userId
+# @name addRealmUser
+POST {{baseUrl}}/realm/users
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "email": "carol@toddle.test", "role": "MAINTAINER" }
+
+> {% if (response.body.userId) client.global.set("carolId", response.body.userId); %}
+
+### Change a realm user's role
+PATCH {{baseUrl}}/realm/users/{{carolId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "role": "MEMBER" }
+
+### Remove a realm user
+DELETE {{baseUrl}}/realm/users/{{carolId}}
+Authorization: Bearer {{ownerToken}}
+
+# =============================================================================
+# 3. WORKSPACES  (/api/workspaces)
+# =============================================================================
+
+### List workspaces I can see (realm admins → all; others → their memberships).
+### Captures the first one's id into {{workspaceId}}.
+# @name listWorkspaces
+GET {{baseUrl}}/workspaces
+Authorization: Bearer {{ownerToken}}
+
+> {% if (response.body.length > 0) client.global.set("workspaceId", response.body[0].id); %}
+
+### Paginated variant
+GET {{baseUrl}}/workspaces?skip=0&take=50
+Authorization: Bearer {{ownerToken}}
+
+### PUBLIC workspaces in the realm I could join (not already a member)
+GET {{baseUrl}}/workspaces/discoverable
+Authorization: Bearer {{ownerToken}}
+
+### Realm-wide join-request inbox (realm admins see all; ws admins see theirs)
+GET {{baseUrl}}/workspaces/join-requests?state=PENDING
+Authorization: Bearer {{ownerToken}}
+
+### Create a workspace (realm OWNER/MAINTAINER only) → capture its id.
+# Creator becomes workspace ADMIN.
+# @name createWs
+POST {{baseUrl}}/workspaces
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "name": "Engineering", "visibility": "PRIVATE", "defaultRole": "READ" }
+
+> {% client.global.set("workspaceId", response.body.id); %}
+
+### Get one workspace (caller's role included)
+GET {{baseUrl}}/workspaces/{{workspaceId}}
+Authorization: Bearer {{ownerToken}}
+
+### Update name / visibility / defaultRole (workspace ADMIN)
+PATCH {{baseUrl}}/workspaces/{{workspaceId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "name": "Engineering (renamed)", "visibility": "PRIVATE", "defaultRole": "READ" }
+
+### ---- workspace membership ----
+
+### List workspace members
+GET {{baseUrl}}/workspaces/{{workspaceId}}/users
+Authorization: Bearer {{ownerToken}}
+
+### Add a member by email (role: READ | COMMENT | EDIT | ADMIN) → capture userId
+# @name addWsUser
+POST {{baseUrl}}/workspaces/{{workspaceId}}/users
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "email": "{{aliceEmail}}", "role": "READ" }
+
+> {% if (response.body.userId) client.global.set("aliceUserId", response.body.userId); %}
+
+### Change a member's role
+PATCH {{baseUrl}}/workspaces/{{workspaceId}}/users/{{aliceUserId}}
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "role": "EDIT" }
+
+### Remove a member (run later — keep Alice for the visibility tests below)
+# DELETE {{baseUrl}}/workspaces/{{workspaceId}}/users/{{aliceUserId}}
+# Authorization: Bearer {{ownerToken}}
+
+### ---- join lifecycle (self-join PUBLIC, or request/approve PRIVATE) ----
+
+### Self-join a PUBLIC workspace (errors here since Engineering is PRIVATE — see request flow)
+# POST {{baseUrl}}/workspaces/{{workspaceId}}/join
+# Authorization: Bearer {{bobToken}}
+
+### Bob requests to join the PRIVATE workspace → capture the request id
+# (run after the "Bob logs in" request further down, which sets {{bobToken}})
+# @name requestJoin
+POST {{baseUrl}}/workspaces/{{workspaceId}}/requests
+Authorization: Bearer {{bobToken}}
+Content-Type: application/json
+
+{ "requestedRole": "READ" }
+
+> {% if (response.body.id) client.global.set("joinRequestId", response.body.id); %}
+
+### List a workspace's join requests (ADMIN)
+GET {{baseUrl}}/workspaces/{{workspaceId}}/requests?state=PENDING
+Authorization: Bearer {{ownerToken}}
+
+### Approve a pending request (optional role override) → adds the member
+POST {{baseUrl}}/workspaces/{{workspaceId}}/requests/{{joinRequestId}}/approve
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "role": "READ" }
+
+### Reject a pending request (use a different request id)
+# POST {{baseUrl}}/workspaces/{{workspaceId}}/requests/{{joinRequestId}}/reject
+# Authorization: Bearer {{ownerToken}}
+
+### Delete a workspace (ADMIN) — destructive; cascades members/folders/docs
+# DELETE {{baseUrl}}/workspaces/{{workspaceId}}
+# Authorization: Bearer {{ownerToken}}
+
+# =============================================================================
+# 4. WORKSPACE SESSION  (/api/auth/workspace)  — "enter/leave" a workspace
+# =============================================================================
+
+### Enter the workspace → access token with activeWorkspaceId baked in
+# @name enterWs
+POST {{baseUrl}}/auth/workspace/enter
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "workspaceId": "{{workspaceId}}" }
+
+> {%
+  client.global.set("wsToken", response.body.accessToken);
+  client.test("entered workspace", () => client.assert(response.body.workspaceId));
+%}
+
+### Leave the active workspace → identity-scoped token (realm admins fall back to realm-wide)
+POST {{baseUrl}}/auth/workspace/leave
+Authorization: Bearer {{wsToken}}
+
+### Edge: listing folders with an identity token (no active workspace) → 400
+GET {{baseUrl}}/folders
+Authorization: Bearer {{ownerToken}}
+
+# =============================================================================
+# 5. FOLDERS  (/api/folders)  — workspace-scoped
+# =============================================================================
+
+### Create a top-level folder in the active workspace → capture its id
+# @name createFolder
+POST {{baseUrl}}/folders
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "name": "Project Docs", "icon": "📂" }
+
+> {%
+  client.global.set("folderId", response.body.id);
+  client.test("folder in workspace", () => client.assert(response.body.workspaceId));
+%}
+
+### Create a child folder → capture its id
+# @name createChildFolder
+POST {{baseUrl}}/folders
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "name": "Specs", "parentId": "{{folderId}}" }
+
+> {% client.global.set("childFolderId", response.body.id); %}
+
+### List folders in the active workspace (flat; build the tree via parentId)
+GET {{baseUrl}}/folders
+Authorization: Bearer {{wsToken}}
+
+### List folders in a specific workspace (realm admins can pass any id without entering)
+GET {{baseUrl}}/folders?workspaceId={{workspaceId}}&skip=0&take=100
+Authorization: Bearer {{ownerToken}}
+
+### Get one folder
+GET {{baseUrl}}/folders/{{folderId}}
+Authorization: Bearer {{wsToken}}
+
+### Rename / change icon
+PATCH {{baseUrl}}/folders/{{folderId}}
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "name": "Project Docs (renamed)", "icon": "🗂️" }
+
+### Move child to top level, then back under the parent
+PATCH {{baseUrl}}/folders/{{childFolderId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "parentId": null }
+
+###
+PATCH {{baseUrl}}/folders/{{childFolderId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "parentId": "{{folderId}}" }
+
+### Cycle guard — moving a parent into its own child must 400
+PATCH {{baseUrl}}/folders/{{folderId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "parentId": "{{childFolderId}}" }
+
+### Delete a folder (creator or ADMIN) — run in cleanup
+# DELETE {{baseUrl}}/folders/{{folderId}}
+# Authorization: Bearer {{wsToken}}
+
+# =============================================================================
+# 6. DOCUMENTS  (/api/documents)  — workspace-scoped
+# =============================================================================
+
+### Create a document inside the folder → capture its id (PRIVATE by default)
+# @name createDoc
+POST {{baseUrl}}/documents
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "title": "Design Notes", "icon": "📝", "folderId": "{{folderId}}" }
+
+> {%
+  client.global.set("docId", response.body.id);
+  client.test("doc private by default", () => client.assert(response.body.visibility === "PRIVATE"));
+%}
+
+### List documents in the active workspace (newest first)
+GET {{baseUrl}}/documents
+Authorization: Bearer {{wsToken}}
+
+### List documents in a specific folder
+GET {{baseUrl}}/documents?folderId={{folderId}}
+Authorization: Bearer {{wsToken}}
+
+### List documents in a specific workspace
+GET {{baseUrl}}/documents?workspaceId={{workspaceId}}
+Authorization: Bearer {{ownerToken}}
+
+### Get one document
+GET {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{wsToken}}
+
+### Rename a document
+PATCH {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "title": "Design Notes v2" }
+
+### Move a document to the root, then back into the folder
+PATCH {{baseUrl}}/documents/{{docId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "folderId": null }
+
+###
+PATCH {{baseUrl}}/documents/{{docId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "folderId": "{{folderId}}" }
+
+### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member
+PATCH {{baseUrl}}/documents/{{docId}}/visibility
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "visibility": "PUBLIC" }
+
+### Delete a document (creator or ADMIN) — run in cleanup
+# DELETE {{baseUrl}}/documents/{{docId}}
+# Authorization: Bearer {{wsToken}}
+
+# =============================================================================
+# 7. AUTHORIZATION CHECKS  (cross-user visibility)
+# =============================================================================
+
+### Alice logs in → identity token
+# @name loginAlice
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{aliceEmail}}", "password": "{{alicePassword}}" }
+
+> {% client.global.set("aliceToken", response.body.accessToken); %}
+
+### Alice enters the same workspace → her workspace-scoped token
+POST {{baseUrl}}/auth/workspace/enter
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{ "workspaceId": "{{workspaceId}}" }
+
+> {% client.global.set("aliceWsToken", response.body.accessToken); %}
+
+### Alice (a member) SEES the owner's folders + documents (expect 200)
+GET {{baseUrl}}/folders
+Authorization: Bearer {{aliceWsToken}}
+
+###
+GET {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{aliceWsToken}}
+
+### Bob logs in (neither workspace member nor realm admin)
+# @name loginBob
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "bob@toddle.test", "password": "{{ownerPassword}}" }
+
+> {% client.global.set("bobToken", response.body.accessToken); %}
+
+### Bob cannot enter the private workspace (expect 403)
+POST {{baseUrl}}/auth/workspace/enter
+Authorization: Bearer {{bobToken}}
+Content-Type: application/json
+
+{ "workspaceId": "{{workspaceId}}" }
+
+### Bob cannot list its folders even with an explicit workspaceId (expect 403)
+GET {{baseUrl}}/folders?workspaceId={{workspaceId}}
+Authorization: Bearer {{bobToken}}
+
+### Missing token (expect 401)
+GET {{baseUrl}}/documents?workspaceId={{workspaceId}}
+
+# =============================================================================
+# 8. CLEANUP
+# =============================================================================
+
+### Delete the document
+DELETE {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{wsToken}}
+
+### Delete the folder (children cascade; remaining docs detach to root)
+DELETE {{baseUrl}}/folders/{{folderId}}
+Authorization: Bearer {{wsToken}}
+
+### Delete the workspace (cascades members/folders/docs)
+DELETE {{baseUrl}}/workspaces/{{workspaceId}}
+Authorization: Bearer {{ownerToken}}

@@ -1,0 +1,43 @@
+// RTC persistence database — kept SEPARATE from the app database because the
+// update log is write-heavy (one row per debounced edit) and should not contend
+// with transactional auth/workspace queries. No FK to the app's Document model
+// exists here (cross-database FKs aren't possible); `RtcDocument.id` simply holds
+// the Document id minted by the backend. Cleanup of orphans is the backend's job
+// (internal delete API / reconciliation), not a cascade.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("RTC_DATABASE_URL")
+}
+
+model RtcDocument {
+  id            String  @id
+  yjsState      Bytes?  @map("yjs_state")
+  lexicalJson   String? @map("lexical_json")
+  plainText     String? @map("plain_text")
+  version       Int     @default(0)
+  updatedAt     BigInt  @map("updated_at")
+  snapshotAtSeq Int     @default(0) @map("snapshot_at_seq")
+
+  @@map("rtc_documents")
+}
+
+model RtcDocumentUpdate {
+  id         BigInt  @id @default(autoincrement())
+  docId      String  @map("doc_id")
+  seq        Int
+  updateBlob Bytes   @map("update_blob")
+  byteLen    Int     @map("byte_len")
+  origin     String?
+  clientSub  String? @map("client_sub")
+  createdAt  BigInt  @map("created_at")
+
+  @@unique([docId, seq])
+  @@index([docId, seq])
+  @@map("rtc_document_updates")
+}

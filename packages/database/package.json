@@ -9,6 +9,7 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "reset": "prisma migrate reset --force",
+    "init": "tsx prisma/init.ts",
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "build": "prisma generate"

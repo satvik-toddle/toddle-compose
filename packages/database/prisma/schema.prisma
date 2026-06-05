@@ -72,6 +72,8 @@ model Workspace {
   createdAt DateTime          @default(now()) @map("created_at")
   members      WorkspaceMember[]
   joinRequests JoinRequest[]
+  folders      Folder[]
+  documents    Document[]
 
   @@index([realmId])
   @@map("workspaces")
@@ -138,67 +140,55 @@ model RefreshToken {
 }
 
 model Folder {
-  id         String     @id @default(cuid())
-  name       String
-  icon       String     @default("📁")
-  isPersonal Boolean    @default(false) @map("is_personal")
-  ownerId    String     @map("owner_id")
-  owner      User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  parentId   String?    @map("parent_id")
-  parent     Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children   Folder[]   @relation("FolderTree")
-  documents  Document[]
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id          String    @id @default(cuid())
+  name        String
+  icon        String    @default("📁")
+  isPersonal  Boolean   @default(false) @map("is_personal")
+  // Owning workspace — read access is granted to anyone with READ on it
+  // (workspace members + the realm OWNER/MAINTAINER → ADMIN overlay).
+  workspaceId String    @map("workspace_id")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Creator of the folder; used for owner-level write rules.
+  ownerId     String     @map("owner_id")
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parentId    String?    @map("parent_id")
+  parent      Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]   @relation("FolderTree")
+  documents   Document[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  // Soft delete: set on delete, hidden from all reads, hard-purged after ~30 days.
+  deletedAt   DateTime?  @map("deleted_at")
 
   @@index([ownerId])
   @@index([parentId])
+  @@index([workspaceId])
+  @@index([deletedAt])
   @@map("folders")
 }
 
 model Document {
-  id         String       @id @default(cuid())
-  title      String       @default("Untitled")
-  icon       String       @default("📄")
-  ownerId    String       @map("owner_id")
-  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  folderId   String?      @map("folder_id")
-  folder     Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  visibility Visibility   @default(PRIVATE)
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
-  rtc        RtcDocument?
+  id          String     @id @default(cuid())
+  title       String     @default("Untitled")
+  icon        String     @default("📄")
+  // Owning workspace — read access follows workspace READ (members + realm overlay).
+  workspaceId String     @map("workspace_id")
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Creator; used for owner-level write rules.
+  ownerId     String       @map("owner_id")
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folderId    String?      @map("folder_id")
+  folder      Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  // PUBLIC additionally exposes the doc to any realm member, across workspaces.
+  visibility  Visibility   @default(PRIVATE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  // Collaborative content (yjsState / update log) lives in the SEPARATE
+  // @app/rtc-database, keyed by this id. No FK relation here by design.
 
   @@index([ownerId])
   @@index([visibility])
   @@index([folderId])
+  @@index([workspaceId])
   @@map("documents")
-}
-
-model RtcDocument {
-  id            String   @id
-  document      Document @relation(fields: [id], references: [id], onDelete: Cascade)
-  yjsState      Bytes?   @map("yjs_state")
-  lexicalJson   String?  @map("lexical_json")
-  plainText     String?  @map("plain_text")
-  version       Int      @default(0)
-  updatedAt     BigInt   @map("updated_at")
-  snapshotAtSeq Int      @default(0) @map("snapshot_at_seq")
-
-  @@map("rtc_documents")
-}
-
-model RtcDocumentUpdate {
-  id         BigInt  @id @default(autoincrement())
-  docId      String  @map("doc_id")
-  seq        Int
-  updateBlob Bytes   @map("update_blob")
-  byteLen    Int     @map("byte_len")
-  origin     String?
-  clientSub  String? @map("client_sub")
-  createdAt  BigInt  @map("created_at")
-
-  @@unique([docId, seq])
-  @@index([docId, seq])
-  @@map("rtc_document_updates")
 }

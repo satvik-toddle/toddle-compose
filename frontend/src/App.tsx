@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api, asRows, getToken, setToken, type ApiError } from './api';
 import { DocView } from './DocView';
 
@@ -16,12 +17,12 @@ type Log = { ok: boolean; label: string; status?: number; data: any } | null;
    5 Inside a workspace (Members / Requests / switcher / leave)        */
 
 export function App() {
+  const navigate = useNavigate();
+  const loc = useLocation();
   const [token, setTok] = useState<string | null>(getToken());
   const [me, setMe] = useState<Me>(null);
   const [realm, setRealm] = useState<any>(null);
-  const [activeWs, setActiveWs] = useState<string | null>(localStorage.getItem('tc_ws'));
-  const [awaiting, setAwaiting] = useState(false); // post-register "awaiting access" screen
-  const [nav, setNav] = useState('launcher'); // launcher | discover | admin | workspace
+  const [awaiting, setAwaiting] = useState(false);
   const [log, setLog] = useState<Log>(null);
 
   const call = useCallback(async (label: string, fn: () => Promise<any>) => {
@@ -44,57 +45,167 @@ export function App() {
 
   useEffect(() => { loadIdentity(); }, [token, loadIdentity]);
 
-  function applyToken(t: string | null, ws: string | null) {
-    setToken(t); setTok(t);
-    if (ws) localStorage.setItem('tc_ws', ws); else localStorage.removeItem('tc_ws');
-    setActiveWs(ws);
-  }
-  function logout() { applyToken(null, null); setMe(null); setRealm(null); setAwaiting(false); setNav('launcher'); }
-  function enterWs(id: string, t: string) { applyToken(t, id); setNav('workspace'); }
+  // every state lives in the URL → reload restores the same page
+  useEffect(() => {
+    if (token && (loc.pathname === '/' || loc.pathname === '')) navigate('/workspaces', { replace: true });
+  }, [token, loc.pathname, navigate]);
+
+  function setSession(t: string | null) { setToken(t); setTok(t); }
+  function logout() { setSession(null); setMe(null); setRealm(null); setAwaiting(false); navigate('/workspaces'); }
+  function enterWs(id: string, t: string) { setSession(t); navigate(`/ws/${encodeURIComponent(id)}`); }
   function leaveWs() {
     call('POST /auth/workspace/leave', () => api('/auth/workspace/leave', { method: 'POST' }))
-      .then((d) => { applyToken(d.accessToken, null); setNav('launcher'); }).catch(() => {});
+      .then((d) => { setSession(d.accessToken); navigate('/workspaces'); })
+      .catch(() => navigate('/workspaces'));
   }
 
-  // 1 · Auth
+  // 1 · Auth — fresh sign-in always lands on the chooser
   if (!token)
-    return <Auth call={call} onAuthed={(t, registered) => { applyToken(t, null); setAwaiting(registered); setNav(registered ? 'discover' : 'launcher'); }} />;
-
+    return <Auth call={call} onAuthed={(t, registered) => { setSession(t); setAwaiting(registered); navigate('/workspaces'); }} />;
   // 1b · awaiting access (just registered)
   if (awaiting)
-    return <Awaiting email={me?.email} onBrowse={() => { setAwaiting(false); setNav('discover'); }} onContinue={() => { setAwaiting(false); setNav('launcher'); }} onSignOut={logout} />;
+    return <Awaiting email={me?.email} onContinue={() => setAwaiting(false)} onSignOut={logout} />;
 
   const isAdmin = realm?.role === 'OWNER' || realm?.role === 'MAINTAINER';
+  const bar = { realm, me, onSignOut: logout };
 
+  // view derived from the URL
+  const wsMatch = loc.pathname.match(/^\/ws\/([^/]+)(?:\/doc\/([^/]+))?/);
+  const activeWs = wsMatch ? decodeURIComponent(wsMatch[1]) : null;
+  const openDocId = wsMatch && wsMatch[2] ? decodeURIComponent(wsMatch[2]) : null;
+
+  // 3 · Realm admin console (full screen)
+  if (loc.pathname === '/admin' && isAdmin)
+    return <AdminScreen call={call} bar={bar} onBack={() => navigate('/workspaces')} log={log} />;
+  // 4 · Inside the chosen workspace
+  if (activeWs)
+    return (
+      <WorkspaceScreen
+        call={call} bar={bar} wsId={activeWs} me={me} isAdmin={isAdmin}
+        openDocId={openDocId}
+        onOpenDoc={(d: string) => navigate(`/ws/${encodeURIComponent(activeWs)}/doc/${encodeURIComponent(d)}`)}
+        onCloseDoc={() => navigate(`/ws/${encodeURIComponent(activeWs)}`)}
+        onSwitch={leaveWs} onAdmin={() => navigate('/admin')} log={log}
+      />
+    );
+  // 2 · Workspace chooser — shown on EVERY sign-in; user must pick a workspace
+  return <Chooser call={call} bar={bar} isAdmin={isAdmin} onEnter={enterWs} onAdmin={() => navigate('/admin')} log={log} />;
+}
+
+/* ===================== top bar + full-page shells ===================== */
+function TopBar({ realm, me, left, right, onSignOut }: any) {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* left nav — mirrors the design's sections */}
-      <nav style={{ width: 220, borderRight: '1px solid #e9e9e7', padding: 16, background: '#fbfbfa', flexShrink: 0 }}>
-        <div style={{ fontWeight: 700, marginBottom: 2 }}>Toddle Compose</div>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 16 }}>{realm?.name ?? 'Realm'}</div>
-        <NavBtn on={nav === 'launcher'} onClick={() => setNav('launcher')}>Workspaces</NavBtn>
-        <NavBtn on={nav === 'discover'} onClick={() => setNav('discover')}>Request access</NavBtn>
-        {isAdmin && <NavBtn on={nav === 'admin'} onClick={() => setNav('admin')}>Admin console</NavBtn>}
-        {activeWs && <NavBtn on={nav === 'workspace'} onClick={() => setNav('workspace')}>Inside workspace</NavBtn>}
-        <div style={{ marginTop: 24, borderTop: '1px solid #e9e9e7', paddingTop: 12, fontSize: 12 }}>
-          <div>{me?.name ?? me?.email}</div>
-          <div className="muted">{me?.email}</div>
-          {realm?.role && <span className="tag" style={{ marginTop: 4, display: 'inline-block' }}>{realm.role}</span>}
-          {activeWs && <div className="muted" style={{ marginTop: 6 }}>in: {activeWs}</div>}
-          <div className="row" style={{ marginTop: 10 }}>
-            {activeWs && <button onClick={leaveWs}>Leave</button>}
-            <button className="danger" onClick={logout}>Sign out</button>
-          </div>
-        </div>
-      </nav>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid var(--line)', background: '#fff' }}>
+      <div style={{ fontWeight: 700, letterSpacing: '-.01em' }}>Toddle Compose</div>
+      <span className="muted" style={{ fontSize: 12 }}>{realm?.name ?? 'Realm'}</span>
+      {left}
+      <div style={{ flex: 1 }} />
+      {right}
+      <span className="muted" style={{ fontSize: 12 }}>{me?.email}</span>
+      {realm?.role && <span className="tag">{realm.role}</span>}
+      <button onClick={onSignOut}>Sign out</button>
+    </div>
+  );
+}
 
-      <main style={{ flex: 1, padding: 24, maxWidth: 900 }}>
-        {nav === 'launcher' && <Launcher call={call} activeWs={activeWs} onEnter={enterWs} isAdmin={isAdmin} goDiscover={() => setNav('discover')} goAdmin={() => setNav('admin')} />}
-        {nav === 'discover' && <Discover call={call} />}
-        {nav === 'admin' && isAdmin && <AdminConsole call={call} />}
-        {nav === 'workspace' && activeWs && <InsideWorkspace call={call} wsId={activeWs} me={me} />}
-        <DebugPanel log={log} />
-      </main>
+function CreateWorkspaceInline({ call, onCreated }: any) {
+  const [name, setName] = useState('');
+  const [vis, setVis] = useState('PRIVATE');
+  function create() {
+    call('POST /workspaces', () => api('/workspaces', { method: 'POST', body: { name, visibility: vis } }))
+      .then(() => { setName(''); onCreated(); }).catch(() => {});
+  }
+  return (
+    <div className="row">
+      <input placeholder="New workspace name" value={name} onChange={(e) => setName(e.target.value)} />
+      <select value={vis} onChange={(e) => setVis(e.target.value)}><option value="PRIVATE">PRIVATE</option><option value="PUBLIC">PUBLIC</option></select>
+      <button className="primary" disabled={!name} onClick={create}>Create</button>
+    </div>
+  );
+}
+
+/* ===================== 2 · Workspace chooser (forced landing) ===================== */
+function Chooser({ call, bar, isAdmin, onEnter, onAdmin, log }: any) {
+  const mine = useList(call, '/workspaces');
+  const disc = useList(call, '/workspaces/discoverable');
+  const [requested, setRequested] = useState<Record<string, boolean>>({});
+  const isPublic = (w: any) => w.visibility === 'PUBLIC';
+  function enter(id: string) {
+    call('POST /auth/workspace/enter', () => api('/auth/workspace/enter', { method: 'POST', body: { workspaceId: id } }))
+      .then((d: any) => onEnter(id, d.accessToken)).catch(() => {});
+  }
+  function join(id: string) { call(`POST /workspaces/${id}/join`, () => api(`/workspaces/${id}/join`, { method: 'POST' })).then(() => enter(id)).catch(() => {}); }
+  function request(id: string) { call(`POST /workspaces/${id}/requests`, () => api(`/workspaces/${id}/requests`, { method: 'POST', body: {} })).then(() => setRequested((r) => ({ ...r, [id]: true }))).catch(() => {}); }
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+      <TopBar {...bar} right={isAdmin && <button onClick={onAdmin}>Admin console</button>} />
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '40px 20px' }}>
+        <div className="card wide">
+          <h1 className="ah1">Choose a workspace</h1>
+          <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+            Pick a workspace to enter.{isAdmin ? ' As a realm admin you can enter any workspace.' : ''}
+          </p>
+
+          <h2 className="ah2" style={{ marginTop: 22 }}>Your workspaces</h2>
+          <div className="ws-list">
+            {mine.rows.map((w: any) => (
+              <div key={w.id} className="ws-row">
+                <span className="ws-emoji">{isPublic(w) ? '🌐' : '🔒'}</span>
+                <div className="ws-meta"><div className="nm">{w.name}</div><div className="muted" style={{ fontSize: 12 }}>{w.role ?? 'member'}</div></div>
+                <button className="primary" onClick={() => enter(w.id)}>Enter</button>
+              </div>
+            ))}
+            {!mine.rows.length && <div className="ws-row muted">You're not in any workspaces yet.</div>}
+          </div>
+
+          <h2 className="ah2" style={{ marginTop: 22 }}>Request access — join public, request private</h2>
+          <div className="ws-list">
+            {disc.rows.map((w: any) => {
+              const pub = isPublic(w);
+              return (
+                <div key={w.id} className="ws-row">
+                  <span className="ws-emoji">{pub ? '🌐' : '🔒'}</span>
+                  <div className="ws-meta"><div className="nm">{w.name}</div><div className="muted" style={{ fontSize: 12 }}>{pub ? 'Public' : 'Private'}</div></div>
+                  <span className={`badge ${pub ? 'pub' : 'priv'}`}>{pub ? 'Public' : 'Private'}</span>
+                  {pub ? <button onClick={() => join(w.id)}>Open</button>
+                    : requested[w.id] ? <button disabled>Requested</button>
+                      : <button onClick={() => request(w.id)}>Request access</button>}
+                </div>
+              );
+            })}
+            {!disc.rows.length && <div className="ws-row muted">No other workspaces to join.</div>}
+          </div>
+
+          {isAdmin && <div style={{ marginTop: 20 }}><h2 className="ah2">New workspace</h2><CreateWorkspaceInline call={call} onCreated={mine.refresh} /></div>}
+        </div>
+      </div>
+      <DebugPanel log={log} />
+    </div>
+  );
+}
+
+/* ===================== 3 · Admin console (full screen) ===================== */
+function AdminScreen({ call, bar, onBack, log }: any) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+      <TopBar {...bar} left={<button onClick={onBack}>← Back to workspaces</button>} />
+      <div style={{ flex: 1, padding: 24, maxWidth: 980, width: '100%', margin: '0 auto' }}>
+        <AdminConsole call={call} />
+      </div>
+      <DebugPanel log={log} />
+    </div>
+  );
+}
+
+/* ===================== 4 · Inside the chosen workspace ===================== */
+function WorkspaceScreen({ call, bar, wsId, me, isAdmin, openDocId, onOpenDoc, onCloseDoc, onSwitch, onAdmin, log }: any) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+      <TopBar {...bar} left={<button onClick={onSwitch}>⇄ Switch workspace</button>} right={isAdmin && <button onClick={onAdmin}>Admin console</button>} />
+      <div style={{ flex: 1, padding: 24, maxWidth: 1040, width: '100%', margin: '0 auto' }}>
+        <InsideWorkspace call={call} wsId={wsId} me={me} openDocId={openDocId} onOpenDoc={onOpenDoc} onCloseDoc={onCloseDoc} />
+      </div>
+      <DebugPanel log={log} />
     </div>
   );
 }
@@ -119,38 +230,42 @@ function Auth({ call, onAuthed }: { call: any; onAuthed: (t: string, registered:
     }
   }
   return (
-    <div style={{ maxWidth: 360, margin: '80px auto', padding: '0 16px' }}>
-      <h1 className="ah1" style={{ marginBottom: 4 }}>Toddle Compose</h1>
-      <div className="muted" style={{ marginBottom: 16 }}>{mode === 'login' ? 'Sign in to reach your workspaces.' : 'One identity for every workspace.'}</div>
-      <div className="row" style={{ marginBottom: 12 }}>
-        <button className={mode === 'login' ? 'primary' : ''} onClick={() => setMode('login')}>Login</button>
-        <button className={mode === 'register' ? 'primary' : ''} onClick={() => setMode('register')}>Register</button>
+    <div className="auth-wrap">
+      <div className="card">
+        <div className="brand" style={{ marginBottom: 2 }}>Toddle <span>Compose</span></div>
+        <div className="muted" style={{ marginBottom: 16, fontSize: 13 }}>{mode === 'login' ? 'Sign in to reach your workspaces.' : 'One identity for every workspace.'}</div>
+        <div className="row" style={{ marginBottom: 14 }}>
+          <button className={mode === 'login' ? 'primary' : ''} onClick={() => setMode('login')}>Login</button>
+          <button className={mode === 'register' ? 'primary' : ''} onClick={() => setMode('register')}>Register</button>
+        </div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {mode === 'register' && <label>Full name<br /><input style={{ width: '100%', marginTop: 4 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Jamie Rivera" /></label>}
+          <label>Email<br /><input style={{ width: '100%', marginTop: 4 }} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <label>Password<br /><input style={{ width: '100%', marginTop: 4 }} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <button className="primary" onClick={submit} style={{ marginTop: 4 }}>{mode === 'login' ? 'Sign in' : 'Create account'}</button>
+          {note && <div className="muted" style={{ fontSize: 12 }}>{note}</div>}
+        </div>
       </div>
-      <div style={{ display: 'grid', gap: 8 }}>
-        {mode === 'register' && <label>Full name<br /><input style={{ width: '100%' }} value={name} onChange={(e) => setName(e.target.value)} placeholder="Jamie Rivera" /></label>}
-        <label>Email<br /><input style={{ width: '100%' }} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-        <label>Password<br /><input style={{ width: '100%' }} type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <button className="primary" onClick={submit}>{mode === 'login' ? 'Sign in' : 'Create account'}</button>
-        {note && <div className="muted" style={{ fontSize: 12 }}>{note}</div>}
-      </div>
-      <DebugPanel log={null} />
     </div>
   );
 }
 
-function Awaiting({ email, onBrowse, onContinue, onSignOut }: { email?: string; onBrowse: () => void; onContinue: () => void; onSignOut: () => void }) {
+function Awaiting({ email, onContinue, onSignOut }: { email?: string; onContinue: () => void; onSignOut: () => void }) {
   return (
-    <div style={{ maxWidth: 440, margin: '90px auto', padding: '0 16px', textAlign: 'center' }}>
-      <h1 className="ah1">You're all set</h1>
-      <p className="muted">
-        Your account is created. An admin needs to add you to a workspace before you can start —
-        or you can find a workspace to join below.
-      </p>
-      <div className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
-        <button className="primary" onClick={onBrowse}>Find a workspace to join</button>
-        <button onClick={onContinue}>Go to my workspaces</button>
+    <div className="auth-wrap">
+      <div className="card" style={{ textAlign: 'center' }}>
+        <div className="brand">Toddle <span>Compose</span></div>
+        <div style={{ fontSize: 30, margin: '12px 0 4px' }}>✓</div>
+        <h1 className="ah1">You're all set</h1>
+        <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+          Your account is created. An admin needs to add you to a workspace before you can start —
+          or find a public one to join.
+        </p>
+        <div style={{ display: 'grid', gap: 8, marginTop: 18 }}>
+          <button className="primary" onClick={onContinue}>Find a workspace to join</button>
+        </div>
       </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 16 }}>Signed in as {email} · <a onClick={onSignOut}>Sign out</a></div>
+      <div className="foot">Signed in as {email} · <a onClick={onSignOut}>Sign out</a></div>
     </div>
   );
 }
@@ -188,62 +303,7 @@ function Section({ title, onRefresh, children }: { title: string; onRefresh?: ()
   );
 }
 
-/* ===================== 2 · Workspace launcher ===================== */
-function Launcher({ call, activeWs, onEnter, isAdmin, goDiscover, goAdmin }: any) {
-  const { rows, refresh } = useList(call, '/workspaces');
-  function enter(id: string) {
-    call('POST /auth/workspace/enter', () => api('/auth/workspace/enter', { method: 'POST', body: { workspaceId: id } }))
-      .then((d: any) => onEnter(id, d.accessToken)).catch(() => {});
-  }
-  return (
-    <Section title="My workspaces" onRefresh={refresh}>
-      <div className="row" style={{ marginBottom: 10 }}>
-        <button onClick={goDiscover}>Find a workspace to join</button>
-        {isAdmin && <button onClick={goAdmin}>Admin console</button>}
-      </div>
-      <table>
-        <thead><tr><th>Name</th><th>ID</th><th>My role</th><th></th></tr></thead>
-        <tbody>
-          {rows.map((w) => (
-            <tr key={w.id}>
-              <td>{w.name}</td><td className="muted">{w.id}</td><td>{w.role ?? w.myRole ?? '—'}</td>
-              <td><button className={activeWs === w.id ? 'primary' : ''} onClick={() => enter(w.id)}>{activeWs === w.id ? 'Re-enter' : 'Enter'}</button></td>
-            </tr>
-          ))}
-          {!rows.length && <tr><td colSpan={4} className="muted">No workspaces yet. Use “Request access”, or create one in the admin console.</td></tr>}
-        </tbody>
-      </table>
-    </Section>
-  );
-}
-
-/* ===================== 3 · Request access ===================== */
-function Discover({ call }: { call: any }) {
-  const { rows, refresh } = useList(call, '/workspaces/discoverable');
-  const isPublic = (w: any) => w.joinPolicy === 'OPEN' || w.visibility === 'PUBLIC';
-  function join(id: string) { call(`POST /workspaces/${id}/join`, () => api(`/workspaces/${id}/join`, { method: 'POST' })).then(refresh).catch(() => {}); }
-  function request(id: string) { call(`POST /workspaces/${id}/requests`, () => api(`/workspaces/${id}/requests`, { method: 'POST', body: {} })).then(refresh).catch(() => {}); }
-  return (
-    <Section title="Find a workspace to join" onRefresh={refresh}>
-      <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>Open a public workspace right away, or request access to a private one — an admin approves it.</div>
-      <table>
-        <thead><tr><th>Name</th><th>ID</th><th>Visibility</th><th></th></tr></thead>
-        <tbody>
-          {rows.map((w) => (
-            <tr key={w.id}>
-              <td>{w.name}</td><td className="muted">{w.id}</td>
-              <td>{w.visibility ?? ''} {w.joinPolicy ? `· ${w.joinPolicy}` : ''}</td>
-              <td>{isPublic(w) ? <button onClick={() => join(w.id)}>Join</button> : <button onClick={() => request(w.id)}>Request access</button>}</td>
-            </tr>
-          ))}
-          {!rows.length && <tr><td colSpan={4} className="muted">No discoverable workspaces.</td></tr>}
-        </tbody>
-      </table>
-    </Section>
-  );
-}
-
-/* ===================== 4 · Realm admin console ===================== */
+/* ===================== Realm admin console ===================== */
 function AdminConsole({ call }: { call: any }) {
   const [tab, setTab] = useState('workspaces');
   return (
@@ -336,27 +396,25 @@ function RealmRequests({ call }: { call: any }) {
   return <RequestsTable rows={rows} refresh={refresh} call={call} wsOf={(r) => r.workspaceId ?? r.workspace?.id} title="Join requests (realm-wide)" />;
 }
 
-/* ===================== 5 · Inside a workspace ===================== */
-function InsideWorkspace({ call, wsId, me }: { call: any; wsId: string; me: any }) {
+/* ===================== Inside a workspace ===================== */
+function InsideWorkspace({ call, wsId, me, openDocId, onOpenDoc, onCloseDoc }: { call: any; wsId: string; me: any; openDocId: string | null; onOpenDoc: (id: string) => void; onCloseDoc: () => void }) {
   const [tab, setTab] = useState('docs');
-  const [openDoc, setOpenDoc] = useState<string | null>(null);
 
-  if (openDoc) {
+  if (openDocId) {
     return (
-      <div style={{ height: 'calc(100vh - 48px)' }}>
-        <DocView docId={openDoc} me={me} onBack={() => setOpenDoc(null)} />
+      <div style={{ height: 'calc(100vh - 130px)' }}>
+        <DocView docId={openDocId} me={me} onBack={onCloseDoc} />
       </div>
     );
   }
   return (
     <div>
-      <h2 className="ah2">Inside workspace · {wsId}</h2>
-      <div className="row" style={{ marginBottom: 4 }}>
+      <div className="row" style={{ marginBottom: 8 }}>
         <button className={tab === 'docs' ? 'primary' : ''} onClick={() => setTab('docs')}>Docs</button>
         <button className={tab === 'members' ? 'primary' : ''} onClick={() => setTab('members')}>Members</button>
         <button className={tab === 'requests' ? 'primary' : ''} onClick={() => setTab('requests')}>Requests</button>
       </div>
-      {tab === 'docs' && <DocsPanel call={call} wsId={wsId} onOpen={setOpenDoc} />}
+      {tab === 'docs' && <DocsPanel call={call} wsId={wsId} onOpen={onOpenDoc} />}
       {tab === 'members' && <WorkspaceMembers call={call} wsId={wsId} />}
       {tab === 'requests' && <WorkspaceRequests call={call} wsId={wsId} />}
     </div>
@@ -522,13 +580,21 @@ function RequestRow({ r, wsOf, onApprove, onReject }: { r: any; wsOf: (r: any) =
   );
 }
 
-/* debug panel — shows the last backend call's response */
+/* collapsible debug panel (bottom-left) — last backend call's response */
 function DebugPanel({ log }: { log: Log }) {
+  const [open, setOpen] = useState(false);
   if (!log) return null;
   return (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: '#0f1115', color: '#d6dae0', fontSize: 12, padding: '8px 16px', maxHeight: 200, overflow: 'auto', fontFamily: 'ui-monospace, Menlo, monospace', pointerEvents: 'none', opacity: 0.95 }}>
-      <div style={{ color: log.ok ? '#5dd28a' : '#f08a8a', marginBottom: 4 }}>{log.ok ? '✓' : '✗'} {log.label}{log.status ? ` · ${log.status}` : ''}</div>
-      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(log.data, null, 2)}</pre>
+    <div style={{ position: 'fixed', left: 14, bottom: 14, zIndex: 50 }}>
+      {open && (
+        <div style={{ marginBottom: 6, background: '#0f1115', color: '#d6dae0', borderRadius: 8, padding: '8px 12px', maxHeight: 300, overflow: 'auto', width: 'min(540px, 80vw)', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, boxShadow: '0 8px 30px rgba(0,0,0,.25)' }}>
+          <div style={{ color: log.ok ? '#5dd28a' : '#f08a8a', marginBottom: 4 }}>{log.ok ? '✓' : '✗'} {log.label}{log.status ? ` · ${log.status}` : ''}</div>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(log.data, null, 2)}</pre>
+        </div>
+      )}
+      <button onClick={() => setOpen((o) => !o)} style={{ fontSize: 12, opacity: 0.9 }}>
+        {log.ok ? '🟢' : '🔴'} API log {open ? '▾' : '▸'}
+      </button>
     </div>
   );
 }

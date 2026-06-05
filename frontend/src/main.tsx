@@ -1,6 +1,7 @@
 import './react-global'; // expose window.React/ReactDOM before the editor loads
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom';
+import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 
 // Stylesheets required by the embedded doc-editor.
@@ -15,7 +16,9 @@ if (!rootEl) throw new Error('Root element #root not found');
 
 ReactDOM.render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
   rootEl,
 );

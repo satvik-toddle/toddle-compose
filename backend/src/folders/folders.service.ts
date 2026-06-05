@@ -29,7 +29,12 @@ export class FoldersService {
     private readonly authz: AuthzService
   ) {}
 
-  /** All folders in the (active or given) workspace; flat, for client-side tree assembly. */
+  /**
+   * All folders in the (active or given) workspace; flat, for client-side tree assembly.
+   * TODO(pagination): currently offset-based (skip/take). For large workspaces switch to
+   * cursor-based pagination (e.g. `cursor` = last folder id + `take`) and return a
+   * `{ items, nextCursor, total }` envelope so the tree can load incrementally.
+   */
   async list(
     user: AuthUser,
     workspaceId: string | undefined,

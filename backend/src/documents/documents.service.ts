@@ -36,7 +36,12 @@ export class DocumentsService {
     private readonly rtc: RtcInternalClient
   ) {}
 
-  /** Documents in the (active or given) workspace, optionally narrowed to a folder. */
+  /**
+   * Documents in the (active or given) workspace, optionally narrowed to a folder.
+   * TODO(pagination): offset-based (skip/take) for now. Move to cursor-based pagination
+   * (cursor = last doc id, ordered by updatedAt) returning `{ items, nextCursor, total }`
+   * once workspaces hold many documents. Tracked in Coda (see the pagination row).
+   */
   async list(
     user: AuthUser,
     input: ListDocumentsInput = {},

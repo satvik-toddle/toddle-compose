@@ -29,6 +29,9 @@ importers:
       eslint-config-prettier:
         specifier: ^9.1.0
         version: 9.1.2(eslint@9.39.4)
+      playwright:
+        specifier: ^1.60.0
+        version: 1.60.0
       prettier:
         specifier: ^3.3.3
         version: 3.8.3
@@ -133,8 +136,8 @@ importers:
         specifier: 2.3.48
         version: 2.3.48(esbuild@0.28.0)
       '@toddle-edu/ds-doc-editor':
-        specifier: 0.8.1
-        version: 0.8.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
+        specifier: link:/Users/apple/Documents/doc-editor/packages/doc-editor
+        version: link:../../doc-editor/packages/doc-editor
       '@toddle-edu/ds-icons':
         specifier: 1.21.1
         version: 1.21.1(react@17.0.2)
@@ -153,6 +156,12 @@ importers:
       react-router-dom:
         specifier: 6.30.4
         version: 6.30.4(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
+      y-websocket:
+        specifier: 2.0.4
+        version: 2.0.4(yjs@13.6.27)
+      yjs:
+        specifier: 13.6.27
+        version: 13.6.27
     devDependencies:
       '@types/react':
         specifier: ^17.0.0
@@ -1581,12 +1590,6 @@ packages:
     resolution: {integrity: sha512-AdEI007yWpEDfp+7Mus1W8SWwuPvNC5g9JNv+tHCj+Pd8KlPD8OhxAYxdRNc2+drKUleTodPFQLCvs+7aOyKKg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/common-utils/2.3.48/9a0085764b6225fd5f846035bb3f2578f99b8bd0}
     engines: {node: '>=18 <23'}
 
-  '@toddle-edu/ds-doc-editor@0.8.1':
-    resolution: {integrity: sha512-5a+eTy7b5rOkI7O6fRCkon0ERbTWD2zyovyebDfKYvHSKsP2aRkxTuBXSeJAzaFmN6ToQBbT2yHUg6YaShfvJA==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-doc-editor/0.8.1/b330ae5bc2c2195b10ba138bd287378634b1dada}
-    peerDependencies:
-      react: 17.0.2
-      react-dom: 17.0.2
-
   '@toddle-edu/ds-icons@1.21.1':
     resolution: {integrity: sha512-OXFxJul1wYylhpnebEMHvYy8fbvHpE+tshiPwXj/BnS5nP36/rRwu0PAKYQzEiGRWTEI3mqLgXkRa/MImPXf5A==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-icons/1.21.1/c3707f615414602a9602e5e8c9b9a7ba7df4671c}
     peerDependencies:
@@ -2788,6 +2791,11 @@ packages:
   fs.realpath@1.0.0:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==}
 
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -3773,6 +3781,16 @@ packages:
   pkg-dir@4.2.0:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
+
+  playwright-core@1.60.0:
+    resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.60.0:
+    resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
@@ -6423,11 +6441,6 @@ snapshots:
       - esbuild
       - supports-color
 
-  '@toddle-edu/ds-doc-editor@0.8.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2)':
-    dependencies:
-      react: 17.0.2
-      react-dom: 17.0.2(react@17.0.2)
-
   '@toddle-edu/ds-icons@1.21.1(react@17.0.2)':
     dependencies:
       '@toddle-edu/ds-theme': 2.8.3
@@ -7963,6 +7976,9 @@ snapshots:
 
   fs.realpath@1.0.0: {}
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -9192,6 +9208,14 @@ snapshots:
   pkg-dir@4.2.0:
     dependencies:
       find-up: 4.1.0
+
+  playwright-core@1.60.0: {}
+
+  playwright@1.60.0:
+    dependencies:
+      playwright-core: 1.60.0
+    optionalDependencies:
+      fsevents: 2.3.2
 
   pluralize@8.0.0: {}
 

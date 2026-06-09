@@ -3,16 +3,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 // the editor's @lexical/yjs instance (avoids the "Yjs was already imported" /
 // silent collab-binding failure from two yjs copies).
 import { DocEditor, Y, WebsocketProvider } from '@toddle-edu/ds-doc-editor';
-import { api } from './api';
+import { api, uploadFile } from './api';
 import { env } from './env';
 
 type User = { id: string; email: string; name?: string; color?: string };
 type ConnState = 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
-// The backend has no /uploads endpoint yet (P4 storage not built) — stub it.
-async function uploadToServer(): Promise<string> {
-  alert('File upload is not wired yet (backend storage module is pending).');
-  return '';
+// The editor invokes this for image/media inserts. It calls us with an object
+// ({ file, attachment, uploadId, ... }) — where `file` is a File or Blob — and
+// expects the resolved Promise<string> to be a fetchable URL it can use as the
+// node src. Older call sites may pass a bare File; accept both shapes.
+type UploadArg = File | Blob | { file: File | Blob; attachment?: { name?: string } };
+
+async function uploadToServer(arg: UploadArg): Promise<string> {
+  const file = arg instanceof Blob ? arg : arg?.file;
+  if (!file) throw new Error('uploadToServer: no file provided');
+  const name = !(arg instanceof Blob) ? arg?.attachment?.name : undefined;
+  const stored = await uploadFile(file, name);
+  return stored.url;
 }
 
 export function DocView({ docId, me, onBack }: { docId: string; me: User; onBack: () => void }) {

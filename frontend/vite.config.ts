@@ -5,6 +5,18 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Allow the app to be served through tunnels (e.g. *.ngrok-free.app);
+    // Vite 5.4+ rejects unknown Host headers by default.
+    allowedHosts: true,
+    // Single-origin hosting: proxy the API and the RTC WebSocket to the local
+    // backend/rtc-server so everything (incl. uploaded files) is served from
+    // the frontend's origin. Through ngrok this means one tunnel/one origin —
+    // sidestepping the per-domain browser-warning interstitial for sub-resources
+    // like <img src> pointing at uploaded files.
+    proxy: {
+      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/yjs': { target: 'ws://localhost:4001', ws: true, changeOrigin: true },
+    },
   },
   // @toddle-edu/ds-doc-editor is a linked UMD package (lives outside
   // node_modules). Vite skips CommonJS handling for such paths by default,

@@ -8,6 +8,7 @@ import { WebsocketProvider } from 'y-websocket';
 import { DataGrid } from '@toddle-edu/ds-data-grid';
 import { api } from './api';
 import { env } from './env';
+import "@glideapps/glide-data-grid/dist/index.css";
 
 type User = { id: string; email: string; name?: string; color?: string };
 type ConnState = 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -86,6 +87,48 @@ type RemoteState = {
   cell: { rowId?: string; colId?: string; ts?: number } | null;
 };
 
+// Document history (read-only). The backend groups the Yjs update log into
+// per-author editing sessions and resolves each author to a user.
+type HistUser = { id: string; name: string | null; email: string | null; color: string | null };
+type HistSession = {
+  firstSeq: number;
+  lastSeq: number;
+  startedAt: number;
+  endedAt: number;
+  updateCount: number;
+  totalBytes: number;
+  origin: string | null;
+  user: HistUser | null;
+  changedCells: { rowId: string; colId: string }[];
+};
+type GridHighlight = { color: string; range: { x: number; y: number; width: number; height: number } };
+type HistView = {
+  seq: number;
+  user: HistUser | null;
+  when: number;
+  data: { rowId: string; columns: ReturnType<typeof buildCell>[] }[];
+  // Cells changed during this session, as glide highlight regions.
+  highlights: GridHighlight[];
+};
+type HistState = {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  sessions: HistSession[];
+  view: HistView | null;
+};
+
+const histLabel = (u: HistUser | null) => u?.name || u?.email || 'Unknown user';
+function fmtTime(ms: number): string {
+  try {
+    return new Date(ms).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return String(ms);
+  }
+}
+
 type Ctx = { ydoc: any; yrows: any; ycolTypes: any; provider: any };
 
 export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBack: () => void }) {
@@ -99,31 +142,22 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
   const [colTypes, setColTypes] = useState<Record<string, string>>({});
   // Other collaborators' presence + selected cell, via Yjs awareness.
   const [remote, setRemote] = useState<RemoteState[]>([]);
-  // Our own selected cell (drives the type toolbar + our lock claim).
+  // Our own selected cell (drives the type toolbar + the remote-cursor broadcast).
   const [sel, setSel] = useState<{ rowId: string; colId: string } | null>(null);
-  // Authoritative cell locks from the rtc-server: cellKey -> owner userId.
-  const [locks, setLocks] = useState<Record<string, string>>({});
-  // Brief notice when you click a cell someone else is editing.
-  const [lockedMsg, setLockedMsg] = useState<string | null>(null);
+  // Read-only edit history (sessions list + optional snapshot being viewed).
+  const [hist, setHist] = useState<HistState>({
+    open: false, loading: false, error: null, sessions: [], view: null,
+  });
 
   const ctxRef = useRef<Ctx | null>(null);
   const gridRef = useRef<any>(null);
   const hostRef = useRef<HTMLDivElement>(null);
-  const lastActivity = useRef<number>(0);
-  const lockWsRef = useRef<WebSocket | null>(null);
-  const heldKeyRef = useRef<string | null>(null);
-  const locksRef = useRef<Record<string, string>>({});
-  // The grid tells us when a cell editor is open (any cell type). True = the
-  // user is actively in a cell → never AFK-release the lock under them.
-  const isEditingRef = useRef<boolean>(false);
+  // Last selected cell key — only to dedupe the grid's repeated selection-change
+  // fires (so we don't re-broadcast awareness on every render).
+  const lastSelKeyRef = useRef<string | null>(null);
   const [size, setSize] = useState<{ h: number; w: number }>({ h: 500, w: 0 });
 
   const readOnly = role !== 'editor';
-  const myId = me.id;
-  const sendLock = useCallback((op: string, cell: string) => {
-    const ws = lockWsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ op, cell }));
-  }, []);
 
   // Keep the grid sized to its container (glide-data-grid needs explicit px).
   useEffect(() => {
@@ -141,16 +175,14 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
     // Tear down whatever the async block managed to create — robust against
     // React StrictMode's mount→unmount→mount (the cleanup runs before the async
     // resumes, so we can't rely on ctxRef alone).
-    let local: { ydoc: any; provider: any; lockWs: WebSocket } | null = null;
+    let local: { ydoc: any; provider: any } | null = null;
     const teardown = () => {
       if (local) {
-        try { local.lockWs.close(); } catch { /* ignore */ }
         local.provider.destroy();
         local.ydoc.destroy();
         local = null;
       }
-      lockWsRef.current = null;
-      heldKeyRef.current = null;
+      lastSelKeyRef.current = null;
       ctxRef.current = null;
     };
 
@@ -160,7 +192,6 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
     setColTypes({});
     setSel(null);
     setRemote([]);
-    setLocks({});
     (async () => {
       try {
         const m = await api(`/documents/${docId}`);
@@ -180,27 +211,12 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
           connect: false,
           params: { token: t.token ?? '' },
         });
-        // Authoritative lock channel — a separate WS path on the rtc-server.
-        // The server grants/denies cell locks; we render the snapshot it pushes.
-        const lockWs = new WebSocket(
-          `${env.rtcWsUrl}/locks/${docId}?token=${encodeURIComponent(t.token ?? '')}`,
-        );
-        lockWs.onmessage = (ev) => {
-          try {
-            const msg = JSON.parse(typeof ev.data === 'string' ? ev.data : '');
-            if (msg?.type === 'snapshot' && !cancelled) {
-              locksRef.current = msg.locks || {};
-              setLocks(msg.locks || {});
-            }
-          } catch { /* ignore */ }
-        };
-        lockWsRef.current = lockWs;
-        local = { ydoc, provider, lockWs };
+        local = { ydoc, provider };
         // Unmounted while we were awaiting? Drop the freshly-built provider.
         if (cancelled) { teardown(); return; }
 
         // Project the shared doc into plain React state; the grid `data` (with
-        // per-column types + lock-driven editability) is derived in a useMemo.
+        // per-column types) is derived in a useMemo.
         const rebuild = () => {
           if (cancelled) return;
           const types: Record<string, string> = {};
@@ -272,17 +288,13 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
           const col =
             COLUMNS.find((c) => c.id === ed?.cellCoods?.colId) ?? COLUMNS[ed?.cellCoods?.col];
           if (!rowId || !col) continue;
-          // Defense in depth: drop writes to a cell ANOTHER user holds. (A free
-          // cell is allowed — the grant may still be in flight; the server lock
-          // already prevents a real conflict.) Read the live ref, not state.
-          const owner = locksRef.current[cellKey(rowId, col.id)];
-          if (owner && owner !== myId) continue;
+          // No locking: last writer wins per cell (Y.Map is LWW per key).
           const ymap = ctx.yrows.toArray().find((m: any) => m.get(ID_KEY) === rowId);
           if (ymap) ymap.set(col.id, ed?.newValue?.value ?? '');
         }
       }, 'local');
     },
-    [readOnly, myId],
+    [readOnly],
   );
 
   const addRow = useCallback(() => {
@@ -318,9 +330,8 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
     ctx.ydoc.transact(() => { ctx.ycolTypes.set(sel.colId, type); }, 'local');
   }, [readOnly, sel]);
 
-  // On selecting a cell: release the cell we were on and ask the server to lock
-  // the new one. Also broadcast it via awareness for the remote cursor. Editing
-  // stays gated on the server actually granting the lock (see `data`).
+  // On selecting a cell: broadcast it via awareness so peers see our cursor.
+  // No locking — anyone can select or edit any cell.
   const onCellSelectionChange = useCallback((cells: any[]) => {
     const ctx = ctxRef.current;
     if (!ctx) return;
@@ -330,61 +341,33 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
     // CRITICAL: the grid re-fires this on every re-render (its effect depends on
     // the data/columns identity). Bail when the selection hasn't actually moved,
     // otherwise we re-setState + re-broadcast on every render — a feedback loop
-    // that amplifies awareness+lock traffic with each extra collaborator.
-    if (newKey === heldKeyRef.current) return;
-    lastActivity.current = Date.now();
-    if (heldKeyRef.current) sendLock('release', heldKeyRef.current);
-    // Don't enter a cell another user is editing: clear the selection so we
-    // never show a second cursor inside someone else's locked cell.
-    if (newKey && locksRef.current[newKey] && locksRef.current[newKey] !== myId) {
-      heldKeyRef.current = null;
-      setSel(null);
-      ctx.provider.awareness?.setLocalStateField('cell', null);
-      gridRef.current?.selection?.clear?.();
-      setLockedMsg('That cell is being edited by someone else.');
-      window.setTimeout(() => setLockedMsg(null), 1800);
-      return;
-    }
-    setLockedMsg(null);
-    heldKeyRef.current = newKey;
+    // that amplifies awareness traffic with each extra collaborator.
+    if (newKey === lastSelKeyRef.current) return;
+    lastSelKeyRef.current = newKey;
     if (first && newKey) {
-      if (!readOnly) sendLock('acquire', newKey);
       setSel({ rowId: first.rowId, colId: first.colId });
       ctx.provider.awareness?.setLocalStateField('cell', { rowId: first.rowId, colId: first.colId });
     } else {
       setSel(null);
       ctx.provider.awareness?.setLocalStateField('cell', null);
     }
-  }, [readOnly, sendLock, myId]);
-
-  // The grid reports when a cell editor opens/closes (any type). We use it only
-  // to keep the AFK timer from releasing a lock while the user is editing.
-  const onCellEditStateChange = useCallback((editing: boolean) => {
-    isEditingRef.current = !!editing;
-    if (editing) lastActivity.current = Date.now();
   }, []);
 
-  // Editing is allowed only on a cell whose server lock I hold — this is what
-  // makes "click → wait for grant → edit" safe against two simultaneous clicks.
+  // No locking: every cell is editable (unless the whole sheet is read-only).
+  // Concurrent edits to the same cell resolve last-writer-wins via Yjs.
   const data = useMemo(
     () =>
       rawRows.map((r) => ({
         rowId: r.rowId,
-        columns: COLUMNS.map((c) => {
-          // Editable when the cell is FREE or held by me. A cell another user
-          // holds is read-only (its editor won't open). We claim the lock when
-          // the editor actually opens; the server arbitrates simultaneous opens
-          // and the commit is gated on ownership (see onCellEdit).
-          const owner = locks[cellKey(r.rowId, c.id)];
-          const editable = !readOnly && (!owner || owner === myId);
-          return buildCell(r.values[c.id], colTypes[c.id] || 'text', editable);
-        }),
+        columns: COLUMNS.map((c) =>
+          buildCell(r.values[c.id], colTypes[c.id] || 'text', !readOnly),
+        ),
       })),
-    [rawRows, colTypes, readOnly, locks, myId],
+    [rawRows, colTypes, readOnly],
   );
 
-  // Map peers' claimed cells to glide highlight regions (their cursor = their
-  // lock) in the current row order. Each peer gets a fill + dashed border.
+  // Map peers' selected cells to glide highlight regions (their cursor) in the
+  // current row order. Each peer gets a translucent fill in their color.
   const remoteHighlights = useMemo(() => {
     if (!remote.length || !rawRows.length) return [];
     const rowIdx = new Map<string, number>(rawRows.map((r, i) => [r.rowId, i]));
@@ -399,59 +382,59 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
     return out;
   }, [remote, rawRows]);
 
-  // Any keydown/pointer in the grid host counts as activity — this catches
-  // typing inside the cell editor, which doesn't fire selection events.
-  useEffect(() => {
-    const el = hostRef.current;
-    if (!el) return;
-    const mark = () => { lastActivity.current = Date.now(); };
-    el.addEventListener('keydown', mark, true);
-    el.addEventListener('pointerdown', mark, true);
-    return () => {
-      el.removeEventListener('keydown', mark, true);
-      el.removeEventListener('pointerdown', mark, true);
-    };
+  // Open the history panel and (re)load the session list.
+  const openHistory = useCallback(async () => {
+    setHist((h) => ({ ...h, open: true, loading: true, error: null }));
+    try {
+      const res = await api(`/documents/${docId}/history`);
+      setHist((h) => ({ ...h, loading: false, sessions: res?.sessions ?? [] }));
+    } catch (e: any) {
+      setHist((h) => ({ ...h, loading: false, error: e?.data ? JSON.stringify(e.data) : String(e) }));
+    }
+  }, [docId]);
+
+  const closeHistory = useCallback(() => {
+    setHist((h) => ({ ...h, open: false, view: null }));
   }, []);
 
-  // If a cell I'm on becomes owned by someone else (I lost a simultaneous-click
-  // race, or it got taken), yield immediately: clear selection + cursor so two
-  // users never appear in the same cell.
-  useEffect(() => {
-    const key = heldKeyRef.current;
-    if (key && locks[key] && locks[key] !== myId) {
-      heldKeyRef.current = null;
-      gridRef.current?.selection?.clear?.();
-      setSel(null);
-      ctxRef.current?.provider?.awareness?.setLocalStateField('cell', null);
-      setLockedMsg('That cell is being edited by someone else.');
-      window.setTimeout(() => setLockedMsg(null), 1800);
-    }
-  }, [locks, myId]);
-
-  // While we OWN a cell: heartbeat to keep the server lock; if 10s pass with no
-  // activity (AFK), release it + focus out so others can take it.
-  useEffect(() => {
-    if (!sel || readOnly) return;
-    const iv = setInterval(() => {
-      const key = heldKeyRef.current;
-      const owned = !!key && locksRef.current[key] === myId;
-      if (!owned) return;
-      // While a cell editor is open (ANY type — reported by the grid, not via
-      // DOM sniffing) the user is in the cell → keep the lock alive. AFK only
-      // applies to a cell that's merely selected and idle for 10s.
-      if (isEditingRef.current) lastActivity.current = Date.now();
-      if (Date.now() - lastActivity.current >= 10000) {
-        sendLock('release', key);
-        heldKeyRef.current = null;
-        gridRef.current?.selection?.clear?.();
-        setSel(null);
-        ctxRef.current?.provider?.awareness?.setLocalStateField('cell', null);
-      } else {
-        sendLock('heartbeat', key);
+  // Fetch the grid state AFTER the given session's last update and show it
+  // read-only. The snapshot is built with the same buildCell logic as the live
+  // grid, but every cell is non-editable.
+  const viewSnapshot = useCallback(
+    async (s: HistSession) => {
+      setHist((h) => ({ ...h, loading: true, error: null }));
+      try {
+        const res = await api(`/documents/${docId}/history/${s.lastSeq}`);
+        const sheet = res?.sheet ?? { rows: [], colTypes: {} };
+        const rows = (sheet.rows ?? []) as { rowId: string; values: Record<string, any> }[];
+        const data = rows.map((r) => ({
+          rowId: r.rowId,
+          columns: COLUMNS.map((c) =>
+            buildCell(r.values?.[c.id], (sheet.colTypes?.[c.id] as string) || 'text', false),
+          ),
+        }));
+        // Shade the cells this session changed (added/updated), in the snapshot's
+        // row order, using the author's color.
+        const rowIdx = new Map<string, number>(rows.map((r, i) => [r.rowId, i]));
+        const fill = hexToRgba(s.user?.color || '#2e7d32', 0.32);
+        const highlights: GridHighlight[] = [];
+        for (const cc of s.changedCells ?? []) {
+          const x = COLUMNS.findIndex((c) => c.id === cc.colId);
+          const y = rowIdx.get(cc.rowId);
+          if (x < 0 || y === undefined) continue;
+          highlights.push({ color: fill, range: { x, y, width: 1, height: 1 } });
+        }
+        setHist((h) => ({
+          ...h,
+          loading: false,
+          view: { seq: res?.seq ?? s.lastSeq, user: s.user, when: s.endedAt, data, highlights },
+        }));
+      } catch (e: any) {
+        setHist((h) => ({ ...h, loading: false, error: e?.data ? JSON.stringify(e.data) : String(e) }));
       }
-    }, 3000);
-    return () => clearInterval(iv);
-  }, [sel, readOnly, sendLock, myId]);
+    },
+    [docId],
+  );
 
   async function saveTitle() {
     if (!meta || readOnly || title === meta.title) return;
@@ -484,6 +467,10 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
             </span>
           )}
           {!readOnly && <button onClick={addRow}>+ Add row</button>}
+          <button onClick={() => (hist.open ? closeHistory() : openHistory())}
+            style={{ fontWeight: hist.open ? 700 : 400 }}>
+            🕘 History
+          </button>
           <span className="tag" title={`Connection: ${state}`}>{state}</span>
         </div>
       </div>
@@ -507,27 +494,97 @@ export function SheetView({ docId, me, onBack }: { docId: string; me: User; onBa
         </div>
       )}
       {err && <div className="banner">{err}</div>}
-      {meta && readOnly && <div className="banner">View-only — your edits won’t be saved.</div>}
-      {lockedMsg && <div className="banner">🔒 {lockedMsg}</div>}
-      <div ref={hostRef} style={{ flex: 1, minHeight: 360 }}>
-        {state === 'error' && !meta ? (
-          <div style={{ padding: 24 }} className="muted">Failed to open sheet.</div>
-        ) : (
-          <DataGrid
-            ref={gridRef}
-            headers={COLUMNS}
-            data={data}
-            rowHeight={40}
-            dataGridHeight={size.h || 500}
-            dataGridWidth="100%"
-            isViewMode={readOnly}
-            onCellEdit={onCellEdit}
-            onCellSelectionChange={onCellSelectionChange}
-            onCellEditStateChange={onCellEditStateChange}
-            onRowHandlerClick={readOnly ? undefined : insertRowAfter}
-            remoteHighlights={remoteHighlights}
-            onAppendRowAtEnd={readOnly ? undefined : addRow}
-          />
+      {meta && readOnly && !hist.view && <div className="banner">View-only — your edits won’t be saved.</div>}
+      {hist.view && (
+        <div className="banner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>
+            🕘 Viewing a past version — edited by <strong>{histLabel(hist.view.user)}</strong> · {fmtTime(hist.view.when)} (read-only)
+          </span>
+          <button onClick={() => setHist((h) => ({ ...h, view: null }))}>Back to live</button>
+        </div>
+      )}
+      <div style={{ flex: 1, minHeight: 360, display: 'flex', gap: 0 }}>
+        <div ref={hostRef} style={{ flex: 1, minHeight: 360 }}>
+          {state === 'error' && !meta ? (
+            <div style={{ padding: 24 }} className="muted">Failed to open sheet.</div>
+          ) : hist.view ? (
+            <DataGrid
+              headers={COLUMNS}
+              data={hist.view.data}
+              rowHeight={40}
+              dataGridHeight={size.h || 500}
+              dataGridWidth="100%"
+              isViewMode={true}
+              remoteHighlights={hist.view.highlights}
+            />
+          ) : (
+            <DataGrid
+              ref={gridRef}
+              headers={COLUMNS}
+              data={data}
+              rowHeight={40}
+              dataGridHeight={size.h || 500}
+              dataGridWidth="100%"
+              isViewMode={readOnly}
+              onCellEdit={onCellEdit}
+              onCellSelectionChange={onCellSelectionChange}
+              onRowHandlerClick={readOnly ? undefined : insertRowAfter}
+              remoteHighlights={remoteHighlights}
+              onAppendRowAtEnd={readOnly ? undefined : addRow}
+            />
+          )}
+        </div>
+        {hist.open && (
+          <div style={{ width: 300, flexShrink: 0, borderLeft: '1px solid #e9e9e7', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="row" style={{ justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid #e9e9e7' }}>
+              <strong style={{ fontSize: 13 }}>Edit history</strong>
+              <button onClick={closeHistory} title="Close">✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+              {hist.loading && <div className="muted" style={{ padding: 8 }}>Loading…</div>}
+              {hist.error && <div className="banner">{hist.error}</div>}
+              {!hist.loading && !hist.error && hist.sessions.length === 0 && (
+                <div className="muted" style={{ padding: 8, fontSize: 13 }}>No edits yet.</div>
+              )}
+              {hist.sessions.map((s) => {
+                const active = hist.view?.seq === s.lastSeq;
+                const color = s.user?.color || '#666';
+                return (
+                  <button
+                    key={`${s.firstSeq}-${s.lastSeq}`}
+                    onClick={() => viewSnapshot(s)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      textAlign: 'left', padding: '8px', marginBottom: 4, borderRadius: 6,
+                      border: active ? '1px solid #4571e6' : '1px solid transparent',
+                      background: active ? '#eef2ff' : 'transparent', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', background: color, color: '#fff',
+                      fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
+                      justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      {histLabel(s.user).trim().charAt(0).toUpperCase()}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {histLabel(s.user)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        {fmtTime(s.endedAt)}
+                        {' · '}
+                        {(s.changedCells?.length ?? 0) > 0
+                          ? `${s.changedCells.length} cell${s.changedCells.length === 1 ? '' : 's'} changed`
+                          : `${s.updateCount} update${s.updateCount === 1 ? '' : 's'}`}
+                        {s.origin === 'archive' ? ' · archived' : ''}
+                      </div>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     </div>

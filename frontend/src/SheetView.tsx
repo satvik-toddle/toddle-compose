@@ -8,7 +8,7 @@ import { WebsocketProvider } from 'y-websocket';
 import { DataGrid } from '@toddle-edu/ds-data-grid';
 import { api } from './api';
 import { env } from './env';
-import "@glideapps/glide-data-grid/dist/index.css";
+import "@toddle-edu/glide-data-grid/dist/index.css"
 
 type User = { id: string; email: string; name?: string; color?: string };
 type ConnState = 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';

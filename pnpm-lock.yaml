@@ -139,7 +139,7 @@ importers:
         specifier: 2.0.4
         version: 2.0.4(yjs@13.6.27)
       yjs:
-        specifier: ^13.6.20
+        specifier: 13.6.27
         version: 13.6.27
 
   frontend:
@@ -147,6 +147,9 @@ importers:
       '@toddle-edu/common-utils':
         specifier: 2.3.48
         version: 2.3.48(esbuild@0.28.0)
+      '@toddle-edu/ds-data-grid':
+        specifier: link:/Users/apple/Documents/design-system/packages/common/ds-data-grid
+        version: link:../../design-system/packages/common/ds-data-grid
       '@toddle-edu/ds-doc-editor':
         specifier: link:/Users/apple/Documents/doc-editor/packages/doc-editor
         version: link:../../doc-editor/packages/doc-editor
@@ -159,6 +162,9 @@ importers:
       '@toddle-edu/ds-web':
         specifier: 1.156.5
         version: 1.156.5(@react-spectrum/provider@3.11.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2))(@types/react@17.0.93)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(tailwindcss@4.3.0)
+      lodash:
+        specifier: 4.17.21
+        version: 4.17.21
       react:
         specifier: 17.0.2
         version: 17.0.2
@@ -3403,9 +3409,6 @@ packages:
   lodash@4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
 
-  lodash@4.18.1:
-    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
-
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
     engines: {node: '>=10'}
@@ -5105,7 +5108,7 @@ snapshots:
       '@ant-design/icons-svg': 4.4.2
       '@babel/runtime': 7.29.7
       classnames: 2.5.1
-      lodash: 4.18.1
+      lodash: 4.17.21
       rc-util: 5.44.4(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
       react: 17.0.2
       react-dom: 17.0.2(react@17.0.2)
@@ -5115,7 +5118,7 @@ snapshots:
       '@babel/runtime': 7.29.7
       classnames: 2.5.1
       json2mq: 0.2.0
-      lodash: 4.18.1
+      lodash: 4.17.21
       react: 17.0.2
       resize-observer-polyfill: 1.5.1
 
@@ -6446,7 +6449,7 @@ snapshots:
       axios: 1.17.0
       crypto-js: 4.2.0
       esbuild-plugin-polyfill-node: 0.3.0(esbuild@0.28.0)
-      lodash: 4.18.1
+      lodash: 4.17.21
       mailchecker: 6.0.20
     transitivePeerDependencies:
       - debug
@@ -6462,7 +6465,7 @@ snapshots:
   '@toddle-edu/ds-theme@2.8.3':
     dependencies:
       '@types/lodash': 4.17.24
-      lodash: 4.18.1
+      lodash: 4.17.21
 
   '@toddle-edu/ds-web@1.156.5(@react-spectrum/provider@3.11.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2))(@types/react@17.0.93)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(tailwindcss@4.3.0)':
     dependencies:
@@ -6490,7 +6493,7 @@ snapshots:
       classnames: 2.5.1
       gsap: 3.11.1
       html-to-text: 7.1.3
-      lodash: 4.18.1
+      lodash: 4.17.21
       nanoid: 3.3.12
       rc-tooltip: 5.3.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
       react-beautiful-dnd: 13.1.1(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
@@ -7010,7 +7013,7 @@ snapshots:
       '@types/qs': 6.15.1
       classnames: 2.5.1
       copy-to-clipboard: 3.3.3
-      lodash: 4.18.1
+      lodash: 4.17.21
       memoize-one: 6.0.0
       moment: 2.30.1
       rc-cascader: 3.5.0(react-dom@17.0.2(react@17.0.2))(react@17.0.2)
@@ -8170,7 +8173,7 @@ snapshots:
       cli-width: 3.0.0
       external-editor: 3.1.0
       figures: 3.2.0
-      lodash: 4.18.1
+      lodash: 4.17.21
       mute-stream: 0.0.8
       ora: 5.4.1
       run-async: 2.4.1
@@ -8189,7 +8192,7 @@ snapshots:
       cli-width: 4.1.0
       external-editor: 3.1.0
       figures: 3.2.0
-      lodash: 4.18.1
+      lodash: 4.17.21
       mute-stream: 1.0.0
       ora: 5.4.1
       run-async: 3.0.0
@@ -8794,8 +8797,6 @@ snapshots:
 
   lodash@4.17.21: {}
 
-  lodash@4.18.1: {}
-
   log-symbols@4.1.0:
     dependencies:
       chalk: 4.1.2
@@ -9097,7 +9098,7 @@ snapshots:
 
   node-emoji@1.11.0:
     dependencies:
-      lodash: 4.18.1
+      lodash: 4.17.21
 
   node-fetch@2.7.0:
     dependencies:

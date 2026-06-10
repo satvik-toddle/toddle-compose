@@ -9,6 +9,7 @@ import type { IncomingMessage } from "http";
 import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
+import { LockService } from "./lock.service";
 import { createLogger, decodeYFrame, nextConnId } from "../logger";
 import type { Env } from "../config/env";
 
@@ -21,14 +22,21 @@ function shouldDropForViewer(buf: Buffer): boolean {
   return subType === 1 || subType === 2;
 }
 
-function parseUrl(url: string): { docId: string; token: string } | null {
+function parseUrl(
+  url: string
+): { kind: "yjs" | "locks"; docId: string; token: string } | null {
   try {
     const u = new URL(url, "http://localhost");
-    const m = u.pathname.match(/^\/yjs\/([^/]+)$/);
-    if (!m) return null;
+    let m = u.pathname.match(/^\/yjs\/([^/]+)$/);
+    let kind: "yjs" | "locks" | null = m ? "yjs" : null;
+    if (!m) {
+      m = u.pathname.match(/^\/locks\/([^/]+)$/);
+      if (m) kind = "locks";
+    }
+    if (!m || !kind) return null;
     const token = u.searchParams.get("token");
     if (!token) return null;
-    return { docId: decodeURIComponent(m[1]), token };
+    return { kind, docId: decodeURIComponent(m[1]), token };
   } catch {
     return null;
   }
@@ -43,6 +51,7 @@ export class YjsServerService
   constructor(
     private readonly tokens: TokensService,
     private readonly docState: DocStateService,
+    private readonly locks: LockService,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -117,6 +126,23 @@ export class YjsServerService
         clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`)
       );
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
+
+      // Lock channel: separate WS path, never goes through the Yjs sync setup.
+      if (parsed.kind === "locks") {
+        clog.info(`LOCK channel open sub=${sub} doc='${parsed.docId}'`);
+        this.locks.register(parsed.docId, ws);
+        ws.on("message", (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
+          if (isBinary) return;
+          const text = Buffer.isBuffer(data)
+            ? data.toString()
+            : data instanceof ArrayBuffer
+              ? Buffer.from(data).toString()
+              : Buffer.concat(data as Buffer[]).toString();
+          this.locks.handleMessage(parsed.docId, sub, role, ws, text);
+        });
+        ws.on("close", () => this.locks.unregister(parsed.docId, ws, sub));
+        return;
+      }
 
       if (role === "viewer") {
         const originalOn = ws.on.bind(ws);

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Visibility } from "@app/database";
+import { Visibility, DocumentType } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
@@ -16,8 +16,15 @@ const OWNER_SELECT = { id: true, name: true, color: true } as const;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
+  type?: "DOC" | "SHEET";
   folderId?: string;
   workspaceId?: string;
+};
+
+// Default icon per document kind when the caller doesn't pass one.
+const DEFAULT_ICON: Record<DocumentType, string> = {
+  [DocumentType.DOC]: "📄",
+  [DocumentType.SHEET]: "📊",
 };
 type ListDocumentsInput = { folderId?: string; workspaceId?: string };
 
@@ -67,10 +74,12 @@ export class DocumentsService {
     const wsId = this.resolveWorkspaceId(user, input.workspaceId);
     await this.authz.requireWorkspaceRole(user.id, wsId, "EDIT");
     if (input.folderId) await this.requireFolderInWorkspace(input.folderId, wsId);
+    const type = (input.type as DocumentType) ?? DocumentType.DOC;
     const doc = await this.prisma.document.create({
       data: {
         title: input.title,
-        icon: input.icon,
+        icon: input.icon ?? DEFAULT_ICON[type],
+        type,
         workspaceId: wsId,
         ownerId: user.id,
         folderId: input.folderId ?? null,
@@ -229,6 +238,7 @@ export class DocumentsService {
       id: true,
       title: true,
       icon: true,
+      type: true,
       visibility: true,
       workspaceId: true,
       folderId: true,

@@ -1,7 +1,12 @@
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api, asRows, getToken, setToken, setRefresh, getRefresh, type ApiError } from './api';
-import { DocView } from './DocView';
+// Lazy-load the two collaborative surfaces so each page pulls in only the yjs
+// it needs: the editor bundles its own yjs, the sheet uses the app's. Eagerly
+// importing both put two yjs copies on every page ("Yjs was already imported").
+const DocView = lazy(() => import('./DocView').then((m) => ({ default: m.DocView })));
+const SheetView = lazy(() => import('./SheetView').then((m) => ({ default: m.SheetView })));
+import { DataGridView } from './DataGridView';
 import {
   ic, LOGO_SRC, Avatar, AvStack, RealmChip, WSChip, Btn, Field, Input, RoleDropdown,
   AppBar, ModalHead, REALM_ROLE, WS_ROLE, REALM_ROLE_OPTIONS, WS_ROLE_OPTIONS,
@@ -78,6 +83,11 @@ export function App() {
     call('POST /auth/workspace/enter', () => api('/auth/workspace/enter', { method: 'POST', body: { workspaceId: id } }))
       .then((d: any) => enterWs(id, d.accessToken)).catch(() => {});
   }
+
+  // Temporary standalone mount of @toddle-edu/ds-data-grid (no auth needed yet).
+  // Reach it at /data-grid; same linked-package approach as the doc-editor.
+  if (loc.pathname === '/data-grid')
+    return <DataGridView onBack={() => navigate(token ? '/workspaces' : '/')} />;
 
   // 1 · Auth
   if (!token)
@@ -595,11 +605,13 @@ function WorkspaceScreen({ call, bar, wsId, me, realmRole, isRealmAdmin, openDoc
   function selectFolder(f: { id: string; name: string; icon?: string } | null) {
     setFolder(f); setView('docs'); if (openDocId) onCloseDoc();
   }
-  // create a doc (optionally inside a folder) and open it
-  function createDoc(folderId?: string) {
-    const title = (window.prompt('Document title', 'Untitled') || '').trim() || 'Untitled';
+  // create a doc or sheet (optionally inside a folder) and open it
+  function createDoc(folderId?: string, type: 'DOC' | 'SHEET' = 'DOC') {
+    const kind = type === 'SHEET' ? 'Sheet' : 'Document';
+    const title = (window.prompt(`${kind} title`, 'Untitled') || '').trim() || 'Untitled';
     const body: any = { title, workspaceId: wsId };
     if (folderId) body.folderId = folderId;
+    if (type === 'SHEET') body.type = 'SHEET';
     call('POST /documents', () => api('/documents', { method: 'POST', body }))
       .then((d: any) => { if (d?.id) onOpenDoc(d.id); }).catch(() => {});
   }
@@ -712,6 +724,7 @@ function WsNav({ call, wsId, isAdmin, view, setView, selectedFolderId, onSelectF
             <FolderMenu call={call} folder={f} canCreateDoc={canCreateDoc}
               onClose={() => setMenuId(null)} onChanged={loadFolders}
               onAddDoc={() => { onSelectFolder({ id: f.id, name: f.name, icon: f.icon }); onCreateDoc(f.id); setMenuId(null); }}
+              onAddSheet={() => { onSelectFolder({ id: f.id, name: f.name, icon: f.icon }); onCreateDoc(f.id, 'SHEET'); setMenuId(null); }}
               onAddFolder={() => { setAddFolder(f.id); setMenuId(null); }}
               onDeleted={() => { if (selectedFolderId === f.id) onSelectFolder(null); }} />
           )}
@@ -766,7 +779,7 @@ function WsNav({ call, wsId, isAdmin, view, setView, selectedFolderId, onSelectF
   );
 }
 
-function FolderMenu({ call, folder, canCreateDoc, onClose, onChanged, onAddDoc, onAddFolder, onDeleted }: any) {
+function FolderMenu({ call, folder, canCreateDoc, onClose, onChanged, onAddDoc, onAddSheet, onAddFolder, onDeleted }: any) {
   function rename() {
     const n = window.prompt('New folder name', folder.name);
     if (n && n !== folder.name) call(`PATCH /folders/${folder.id}`, () => api(`/folders/${folder.id}`, { method: 'PATCH', body: { name: n } })).then(onChanged).catch(() => {});
@@ -779,6 +792,7 @@ function FolderMenu({ call, folder, canCreateDoc, onClose, onChanged, onAddDoc, 
   return (
     <div className="folder-menu" onClick={(e) => e.stopPropagation()}>
       {canCreateDoc && <div className="fm-row" onClick={() => { onAddDoc(); }}><img className="ic-14 ic-muted" src={ic('AddOutlined')} alt="" />Add doc</div>}
+      {canCreateDoc && <div className="fm-row" onClick={() => { onAddSheet(); }}><img className="ic-14 ic-muted" src={ic('GridOutlined')} alt="" />Add sheet</div>}
       <div className="fm-row" onClick={() => { onAddFolder(); }}><img className="ic-14 ic-muted" src={ic('FolderOutlined')} alt="" />Add subfolder</div>
       <div className="fm-row" onClick={rename}><img className="ic-14 ic-muted" src={ic('PencilOutlined')} alt="" />Rename</div>
       <div className="fm-div" />
@@ -807,7 +821,10 @@ function DocsList({ call, wsId, wsName, folder, canCreate, onOpenDoc, onCreateDo
           <span>{wsName}</span><span className="sep">/</span>
           <span className="cur">{folder ? `${folder.icon || '📁'} ${folder.name}` : '📄 All documents'}</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>{canCreate && <Btn size="sm" icon="AddOutlined" onClick={() => onCreateDoc(folder?.id)}>New doc</Btn>}</div>
+        <div style={{ display: 'flex', gap: 8 }}>{canCreate && <>
+          <Btn size="sm" variant="ghost" icon="GridOutlined" onClick={() => onCreateDoc(folder?.id, 'SHEET')}>New sheet</Btn>
+          <Btn size="sm" icon="AddOutlined" onClick={() => onCreateDoc(folder?.id)}>New doc</Btn>
+        </>}</div>
       </div>
       <div className="ws-scroll">
         <div className="ws-folder-head">
@@ -822,7 +839,7 @@ function DocsList({ call, wsId, wsName, folder, canCreate, onOpenDoc, onCreateDo
           {docs.map((d: any) => (
             <div key={d.id} className="trow" onClick={() => onOpenDoc(d.id)}>
               <div className="cell-main">
-                <span className="tw-emoji big">📄</span>
+                <span className="tw-emoji big">{d.icon || (d.type === 'SHEET' ? '📊' : '📄')}</span>
                 <div><div className="nm">{d.title || 'Untitled'}</div>{d.summary && <div className="sub">{d.summary}</div>}</div>
               </div>
               <div><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -848,15 +865,27 @@ function DocsList({ call, wsId, wsName, folder, canCreate, onOpenDoc, onCreateDo
   );
 }
 
-/* right panel — doc reader chrome wrapping the real collaborative editor */
+/* right panel — doc reader chrome wrapping the real collaborative surface
+   (rich-text editor for DOC, data grid for SHEET) */
 function DocReader({ docId, me, wsName, onClose }: { docId: string; me: Me; wsName: string; onClose: () => void }) {
+  // Fetch the document to pick the right surface; works on direct URL load too.
+  const [doc, setDoc] = useState<{ type?: string; title?: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setDoc(null);
+    api(`/documents/${docId}`).then((d: any) => { if (!cancelled) setDoc(d); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [docId]);
+
+  const isSheet = doc?.type === 'SHEET';
+  const meProps = me ? { id: me.id, email: me.email, name: me.name, color: me.color } : null;
   return (
     <main className="ws-main">
       <div className="ws-docbar">
         <div className="ws-doc-title">
           <button className="ibtn sm" onClick={onClose} title="Back"><img className="ic-14 ic-muted" src={ic('ChevronLeftOutlined')} alt="" /></button>
           <span className="ws-doc-crumb">{wsName} /</span>
-          <span className="ws-doc-nm" id="doc-reader-title">Document</span>
+          <span className="ws-doc-nm" id="doc-reader-title">{doc?.title || (isSheet ? 'Sheet' : 'Document')}</span>
         </div>
         <div className="ws-doc-people">
           <Btn variant="primary" size="sm" icon="ShareOutlined">Share</Btn>
@@ -864,7 +893,13 @@ function DocReader({ docId, me, wsName, onClose }: { docId: string; me: Me; wsNa
       </div>
       <div className="ws-scroll editor">
         <div className="editor-host">
-          {me && <DocView docId={docId} me={{ id: me.id, email: me.email, name: me.name, color: me.color }} onBack={onClose} />}
+          {meProps && doc && (
+            <Suspense fallback={<div style={{ padding: 24 }} className="muted">Loading…</div>}>
+              {isSheet
+                ? <SheetView docId={docId} me={meProps} onBack={onClose} />
+                : <DocView docId={docId} me={meProps} onBack={onClose} />}
+            </Suspense>
+          )}
         </div>
       </div>
     </main>

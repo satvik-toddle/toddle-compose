@@ -2,9 +2,10 @@ import { Module } from "@nestjs/common";
 import { TokensModule } from "../tokens/tokens.module";
 import { PersistenceModule } from "../persistence/persistence.module";
 import { YjsServerService } from "./yjs-server.service";
+import { LockService } from "./lock.service";
 
 @Module({
   imports: [TokensModule, PersistenceModule],
-  providers: [YjsServerService],
+  providers: [YjsServerService, LockService],
 })
 export class YjsModule {}

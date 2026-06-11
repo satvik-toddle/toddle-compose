@@ -244,6 +244,12 @@ export class DocStateService {
         state.updates = 0;
         state.bytesIn = 0;
         await this.drain(docName);
+        // Capture the last drained seq BEFORE encoding: every update counted in
+        // lastAppendedSeq was applied to the ydoc before it was enqueued, so the
+        // encoded state is guaranteed to contain at least seq 1..flushedSeq.
+        // (snapshotAtSeq may lag the state — replay is idempotent — but must
+        // never exceed it, or compaction could drop unsnapshotted updates.)
+        const flushedSeq = state.lastAppendedSeq;
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
         const { lexicalJson, plainText } = this.extract.extractFromBytes(update);
@@ -251,10 +257,12 @@ export class DocStateService {
           docName,
           yjsState,
           lexicalJson,
-          plainText
+          plainText,
+          flushedSeq
         );
+        state.snapshotAtSeq = flushedSeq;
         log.info(
-          `'${docName}' flush done v${version} reason=${reason} yjs=${yjsState.byteLength}B json=${lexicalJson?.length ?? 0}B text=${plainText.length}ch in ${Date.now() - t0}ms`
+          `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B json=${lexicalJson?.length ?? 0}B text=${plainText.length}ch in ${Date.now() - t0}ms`
         );
         contentLog.info(`'${docName}' v${version} ${summarizeBlocks(lexicalJson)}`);
       } catch (e) {
@@ -323,6 +331,7 @@ export class DocStateService {
 
   async writeState(docName: string): Promise<void> {
     persistLog.info(`'${docName}' writeState — final flush + checkpoint + compaction`);
+    const entry = this.docState.get(docName);
     this.clearCheckpointTimer(docName);
     await this.writeCheckpoint(docName, "writeState");
     await this.flush(docName, "writeState");
@@ -334,6 +343,52 @@ export class DocStateService {
     } catch (e) {
       persistLog.error(`'${docName}' on-disconnect compaction FAILED`, e);
     }
+    // Evict in-memory state so docState/chains don't grow forever. y-websocket
+    // removes the doc from its map synchronously when the last client leaves,
+    // so a quick reconnect runs bindState concurrently and replaces the entry —
+    // only evict if our entry is still the live one.
+    await this.drain(docName);
+    if (entry && this.docState.get(docName) === entry) {
+      this.clearAllTimers(entry.state);
+      this.docState.delete(docName);
+      this.chains.delete(docName);
+      persistLog.info(`'${docName}' evicted in-memory state`);
+    } else if (this.docState.get(docName) !== entry) {
+      persistLog.info(`'${docName}' rebound during writeState — skip eviction`);
+    }
+  }
+
+  private clearAllTimers(state: DebounceState): void {
+    if (state.idleTimer) {
+      clearTimeout(state.idleTimer);
+      state.idleTimer = null;
+    }
+    if (state.maxTimer) {
+      clearTimeout(state.maxTimer);
+      state.maxTimer = null;
+    }
+    if (state.checkpointTimer) {
+      clearTimeout(state.checkpointTimer);
+      state.checkpointTimer = null;
+    }
+  }
+
+  /**
+   * Drop all in-memory state for a doc WITHOUT flushing — used when the doc is
+   * being deleted. Callers must close/tear down any live connections first so
+   * no new updates (or a rebind) arrive while we evict.
+   */
+  async evictDocNoFlush(docName: string): Promise<void> {
+    const entry = this.docState.get(docName);
+    if (entry) {
+      this.clearAllTimers(entry.state);
+      entry.state.dirty = false;
+    }
+    // Let any in-flight appends settle so they can't land after the DB delete.
+    await this.drain(docName);
+    this.docState.delete(docName);
+    this.chains.delete(docName);
+    persistLog.info(`'${docName}' evicted in-memory state (no flush)`);
   }
 
   async shutdownAndFlushAll(): Promise<void> {

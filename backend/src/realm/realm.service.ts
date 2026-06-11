@@ -90,8 +90,22 @@ export class RealmService {
     }
     await this.requireAuthorityOver(actorId, existing.role);
 
-    await this.prisma.realmMember.delete({
-      where: { realmId_userId: { realmId: this.realm.id, userId: targetUserId } },
+    // The realm is the tenant boundary: leaving it must also revoke every
+    // workspace membership and pending join request inside it, atomically.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.workspaceMember.deleteMany({
+        where: { userId: targetUserId, workspace: { realmId: this.realm.id } },
+      });
+      await tx.joinRequest.deleteMany({
+        where: {
+          userId: targetUserId,
+          state: "PENDING",
+          workspace: { realmId: this.realm.id },
+        },
+      });
+      await tx.realmMember.delete({
+        where: { realmId_userId: { realmId: this.realm.id, userId: targetUserId } },
+      });
     });
     return { ok: true as const };
   }

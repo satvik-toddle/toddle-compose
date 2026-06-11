@@ -190,5 +190,7 @@ model Document {
   @@index([visibility])
   @@index([folderId])
   @@index([workspaceId])
+  // Backs the documents list (filtered by workspace, ordered by updatedAt desc).
+  @@index([workspaceId, updatedAt])
   @@map("documents")
 }

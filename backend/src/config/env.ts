@@ -2,9 +2,12 @@ import { z } from "zod";
 
 /**
  * Backend env schema (modules wired so far: Config, Prisma, Keys, Auth, Users).
- * Secrets are REQUIRED with no insecure defaults — the app refuses to boot without
- * them. Unknown vars in the root .env are ignored by zod.
+ * In production, secrets are REQUIRED with no insecure defaults — the app refuses
+ * to boot without them; outside production some carry dev-only defaults (see
+ * INTERNAL_TOKEN). Unknown vars in the root .env are ignored by zod.
  */
+const isProduction = process.env.NODE_ENV === "production";
+
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
@@ -32,13 +35,18 @@ export const envSchema = z.object({
   RTC_PUBLIC_KEY_PATH: z.string().default("./.keys/rtc-public.pem"),
 
   // RTC access tokens the backend mints (RS256, verified by the rtc-server via JWKS).
-  RTC_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(3600),
+  // Short-lived by design: it only needs to cover the WS handshake (re-minted on
+  // reconnect), so a leaked token ages out fast.
+  RTC_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(300),
   RTC_TOKEN_ISS: z.string().default("toddlecompose-backend"),
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
 
-  // Internal HTTP channel to the rtc-server (shared-secret authed).
+  // Internal HTTP channel to the rtc-server (shared-secret authed). The dev
+  // default is convenience-only: production REQUIRES a long random secret.
   RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
-  INTERNAL_TOKEN: z.string().min(1).default("dev-internal-secret-change-me"),
+  INTERNAL_TOKEN: isProduction
+    ? z.string().min(32, "INTERNAL_TOKEN must be at least 32 characters in production")
+    : z.string().min(1).default("dev-internal-secret-change-me"),
 
   // --- Object storage ---------------------------------------------------------
   // Public origin of THIS backend; used to build absolute URLs for stored objects

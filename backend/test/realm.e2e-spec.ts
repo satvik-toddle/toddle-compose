@@ -569,9 +569,30 @@ describe("Realm / Workspace RBAC (e2e)", () => {
   const hasId = (id: string) => (r: { id: string }) => r.id === id;
 
   describe("public workspaces — self-join", () => {
-    it("discoverable + self-join as defaultRole; becomes realm MEMBER; re-join 409", async () => {
+    it("outsiders (non-realm members) get 403 on discover / join / request", async () => {
+      const wsId = await createPublic("gated");
+      // Fresh registration: the shared `outsider` gets realm membership in an
+      // earlier test (auto-added when joined to a workspace).
+      const stranger = await register("stranger");
+      await request(server)
+        .get("/api/workspaces/discoverable")
+        .set(auth(stranger.token))
+        .expect(403);
+      await request(server)
+        .post(`/api/workspaces/${wsId}/join`)
+        .set(auth(stranger.token))
+        .expect(403);
+      await request(server)
+        .post(`/api/workspaces/${wsId}/requests`)
+        .set(auth(stranger.token))
+        .send({})
+        .expect(403);
+    });
+
+    it("discoverable + self-join as defaultRole; stays realm MEMBER; re-join 409", async () => {
       const wsId = await createPublic("public", "COMMENT");
       const joiner = await register("joiner");
+      await addRealmUser(joiner.email, "MEMBER"); // join requires realm membership
 
       const disc = await request(server)
         .get("/api/workspaces/discoverable")
@@ -606,6 +627,7 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     it("cannot self-join a PRIVATE workspace (403); cannot request a PUBLIC one (400)", async () => {
       const priv = await createWorkspace(maintainer.token, "joinpriv"); // default PRIVATE
       const u = await register("privjoiner");
+      await addRealmUser(u.email, "MEMBER");
       await request(server)
         .post(`/api/workspaces/${priv}/join`)
         .set(auth(u.token))
@@ -624,6 +646,7 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     it("request → realm admin approves → member with requested role; re-decide 409", async () => {
       const wsId = await createWorkspace(maintainer.token, "reqapprove");
       const requester = await register("requester");
+      await addRealmUser(requester.email, "MEMBER");
 
       const req = await request(server)
         .post(`/api/workspaces/${wsId}/requests`)
@@ -684,6 +707,7 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     it("reject a request; requester is not added and may re-request", async () => {
       const wsId = await createWorkspace(maintainer.token, "reject");
       const requester = await register("rejectee");
+      await addRealmUser(requester.email, "MEMBER");
       const req = await request(server)
         .post(`/api/workspaces/${wsId}/requests`)
         .set(auth(requester.token))
@@ -707,6 +731,7 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     it("non-admins cannot approve/reject and don't see the request in their inbox", async () => {
       const wsId = await createWorkspace(maintainer.token, "authz");
       const requester = await register("authzreq");
+      await addRealmUser(requester.email, "MEMBER");
       const req = await request(server)
         .post(`/api/workspaces/${wsId}/requests`)
         .set(auth(requester.token))
@@ -739,6 +764,7 @@ describe("Realm / Workspace RBAC (e2e)", () => {
         .send({ email: wsAdmin.email, role: "ADMIN" })
         .expect(201);
       const requester = await register("wsadminreq");
+      await addRealmUser(requester.email, "MEMBER");
       const req = await request(server)
         .post(`/api/workspaces/${wsId}/requests`)
         .set(auth(requester.token))

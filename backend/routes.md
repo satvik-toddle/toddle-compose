@@ -176,38 +176,47 @@ Folder shape: `{ id, name, icon, parentId, workspaceId, ownerId, createdAt, upda
 
 ---
 
-## Documents
+## Documents & Sheets
 
 All routes **guarded**. A document belongs to a workspace and is located either in a folder
 (`folderId`) **or** nested under another document (`parentId`, making it a "subdoc") — never both.
 It has a `type` (`DOC` rich-text editor | `SHEET` data grid; both share the same RTC/Yjs stack and
-nest identically), an owner, and a `visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership,
-workspace role, and visibility. Documents form a workspace-scoped tree; deleting a document
-cascade-deletes its whole subdoc subtree.
+nest identically — a DOC and a SHEET may be parent/child of each other), an owner, and a
+`visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership, workspace role, and visibility.
+Documents form a workspace-scoped tree; deleting a document cascade-deletes its whole subdoc subtree.
+
+**Two kind-scoped namespaces serve the same resource:** `/api/documents` operates on **DOC**s and
+`/api/sheets` operates on **SHEET**s. The kind is decided by the namespace — it is **not** a request
+body field. Every per-id route is cross-checked: addressing a SHEET via `/api/documents/:id` (or a
+DOC via `/api/sheets/:id`) returns **`404`** (we don't reveal that the id exists as the other kind).
+The two namespaces are otherwise identical; the routes below are written as `/api/documents` but apply
+verbatim to `/api/sheets` (creating/listing SHEETs instead of DOCs). The `create` default icon differs
+by kind (`📄` DOC / `📊` SHEET).
 
 Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, parentId, createdAt, updatedAt, owner }`
 (`owner` is a public user summary).
 
-- `GET /api/documents?folderId=…&parentId=…&workspaceId=…` → list documents. All filters optional;
-  omit `workspaceId` to use the active workspace, omit `folderId`/`parentId` for the whole workspace.
-  `parentId=null` (or empty) returns only top-level docs (no parent); `parentId=<id>` returns that
-  document's direct subdocs. `?skip&?take`.
-- `POST /api/documents` — `{ title?, icon?, type?, folderId?, parentId?, workspaceId? }` → create.
-  `title` 1–200 chars, `icon` ≤16 chars. `type` is `DOC` (default) or `SHEET`; when `icon` is omitted
-  it defaults per kind (`📄` for DOC, `📊` for SHEET). `parentId` nests it under an existing document of
-  the same workspace (a subdoc, of either kind) — when set, `folderId` is ignored. Otherwise `folderId`
-  places it in a folder of the same workspace. `workspaceId` defaults to the active workspace. `400` on
-  an invalid `type`; `404` if the target folder/parent isn't in the workspace.
+- `GET /api/documents?folderId=…&parentId=…&workspaceId=…` → list **DOC**s (use `/api/sheets` for
+  SHEETs). All filters optional; omit `workspaceId` to use the active workspace, omit
+  `folderId`/`parentId` for the whole workspace. `parentId=null` (or empty) returns only top-level docs
+  (no parent); `parentId=<id>` returns that document's direct subdocs (which may be of either kind).
+  `?skip&?take`.
+- `POST /api/documents` — `{ title?, icon?, folderId?, parentId?, workspaceId? }` → create a **DOC**
+  (`POST /api/sheets` creates a **SHEET**). `title` 1–200 chars, `icon` ≤16 chars; when `icon` is
+  omitted it defaults per kind (`📄` DOC / `📊` SHEET). `parentId` nests it under an existing document of
+  the same workspace (a subdoc; the parent may be either kind) — when set, `folderId` is ignored.
+  Otherwise `folderId` places it in a folder of the same workspace. `workspaceId` defaults to the
+  active workspace. `404` if the target folder/parent isn't in the workspace.
   ```json
-  { "title": "Q3 numbers", "type": "SHEET", "folderId": "ckfa…" }
+  { "title": "Design Notes", "folderId": "ckfa…" }
   ```
-  `201`:
+  `201` (from `/api/documents`; `/api/sheets` returns `"type": "SHEET"`, `"icon": "📊"`):
   ```json
   {
     "id": "ckdo…",
-    "title": "Q3 numbers",
-    "icon": "📊",
-    "type": "SHEET",
+    "title": "Design Notes",
+    "icon": "📄",
+    "type": "DOC",
     "visibility": "PRIVATE",
     "workspaceId": "ckws…",
     "folderId": "ckfa…",

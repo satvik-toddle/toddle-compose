@@ -407,17 +407,21 @@ function decode(jwt: string): Record<string, unknown> {
 }
 
 /**
- * Sheet support (e2e) — the DOC/SHEET document kind: type round-trips through
- * create, per-kind default icons, validation of the `type` field, and that BOTH
- * kinds nest under a valid parent (DOC↔SHEET in either direction). Boots the real
- * AppModule against DATABASE_URL.
+ * Sheet support + kind namespaces (e2e) — DOC lives under /api/documents, SHEET
+ * under /api/sheets; the kind is decided by the namespace (not a body field).
+ * Verifies per-kind create + default icons, that BOTH kinds nest under any parent
+ * (DOC↔SHEET in either direction), kind-scoped listings, and the cross-namespace
+ * guard (reaching a SHEET via /documents or a DOC via /sheets → 404). Boots the
+ * real AppModule against DATABASE_URL.
  */
-describe("Sheet support (e2e)", () => {
+describe("Sheet support + kind namespaces (e2e)", () => {
   let app: INestApplication;
 
   const stamp = Date.now();
   let ownerWs = "";
   let wsId = "";
+  let docId = "";
+  let sheetId = "";
 
   beforeAll(async () => {
     app = await bootApp();
@@ -430,17 +434,20 @@ describe("Sheet support (e2e)", () => {
     await app.close();
   });
 
-  it("creates a SHEET document → type SHEET, default 📊 icon", async () => {
+  // ---- create per namespace ----
+
+  it("POST /sheets creates a SHEET → type SHEET, default 📊 icon", async () => {
     const res = await http(app)
-      .post("/api/documents")
+      .post("/api/sheets")
       .set(auth(ownerWs))
-      .send({ title: "Q3 Numbers", type: "SHEET" })
+      .send({ title: "Q3 Numbers" })
       .expect(201);
     expect(res.body.type).toBe("SHEET");
     expect(res.body.icon).toBe("📊");
+    sheetId = res.body.id;
   });
 
-  it("defaults to a DOC (type DOC, 📄 icon) when type is omitted", async () => {
+  it("POST /documents creates a DOC → type DOC, default 📄 icon", async () => {
     const res = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))
@@ -448,68 +455,87 @@ describe("Sheet support (e2e)", () => {
       .expect(201);
     expect(res.body.type).toBe("DOC");
     expect(res.body.icon).toBe("📄");
+    docId = res.body.id;
   });
 
   it("honours an explicit icon over the per-kind default", async () => {
     const res = await http(app)
-      .post("/api/documents")
+      .post("/api/sheets")
       .set(auth(ownerWs))
-      .send({ title: "Custom", type: "SHEET", icon: "🧮" })
+      .send({ title: "Custom", icon: "🧮" })
       .expect(201);
     expect(res.body.type).toBe("SHEET");
     expect(res.body.icon).toBe("🧮");
   });
 
-  it("rejects an invalid document type → 400", async () => {
-    await http(app)
-      .post("/api/documents")
-      .set(auth(ownerWs))
-      .send({ title: "x", type: "GRAPH" })
-      .expect(400);
+  // ---- cross-namespace guard ----
+
+  it("GET /documents/:id on a SHEET → 404 (wrong namespace)", async () => {
+    await http(app).get(`/api/documents/${sheetId}`).set(auth(ownerWs)).expect(404);
   });
 
-  it("a SHEET nests under a DOC parent (type preserved, parentId set)", async () => {
-    const parent = await http(app)
-      .post("/api/documents")
+  it("GET /sheets/:id on a DOC → 404 (wrong namespace)", async () => {
+    await http(app).get(`/api/sheets/${docId}`).set(auth(ownerWs)).expect(404);
+  });
+
+  it("each namespace reads its own kind", async () => {
+    const sheet = await http(app).get(`/api/sheets/${sheetId}`).set(auth(ownerWs)).expect(200);
+    expect(sheet.body.type).toBe("SHEET");
+    const doc = await http(app).get(`/api/documents/${docId}`).set(auth(ownerWs)).expect(200);
+    expect(doc.body.type).toBe("DOC");
+  });
+
+  it("a write through the wrong namespace is also blocked → 404", async () => {
+    await http(app)
+      .patch(`/api/documents/${sheetId}`)
       .set(auth(ownerWs))
-      .send({ title: "Report (doc)", type: "DOC" })
-      .expect(201);
+      .send({ title: "hijack via doc api" })
+      .expect(404);
+    await http(app)
+      .post(`/api/sheets/${docId}/rtc-token`)
+      .set(auth(ownerWs))
+      .expect(404);
+  });
+
+  // ---- cross-kind nesting (both kinds nest under any parent) ----
+
+  it("a SHEET nests under a DOC parent (parentId set, folderId cleared)", async () => {
     const child = await http(app)
-      .post("/api/documents")
+      .post("/api/sheets")
       .set(auth(ownerWs))
-      .send({ title: "Embedded sheet", type: "SHEET", parentId: parent.body.id })
+      .send({ title: "Embedded sheet", parentId: docId })
       .expect(201);
     expect(child.body.type).toBe("SHEET");
-    expect(child.body.parentId).toBe(parent.body.id);
+    expect(child.body.parentId).toBe(docId);
     expect(child.body.folderId).toBeNull();
   });
 
-  it("a DOC nests under a SHEET parent (both kinds are nestable)", async () => {
-    const parent = await http(app)
-      .post("/api/documents")
-      .set(auth(ownerWs))
-      .send({ title: "Dataset (sheet)", type: "SHEET" })
-      .expect(201);
+  it("a DOC nests under a SHEET parent, and /sheets/:id/subdocs lists it", async () => {
     const child = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))
-      .send({ title: "Notes on dataset", parentId: parent.body.id })
+      .send({ title: "Notes on dataset", parentId: sheetId })
       .expect(201);
     expect(child.body.type).toBe("DOC");
-    expect(child.body.parentId).toBe(parent.body.id);
+    expect(child.body.parentId).toBe(sheetId);
 
-    // The parent's subdoc listing surfaces the child with its kind intact.
+    // Children are mixed-kind; the sheet parent's subdoc listing surfaces the DOC child.
     const subdocs = await http(app)
-      .get(`/api/documents/${parent.body.id}/subdocs`)
+      .get(`/api/sheets/${sheetId}/subdocs`)
       .set(auth(ownerWs))
       .expect(200);
     expect(subdocs.body.map((d: { id: string }) => d.id)).toContain(child.body.id);
   });
 
-  it("listings carry the document type", async () => {
-    const list = await http(app).get("/api/documents").set(auth(ownerWs)).expect(200);
-    expect(list.body.every((d: { type: string }) => d.type === "DOC" || d.type === "SHEET")).toBe(
-      true
-    );
+  // ---- kind-scoped listings ----
+
+  it("GET /sheets lists only SHEETs; GET /documents lists only DOCs", async () => {
+    const sheets = await http(app).get("/api/sheets").set(auth(ownerWs)).expect(200);
+    expect(sheets.body.length).toBeGreaterThan(0);
+    expect(sheets.body.every((d: { type: string }) => d.type === "SHEET")).toBe(true);
+
+    const docs = await http(app).get("/api/documents").set(auth(ownerWs)).expect(200);
+    expect(docs.body.length).toBeGreaterThan(0);
+    expect(docs.body.every((d: { type: string }) => d.type === "DOC")).toBe(true);
   });
 });

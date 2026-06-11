@@ -33,6 +33,8 @@ type ListDocumentsInput = {
   folderId?: string;
   // null → only top-level (no parent) docs; a string → that parent's direct children.
   parentId?: string | null;
+  // Restrict to a single kind (set by the /documents vs /sheets namespace); omit for both.
+  type?: DocumentType;
   workspaceId?: string;
 };
 type MoveDocumentInput = {
@@ -109,8 +111,11 @@ export class DocumentsService {
     const parentScope =
       input.parentId === undefined ? {} : { parentId: input.parentId };
 
+    // Kind namespace: /documents lists DOCs, /sheets lists SHEETs (omitted → both).
+    const typeScope = input.type === undefined ? {} : { type: input.type };
+
     return this.prisma.document.findMany({
-      where: { workspaceId: wsId, ...folderScope, ...parentScope },
+      where: { workspaceId: wsId, ...folderScope, ...parentScope, ...typeScope },
       select: this.summarySelect(),
       orderBy: { updatedAt: "desc" },
       skip,
@@ -123,8 +128,14 @@ export class DocumentsService {
    * to READ the parent; children share the parent's workspace, so workspace READ on
    * the parent's workspace gates the whole list.
    */
-  async listSubdocs(userId: string, parentId: string, skip = 0, take = 100) {
-    const parent = await this.requireDocRead(userId, parentId);
+  async listSubdocs(
+    userId: string,
+    parentId: string,
+    skip = 0,
+    take = 100,
+    expectedType: DocumentType | null = null
+  ) {
+    const parent = await this.requireDocRead(userId, parentId, expectedType);
     return this.prisma.document.findMany({
       where: { parentId: parent.id },
       select: this.summarySelect(),
@@ -145,8 +156,12 @@ export class DocumentsService {
    * Gated to workspace members (or the owner): unlike GET /:id, a PUBLIC-only realm
    * viewer who isn't in the workspace gets 404 — the sidebar is a workspace view.
    */
-  async hierarchy(userId: string, id: string): Promise<HierarchyNode> {
-    const doc = await this.requireDocRead(userId, id);
+  async hierarchy(
+    userId: string,
+    id: string,
+    expectedType: DocumentType | null = null
+  ): Promise<HierarchyNode> {
+    const doc = await this.requireDocRead(userId, id, expectedType);
     if (doc.owner.id !== userId) {
       const role = await this.authz.effectiveWorkspaceRole(userId, doc.workspaceId);
       if (role === null) throw new NotFoundException("document not found");
@@ -212,12 +227,23 @@ export class DocumentsService {
    * or a PUBLIC doc readable by any realm member. Throws 404/403 when no access —
    * the backend never mints a 'denied' token.
    */
-  async resolveRtcRole(userId: string, docId: string): Promise<RtcRole> {
+  async resolveRtcRole(
+    userId: string,
+    docId: string,
+    expectedType: DocumentType | null = null
+  ): Promise<RtcRole> {
     const doc = await this.prisma.document.findUnique({
       where: { id: docId },
-      select: { id: true, ownerId: true, workspaceId: true, visibility: true },
+      select: {
+        id: true,
+        ownerId: true,
+        workspaceId: true,
+        visibility: true,
+        type: true,
+      },
     });
     if (!doc) throw new NotFoundException("document not found");
+    this.assertKind(doc, expectedType);
 
     if (doc.ownerId === userId) return "editor";
 
@@ -240,23 +266,47 @@ export class DocumentsService {
    * overlay), or — when PUBLIC — any realm member. The collaborative body itself
    * lives in the rtc-database and is fetched over the RTC websocket, not here.
    */
-  async get(userId: string, id: string) {
-    const doc = await this.requireDocRead(userId, id);
+  async get(
+    userId: string,
+    id: string,
+    expectedType: DocumentType | null = null
+  ) {
+    const doc = await this.requireDocRead(userId, id, expectedType);
     const breadcrumbs = await this.buildBreadcrumbs(doc.id);
     return { ...doc, breadcrumbs };
   }
 
   /**
+   * Enforce the document-kind namespace: when a caller addresses a document through
+   * the wrong API (a SHEET via /documents, or a DOC via /sheets), we 404 rather than
+   * leak that an id exists as the other kind. `expected: null` skips the check.
+   */
+  private assertKind<T extends { type: DocumentType }>(
+    doc: T,
+    expected: DocumentType | null
+  ): T {
+    if (expected !== null && doc.type !== expected) {
+      throw new NotFoundException("document not found");
+    }
+    return doc;
+  }
+
+  /**
    * Read gate shared by `get` and `listSubdocs`. Returns the (summary-shaped)
    * document when the caller may read it, else 404 — we never reveal the existence
-   * of a document the caller can't see.
+   * of a document the caller can't see. `expectedType` enforces the kind namespace.
    */
-  private async requireDocRead(userId: string, id: string) {
+  private async requireDocRead(
+    userId: string,
+    id: string,
+    expectedType: DocumentType | null = null
+  ) {
     const doc = await this.prisma.document.findUnique({
       where: { id },
       select: this.summarySelect(),
     });
     if (!doc) throw new NotFoundException("document not found");
+    this.assertKind(doc, expectedType);
 
     if (doc.owner.id === userId) return doc;
 
@@ -303,8 +353,12 @@ export class DocumentsService {
    * only stores the author's user id (`clientSub`); we resolve names/colors here
    * from the app DB so the UI can label each session.
    */
-  async history(userId: string, docId: string) {
-    await this.get(userId, docId); // read-access gate (throws 404 if no access)
+  async history(
+    userId: string,
+    docId: string,
+    expectedType: DocumentType | null = null
+  ) {
+    await this.get(userId, docId, expectedType); // read-access + kind gate
     const { head, sessions } = await this.rtc.getSessions(docId);
 
     const subs = [
@@ -345,8 +399,13 @@ export class DocumentsService {
    * Reconstruct the document state at a given update seq for read-only preview.
    * For SHEET docs this returns the grid snapshot (`sheet`); read access required.
    */
-  async historySnapshot(userId: string, docId: string, seq: number) {
-    await this.get(userId, docId);
+  async historySnapshot(
+    userId: string,
+    docId: string,
+    seq: number,
+    expectedType: DocumentType | null = null
+  ) {
+    await this.get(userId, docId, expectedType);
     if (!Number.isFinite(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
@@ -360,8 +419,13 @@ export class DocumentsService {
   }
 
   /** Content/metadata edits (rename, move) — any workspace EDITor (or the creator). */
-  async rename(userId: string, id: string, title: string) {
-    await this.requireDocWrite(userId, id, "EDIT");
+  async rename(
+    userId: string,
+    id: string,
+    title: string,
+    expectedType: DocumentType | null = null
+  ) {
+    await this.requireDocWrite(userId, id, "EDIT", expectedType);
     return this.prisma.document.update({
       where: { id },
       data: { title },
@@ -376,8 +440,13 @@ export class DocumentsService {
    * Both null/omitted → detach to the workspace root. Re-parenting rejects cycles
    * (a document cannot be moved into its own subtree) and self-parenting.
    */
-  async move(userId: string, id: string, input: MoveDocumentInput) {
-    const doc = await this.requireDocWrite(userId, id, "EDIT");
+  async move(
+    userId: string,
+    id: string,
+    input: MoveDocumentInput,
+    expectedType: DocumentType | null = null
+  ) {
+    const doc = await this.requireDocWrite(userId, id, "EDIT", expectedType);
 
     if (input.parentId) {
       if (input.parentId === id) {
@@ -410,8 +479,13 @@ export class DocumentsService {
   }
 
   /** Public/private toggle — sensitive: creator or workspace ADMIN only. */
-  async setVisibility(userId: string, id: string, visibility: Visibility) {
-    await this.requireDocWrite(userId, id, "ADMIN");
+  async setVisibility(
+    userId: string,
+    id: string,
+    visibility: Visibility,
+    expectedType: DocumentType | null = null
+  ) {
+    await this.requireDocWrite(userId, id, "ADMIN", expectedType);
     return this.prisma.document.update({
       where: { id },
       data: { visibility },
@@ -424,8 +498,12 @@ export class DocumentsService {
    * cascade-deletes its entire subdoc subtree (FK onDelete: Cascade). We collect the
    * descendant ids first so we can drop each one's RTC row (separate DB) after.
    */
-  async remove(userId: string, id: string) {
-    const doc = await this.requireDocWrite(userId, id, "ADMIN");
+  async remove(
+    userId: string,
+    id: string,
+    expectedType: DocumentType | null = null
+  ) {
+    const doc = await this.requireDocWrite(userId, id, "ADMIN", expectedType);
     const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
     await this.prisma.document.delete({ where: { id } });
     // Drop the RTC rows (separate DB) for the doc and every cascaded subdoc.
@@ -455,13 +533,15 @@ export class DocumentsService {
   private async requireDocWrite(
     userId: string,
     id: string,
-    min: "EDIT" | "ADMIN"
+    min: "EDIT" | "ADMIN",
+    expectedType: DocumentType | null = null
   ) {
     const doc = await this.prisma.document.findUnique({
       where: { id },
-      select: { id: true, ownerId: true, workspaceId: true },
+      select: { id: true, ownerId: true, workspaceId: true, type: true },
     });
     if (!doc) throw new NotFoundException("document not found");
+    this.assertKind(doc, expectedType);
     if (doc.ownerId === userId) {
       await this.authz.requireWorkspaceRole(userId, doc.workspaceId, "READ");
     } else {

@@ -9,9 +9,6 @@ import {
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
 type VisibilityInput = (typeof VISIBILITIES)[number];
 
-const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
-type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
-
 export class CreateDocumentDto {
   @IsOptional()
   @IsString()
@@ -24,11 +21,8 @@ export class CreateDocumentDto {
   @MaxLength(16)
   icon?: string;
 
-  // DOC (rich-text editor, default) or SHEET (data grid). Both collaborate over
-  // the same RTC/Yjs stack; only the client surface differs.
-  @IsOptional()
-  @IsIn(DOCUMENT_TYPES)
-  type?: DocumentTypeInput;
+  // Note: document kind (DOC vs SHEET) is NOT a body field — it's determined by the
+  // endpoint namespace (POST /documents → DOC, POST /sheets → SHEET).
 
   // Place the new document inside a folder of the same workspace; omit for the root.
   @IsOptional()

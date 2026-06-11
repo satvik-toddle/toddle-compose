@@ -6,6 +6,7 @@ import {
 import { Folder } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
+import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import type { AuthUser } from "../auth/current-user.decorator";
 
 type CreateFolderInput = {
@@ -26,11 +27,14 @@ type UpdateFolderInput = { name?: string; icon?: string };
 export class FoldersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly authz: AuthzService
+    private readonly authz: AuthzService,
+    private readonly rtc: RtcInternalClient
   ) {}
 
   /**
    * All folders in the (active or given) workspace; flat, for client-side tree assembly.
+   * The default/max `take` of 2000 is deliberately large (see ListFoldersDto): a
+   * truncated flat list would silently drop whole subtrees on the client.
    * TODO(pagination): currently offset-based (skip/take). For large workspaces switch to
    * cursor-based pagination (e.g. `cursor` = last folder id + `take`) and return a
    * `{ items, nextCursor, total }` envelope so the tree can load incrementally.
@@ -39,7 +43,7 @@ export class FoldersService {
     user: AuthUser,
     workspaceId: string | undefined,
     skip = 0,
-    take = 100
+    take = 2000
   ) {
     const wsId = this.resolveWorkspaceId(user, workspaceId);
     await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
@@ -116,13 +120,38 @@ export class FoldersService {
   /**
    * Hard-delete folders soft-deleted longer than `olderThanDays` ago. Called by the
    * daily purge scheduler; safe to run anytime. Returns the number removed.
+   *
+   * Documents inside purged folders are hard-deleted in the same transaction:
+   * Document.folderId is `onDelete: SetNull`, so without this the docs would
+   * "resurrect" at the workspace root once their folder row disappears.
    */
   async purgeSoftDeleted(olderThanDays = 30): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
-    const res = await this.prisma.folder.deleteMany({
-      where: { deletedAt: { not: null, lt: cutoff } },
+    const { purged, docIds } = await this.prisma.$transaction(async (tx) => {
+      const expired = await tx.folder.findMany({
+        where: { deletedAt: { not: null, lt: cutoff } },
+        select: { id: true },
+      });
+      if (expired.length === 0) return { purged: 0, docIds: [] as string[] };
+      const folderIds = expired.map((f) => f.id);
+
+      const docs = await tx.document.findMany({
+        where: { folderId: { in: folderIds } },
+        select: { id: true },
+      });
+      await tx.document.deleteMany({
+        where: { id: { in: docs.map((d) => d.id) } },
+      });
+      const res = await tx.folder.deleteMany({ where: { id: { in: folderIds } } });
+      return { purged: res.count, docIds: docs.map((d) => d.id) };
     });
-    return res.count;
+
+    // After commit: drop the deleted documents' RTC rows (separate DB). Best-effort —
+    // an orphaned RTC row is inert, so a transient rtc-server outage is harmless.
+    for (const docId of docIds) {
+      await this.rtc.deleteDocBestEffort(docId);
+    }
+    return purged;
   }
 
   /** Active workspace from the session token, or an explicit override; 400 if neither. */

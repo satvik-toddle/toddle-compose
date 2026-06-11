@@ -19,5 +19,8 @@ declare module "y-websocket/bin/utils" {
     writeState: (docName: string, ydoc: Y.Doc) => Promise<unknown>;
   }): void;
 
-  export const docs: Map<string, Y.Doc>;
+  export const docs: Map<
+    string,
+    Y.Doc & { conns: Map<WebSocket, Set<number>> }
+  >;
 }

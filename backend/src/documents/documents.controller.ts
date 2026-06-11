@@ -39,7 +39,12 @@ export class DocumentsController {
   ) {
     return this.documents.list(
       user,
-      { folderId: q.folderId, workspaceId: q.workspaceId },
+      {
+        folderId: q.folderId,
+        // ?parentId=null (or empty) → top-level docs only; an id → that doc's children.
+        parentId: parseParentId(q.parentId),
+        workspaceId: q.workspaceId,
+      },
       page.skip,
       page.take
     );
@@ -53,6 +58,26 @@ export class DocumentsController {
   @Get(":id")
   get(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.get(user.id, id);
+  }
+
+  /** Direct subdocs (immediate children) of a document. Requires READ on the parent. */
+  @Get(":id/subdocs")
+  subdocs(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query() page: PaginationDto
+  ) {
+    return this.documents.listSubdocs(user.id, id, page.skip, page.take);
+  }
+
+  /**
+   * Sidebar hierarchy: the root ancestor expanded down the spine to this document,
+   * with every node on the path listing its direct children. For building a tree
+   * sidebar focused on the current document.
+   */
+  @Get(":id/hierarchy")
+  hierarchy(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.documents.hierarchy(user.id, id);
   }
 
   /**
@@ -82,7 +107,10 @@ export class DocumentsController {
     @Param("id") id: string,
     @Body() dto: MoveDocumentDto
   ) {
-    return this.documents.move(user.id, id, dto.folderId ?? null);
+    return this.documents.move(user.id, id, {
+      folderId: dto.folderId ?? null,
+      parentId: dto.parentId ?? null,
+    });
   }
 
   @Patch(":id/visibility")
@@ -98,4 +126,16 @@ export class DocumentsController {
   remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.remove(user.id, id);
   }
+}
+
+/**
+ * Map the `parentId` query string to the service's filter:
+ *   - omitted        → undefined (no parent filter; whole workspace)
+ *   - "" or "null"   → null      (top-level docs only)
+ *   - "<id>"         → that id   (that document's direct subdocs)
+ */
+function parseParentId(raw?: string): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "" || raw === "null") return null;
+  return raw;
 }

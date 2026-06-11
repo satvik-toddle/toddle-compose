@@ -1,4 +1,4 @@
-# Backend API — Routes (Phase 1: auth + users)
+# Backend API — Routes
 
 Base URL (local): `http://localhost:4000`
 
@@ -136,6 +136,178 @@ Realm admins (`OWNER`/`MAINTAINER`) are the approvers (they act as workspace `AD
   email · `409` already a member.
 - `PATCH /api/workspaces/:id/users/:userId` — `{ role }` → requires `ADMIN`.
 - `DELETE /api/workspaces/:id/users/:userId` — requires `ADMIN`; refuses to remove the **last** `ADMIN` (`409`).
+
+---
+
+## Folders
+
+All routes **guarded**. A folder belongs to a workspace; nesting is allowed (`parentId`). Access is
+resolved per-request against the caller's workspace role.
+
+Folder shape: `{ id, name, icon, parentId, workspaceId, ownerId, createdAt, updatedAt }`.
+
+- `GET /api/folders?workspaceId=…` → list folders the caller can see (defaults to the active
+  workspace from the session when `workspaceId` is omitted). `?skip&?take`.
+- `POST /api/folders` — `{ name, icon?, parentId?, workspaceId? }` → create. `name` 1–120 chars,
+  `icon` ≤16 chars. `parentId` nests under an existing folder in the same workspace; omit for
+  top-level. `workspaceId` defaults to the active workspace.
+  ```json
+  { "name": "Design specs", "icon": "📐", "parentId": null }
+  ```
+  `201`:
+  ```json
+  {
+    "id": "ckfa…",
+    "name": "Design specs",
+    "icon": "📐",
+    "parentId": null,
+    "workspaceId": "ckws…",
+    "ownerId": "ckus…",
+    "createdAt": "2026-06-10T09:00:00.000Z",
+    "updatedAt": "2026-06-10T09:00:00.000Z"
+  }
+  ```
+- `GET /api/folders/:id` → one folder. `404` if not found / no access.
+- `PATCH /api/folders/:id` — `{ name?, icon? }` → rename / re-icon.
+- `PATCH /api/folders/:id/move` — `{ parentId }` → re-parent (`null`/omitted → move to top level).
+- `DELETE /api/folders/:id` — remove the folder.
+
+> A background scheduler (`folders-purge.scheduler.ts`) periodically purges soft-deleted folders.
+
+---
+
+## Documents
+
+All routes **guarded**. A document belongs to a workspace and is located either in a folder
+(`folderId`) **or** nested under another document (`parentId`, making it a "subdoc") — never both.
+It has an owner and a `visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership, workspace role,
+and visibility. Documents form a workspace-scoped tree; deleting a document cascade-deletes its whole
+subdoc subtree.
+
+Document shape: `{ id, title, icon, visibility, workspaceId, folderId, parentId, createdAt, updatedAt, owner }`
+(`owner` is a public user summary).
+
+- `GET /api/documents?folderId=…&parentId=…&workspaceId=…` → list documents. All filters optional;
+  omit `workspaceId` to use the active workspace, omit `folderId`/`parentId` for the whole workspace.
+  `parentId=null` (or empty) returns only top-level docs (no parent); `parentId=<id>` returns that
+  document's direct subdocs. `?skip&?take`.
+- `POST /api/documents` — `{ title?, icon?, folderId?, parentId?, workspaceId? }` → create. `title`
+  1–200 chars, `icon` ≤16 chars. `parentId` nests it under an existing document of the same workspace
+  (a subdoc) — when set, `folderId` is ignored. Otherwise `folderId` places it in a folder of the same
+  workspace. `workspaceId` defaults to the active workspace. `404` if the target folder/parent isn't in
+  the workspace.
+  ```json
+  { "title": "Q3 roadmap", "icon": "🗺️", "folderId": "ckfa…" }
+  ```
+  `201`:
+  ```json
+  {
+    "id": "ckdo…",
+    "title": "Q3 roadmap",
+    "icon": "🗺️",
+    "visibility": "PRIVATE",
+    "workspaceId": "ckws…",
+    "folderId": "ckfa…",
+    "parentId": null,
+    "createdAt": "2026-06-10T09:00:00.000Z",
+    "updatedAt": "2026-06-10T09:00:00.000Z",
+    "owner": { "id": "ckus…", "name": "Ada", "color": "#5a5ae2" }
+  }
+  ```
+- `GET /api/documents/:id` → one document **plus `breadcrumbs`** — the ancestor chain root → this doc
+  (this doc last), each `{ id, title, icon }`. The collaborative body lives in the rtc-database and is
+  fetched over the RTC WebSocket, not here. `404` if not found / no access.
+  `200`:
+  ```json
+  {
+    "id": "ckdo…", "title": "API design", "icon": "📄",
+    "visibility": "PRIVATE", "workspaceId": "ckws…",
+    "folderId": null, "parentId": "ckpa…",
+    "createdAt": "…", "updatedAt": "…",
+    "owner": { "id": "ckus…", "name": "Ada", "color": "#5a5ae2" },
+    "breadcrumbs": [
+      { "id": "ckpa…", "title": "Engineering", "icon": "📁" },
+      { "id": "ckdo…", "title": "API design", "icon": "📄" }
+    ]
+  }
+  ```
+- `GET /api/documents/:id/subdocs` → array of the document's direct subdocs (immediate children),
+  each in the document shape above. Requires READ on the parent. `?skip&?take`. `404` if no access.
+- `GET /api/documents/:id/hierarchy` → the sidebar tree for this document: the **root ancestor**,
+  expanded down the spine to this document. Every node on the path lists ALL its direct children;
+  the child that continues the path is itself expanded, while off-path siblings are collapsed
+  (`children: null`, with `childCount` for an expand chevron). Built for rendering a focused tree
+  sidebar. Requires workspace READ (a PUBLIC-only realm viewer not in the workspace gets `404`).
+  Node shape: `{ id, title, icon, parentId, childCount, children }`.
+  For a document at `p1 → c2 → c3`, `200`:
+  ```json
+  {
+    "id": "p1", "title": "Parent 1", "icon": "📄", "parentId": null,
+    "childCount": 2,
+    "children": [
+      { "id": "c1", "title": "Child 1", "icon": "📄", "parentId": "p1", "childCount": 0, "children": null },
+      {
+        "id": "c2", "title": "Child 2", "icon": "📄", "parentId": "p1",
+        "childCount": 1,
+        "children": [
+          {
+            "id": "c3", "title": "Child 3", "icon": "📄", "parentId": "c2",
+            "childCount": 2,
+            "children": [
+              { "id": "c3a", "title": "Leaf A", "icon": "📄", "parentId": "c3", "childCount": 0, "children": null },
+              { "id": "c3b", "title": "Leaf B", "icon": "📄", "parentId": "c3", "childCount": 0, "children": null }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  ```
+- `POST /api/documents/:id/rtc-token` → mint a short-lived RS256 RTC token for live collaboration.
+  Resolves the caller's role (`editor` | `viewer`) against the live DB; `403` if no access, `404` if
+  the doc doesn't exist. `201` → `{ token, docId, role }`. The client presents `token` to the
+  rtc-server WebSocket, which verifies it via `/.well-known/rtc-jwks.json`.
+  `201`:
+  ```json
+  { "token": "<rs256-jwt>", "docId": "ckdo…", "role": "editor" }
+  ```
+- `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
+- `PATCH /api/documents/:id/move` — `{ folderId?, parentId? }` → relocate. `parentId` re-parents it
+  under another document (clears `folderId`); `folderId` moves it into a folder (clears `parentId`);
+  both `null`/omitted → workspace root. `parentId` wins if both are given. `400` on a self-parent or a
+  cycle (moving a doc into its own subtree); `404` if the target folder/parent isn't in the workspace.
+- `PATCH /api/documents/:id/visibility` — `{ visibility: "PUBLIC" | "PRIVATE" }` → change visibility.
+- `DELETE /api/documents/:id` — remove the document and its entire subdoc subtree →
+  `{ ok: true, deleted: <count> }`.
+
+---
+
+## Uploads (object storage)
+
+Pluggable object storage (`STORAGE_DRIVER`: `local` filesystem default, or `s3` for AWS S3 / MinIO /
+R2). Max upload size is `STORAGE_MAX_UPLOAD_MB` (default 25 MB).
+
+- `POST /api/uploads` — **guarded**. `multipart/form-data` with a single field **`file`**. `201` →
+  `{ key, url, contentType, size }` where `url` is an absolute, browser-fetchable URL. Errors:
+  `400` no file · `413` exceeds the size limit.
+  ```bash
+  curl -s localhost:4000/api/uploads \
+    -H "Authorization: Bearer $ACCESS" \
+    -F "file=@diagram.png"
+  ```
+  `201`:
+  ```json
+  {
+    "key": "9f1c2e7a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png",
+    "url": "http://localhost:4000/api/uploads/9f1c2e7a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png",
+    "contentType": "image/png",
+    "size": 20480
+  }
+  ```
+- `GET /api/uploads/:key` — **public** (no auth) so it can back `<img src>`/downloads; keys are
+  unguessable UUIDs. Streams the object with `Cache-Control: public, max-age=31536000, immutable`.
+  `404` for an unknown or unsafe key. For the `s3` driver, prefer the absolute `url` returned by the
+  upload response (public/CDN or pre-signed); this route still proxies it.
 
 ---
 

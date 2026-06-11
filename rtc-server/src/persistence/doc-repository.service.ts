@@ -67,7 +67,8 @@ export class DocRepository {
     id: string,
     yjsState: Buffer,
     lexicalJson: string | null,
-    plainText: string
+    plainText: string,
+    snapshotAtSeq: number
   ): Promise<number> {
     await this.ensureRtcDoc(id);
     const row = await this.prisma.rtcDocument.update({
@@ -76,6 +77,7 @@ export class DocRepository {
         yjsState,
         lexicalJson,
         plainText,
+        snapshotAtSeq,
         version: { increment: 1 },
         updatedAt: BigInt(Date.now()),
       },
@@ -95,6 +97,12 @@ export class DocRepository {
     });
   }
 
+  // SINGLE-REPLICA ASSUMPTION: the design is single-writer-per-doc. The
+  // in-memory Y.Doc held by this process is authoritative for a warm doc, and
+  // seq is computed via max(seq)+1 inside a transaction — correct only when one
+  // instance appends for a given doc. This service MUST NOT be horizontally
+  // scaled without doc-to-instance affinity (e.g. consistent-hash routing),
+  // otherwise two replicas would race on seq and diverge on in-memory state.
   async appendDocUpdate(
     docId: string,
     blob: Buffer,
@@ -237,6 +245,17 @@ export class DocRepository {
 
   listTier2Candidates(docId: string, snapshotAtSeq: number, beforeMs: number) {
     return this.listCandidates(docId, snapshotAtSeq, beforeMs, false);
+  }
+
+  /** Delete the doc row and ALL its update rows in one transaction. Idempotent. */
+  async deleteDocCompletely(docId: string): Promise<void> {
+    const [updates, docsDeleted] = await this.prisma.$transaction([
+      this.prisma.rtcDocumentUpdate.deleteMany({ where: { docId } }),
+      this.prisma.rtcDocument.deleteMany({ where: { id: docId } }),
+    ]);
+    log.info(
+      `deleteDocCompletely '${docId}' removed doc=${docsDeleted.count} updates=${updates.count}`
+    );
   }
 
   async replaceSeqRangeWithMerged(args: {

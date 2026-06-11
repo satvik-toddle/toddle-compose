@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
+import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from "./jwt.constants";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -24,7 +25,12 @@ export class JwtAuthGuard implements CanActivate {
     let sub: string;
     let activeWorkspaceId: string | null = null;
     try {
-      const payload = await this.jwt.verifyAsync(token);
+      // Pin algorithm + issuer/audience so foreign or downgraded JWTs are rejected.
+      const payload = await this.jwt.verifyAsync(token, {
+        algorithms: [JWT_ALGORITHM],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      });
       // Reject refresh-type or otherwise non-access tokens used as a bearer.
       if (payload.type !== "access") {
         throw new UnauthorizedException("not an access token");

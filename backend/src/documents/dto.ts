@@ -26,6 +26,12 @@ export class CreateDocumentDto {
   @IsString()
   folderId?: string;
 
+  // Nest the new document under an existing document (a "subdoc") of the same
+  // workspace; omit for a top-level document. When set, folderId is ignored.
+  @IsOptional()
+  @IsString()
+  parentId?: string;
+
   // Target workspace; defaults to the caller's active workspace from the session.
   @IsOptional()
   @IsString()
@@ -40,10 +46,17 @@ export class RenameDocumentDto {
 }
 
 export class MoveDocumentDto {
-  // null/omitted → move to the root; otherwise move into this (owned) folder.
+  // Move into a folder of the same workspace; null/omitted → workspace root.
+  // Mutually exclusive with parentId (parentId wins if both are provided).
   @IsOptional()
   @IsString()
   folderId?: string | null;
+
+  // Re-parent under another document (a subdoc) of the same workspace;
+  // null/omitted → detach from any parent.
+  @IsOptional()
+  @IsString()
+  parentId?: string | null;
 }
 
 export class SetVisibilityDto {
@@ -56,6 +69,12 @@ export class ListDocumentsDto {
   @IsOptional()
   @IsString()
   folderId?: string;
+
+  // Narrow to one document's direct subdocs. "null" (string) → top-level docs only
+  // (no parent); a document id → that document's children. Omit for the whole workspace.
+  @IsOptional()
+  @IsString()
+  parentId?: string;
 
   // Target workspace; defaults to the caller's active workspace from the session.
   @IsOptional()

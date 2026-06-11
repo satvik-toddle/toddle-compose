@@ -11,9 +11,13 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
-import { PaginationDto } from "../realm/dto";
 import { FoldersService } from "./folders.service";
-import { CreateFolderDto, MoveFolderDto, UpdateFolderDto } from "./dto";
+import {
+  CreateFolderDto,
+  ListFoldersDto,
+  MoveFolderDto,
+  UpdateFolderDto,
+} from "./dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("folders")
@@ -23,7 +27,7 @@ export class FoldersController {
   @Get()
   list(
     @CurrentUser() user: AuthUser,
-    @Query() page: PaginationDto,
+    @Query() page: ListFoldersDto,
     @Query("workspaceId") workspaceId?: string
   ) {
     return this.folders.list(user, workspaceId, page.skip, page.take);

@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
-import { LexicalExtractService } from "./lexical-extract.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
 import type { Env } from "../config/env";
@@ -10,7 +9,6 @@ import type { RtcClaims } from "../tokens/tokens.service";
 
 const log = createLogger("ws");
 const persistLog = createLogger("persist");
-const contentLog = createLogger("content");
 
 type DebounceState = {
   idleTimer: NodeJS.Timeout | null;
@@ -44,30 +42,6 @@ type PendingAppend = {
 const APPEND_COALESCE_MAX_UPDATES = 200;
 const APPEND_COALESCE_MAX_BYTES = 256 * 1024;
 
-function nodeText(node: unknown): string {
-  const n = node as { text?: string; children?: unknown[] };
-  if (typeof n.text === "string") return n.text;
-  if (Array.isArray(n.children)) return n.children.map(nodeText).join("");
-  return "";
-}
-
-function summarizeBlocks(lexicalJson: string | null): string {
-  if (!lexicalJson) return "(null)";
-  try {
-    const root = (JSON.parse(lexicalJson) as { root?: { children?: unknown[] } })
-      .root;
-    const children = root?.children ?? [];
-    const parts = children.map((c, i) => {
-      const node = c as { type?: string; tag?: string };
-      const kind = node.tag ? `${node.type}(${node.tag})` : node.type;
-      return `#${i} ${kind}:${JSON.stringify(nodeText(c))}`;
-    });
-    return `${children.length} block(s) [ ${parts.join(" | ")} ]`;
-  } catch (e) {
-    return `(parse-failed: ${e instanceof Error ? e.message : e})`;
-  }
-}
-
 @Injectable()
 export class DocStateService {
   private readonly docState = new Map<
@@ -79,7 +53,6 @@ export class DocStateService {
 
   constructor(
     private readonly repo: DocRepository,
-    private readonly extract: LexicalExtractService,
     private readonly compaction: CompactionService,
     private readonly config: ConfigService<Env, true>
   ) {}
@@ -349,20 +322,15 @@ export class DocStateService {
         const flushedSeq = state.lastAppendedSeq;
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
-        const { lexicalJson, plainText } =
-          await this.extract.extractFromBytes(update);
         const version = await this.repo.persistRtcDoc(
           docName,
           yjsState,
-          lexicalJson,
-          plainText,
           flushedSeq
         );
         state.snapshotAtSeq = flushedSeq;
         log.info(
-          `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B json=${lexicalJson?.length ?? 0}B text=${plainText.length}ch in ${Date.now() - t0}ms`
+          `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
-        contentLog.info(`'${docName}' v${version} ${summarizeBlocks(lexicalJson)}`);
       } catch (e) {
         log.error(`'${docName}' flush FAILED`, e);
         state.dirty = true;

@@ -4,26 +4,6 @@ import { createLogger } from "../logger";
 
 const log = createLogger("db");
 
-export const EMPTY_LEXICAL_JSON = JSON.stringify({
-  root: {
-    children: [
-      {
-        children: [],
-        direction: null,
-        format: "",
-        indent: 0,
-        type: "paragraph",
-        version: 1,
-      },
-    ],
-    direction: null,
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-  },
-});
-
 export type RtcUpdateRow = {
   seq: number;
   byte_len: number;
@@ -49,8 +29,6 @@ export class DocRepository {
       where: { id },
       create: {
         id,
-        lexicalJson: EMPTY_LEXICAL_JSON,
-        plainText: "",
         version: 0,
         updatedAt: BigInt(Date.now()),
         snapshotAtSeq: 0,
@@ -66,8 +44,6 @@ export class DocRepository {
   async persistRtcDoc(
     id: string,
     yjsState: Buffer,
-    lexicalJson: string | null,
-    plainText: string,
     snapshotAtSeq: number
   ): Promise<number> {
     await this.ensureRtcDoc(id);
@@ -75,8 +51,6 @@ export class DocRepository {
       where: { id },
       data: {
         yjsState,
-        lexicalJson,
-        plainText,
         snapshotAtSeq,
         version: { increment: 1 },
         updatedAt: BigInt(Date.now()),

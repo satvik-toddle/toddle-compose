@@ -10,4 +10,10 @@ declare module '@toddle-edu/ds-doc-editor' {
   export const MiniDocEditor: ComponentType<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export const Editor: ComponentType<any>;
+  // The editor re-exports its own bundled yjs + y-websocket so the host shares
+  // a single yjs instance with the editor's collaboration plugin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const Y: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const WebsocketProvider: any;
 }

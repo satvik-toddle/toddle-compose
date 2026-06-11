@@ -1,0 +1,177 @@
+/* ============================================================
+   TODDLE DESIGN SYSTEM — Colors & Type (tokens only)
+   Extracted from @toddle-edu/ds-theme. Global element resets
+   (body / bare h1..h6) are intentionally OMITTED so they don't
+   leak into the embedded doc-editor; the RBAC surfaces scope
+   their own type rules under `.rbac`.
+   ============================================================ */
+
+@font-face {
+  font-family: "AvenirNext";
+  src: url("/ds/fonts/AvenirNext/AvenirNextLTPro-Regular.ttf") format("truetype");
+  font-weight: 400; font-display: swap;
+}
+@font-face {
+  font-family: "AvenirNext";
+  src: url("/ds/fonts/AvenirNext/AvenirNextLTPro-Medium.ttf") format("truetype");
+  font-weight: 500; font-display: swap;
+}
+@font-face {
+  font-family: "AvenirNext";
+  src: url("/ds/fonts/AvenirNext/AvenirNextLTPro-Demi.ttf") format("truetype");
+  font-weight: 600; font-display: swap;
+}
+@font-face {
+  font-family: "AvenirNext";
+  src: url("/ds/fonts/AvenirNext/AvenirNextLTPro-Bold.ttf") format("truetype");
+  font-weight: 700; font-display: swap;
+}
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700&display=swap");
+
+:root {
+  /* Brand red (primary interactive) */
+  --red-100: #780c11;  --red-200: #8f0e14;  --red-300: #ad1d22;
+  --red-400: #d63a3f;  --red-500: #f04c54;  --red-600: #ff6169;
+  --red-700: #ff8d92;  --red-800: #ffb2b6;  --red-900: #ffd9da;
+  --red-950: #ffefef;
+
+  --orange-100: #592716; --orange-200: #752e20; --orange-300: #9f3c19;
+  --orange-400: #ca4f25; --orange-500: #e8653a; --orange-600: #ff865d;
+  --orange-700: #ffa486; --orange-800: #ffc2ae; --orange-900: #ffe0d6;
+  --orange-950: #fff2ee;
+
+  --yellow-100: #5c2b00; --yellow-200: #723500; --yellow-300: #954b00;
+  --yellow-400: #b56000; --yellow-500: #d67d00; --yellow-600: #ffaa00;
+  --yellow-700: #ffc95c; --yellow-800: #ffd97f; --yellow-900: #ffeebf;
+  --yellow-950: #fff8e5;
+
+  --green-100: #284000; --green-200: #324f00; --green-300: #3e6100;
+  --green-400: #5d8200; --green-500: #6d9c00; --green-600: #8bc011;
+  --green-700: #add74c; --green-800: #c8e487; --green-900: #e3f1c3;
+  --green-950: #f4f9e7;
+
+  --teal-100: #00412f; --teal-200: #004d37; --teal-300: #00644d;
+  --teal-400: #008768; --teal-500: #00ac8a; --teal-600: #04d4aa;
+  --teal-700: #5adec3; --teal-800: #93ead8; --teal-900: #c0f3e9;
+  --teal-950: #e8fcf8;
+
+  --blue-100: #003f49;  --blue-200: #004b57;  --blue-300: #00616e;
+  --blue-400: #008392;  --blue-500: #00b0c2;  --blue-600: #00c9e0;
+  --blue-700: #2addf1;  --blue-800: #7feaf6;  --blue-900: #bffbfb;
+  --blue-950: #e5fbfd;
+
+  --violet-100: #2b2b8e; --violet-200: #3838ab; --violet-300: #4242c3;
+  --violet-400: #5a5ae2; --violet-500: #6a6af5; --violet-600: #8585ff;
+  --violet-700: #a4a4fe; --violet-800: #c3c3ff; --violet-900: #e3e3ff;
+  --violet-950: #f3f3ff;
+
+  --purple-100: #5a187a; --purple-200: #6b228f; --purple-300: #832dad;
+  --purple-400: #a43dd7; --purple-500: #b646ee; --purple-600: #cc66ff;
+  --purple-700: #da8fff; --purple-800: #e7b9fe; --purple-900: #f3dcff;
+  --purple-950: #faf1fe;
+
+  --pink-100: #6e043c;  --pink-200: #8a064c;  --pink-300: #a61c58;
+  --pink-400: #cd3769;  --pink-500: #ef4371;  --pink-600: #ff5c88;
+  --pink-700: #ff8dac;  --pink-800: #ffb5c9;  --pink-900: #ffdae4;
+  --pink-950: #fff0f6;
+
+  --neutral-100: #1f1f1f; --neutral-200: #333333; --neutral-300: #525252;
+  --neutral-400: #707070; --neutral-500: #8f8f8f; --neutral-600: #adadad;
+  --neutral-700: #cccccc; --neutral-800: #e6e6e6; --neutral-900: #f5f5f5;
+  --neutral-950: #fafafa;
+  --neutral-black: #000000;
+  --neutral-white: #ffffff;
+
+  /* Text */
+  --text-primary: var(--neutral-200);
+  --text-secondary: var(--neutral-400);
+  --text-placeholder: var(--neutral-400);
+  --text-disabled: var(--neutral-500);
+  --text-inverse: var(--neutral-white);
+  --text-semantic-error: var(--red-400);
+  --text-semantic-info: var(--blue-400);
+  --text-semantic-success: var(--teal-400);
+  --text-semantic-warning: var(--yellow-400);
+
+  /* Surface */
+  --surface-primary-enabled: var(--neutral-white);
+  --surface-primary-hover: var(--neutral-900);
+  --surface-primary-selected: var(--blue-950);
+  --surface-primary-overlay: #ffffffb2;
+  --surface-secondary-enabled: var(--neutral-950);
+  --surface-secondary-hover: var(--neutral-800);
+  --surface-tertiary-enabled: var(--neutral-900);
+  --surface-tertiary-hover: var(--neutral-700);
+  --surface-semantic-error: var(--red-950);
+  --surface-semantic-info: var(--blue-950);
+  --surface-semantic-success: var(--teal-950);
+  --surface-semantic-warning: var(--yellow-950);
+
+  /* Border */
+  --border-primary: var(--neutral-700);
+  --border-secondary: var(--neutral-800);
+  --border-hover: var(--neutral-600);
+  --border-active: var(--neutral-200);
+  --border-focus: var(--blue-500);
+  --border-selected: var(--blue-400);
+  --border-brand: var(--red-500);
+  --border-semantic-error: var(--red-400);
+  --border-semantic-info: var(--blue-400);
+  --border-semantic-success: var(--teal-400);
+  --border-semantic-warning: var(--yellow-400);
+
+  /* Interactive */
+  --interactive-primary: var(--red-400);
+  --interactive-primary-hover: var(--red-300);
+
+  /* Decorative (tag/chip backgrounds + foregrounds) */
+  --decorative-background-red: var(--red-900);
+  --decorative-background-teal: var(--teal-900);
+  --decorative-background-blue: var(--blue-900);
+  --decorative-background-violet: var(--violet-900);
+  --decorative-background-neutral: var(--neutral-800);
+  --decorative-foreground-red: var(--red-200);
+  --decorative-foreground-teal: var(--teal-200);
+  --decorative-foreground-blue: var(--blue-200);
+  --decorative-foreground-violet: var(--violet-200);
+  --decorative-foreground-neutral: var(--neutral-200);
+
+  /* Type */
+  --font-family-base: "AvenirNext", "Nunito Sans", "Avenir Next", Arial, sans-serif, system-ui;
+  --font-family-display: "Nunito", "AvenirNext", sans-serif;
+
+  /* Elevation */
+  --elevation-2-bottom: 0 2px 8px 0 rgb(0 0 0 / 0.1);
+  --elevation-3-bottom: 0 8px 16px 0 rgb(0 0 0 / 0.1);
+  --elevation-4-bottom: 0 12px 24px 0 rgb(0 0 0 / 0.1);
+}
+
+/* DARK THEME (.dark scope) */
+.dark {
+  --text-primary: var(--neutral-950);
+  --text-secondary: var(--neutral-600);
+  --text-placeholder: var(--neutral-600);
+  --text-disabled: var(--neutral-500);
+  --text-inverse: var(--neutral-black);
+
+  --surface-primary-enabled: var(--neutral-100);
+  --surface-primary-hover: var(--neutral-300);
+  --surface-primary-selected: var(--blue-200);
+  --surface-primary-overlay: #1f1f1fb2;
+  --surface-secondary-enabled: var(--neutral-200);
+  --surface-secondary-hover: var(--neutral-400);
+  --surface-tertiary-enabled: var(--neutral-300);
+  --surface-semantic-error: var(--red-100);
+  --surface-semantic-info: var(--blue-100);
+  --surface-semantic-success: var(--teal-100);
+  --surface-semantic-warning: var(--yellow-100);
+
+  --border-primary: var(--neutral-400);
+  --border-secondary: var(--neutral-300);
+  --border-hover: var(--neutral-500);
+  --border-active: var(--neutral-700);
+
+  --interactive-primary: var(--red-500);
+  --interactive-primary-hover: var(--red-400);
+}

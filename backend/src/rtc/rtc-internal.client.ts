@@ -68,6 +68,26 @@ export class RtcInternalClient {
     }
   }
 
+  /**
+   * Edit sessions for a doc — updates grouped by author + time gap (no-op
+   * sessions already filtered out by the rtc-server). Used to build the
+   * "who changed what, when" history timeline.
+   */
+  getSessions(docId: string): Promise<RtcSessionList> {
+    return this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/sessions`
+    ) as Promise<RtcSessionList>;
+  }
+
+  /** Reconstruct the doc state at a given seq (includes the sheet snapshot for SHEET docs). */
+  getVersionPreview(docId: string, seq: number): Promise<RtcVersionPreview> {
+    return this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}`
+    ) as Promise<RtcVersionPreview>;
+  }
+
   /** Delete the RTC row (yjs state + update log) for a document id. */
   deleteDoc(docId: string): Promise<unknown> {
     return this.call("DELETE", `/internal/docs/${encodeURIComponent(docId)}`);
@@ -89,3 +109,37 @@ export class RtcInternalClient {
     }
   }
 }
+
+/** Shapes returned by the rtc-server history endpoints (subset we consume). */
+export type RtcSession = {
+  firstSeq: number;
+  lastSeq: number;
+  clientSub: string | null;
+  startedAt: number;
+  endedAt: number;
+  updateCount: number;
+  totalBytes: number;
+  noop: boolean;
+  origin: string | null;
+  changedCells: Array<{ rowId: string; colId: string }>;
+};
+
+export type RtcSessionList = {
+  docId: string;
+  head: number;
+  sessions: RtcSession[];
+};
+
+export type RtcSheetSnapshot = {
+  rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
+  colTypes: Record<string, unknown>;
+};
+
+export type RtcVersionPreview = {
+  docId: string;
+  seq: number;
+  headSeq: number;
+  sheet: RtcSheetSnapshot | null;
+  lexicalJson: string | null;
+  plainText: string;
+};

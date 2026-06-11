@@ -80,6 +80,22 @@ export class DocumentsController {
     return this.documents.hierarchy(user.id, id);
   }
 
+  /** Per-author edit sessions (history timeline). Read access required. */
+  @Get(":id/history")
+  history(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.documents.history(user.id, id);
+  }
+
+  /** Read-only snapshot of the document at a given update seq (sheet grid state). */
+  @Get(":id/history/:seq")
+  historyAt(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("seq") seq: string
+  ) {
+    return this.documents.historySnapshot(user.id, id, Number(seq));
+  }
+
   /**
    * Issue a short-lived RTC token for this document. Resolves the caller's role
    * (editor/viewer) per current DB state; 403 if they have no access. The client

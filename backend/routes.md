@@ -180,31 +180,34 @@ Folder shape: `{ id, name, icon, parentId, workspaceId, ownerId, createdAt, upda
 
 All routes **guarded**. A document belongs to a workspace and is located either in a folder
 (`folderId`) **or** nested under another document (`parentId`, making it a "subdoc") — never both.
-It has an owner and a `visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership, workspace role,
-and visibility. Documents form a workspace-scoped tree; deleting a document cascade-deletes its whole
-subdoc subtree.
+It has a `type` (`DOC` rich-text editor | `SHEET` data grid; both share the same RTC/Yjs stack and
+nest identically), an owner, and a `visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership,
+workspace role, and visibility. Documents form a workspace-scoped tree; deleting a document
+cascade-deletes its whole subdoc subtree.
 
-Document shape: `{ id, title, icon, visibility, workspaceId, folderId, parentId, createdAt, updatedAt, owner }`
+Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, parentId, createdAt, updatedAt, owner }`
 (`owner` is a public user summary).
 
 - `GET /api/documents?folderId=…&parentId=…&workspaceId=…` → list documents. All filters optional;
   omit `workspaceId` to use the active workspace, omit `folderId`/`parentId` for the whole workspace.
   `parentId=null` (or empty) returns only top-level docs (no parent); `parentId=<id>` returns that
   document's direct subdocs. `?skip&?take`.
-- `POST /api/documents` — `{ title?, icon?, folderId?, parentId?, workspaceId? }` → create. `title`
-  1–200 chars, `icon` ≤16 chars. `parentId` nests it under an existing document of the same workspace
-  (a subdoc) — when set, `folderId` is ignored. Otherwise `folderId` places it in a folder of the same
-  workspace. `workspaceId` defaults to the active workspace. `404` if the target folder/parent isn't in
-  the workspace.
+- `POST /api/documents` — `{ title?, icon?, type?, folderId?, parentId?, workspaceId? }` → create.
+  `title` 1–200 chars, `icon` ≤16 chars. `type` is `DOC` (default) or `SHEET`; when `icon` is omitted
+  it defaults per kind (`📄` for DOC, `📊` for SHEET). `parentId` nests it under an existing document of
+  the same workspace (a subdoc, of either kind) — when set, `folderId` is ignored. Otherwise `folderId`
+  places it in a folder of the same workspace. `workspaceId` defaults to the active workspace. `400` on
+  an invalid `type`; `404` if the target folder/parent isn't in the workspace.
   ```json
-  { "title": "Q3 roadmap", "icon": "🗺️", "folderId": "ckfa…" }
+  { "title": "Q3 numbers", "type": "SHEET", "folderId": "ckfa…" }
   ```
   `201`:
   ```json
   {
     "id": "ckdo…",
-    "title": "Q3 roadmap",
-    "icon": "🗺️",
+    "title": "Q3 numbers",
+    "icon": "📊",
+    "type": "SHEET",
     "visibility": "PRIVATE",
     "workspaceId": "ckws…",
     "folderId": "ckfa…",
@@ -220,7 +223,7 @@ Document shape: `{ id, title, icon, visibility, workspaceId, folderId, parentId,
   `200`:
   ```json
   {
-    "id": "ckdo…", "title": "API design", "icon": "📄",
+    "id": "ckdo…", "title": "API design", "icon": "📄", "type": "DOC",
     "visibility": "PRIVATE", "workspaceId": "ckws…",
     "folderId": null, "parentId": "ckpa…",
     "createdAt": "…", "updatedAt": "…",
@@ -270,6 +273,30 @@ Document shape: `{ id, title, icon, visibility, workspaceId, folderId, parentId,
   `201`:
   ```json
   { "token": "<rs256-jwt>", "docId": "ckdo…", "role": "editor" }
+  ```
+- `GET /api/documents/:id/history` → per-author edit sessions (the "who changed what, when" timeline),
+  newest first. Read access required (same gate as `GET /:id`). Each session resolves the author from
+  the app DB; for SHEET docs `changedCells` lists the `{ rowId, colId }` cells touched in that session
+  (empty for DOC docs). `200`:
+  ```json
+  {
+    "docId": "ckdo…", "head": 42,
+    "sessions": [
+      {
+        "firstSeq": 30, "lastSeq": 42, "startedAt": 1717000000000, "endedAt": 1717000600000,
+        "updateCount": 13, "totalBytes": 2048, "origin": null,
+        "changedCells": [ { "rowId": "r1", "colId": "c2" } ],
+        "user": { "id": "ckus…", "name": "Ada", "email": "ada@…", "color": "#5a5ae2" }
+      }
+    ]
+  }
+  ```
+- `GET /api/documents/:id/history/:seq` → read-only snapshot of the document at update `seq`. Read
+  access required; `400` if `seq` is not a non-negative integer. For SHEET docs `sheet` is the
+  reconstructed grid (`{ rows, colTypes }`) at that point; `null` for DOC docs. `200`:
+  ```json
+  { "docId": "ckdo…", "seq": 30, "headSeq": 42,
+    "sheet": { "rows": [ { "rowId": "r1", "values": { "c1": "Ada", "c2": 7 } } ], "colTypes": { "c2": "number" } } }
   ```
 - `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
 - `PATCH /api/documents/:id/move` — `{ folderId?, parentId? }` → relocate. `parentId` re-parents it

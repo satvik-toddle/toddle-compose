@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Visibility } from "@app/database";
+import { Visibility, DocumentType } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
@@ -16,11 +16,18 @@ const OWNER_SELECT = { id: true, name: true, color: true } as const;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
+  type?: "DOC" | "SHEET";
   folderId?: string;
   // Nest the new document under an existing document (a "subdoc") of the same
   // workspace. When set, folderId is ignored — a subdoc is located by its parent.
   parentId?: string;
   workspaceId?: string;
+};
+
+// Default icon per document kind when the caller doesn't pass one.
+const DEFAULT_ICON: Record<DocumentType, string> = {
+  [DocumentType.DOC]: "📄",
+  [DocumentType.SHEET]: "📊",
 };
 type ListDocumentsInput = {
   folderId?: string;
@@ -178,10 +185,12 @@ export class DocumentsService {
     else if (input.folderId)
       await this.requireFolderInWorkspace(input.folderId, wsId);
 
+    const type = (input.type as DocumentType) ?? DocumentType.DOC;
     const doc = await this.prisma.document.create({
       data: {
         title: input.title,
-        icon: input.icon,
+        icon: input.icon ?? DEFAULT_ICON[type],
+        type,
         workspaceId: wsId,
         ownerId: user.id,
         parentId: input.parentId ?? null,
@@ -286,6 +295,68 @@ export class DocumentsService {
       cursor = node.parentId;
     }
     return chain.reverse();
+  }
+
+  /**
+   * Edit history for a document: per-author editing sessions (who, when, how many
+   * updates), newest first. Read access required (same gate as `get`). The rtc DB
+   * only stores the author's user id (`clientSub`); we resolve names/colors here
+   * from the app DB so the UI can label each session.
+   */
+  async history(userId: string, docId: string) {
+    await this.get(userId, docId); // read-access gate (throws 404 if no access)
+    const { head, sessions } = await this.rtc.getSessions(docId);
+
+    const subs = [
+      ...new Set(
+        sessions
+          .map((s) => s.clientSub)
+          .filter((x): x is string => typeof x === "string" && x.length > 0)
+      ),
+    ];
+    const users = subs.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: subs } },
+          select: { id: true, name: true, email: true, color: true },
+        })
+      : [];
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    return {
+      docId,
+      head,
+      sessions: sessions
+        .map((s) => ({
+          firstSeq: s.firstSeq,
+          lastSeq: s.lastSeq,
+          startedAt: s.startedAt,
+          endedAt: s.endedAt,
+          updateCount: s.updateCount,
+          totalBytes: s.totalBytes,
+          origin: s.origin,
+          changedCells: s.changedCells ?? [],
+          user: s.clientSub ? (byId.get(s.clientSub) ?? null) : null,
+        }))
+        .reverse(), // newest session first
+    };
+  }
+
+  /**
+   * Reconstruct the document state at a given update seq for read-only preview.
+   * For SHEET docs this returns the grid snapshot (`sheet`); read access required.
+   */
+  async historySnapshot(userId: string, docId: string, seq: number) {
+    await this.get(userId, docId);
+    if (!Number.isFinite(seq) || seq < 0) {
+      throw new BadRequestException("seq must be a non-negative integer");
+    }
+    const preview = await this.rtc.getVersionPreview(docId, seq);
+    return {
+      docId,
+      seq: preview.seq,
+      headSeq: preview.headSeq,
+      sheet: preview.sheet,
+    };
   }
 
   /** Content/metadata edits (rename, move) — any workspace EDITor (or the creator). */
@@ -552,6 +623,7 @@ export class DocumentsService {
       id: true,
       title: true,
       icon: true,
+      type: true,
       visibility: true,
       workspaceId: true,
       folderId: true,

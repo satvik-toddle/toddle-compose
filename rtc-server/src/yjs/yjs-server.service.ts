@@ -19,6 +19,23 @@ const log = createLogger("ws");
 const RATE_LIMIT_CAPACITY = 500;
 const RATE_LIMIT_REFILL_PER_SEC = 100;
 
+// Awareness (presence/cursor) frames per connection: above this rate only the
+// latest frame is kept, delivered on a trailing timer. y-websocket's protocol
+// message types: 0 = sync, 1 = awareness.
+const MESSAGE_AWARENESS = 1;
+const AWARENESS_MAX_PER_SEC = 15;
+const AWARENESS_BURST = 30;
+const AWARENESS_TRAILING_MS = 100;
+
+/** Outer protocol message type, decoded the same way y-websocket decodes it. */
+function frameMessageType(buf: Buffer): number | null {
+  try {
+    return decoding.readVarUint(decoding.createDecoder(new Uint8Array(buf)));
+  } catch {
+    return null;
+  }
+}
+
 // Decode with the SAME varuint decoder y-websocket uses (lib0). Inspecting raw
 // bytes is bypassable: lib0's readVarUint accepts non-canonical multi-byte
 // encodings (e.g. 0x80 0x00 decodes to 0), so a byte-level check can be snuck
@@ -170,18 +187,28 @@ export class YjsServerService
         expiryTimer.unref();
       }
 
+      // Awareness coalescing state (see wrapper below): declared before the
+      // close handler so the trailing-edge timer is cleaned up on disconnect.
+      let awarenessTimer: NodeJS.Timeout | null = null;
+      let latestAwareness: Buffer | ArrayBuffer | Buffer[] | null = null;
+
       ws.on("close", (code) => {
         if (expiryTimer) {
           clearTimeout(expiryTimer);
           expiryTimer = null;
         }
+        if (awarenessTimer) {
+          clearTimeout(awarenessTimer);
+          awarenessTimer = null;
+        }
+        latestAwareness = null;
         clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
       });
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 
-      // Single message wrapper for every connection: (a) token-bucket rate
-      // limiting, and (b) for viewers, drop sync writes before y-websocket
-      // applies them.
+      // Single message wrapper for every connection: (a) awareness coalescing,
+      // (b) token-bucket rate limiting, and (c) for viewers, drop sync writes
+      // before y-websocket applies them.
       let bucketTokens = RATE_LIMIT_CAPACITY;
       let bucketRefilledAt = Date.now();
       const takeToken = (): boolean => {
@@ -196,6 +223,20 @@ export class YjsServerService
         bucketTokens -= 1;
         return true;
       };
+      let awarenessTokens = AWARENESS_BURST;
+      let awarenessRefilledAt = Date.now();
+      const takeAwarenessToken = (): boolean => {
+        const now = Date.now();
+        awarenessTokens = Math.min(
+          AWARENESS_BURST,
+          awarenessTokens +
+            ((now - awarenessRefilledAt) / 1000) * AWARENESS_MAX_PER_SEC
+        );
+        awarenessRefilledAt = now;
+        if (awarenessTokens < 1) return false;
+        awarenessTokens -= 1;
+        return true;
+      };
 
       const originalOn = ws.on.bind(ws);
       (ws as unknown as { on: typeof ws.on }).on = ((
@@ -205,7 +246,37 @@ export class YjsServerService
         if (event !== "message") {
           return originalOn(event as never, listener as never);
         }
+        const deliver = listener as (d: unknown) => void;
         const wrapped = (data: Buffer | ArrayBuffer | Buffer[]) => {
+          let buf: Buffer;
+          if (Buffer.isBuffer(data)) buf = data;
+          else if (data instanceof ArrayBuffer) buf = Buffer.from(data);
+          else buf = Buffer.concat(data as Buffer[]);
+
+          // Awareness frames (cursor moves) carry the sender's FULL presence
+          // state, so intermediate ones are droppable: beyond the per-second
+          // budget, keep only the latest and deliver it on a trailing timer.
+          // This bounds the N² broadcast chatter in crowded docs — and these
+          // frames never count against the disconnecting rate limit below.
+          if (frameMessageType(buf) === MESSAGE_AWARENESS) {
+            if (!takeAwarenessToken()) {
+              latestAwareness = data;
+              if (!awarenessTimer) {
+                awarenessTimer = setTimeout(() => {
+                  awarenessTimer = null;
+                  if (latestAwareness != null) {
+                    const d = latestAwareness;
+                    latestAwareness = null;
+                    deliver(d);
+                  }
+                }, AWARENESS_TRAILING_MS);
+              }
+              return;
+            }
+            deliver(data);
+            return;
+          }
+
           if (!takeToken()) {
             clog.warn(
               `RATE LIMIT exceeded sub=${sub} doc='${parsed.docId}' — closing`
@@ -213,17 +284,11 @@ export class YjsServerService
             ws.close(1008, "rate limit exceeded");
             return;
           }
-          if (role === "viewer") {
-            let buf: Buffer;
-            if (Buffer.isBuffer(data)) buf = data;
-            else if (data instanceof ArrayBuffer) buf = Buffer.from(data);
-            else buf = Buffer.concat(data as Buffer[]);
-            if (shouldDropForViewer(buf)) {
-              clog.warn(`DROP write from viewer sub=${sub} ${decodeYFrame(buf)}`);
-              return;
-            }
+          if (role === "viewer" && shouldDropForViewer(buf)) {
+            clog.warn(`DROP write from viewer sub=${sub} ${decodeYFrame(buf)}`);
+            return;
           }
-          (listener as (d: unknown) => void)(data);
+          deliver(data);
         };
         return originalOn("message" as never, wrapped as never);
       }) as typeof ws.on;

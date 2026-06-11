@@ -23,7 +23,26 @@ type DebounceState = {
   checkpointTimer: NodeJS.Timeout | null;
   snapshotAtSeq: number;
   lastAppendedSeq: number;
+  pendingAppend: PendingAppend | null;
 };
+
+/**
+ * Updates buffered for append-coalescing. Only updates sharing the SAME
+ * (originDesc, clientSub) are merged into one log row — session history groups
+ * rows by author, so a batch must stay attributable to a single client.
+ */
+type PendingAppend = {
+  blobs: Buffer[];
+  bytes: number;
+  originDesc: string;
+  clientSub: string | null;
+  timer: NodeJS.Timeout | null;
+};
+
+// Force an append (ending the coalescing window early) past either bound, so a
+// paste-storm can't buffer unbounded bytes in memory.
+const APPEND_COALESCE_MAX_UPDATES = 200;
+const APPEND_COALESCE_MAX_BYTES = 256 * 1024;
 
 function nodeText(node: unknown): string {
   const n = node as { text?: string; children?: unknown[] };
@@ -87,6 +106,9 @@ export class DocStateService {
   }
 
   private async drain(docId: string): Promise<void> {
+    // Anything still in the coalescing buffer must reach the chain first, or
+    // flush/checkpoint would record a snapshotAtSeq that excludes it.
+    this.flushPendingAppend(docId);
     const chain = this.chains.get(docId);
     if (chain) await chain;
   }
@@ -163,6 +185,7 @@ export class DocStateService {
         checkpointTimer: null,
         snapshotAtSeq,
         lastAppendedSeq: lastSeq,
+        pendingAppend: null,
       },
     });
 
@@ -183,27 +206,101 @@ export class DocStateService {
         const claims = this.wsToClaims.get(origin);
         if (claims) clientSub = claims.sub;
       }
-      const blob = Buffer.from(update);
-      void this.enqueue(docName, async () => {
-        try {
-          const seq = await this.repo.appendDocUpdate(
-            docName,
-            blob,
-            originDesc,
-            clientSub
-          );
-          const e2 = this.docState.get(docName);
-          if (e2) e2.state.lastAppendedSeq = seq;
-        } catch (e) {
-          log.error(`'${docName}' appendDocUpdate FAILED`, e);
-        }
-      });
+      this.bufferAppend(docName, Buffer.from(update), originDesc, clientSub);
       this.armCheckpointTimer(docName);
       this.scheduleFlush(docName, "yDoc.update");
     });
   }
 
-  private scheduleFlush(docName: string, reason: string): void {
+  /**
+   * Coalesce updates per (doc, author) for RTC_APPEND_COALESCE_MS before
+   * appending them as a single merged log row. Typing emits many tiny updates;
+   * one row per update means one transaction per keystroke, which is what caps
+   * DB write throughput at scale.
+   */
+  private bufferAppend(
+    docName: string,
+    blob: Buffer,
+    originDesc: string,
+    clientSub: string | null
+  ): void {
+    const entry = this.docState.get(docName);
+    if (!entry) {
+      // Doc evicted mid-flight: append directly, nothing to coalesce against.
+      this.enqueueAppend(docName, blob, originDesc, clientSub);
+      return;
+    }
+    const { state } = entry;
+    if (
+      state.pendingAppend &&
+      (state.pendingAppend.originDesc !== originDesc ||
+        state.pendingAppend.clientSub !== clientSub)
+    ) {
+      // Author/origin changed: flush so rows stay attributable per client.
+      this.flushPendingAppend(docName);
+    }
+    const pending =
+      state.pendingAppend ??
+      (state.pendingAppend = {
+        blobs: [],
+        bytes: 0,
+        originDesc,
+        clientSub,
+        timer: null,
+      });
+    pending.blobs.push(blob);
+    pending.bytes += blob.byteLength;
+    if (
+      pending.blobs.length >= APPEND_COALESCE_MAX_UPDATES ||
+      pending.bytes >= APPEND_COALESCE_MAX_BYTES
+    ) {
+      this.flushPendingAppend(docName);
+    } else if (!pending.timer) {
+      pending.timer = setTimeout(() => {
+        pending.timer = null;
+        this.flushPendingAppend(docName);
+      }, this.env("RTC_APPEND_COALESCE_MS"));
+    }
+  }
+
+  private flushPendingAppend(docName: string): void {
+    const entry = this.docState.get(docName);
+    const pending = entry?.state.pendingAppend;
+    if (!entry || !pending || pending.blobs.length === 0) return;
+    entry.state.pendingAppend = null;
+    if (pending.timer) clearTimeout(pending.timer);
+    const merged =
+      pending.blobs.length === 1
+        ? pending.blobs[0]
+        : Buffer.from(
+            Y.mergeUpdates(pending.blobs.map((b) => new Uint8Array(b)))
+          );
+    this.enqueueAppend(docName, merged, pending.originDesc, pending.clientSub);
+  }
+
+  private enqueueAppend(
+    docName: string,
+    blob: Buffer,
+    originDesc: string,
+    clientSub: string | null
+  ): void {
+    void this.enqueue(docName, async () => {
+      try {
+        const seq = await this.repo.appendDocUpdate(
+          docName,
+          blob,
+          originDesc,
+          clientSub
+        );
+        const e2 = this.docState.get(docName);
+        if (e2) e2.state.lastAppendedSeq = seq;
+      } catch (e) {
+        log.error(`'${docName}' appendDocUpdate FAILED`, e);
+      }
+    });
+  }
+
+  private scheduleFlush(docName: string, _reason: string): void {
     const entry = this.docState.get(docName);
     if (!entry) return;
     const { state } = entry;
@@ -252,7 +349,8 @@ export class DocStateService {
         const flushedSeq = state.lastAppendedSeq;
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
-        const { lexicalJson, plainText } = this.extract.extractFromBytes(update);
+        const { lexicalJson, plainText } =
+          await this.extract.extractFromBytes(update);
         const version = await this.repo.persistRtcDoc(
           docName,
           yjsState,
@@ -371,6 +469,10 @@ export class DocStateService {
       clearTimeout(state.checkpointTimer);
       state.checkpointTimer = null;
     }
+    if (state.pendingAppend?.timer) {
+      clearTimeout(state.pendingAppend.timer);
+      state.pendingAppend.timer = null;
+    }
   }
 
   /**
@@ -383,6 +485,9 @@ export class DocStateService {
     if (entry) {
       this.clearAllTimers(entry.state);
       entry.state.dirty = false;
+      // Discard (not flush) buffered updates: the doc is being deleted, and an
+      // append landing after the DB delete would re-create rows.
+      entry.state.pendingAppend = null;
     }
     // Let any in-flight appends settle so they can't land after the DB delete.
     await this.drain(docName);

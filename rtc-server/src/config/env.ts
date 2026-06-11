@@ -19,6 +19,12 @@ export const envSchema = z.object({
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
   RTC_DEBOUNCE_IDLE_MS: z.coerce.number().default(2000),
   RTC_DEBOUNCE_MAX_MS: z.coerce.number().default(10000),
+  // Yjs updates are coalesced per (doc, author) for this window before being
+  // appended as ONE log row — cuts DB write load by ~an order of magnitude
+  // while typing. Crash exposure is bounded by this window.
+  RTC_APPEND_COALESCE_MS: z.coerce.number().default(250),
+  // Headless-Lexical extraction worker threads (CPU-bound; keep small).
+  RTC_EXTRACT_WORKERS: z.coerce.number().int().min(1).max(8).default(2),
   RTC_CHECKPOINT_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
   RTC_COMPACT_INTERVAL_MS: z.coerce.number().default(60 * 60 * 1000),
   RTC_TIER1_AGE_MS: z.coerce.number().default(7 * 24 * 60 * 60 * 1000),

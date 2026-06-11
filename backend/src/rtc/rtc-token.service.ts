@@ -25,7 +25,11 @@ export class RtcTokenService {
 
   async mint(user: AuthUser, docId: string, role: RtcRole): Promise<string> {
     const { privateKey } = await this.keys.getKeys();
-    const ttl = this.config.get("RTC_TOKEN_TTL_SEC", { infer: true });
+    // ±10% jitter: the rtc-server closes sockets at token expiry, so tokens
+    // minted together (page load after a deploy) must not all expire — and
+    // trigger reconnect+cold-load — in the same instant.
+    const baseTtl = this.config.get("RTC_TOKEN_TTL_SEC", { infer: true });
+    const ttl = Math.round(baseTtl * (0.9 + Math.random() * 0.2));
     return new SignJWT({
       docId,
       role,

@@ -1,4 +1,33 @@
-import { IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from "class-validator";
+
+/**
+ * Pagination for the folders list. Deliberately NOT the shared PaginationDto:
+ * the client assembles the folder tree from this flat list, so a small page cap
+ * would truncate trees. 2000 covers any realistic workspace in one request.
+ */
+export class ListFoldersDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  skip?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(2000)
+  take?: number;
+}
 
 export class CreateFolderDto {
   @IsString()

@@ -6,6 +6,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { IncomingMessage } from "http";
+import * as decoding from "lib0/decoding";
 import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
@@ -14,19 +15,47 @@ import type { Env } from "../config/env";
 
 const log = createLogger("ws");
 
+// Per-connection token bucket for message rate limiting.
+const RATE_LIMIT_CAPACITY = 500;
+const RATE_LIMIT_REFILL_PER_SEC = 100;
+
+// Decode with the SAME varuint decoder y-websocket uses (lib0). Inspecting raw
+// bytes is bypassable: lib0's readVarUint accepts non-canonical multi-byte
+// encodings (e.g. 0x80 0x00 decodes to 0), so a byte-level check can be snuck
+// past while the consumer still sees a sync write.
 function shouldDropForViewer(buf: Buffer): boolean {
-  if (buf.length < 2) return false;
-  if (buf[0] !== 0) return false;
-  const subType = buf[1];
-  return subType === 1 || subType === 2;
+  try {
+    const decoder = decoding.createDecoder(new Uint8Array(buf));
+    const messageType = decoding.readVarUint(decoder);
+    if (messageType !== 0) return false; // not a sync message
+    const subType = decoding.readVarUint(decoder);
+    return subType === 1 || subType === 2; // syncStep2 / update
+  } catch {
+    return true; // undecodable frame from a viewer: drop
+  }
 }
 
-function parseUrl(url: string): { docId: string; token: string } | null {
+// The token is accepted either as `?token=` (existing clients) or — when the
+// query param is absent — as a WS subprotocol entry of the form
+// `bearer.<token>` (lets browser clients avoid putting tokens in URLs).
+// Clients using bearer-protocol auth must also offer the `yjs` protocol, since
+// handleProtocols only ever selects "yjs" (never echoes the bearer entry back).
+function parseUrl(
+  url: string,
+  protocolHeader?: string
+): { docId: string; token: string } | null {
   try {
     const u = new URL(url, "http://localhost");
     const m = u.pathname.match(/^\/yjs\/([^/]+)$/);
     if (!m) return null;
-    const token = u.searchParams.get("token");
+    let token = u.searchParams.get("token");
+    if (!token && protocolHeader) {
+      const bearer = protocolHeader
+        .split(",")
+        .map((p) => p.trim())
+        .find((p) => p.startsWith("bearer."));
+      if (bearer) token = bearer.slice("bearer.".length);
+    }
     if (!token) return null;
     return { docId: decodeURIComponent(m[1]), token };
   } catch {
@@ -73,8 +102,16 @@ export class YjsServerService
   private startWss(port: number): WebSocketServer {
     const wss = new WebSocketServer({
       port,
+      maxPayload: this.config.get("RTC_WS_MAX_PAYLOAD_BYTES", { infer: true }),
+      // Only invoked when the client offers subprotocols (bearer-token auth
+      // clients): always select "yjs" if offered, otherwise refuse. Query-param
+      // clients offer no protocols, so this is never called for them.
+      handleProtocols: (protocols) => (protocols.has("yjs") ? "yjs" : false),
       verifyClient: async ({ req }, cb) => {
-        const parsed = parseUrl(req.url ?? "");
+        const parsed = parseUrl(
+          req.url ?? "",
+          req.headers["sec-websocket-protocol"]
+        );
         if (!parsed) {
           cb(false, 400, "bad URL");
           return;
@@ -99,35 +136,84 @@ export class YjsServerService
     });
 
     wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-      const parsed = parseUrl(req.url ?? "");
+      const parsed = parseUrl(
+        req.url ?? "",
+        req.headers["sec-websocket-protocol"]
+      );
       if (!parsed) {
         ws.close(1008, "bad URL");
         return;
       }
       const claims = (req as IncomingMessage & { rtcClaims?: RtcClaims })
         .rtcClaims;
-      const role = claims?.role ?? "editor";
-      const sub = claims?.sub ?? "?";
+      if (!claims) {
+        // Fail closed: never default a connection without verified claims.
+        ws.close(1008, "unauthorized");
+        return;
+      }
+      const role = claims.role;
+      const sub = claims.sub;
       const cid = nextConnId();
       const clog = log.child(cid);
-      if (claims) this.docState.registerClaims(ws, claims);
+      this.docState.registerClaims(ws, claims);
       clog.info(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
 
-      ws.on("close", (code) =>
-        clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`)
-      );
+      // The JWT is verified once at connect; close the socket when it expires
+      // so a revoked/expired token can't hold a connection open indefinitely.
+      let expiryTimer: NodeJS.Timeout | null = null;
+      if (typeof claims.exp === "number") {
+        const ttlMs = Math.max(0, claims.exp * 1000 - Date.now());
+        expiryTimer = setTimeout(() => {
+          clog.warn(`token expired sub=${sub} doc='${parsed.docId}' — closing`);
+          ws.close(1008, "token expired");
+        }, ttlMs);
+        expiryTimer.unref();
+      }
+
+      ws.on("close", (code) => {
+        if (expiryTimer) {
+          clearTimeout(expiryTimer);
+          expiryTimer = null;
+        }
+        clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
+      });
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 
-      if (role === "viewer") {
-        const originalOn = ws.on.bind(ws);
-        (ws as unknown as { on: typeof ws.on }).on = ((
-          event: string,
-          listener: (...args: unknown[]) => void
-        ) => {
-          if (event !== "message") {
-            return originalOn(event as never, listener as never);
+      // Single message wrapper for every connection: (a) token-bucket rate
+      // limiting, and (b) for viewers, drop sync writes before y-websocket
+      // applies them.
+      let bucketTokens = RATE_LIMIT_CAPACITY;
+      let bucketRefilledAt = Date.now();
+      const takeToken = (): boolean => {
+        const now = Date.now();
+        bucketTokens = Math.min(
+          RATE_LIMIT_CAPACITY,
+          bucketTokens +
+            ((now - bucketRefilledAt) / 1000) * RATE_LIMIT_REFILL_PER_SEC
+        );
+        bucketRefilledAt = now;
+        if (bucketTokens < 1) return false;
+        bucketTokens -= 1;
+        return true;
+      };
+
+      const originalOn = ws.on.bind(ws);
+      (ws as unknown as { on: typeof ws.on }).on = ((
+        event: string,
+        listener: (...args: unknown[]) => void
+      ) => {
+        if (event !== "message") {
+          return originalOn(event as never, listener as never);
+        }
+        const wrapped = (data: Buffer | ArrayBuffer | Buffer[]) => {
+          if (!takeToken()) {
+            clog.warn(
+              `RATE LIMIT exceeded sub=${sub} doc='${parsed.docId}' — closing`
+            );
+            ws.close(1008, "rate limit exceeded");
+            return;
           }
-          const wrapped = (data: Buffer | ArrayBuffer | Buffer[]) => {
+          if (role === "viewer") {
             let buf: Buffer;
             if (Buffer.isBuffer(data)) buf = data;
             else if (data instanceof ArrayBuffer) buf = Buffer.from(data);
@@ -136,11 +222,11 @@ export class YjsServerService
               clog.warn(`DROP write from viewer sub=${sub} ${decodeYFrame(buf)}`);
               return;
             }
-            (listener as (d: unknown) => void)(data);
-          };
-          return originalOn("message" as never, wrapped as never);
-        }) as typeof ws.on;
-      }
+          }
+          (listener as (d: unknown) => void)(data);
+        };
+        return originalOn("message" as never, wrapped as never);
+      }) as typeof ws.on;
 
       setupWSConnection(ws, req, { docName: parsed.docId, gc: true });
     });

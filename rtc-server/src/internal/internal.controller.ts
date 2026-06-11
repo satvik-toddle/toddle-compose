@@ -3,12 +3,14 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { docs as ywsDocs } from "y-websocket/bin/utils";
 import { InternalTokenGuard } from "./internal-token.guard";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { DocStateService } from "../persistence/doc-state.service";
@@ -84,6 +86,34 @@ export class InternalController {
       gapMs: gapMs ? Number(gapMs) : undefined,
       includeNoop: includeNoop === "true" || includeNoop === "1",
     });
+  }
+
+  @Delete(":docId")
+  async deleteDoc(@Param("docId") docId: string) {
+    // Tear down any live y-websocket doc first — the doc is being deleted, so
+    // nothing is flushed. Clearing `conns` before closing the sockets prevents
+    // y-websocket's closeConn from triggering writeState (which would
+    // re-persist the doc we are about to delete).
+    const liveDoc = ywsDocs.get(docId);
+    if (liveDoc) {
+      const conns = [...liveDoc.conns.keys()];
+      liveDoc.conns.clear();
+      ywsDocs.delete(docId);
+      for (const conn of conns) {
+        try {
+          conn.close(1008, "document deleted");
+        } catch {
+          /* already closed */
+        }
+      }
+      liveDoc.destroy();
+    }
+    // Drop in-memory persistence state (timers, debounce, append chain).
+    await this.docState.evictDocNoFlush(docId);
+    // Delete the doc row and all its update rows atomically. Idempotent: a
+    // nonexistent doc still yields { ok: true }.
+    await this.repo.deleteDocCompletely(docId);
+    return { ok: true, docId };
   }
 
   @Post(":docId/compact-demo")

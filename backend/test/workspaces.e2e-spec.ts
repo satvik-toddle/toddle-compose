@@ -44,10 +44,18 @@ describe("Workspaces (e2e)", () => {
     prisma = app.get(PrismaService);
 
     ownerTok = await login(app, "owner@toddle.test");
-    // dave is a plain realm MEMBER (persists across runs → tolerate 409).
-    await addRealmMember(app, ownerTok, "dave@toddle.test", "MEMBER").then((r) =>
-      expect([201, 409]).toContain(r.status)
-    );
+    // All actors are plain realm MEMBERs — discover/join/request require realm
+    // membership now (they persist across runs → tolerate 409).
+    for (const email of [
+      "dave@toddle.test",
+      "bob@toddle.test",
+      "carol@toddle.test",
+      "eve@toddle.test",
+    ]) {
+      await addRealmMember(app, ownerTok, email, "MEMBER").then((r) =>
+        expect([201, 409]).toContain(r.status)
+      );
+    }
     daveTok = await login(app, "dave@toddle.test");
     bobTok = await login(app, "bob@toddle.test");
     carolTok = await login(app, "carol@toddle.test");

@@ -7,7 +7,13 @@ import { createLogger } from "../logger";
 const log = createLogger("token");
 
 export type Role = "editor" | "viewer" | "denied";
-export type RtcClaims = { sub: string; docId: string; role: Role };
+export type RtcClaims = {
+  sub: string;
+  docId: string;
+  role: Role;
+  /** JWT expiry (seconds since epoch), used to close sockets at expiry. */
+  exp?: number;
+};
 
 @Injectable()
 export class TokensService {
@@ -27,6 +33,7 @@ export class TokensService {
     const { payload } = await jwtVerify(token, this.jwks, {
       issuer: this.iss,
       audience: this.aud,
+      algorithms: ["RS256"],
     });
     if (
       typeof payload.sub !== "string" ||
@@ -47,6 +54,7 @@ export class TokensService {
       sub: payload.sub,
       docId: payload.docId as string,
       role: payload.role,
+      exp: typeof payload.exp === "number" ? payload.exp : undefined,
     };
   }
 }

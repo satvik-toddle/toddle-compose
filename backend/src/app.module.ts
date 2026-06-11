@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env";
 import { PrismaModule } from "./prisma/prisma.module";
 import { KeysModule } from "./keys/keys.module";
@@ -20,6 +21,12 @@ import { HealthController } from "./health.controller";
       validate: validateEnv,
     }),
     ScheduleModule.forRoot(),
+    // Rate limiting (applied per-route via ThrottlerGuard + @Throttle — see the
+    // auth controller). Disabled under e2e tests so they can hammer the API.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 100 }],
+      skipIf: () => process.env.NODE_ENV === "test",
+    }),
     PrismaModule,
     KeysModule,
     AuthModule,

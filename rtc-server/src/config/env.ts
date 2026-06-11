@@ -3,8 +3,14 @@ import { z } from "zod";
 export const envSchema = z.object({
   // The rtc-server talks ONLY to the separate, write-heavy RTC database.
   RTC_DATABASE_URL: z.string(),
-  INTERNAL_TOKEN: z.string().default("dev-internal-secret-change-me"),
+  // In production the internal token must be explicitly provisioned and
+  // non-trivial; the weak default exists only for local development.
+  INTERNAL_TOKEN:
+    process.env.NODE_ENV === "production"
+      ? z.string().min(32)
+      : z.string().default("dev-internal-secret-change-me"),
   RTC_PORT: z.coerce.number().default(4001),
+  RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
   RTC_INTERNAL_PORT: z.coerce.number().default(4002),
   JWKS_URL: z
     .string()

@@ -58,6 +58,10 @@ export class DocumentsService {
     const wsId = this.resolveWorkspaceId(user, input.workspaceId);
     await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
 
+    // A folder filter must reference a folder of THIS workspace (404 otherwise).
+    if (input.folderId !== undefined) {
+      await this.requireFolderInWorkspace(input.folderId, wsId);
+    }
     const folderScope =
       input.folderId === undefined ? {} : { folderId: input.folderId };
 
@@ -246,6 +250,8 @@ export class DocumentsService {
   async remove(userId: string, id: string) {
     await this.requireDocWrite(userId, id, "ADMIN");
     await this.prisma.document.delete({ where: { id } });
+    // Drop the RTC row (separate DB) too. Best-effort: an orphaned row is inert.
+    await this.rtc.deleteDocBestEffort(id);
     return { ok: true as const };
   }
 

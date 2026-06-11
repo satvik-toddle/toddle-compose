@@ -39,13 +39,10 @@ export class RtcInternalClient {
     }
     const text = await res.text();
     if (!res.ok) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = { error: text };
-      }
-      throw new HttpException(parsed as Record<string, unknown>, res.status);
+      // Never relay the upstream body to API callers — it's an internal service
+      // and could leak internals. Log it for operators; surface a generic 502.
+      this.log.warn(`${method} ${path} → ${res.status}: ${text.slice(0, 500)}`);
+      throw new HttpException({ error: "rtc service error" }, 502);
     }
     return text ? JSON.parse(text) : {};
   }
@@ -89,6 +86,27 @@ export class RtcInternalClient {
       "GET",
       `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}`
     ) as Promise<RtcVersionPreview>;
+  }
+
+  /** Delete the RTC row (yjs state + update log) for a document id. */
+  deleteDoc(docId: string): Promise<unknown> {
+    return this.call("DELETE", `/internal/docs/${encodeURIComponent(docId)}`);
+  }
+
+  /**
+   * Best-effort cleanup used after a document is deleted from the app DB: if the
+   * rtc-server is down, we log and move on — the row is orphaned, not harmful.
+   */
+  async deleteDocBestEffort(docId: string): Promise<void> {
+    try {
+      await this.deleteDoc(docId);
+    } catch (e) {
+      this.log.warn(
+        `deleteDoc('${docId}') failed (rtc row left orphaned): ${
+          e instanceof Error ? e.message : e
+        }`
+      );
+    }
   }
 }
 

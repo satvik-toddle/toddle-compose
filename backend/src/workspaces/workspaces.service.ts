@@ -143,6 +143,8 @@ export class WorkspacesService {
    * PUBLIC ones can be self-joined. Contents stay hidden until membership.
    */
   async discoverable(userId: string, skip = 0, take = 50) {
+    // Discovery is realm-internal: outsiders must not see workspace metadata.
+    await this.authz.requireRealmRole(userId, "MEMBER");
     return this.prisma.workspace.findMany({
       where: {
         realmId: this.realm.id,
@@ -157,6 +159,8 @@ export class WorkspacesService {
 
   /** Self-join a PUBLIC workspace as its defaultRole. PRIVATE → must request instead. */
   async join(userId: string, workspaceId: string) {
+    // Only existing realm members may enter workspaces this way.
+    await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility !== "PUBLIC") {
       throw new ForbiddenException("private workspace — request to join instead");
@@ -177,6 +181,8 @@ export class WorkspacesService {
 
   /** Request to join a PRIVATE workspace (PENDING until an admin decides). */
   async requestJoin(userId: string, workspaceId: string, requestedRole?: WorkspaceRole) {
+    // Only existing realm members may request access.
+    await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility === "PUBLIC") {
       throw new BadRequestException("public workspace — join directly");
@@ -282,34 +288,54 @@ export class WorkspacesService {
     role: WorkspaceRole
   ) {
     await this.authz.requireWorkspaceRole(actorId, workspaceId, "ADMIN");
-    const member = await this.getMemberOrThrow(workspaceId, targetUserId);
 
-    // Don't strip the workspace of its last direct admin.
-    if (member.role === "ADMIN" && role !== "ADMIN") {
-      await this.assertNotLastAdmin(workspaceId);
-    }
+    // Check + mutate inside one SERIALIZABLE transaction so two concurrent
+    // demotions can't both pass the last-admin check and leave the workspace
+    // admin-less (READ COMMITTED would let both count the same 2 admins).
+    return this.prisma.$transaction(
+      async (tx) => {
+        const member = await this.getMemberOrThrow(workspaceId, targetUserId, tx);
 
-    return this.prisma.workspaceMember.update({
-      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
-      data: { role },
-      include: { user: { select: USER_SELECT } },
-    });
+        // Don't strip the workspace of its last direct admin.
+        if (member.role === "ADMIN" && role !== "ADMIN") {
+          await this.assertNotLastAdmin(workspaceId, tx);
+        }
+
+        return tx.workspaceMember.update({
+          where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+          data: { role },
+          include: { user: { select: USER_SELECT } },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
   }
 
   async removeUser(actorId: string, workspaceId: string, targetUserId: string) {
     await this.authz.requireWorkspaceRole(actorId, workspaceId, "ADMIN");
-    const member = await this.getMemberOrThrow(workspaceId, targetUserId);
 
-    if (member.role === "ADMIN") await this.assertNotLastAdmin(workspaceId);
+    // Same race guard as updateUser: count + delete must be atomic.
+    await this.prisma.$transaction(
+      async (tx) => {
+        const member = await this.getMemberOrThrow(workspaceId, targetUserId, tx);
 
-    await this.prisma.workspaceMember.delete({
-      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
-    });
+        if (member.role === "ADMIN") await this.assertNotLastAdmin(workspaceId, tx);
+
+        await tx.workspaceMember.delete({
+          where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
     return { ok: true as const };
   }
 
-  private async getMemberOrThrow(workspaceId: string, userId: string) {
-    const member = await this.prisma.workspaceMember.findUnique({
+  private async getMemberOrThrow(
+    workspaceId: string,
+    userId: string,
+    db: Prisma.TransactionClient = this.prisma
+  ) {
+    const member = await db.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
     });
     if (!member) throw new NotFoundException("user is not a workspace member");
@@ -336,8 +362,11 @@ export class WorkspacesService {
     });
   }
 
-  private async assertNotLastAdmin(workspaceId: string) {
-    const admins = await this.prisma.workspaceMember.count({
+  private async assertNotLastAdmin(
+    workspaceId: string,
+    db: Prisma.TransactionClient = this.prisma
+  ) {
+    const admins = await db.workspaceMember.count({
       where: { workspaceId, role: "ADMIN" },
     });
     if (admins <= 1) {

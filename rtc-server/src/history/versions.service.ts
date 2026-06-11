@@ -82,8 +82,10 @@ export class VersionsService {
     // Y.Text and make a later typed read throw. Returns null for non-sheet docs.
     const sheet = extractSheet(ydoc);
 
+    // Extraction is async now (develop's worker-pool LexicalExtractService). Keep
+    // the `lexicalText` alias — `plainText` is re-derived below (sheet vs lexical).
     const { lexicalJson, plainText: lexicalText } =
-      this.extract.extractFromBytes(yjsState);
+      await this.extract.extractFromBytes(yjsState);
 
     const rawTexts: Record<string, string> = {};
     for (const key of ydoc.share.keys()) {

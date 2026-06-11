@@ -1,4 +1,4 @@
-# Backend API — Routes (Phase 1: auth + users)
+# Backend API — Routes
 
 Base URL (local): `http://localhost:4000`
 
@@ -136,6 +136,118 @@ Realm admins (`OWNER`/`MAINTAINER`) are the approvers (they act as workspace `AD
   email · `409` already a member.
 - `PATCH /api/workspaces/:id/users/:userId` — `{ role }` → requires `ADMIN`.
 - `DELETE /api/workspaces/:id/users/:userId` — requires `ADMIN`; refuses to remove the **last** `ADMIN` (`409`).
+
+---
+
+## Folders
+
+All routes **guarded**. A folder belongs to a workspace; nesting is allowed (`parentId`). Access is
+resolved per-request against the caller's workspace role.
+
+Folder shape: `{ id, name, icon, parentId, workspaceId, ownerId, createdAt, updatedAt }`.
+
+- `GET /api/folders?workspaceId=…` → list folders the caller can see (defaults to the active
+  workspace from the session when `workspaceId` is omitted). `?skip&?take`.
+- `POST /api/folders` — `{ name, icon?, parentId?, workspaceId? }` → create. `name` 1–120 chars,
+  `icon` ≤16 chars. `parentId` nests under an existing folder in the same workspace; omit for
+  top-level. `workspaceId` defaults to the active workspace.
+  ```json
+  { "name": "Design specs", "icon": "📐", "parentId": null }
+  ```
+  `201`:
+  ```json
+  {
+    "id": "ckfa…",
+    "name": "Design specs",
+    "icon": "📐",
+    "parentId": null,
+    "workspaceId": "ckws…",
+    "ownerId": "ckus…",
+    "createdAt": "2026-06-10T09:00:00.000Z",
+    "updatedAt": "2026-06-10T09:00:00.000Z"
+  }
+  ```
+- `GET /api/folders/:id` → one folder. `404` if not found / no access.
+- `PATCH /api/folders/:id` — `{ name?, icon? }` → rename / re-icon.
+- `PATCH /api/folders/:id/move` — `{ parentId }` → re-parent (`null`/omitted → move to top level).
+- `DELETE /api/folders/:id` — remove the folder.
+
+> A background scheduler (`folders-purge.scheduler.ts`) periodically purges soft-deleted folders.
+
+---
+
+## Documents
+
+All routes **guarded**. A document belongs to a workspace and (optionally) a folder, has an owner,
+and a `visibility` (`PUBLIC` | `PRIVATE`). Access combines ownership, workspace role, and visibility.
+
+Document shape: `{ id, title, icon, visibility, workspaceId, folderId, createdAt, updatedAt, owner }`
+(`owner` is a public user summary).
+
+- `GET /api/documents?folderId=…&workspaceId=…` → list documents. Both filters optional; omit
+  `workspaceId` to use the active workspace, omit `folderId` for the whole workspace. `?skip&?take`.
+- `POST /api/documents` — `{ title?, icon?, folderId?, workspaceId? }` → create. `title` 1–200 chars,
+  `icon` ≤16 chars. `folderId` places it in a folder (same workspace); `workspaceId` defaults to the
+  active workspace. `400` if the target folder isn't in the workspace.
+  ```json
+  { "title": "Q3 roadmap", "icon": "🗺️", "folderId": "ckfa…" }
+  ```
+  `201`:
+  ```json
+  {
+    "id": "ckdo…",
+    "title": "Q3 roadmap",
+    "icon": "🗺️",
+    "visibility": "PRIVATE",
+    "workspaceId": "ckws…",
+    "folderId": "ckfa…",
+    "createdAt": "2026-06-10T09:00:00.000Z",
+    "updatedAt": "2026-06-10T09:00:00.000Z",
+    "owner": { "id": "ckus…", "name": "Ada", "color": "#5a5ae2" }
+  }
+  ```
+- `GET /api/documents/:id` → one document. `404` if not found / no access.
+- `POST /api/documents/:id/rtc-token` → mint a short-lived RS256 RTC token for live collaboration.
+  Resolves the caller's role (`editor` | `viewer`) against the live DB; `403` if no access, `404` if
+  the doc doesn't exist. `201` → `{ token, docId, role }`. The client presents `token` to the
+  rtc-server WebSocket, which verifies it via `/.well-known/rtc-jwks.json`.
+  `201`:
+  ```json
+  { "token": "<rs256-jwt>", "docId": "ckdo…", "role": "editor" }
+  ```
+- `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
+- `PATCH /api/documents/:id/move` — `{ folderId }` → move into a folder (`null`/omitted → workspace root).
+- `PATCH /api/documents/:id/visibility` — `{ visibility: "PUBLIC" | "PRIVATE" }` → change visibility.
+- `DELETE /api/documents/:id` — remove the document → `{ ok: true }`.
+
+---
+
+## Uploads (object storage)
+
+Pluggable object storage (`STORAGE_DRIVER`: `local` filesystem default, or `s3` for AWS S3 / MinIO /
+R2). Max upload size is `STORAGE_MAX_UPLOAD_MB` (default 25 MB).
+
+- `POST /api/uploads` — **guarded**. `multipart/form-data` with a single field **`file`**. `201` →
+  `{ key, url, contentType, size }` where `url` is an absolute, browser-fetchable URL. Errors:
+  `400` no file · `413` exceeds the size limit.
+  ```bash
+  curl -s localhost:4000/api/uploads \
+    -H "Authorization: Bearer $ACCESS" \
+    -F "file=@diagram.png"
+  ```
+  `201`:
+  ```json
+  {
+    "key": "9f1c2e7a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png",
+    "url": "http://localhost:4000/api/uploads/9f1c2e7a-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png",
+    "contentType": "image/png",
+    "size": 20480
+  }
+  ```
+- `GET /api/uploads/:key` — **public** (no auth) so it can back `<img src>`/downloads; keys are
+  unguessable UUIDs. Streams the object with `Cache-Control: public, max-age=31536000, immutable`.
+  `404` for an unknown or unsafe key. For the `s3` driver, prefer the absolute `url` returned by the
+  upload response (public/CDN or pre-signed); this route still proxies it.
 
 ---
 

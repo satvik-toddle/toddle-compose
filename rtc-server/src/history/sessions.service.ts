@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { VersionsService, SheetSnapshot } from "./versions.service";
+import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
 const log = createLogger("sessions");
@@ -74,6 +76,8 @@ export type SessionList = {
 export class SessionsService {
   constructor(
     private readonly repo: DocRepository,
+    private readonly extract: LexicalExtractService,
+    // Used to reconstruct per-boundary grid snapshots for SHEET changed-cell diffs.
     private readonly versions: VersionsService
   ) {}
 
@@ -123,18 +127,40 @@ export class SessionsService {
       }
     }
 
+    // Single-pass replay: instead of calling previewAtSeq per session boundary
+    // (each of which replays ALL blobs from seq 1 — O(N²)), load the full blob
+    // log once in ascending seq order, apply progressively to ONE Y.Doc, and
+    // capture the extracted text at each boundary as we pass it. Boundaries use
+    // the UNFILTERED log (same as previewAtSeq), even when groups are filtered
+    // by clientSub.
+    const textAtBoundary = await this.replayTextAtBoundaries(
+      await this.repo.getDocUpdateBlobsUpTo(docId, head),
+      [...new Set(groups.flatMap((g) => [g.firstSeq - 1, g.lastSeq]))].sort(
+        (a, b) => a - b
+      )
+    );
+
+    // Only SHEET docs need per-boundary grid snapshots for changed-cell
+    // highlighting. Detect kind once (single preview at head) so DOC docs keep
+    // develop's O(N) single-pass text replay and skip the extra per-boundary work.
+    const isSheet = (await this.versions.previewAtSeq(docId, head)).sheet !== null;
+
     const sessions: Session[] = [];
     for (const g of groups) {
-      const before = await this.versions.previewAtSeq(docId, g.firstSeq - 1);
-      const after = await this.versions.previewAtSeq(docId, g.lastSeq);
-      const noop = before.plainText === after.plainText;
-      sessions.push({
-        ...g,
-        noop,
-        beforeText: before.plainText,
-        afterText: after.plainText,
-        changedCells: diffSheetCells(before.sheet, after.sheet),
-      });
+      // Text/no-op detection uses the single-pass boundary replay (cheap).
+      const beforeText = textAtBoundary.get(g.firstSeq - 1) ?? "";
+      const afterText = textAtBoundary.get(g.lastSeq) ?? "";
+      const noop = beforeText === afterText;
+
+      // SHEET docs: diff the grid snapshots at the boundaries for changed cells.
+      let changedCells: ChangedCell[] = [];
+      if (isSheet) {
+        const before = await this.versions.previewAtSeq(docId, g.firstSeq - 1);
+        const after = await this.versions.previewAtSeq(docId, g.lastSeq);
+        changedCells = diffSheetCells(before.sheet, after.sheet);
+      }
+
+      sessions.push({ ...g, noop, beforeText, afterText, changedCells });
     }
 
     const filtered = includeNoop
@@ -153,5 +179,45 @@ export class SessionsService {
       filteredCount: filtered.length,
       sessions: filtered,
     };
+  }
+
+  /**
+   * Applies `blobs` (ascending seq) to a single Y.Doc and returns the extracted
+   * plain text at each requested boundary, where the text at boundary `b` is
+   * the state after all blobs with seq <= b — identical to previewAtSeq(b).
+   */
+  private async replayTextAtBoundaries(
+    blobs: { seq: number; blob: Buffer }[],
+    boundaries: number[]
+  ): Promise<Map<number, string>> {
+    const textAt = new Map<number, string>();
+    if (boundaries.length === 0) return textAt;
+    const ydoc = new Y.Doc();
+    let lastText = "";
+    let dirty = true; // empty doc not yet extracted
+    const capture = async (): Promise<string> => {
+      if (dirty) {
+        lastText = (
+          await this.extract.extractFromBytes(Y.encodeStateAsUpdate(ydoc))
+        ).plainText;
+        dirty = false;
+      }
+      return lastText;
+    };
+    let bi = 0;
+    for (const { seq, blob } of blobs) {
+      while (bi < boundaries.length && boundaries[bi] < seq) {
+        textAt.set(boundaries[bi], await capture());
+        bi += 1;
+      }
+      if (bi >= boundaries.length) break;
+      Y.applyUpdate(ydoc, new Uint8Array(blob));
+      dirty = true;
+    }
+    while (bi < boundaries.length) {
+      textAt.set(boundaries[bi], await capture());
+      bi += 1;
+    }
+    return textAt;
   }
 }

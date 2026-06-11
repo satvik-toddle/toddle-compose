@@ -311,9 +311,7 @@ Content-Type: application/json
 # Authorization: Bearer {{wsToken}}
 
 # =============================================================================
-# 6. DOCUMENTS & SHEETS  (/api/documents = DOC, /api/sheets = SHEET) — workspace-scoped
-#    Same resource, kind decided by namespace. Per-id access cross-checks kind:
-#    a SHEET via /documents (or a DOC via /sheets) → 404.
+# 6. DOCUMENTS  (/api/documents)  — workspace-scoped
 # =============================================================================
 
 ### Create a document inside the folder → capture its id (PRIVATE by default, type DOC)
@@ -330,40 +328,19 @@ Content-Type: application/json
   client.test("defaults to type DOC", () => client.assert(response.body.type === "DOC"));
 %}
 
-### Create a SHEET via the /sheets namespace (kind comes from the route, not the body)
-### → capture its id; icon defaults to 📊 when omitted
+### Create a SHEET document (data grid) → capture its id; icon defaults to 📊 when omitted
 # @name createSheet
-POST {{baseUrl}}/sheets
+POST {{baseUrl}}/documents
 Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
-{ "title": "Q3 Numbers", "folderId": "{{folderId}}" }
+{ "title": "Q3 Numbers", "type": "SHEET", "folderId": "{{folderId}}" }
 
 > {%
   client.global.set("sheetDocId", response.body.id);
   client.test("is a SHEET", () => client.assert(response.body.type === "SHEET"));
   client.test("default sheet icon", () => client.assert(response.body.icon === "📊"));
 %}
-
-### Cross-namespace guard: reading a SHEET via /documents → 404
-GET {{baseUrl}}/documents/{{sheetDocId}}
-Authorization: Bearer {{wsToken}}
-
-> {% client.test("sheet via doc api is 404", () => client.assert(response.status === 404)); %}
-
-### …and reading a DOC via /sheets → 404
-GET {{baseUrl}}/sheets/{{docId}}
-Authorization: Bearer {{wsToken}}
-
-> {% client.test("doc via sheet api is 404", () => client.assert(response.status === 404)); %}
-
-### Read the sheet through its own namespace → 200
-GET {{baseUrl}}/sheets/{{sheetDocId}}
-Authorization: Bearer {{wsToken}}
-
-### List only SHEETs (kind-scoped namespace)
-GET {{baseUrl}}/sheets
-Authorization: Bearer {{wsToken}}
 
 ### List documents in the active workspace (newest first)
 GET {{baseUrl}}/documents
@@ -391,14 +368,13 @@ Content-Type: application/json
 
 > {% client.global.set("subdocId", response.body.id); %}
 
-### Nest a SHEET under the (DOC) document — both kinds nest under any parent.
-### Created via /sheets; the parent (a DOC) is referenced by id regardless of kind.
+### Nest a SHEET under the (DOC) document — both kinds are nestable under any parent
 # @name createNestedSheet
-POST {{baseUrl}}/sheets
+POST {{baseUrl}}/documents
 Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
-{ "title": "Embedded sheet", "parentId": "{{docId}}" }
+{ "title": "Embedded sheet", "type": "SHEET", "parentId": "{{docId}}" }
 
 > {% client.test("nested sheet keeps its kind", () => client.assert(response.body.type === "SHEET" && response.body.parentId === client.global.get("docId"))); %}
 
@@ -454,14 +430,13 @@ Content-Type: application/json
 { "parentId": "{{subdocId}}" }
 
 ### Edit history — per-author sessions (newest first). For SHEET docs each session
-### carries `changedCells`. Requires READ. Use the matching namespace (/sheets here,
-### since sheetDocId is a SHEET — /documents would 404). (Needs the rtc-server running.)
-GET {{baseUrl}}/sheets/{{sheetDocId}}/history
+### carries `changedCells`. Requires READ. (Needs the rtc-server running.)
+GET {{baseUrl}}/documents/{{sheetDocId}}/history
 Authorization: Bearer {{wsToken}}
 
-### Read-only snapshot at an update seq — for a SHEET this returns the grid (`sheet`).
-### `400` if seq isn't a non-negative integer. (Needs the rtc-server running.)
-GET {{baseUrl}}/sheets/{{sheetDocId}}/history/0
+### Read-only snapshot at an update seq — for a SHEET this returns the grid (`sheet`),
+### null for a DOC. `400` if seq isn't a non-negative integer. (Needs the rtc-server running.)
+GET {{baseUrl}}/documents/{{sheetDocId}}/history/0
 Authorization: Bearer {{wsToken}}
 
 ### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member

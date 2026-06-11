@@ -142,7 +142,7 @@ importers:
         specifier: 2.0.4
         version: 2.0.4(yjs@13.6.27)
       yjs:
-        specifier: ^13.6.20
+        specifier: 13.6.27
         version: 13.6.27
 
   frontend:

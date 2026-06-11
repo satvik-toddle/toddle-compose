@@ -36,6 +36,7 @@ describe("Documents (e2e)", () => {
   let daveTok = "";
   let bobTok = "";
   let docId = "";
+  let subdocId = "";
   let folderId = "";
 
   beforeAll(async () => {
@@ -156,6 +157,173 @@ describe("Documents (e2e)", () => {
       .set(auth(ownerWs))
       .send({ folderId })
       .expect(200);
+  });
+
+  // ---- nesting (subdocs) ----
+
+  it("creates a subdoc nested under the document (parentId set, folderId cleared)", async () => {
+    const res = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Appendix", parentId: docId, folderId })
+      .expect(201);
+    // parentId wins over folderId: a subdoc is located by its parent, not a folder.
+    expect(res.body.parentId).toBe(docId);
+    expect(res.body.folderId).toBeNull();
+    subdocId = res.body.id;
+  });
+
+  it("rejects nesting under a parent in another workspace → 404", async () => {
+    await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "x", parentId: "does-not-exist" })
+      .expect(404);
+  });
+
+  it("GET /:id returns breadcrumbs root → current (current last)", async () => {
+    const parent = await http(app)
+      .get(`/api/documents/${docId}`)
+      .set(auth(ownerWs))
+      .expect(200);
+    expect(parent.body.breadcrumbs.map((c: { id: string }) => c.id)).toEqual([docId]);
+
+    const child = await http(app)
+      .get(`/api/documents/${subdocId}`)
+      .set(auth(ownerWs))
+      .expect(200);
+    expect(child.body.breadcrumbs.map((c: { id: string }) => c.id)).toEqual([
+      docId,
+      subdocId,
+    ]);
+    expect(child.body.breadcrumbs[0]).toMatchObject({ id: docId });
+  });
+
+  it("GET /:id/subdocs lists the document's direct children", async () => {
+    const res = await http(app)
+      .get(`/api/documents/${docId}/subdocs`)
+      .set(auth(carolWs)) // a READ member can list subdocs of a doc they can read
+      .expect(200);
+    expect(res.body.map((d: { id: string }) => d.id)).toContain(subdocId);
+    expect(res.body.every((d: { parentId: string }) => d.parentId === docId)).toBe(true);
+  });
+
+  it("a non-member cannot list a doc's subdocs → 404", async () => {
+    await http(app)
+      .get(`/api/documents/${docId}/subdocs`)
+      .set(auth(bobTok))
+      .expect(404);
+  });
+
+  it("?parentId=null lists only top-level docs (excludes the subdoc)", async () => {
+    const res = await http(app)
+      .get("/api/documents?parentId=null")
+      .set(auth(ownerWs))
+      .expect(200);
+    const ids = res.body.map((d: { id: string }) => d.id);
+    expect(ids).toContain(docId);
+    expect(ids).not.toContain(subdocId);
+  });
+
+  it("?parentId=<id> lists that document's subdocs", async () => {
+    const res = await http(app)
+      .get(`/api/documents?parentId=${docId}`)
+      .set(auth(ownerWs))
+      .expect(200);
+    expect(res.body.map((d: { id: string }) => d.id)).toEqual([subdocId]);
+  });
+
+  it("rejects self-parenting and cycles (parent into its own subtree) → 400", async () => {
+    await http(app)
+      .patch(`/api/documents/${docId}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: docId })
+      .expect(400);
+    await http(app)
+      .patch(`/api/documents/${docId}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: subdocId })
+      .expect(400);
+  });
+
+  it("re-parenting a doc clears its folderId; detaching to root clears parentId", async () => {
+    // Detach the subdoc to the workspace root.
+    const detached = await http(app)
+      .patch(`/api/documents/${subdocId}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: null })
+      .expect(200);
+    expect(detached.body.parentId).toBeNull();
+
+    // Re-nest it under the parent again (and confirm folderId is cleared).
+    const renested = await http(app)
+      .patch(`/api/documents/${subdocId}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: docId })
+      .expect(200);
+    expect(renested.body.parentId).toBe(docId);
+    expect(renested.body.folderId).toBeNull();
+  });
+
+  it("GET /:id/hierarchy returns the root ancestor expanded down the spine", async () => {
+    // Build docId → subdocId → grandchild, plus an off-path sibling of subdocId.
+    const grandchild = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Grandchild", parentId: subdocId })
+      .expect(201);
+    const sibling = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Sibling", parentId: docId })
+      .expect(201);
+
+    const res = await http(app)
+      .get(`/api/documents/${grandchild.body.id}/hierarchy`)
+      .set(auth(ownerWs))
+      .expect(200);
+
+    // Root is the topmost ancestor (docId), with both children present.
+    expect(res.body.id).toBe(docId);
+    expect(res.body.parentId).toBeNull();
+    const rootChildIds = res.body.children.map((c: { id: string }) => c.id);
+    expect(rootChildIds).toEqual(expect.arrayContaining([subdocId, sibling.body.id]));
+
+    // Off-path sibling is collapsed; on-path child is expanded.
+    const sib = res.body.children.find((c: { id: string }) => c.id === sibling.body.id);
+    expect(sib.children).toBeNull();
+    const onPath = res.body.children.find((c: { id: string }) => c.id === subdocId);
+    expect(Array.isArray(onPath.children)).toBe(true);
+
+    // The spine continues down to the (expanded) target document.
+    const target = onPath.children.find((c: { id: string }) => c.id === grandchild.body.id);
+    expect(target).toBeDefined();
+    expect(Array.isArray(target.children)).toBe(true);
+
+    // cleanup the extra nodes so they don't perturb later counts
+    await http(app).delete(`/api/documents/${grandchild.body.id}`).set(auth(ownerWs)).expect(200);
+    await http(app).delete(`/api/documents/${sibling.body.id}`).set(auth(ownerWs)).expect(200);
+  });
+
+  it("deleting a parent cascade-deletes its subdoc subtree", async () => {
+    const parent = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Parent" })
+      .expect(201);
+    const child = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Child", parentId: parent.body.id })
+      .expect(201);
+
+    const del = await http(app)
+      .delete(`/api/documents/${parent.body.id}`)
+      .set(auth(ownerWs))
+      .expect(200);
+    expect(del.body.deleted).toBe(2); // parent + child
+
+    await http(app).get(`/api/documents/${child.body.id}`).set(auth(ownerWs)).expect(404);
   });
 
   // ---- public toggle ----

@@ -339,8 +339,34 @@ Authorization: Bearer {{wsToken}}
 GET {{baseUrl}}/documents?workspaceId={{workspaceId}}
 Authorization: Bearer {{ownerToken}}
 
-### Get one document
+### Get one document (response includes `breadcrumbs`: root → this doc)
 GET {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{wsToken}}
+
+### Create a subdoc nested under the document → capture its id
+# @name createSubdoc
+POST {{baseUrl}}/documents
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "title": "Subdoc — appendix", "icon": "📎", "parentId": "{{docId}}" }
+
+> {% client.global.set("subdocId", response.body.id); %}
+
+### List the document's direct subdocs (immediate children)
+GET {{baseUrl}}/documents/{{docId}}/subdocs
+Authorization: Bearer {{wsToken}}
+
+### Sidebar hierarchy for the subdoc — root ancestor expanded down to this doc
+GET {{baseUrl}}/documents/{{subdocId}}/hierarchy
+Authorization: Bearer {{wsToken}}
+
+### List only top-level documents (no parent) in the workspace
+GET {{baseUrl}}/documents?parentId=null
+Authorization: Bearer {{wsToken}}
+
+### List a document's subdocs via the parentId filter
+GET {{baseUrl}}/documents?parentId={{docId}}
 Authorization: Bearer {{wsToken}}
 
 ### Rename a document
@@ -363,6 +389,20 @@ Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
 { "folderId": "{{folderId}}" }
+
+### Re-parent the subdoc under the document (nest it as a subdoc; clears its folder)
+PATCH {{baseUrl}}/documents/{{subdocId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "parentId": "{{docId}}" }
+
+### Cycle guard — moving a parent into its own subdoc must 400
+PATCH {{baseUrl}}/documents/{{docId}}/move
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "parentId": "{{subdocId}}" }
 
 ### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member
 PATCH {{baseUrl}}/documents/{{docId}}/visibility

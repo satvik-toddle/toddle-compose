@@ -179,6 +179,12 @@ model Document {
   owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   folderId    String?      @map("folder_id")
   folder      Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  // Nesting: a document may live inside another document (a "subdoc"). The tree is
+  // workspace-scoped (enforced in the service). Deleting a parent cascade-deletes its
+  // subtree; the service collects descendant ids first to clean up their RTC rows.
+  parentId    String?      @map("parent_id")
+  parent      Document?    @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Document[]   @relation("DocumentTree")
   // PUBLIC additionally exposes the doc to any realm member, across workspaces.
   visibility  Visibility   @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -189,6 +195,7 @@ model Document {
   @@index([ownerId])
   @@index([visibility])
   @@index([folderId])
+  @@index([parentId])
   @@index([workspaceId])
   // Backs the documents list (filtered by workspace, ordered by updatedAt desc).
   @@index([workspaceId, updatedAt])

@@ -11,7 +11,13 @@
 # Usage:  pnpm dev   (or  npm run dev)
 # Escape hatches:
 #   SKIP_DB_SETUP=1 pnpm dev   # skip schema push + init + seed (DB already prepared)
+#   FRESH_DB=1 pnpm dev        # wipe the Postgres data volume first (clean slate)
+#                              # (shortcut: pnpm db:fresh)
 #   pnpm dev:services          # just the three app servers, no Docker / DB setup
+#
+# NOTE: Postgres data lives in the named Docker volume `toddle_compose_pgdata`, which
+# survives `docker compose down` and even deleting the container — so old rows reappear
+# on the next boot. Use FRESH_DB=1 (or `pnpm db:nuke`) to actually drop the data.
 set -euo pipefail
 
 # Repo root = parent of this script's dir, regardless of where it's invoked from.
@@ -143,6 +149,14 @@ fi
 # 1. POSTGRES CONTAINER
 # ===========================================================================
 step "Database container"
+# FRESH_DB=1 → drop the Postgres container AND its data volume first, for a truly
+# clean slate. Without this the named volume (toddle_compose_pgdata) persists across
+# `docker compose down` and container deletion, so previous data survives reboots.
+if [ "${FRESH_DB:-}" = "1" ]; then
+  warn "FRESH_DB=1 — removing the Postgres container and its data volume…"
+  docker compose down -v --remove-orphans || true
+  ok "Old database volume removed — starting from a clean slate"
+fi
 # 'up -d --wait' pulls postgres:16 on first run if it isn't cached, then blocks
 # until the container's healthcheck (pg_isready) passes.
 note "Starting Postgres (toddle-compose-postgres)…"

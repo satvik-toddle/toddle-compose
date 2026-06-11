@@ -26,6 +26,8 @@
     "db:push": "set -a && . ./.env && set +a && pnpm --filter @app/database exec prisma db push && pnpm --filter @app/rtc-database exec prisma db push",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
+    "db:nuke": "docker compose down -v --remove-orphans",
+    "db:fresh": "FRESH_DB=1 pnpm dev",
     "test": "set -a && . ./.env && set +a && pnpm --filter backend test:e2e"
   },
   "devDependencies": {

@@ -37,7 +37,8 @@ export class VersionsService {
       }
     }
     const yjsState = Y.encodeStateAsUpdate(ydoc);
-    const { lexicalJson, plainText } = this.extract.extractFromBytes(yjsState);
+    const { lexicalJson, plainText } =
+      await this.extract.extractFromBytes(yjsState);
 
     const rawTexts: Record<string, string> = {};
     for (const key of ydoc.share.keys()) {

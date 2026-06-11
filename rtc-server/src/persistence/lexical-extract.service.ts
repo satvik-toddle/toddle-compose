@@ -1,80 +1,122 @@
-import { Injectable } from "@nestjs/common";
-import * as Y from "yjs";
-import { createHeadlessEditor } from "@lexical/headless";
-import {
-  createBinding,
-  syncYjsChangesToLexical,
-  type Provider,
-} from "@lexical/yjs";
-import { Awareness } from "y-protocols/awareness";
-import { $getRoot, type Klass, type LexicalNode } from "lexical";
+import { Injectable, OnApplicationShutdown } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Worker } from "worker_threads";
+import { join } from "path";
 import { createLogger } from "../logger";
+import { extractFromBytesSync, type ExtractResult } from "./lexical-extract.core";
+import type { Env } from "../config/env";
 
 const log = createLogger("extract");
-const NAMESPACE = "ds-doc-editor-collab";
 
-// Server node classes are pre-bundled to CJS (lexical/yjs externalized) so they
-// share this process's single lexical/yjs instances. See scripts/bundle-server-nodes.mjs.
+type Task = {
+  id: number;
+  bytes: Uint8Array;
+  resolve: (r: ExtractResult) => void;
+};
 
-const serverNodes: Array<Klass<LexicalNode>> =
-  require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
-
-function makeStubProvider(ydoc: Y.Doc): Provider {
-  const awareness = new Awareness(ydoc);
-  return {
-    awareness,
-    connect: () => {},
-    disconnect: () => {},
-    on: () => {},
-    off: () => {},
-  } as unknown as Provider;
-}
-
+/**
+ * Headless-Lexical extraction behind a small worker-thread pool. Extraction is
+ * pure CPU (full doc parse per flush): running it on the main thread stalls
+ * every WebSocket on the server, so flushes for many active docs would serialize
+ * behind it. Falls back to inline (synchronous) extraction if workers can't be
+ * spawned or a worker dies mid-task — behavior-identical, just main-thread.
+ */
 @Injectable()
-export class LexicalExtractService {
-  extractFromBytes(stateUpdate: Uint8Array): {
-    lexicalJson: string | null;
-    plainText: string;
-  } {
-    const t0 = Date.now();
+export class LexicalExtractService implements OnApplicationShutdown {
+  private workers: Worker[] = [];
+  private idle: Worker[] = [];
+  private readonly queue: Task[] = [];
+  private readonly inFlight = new Map<Worker, Task>();
+  private nextId = 1;
+  private started = false;
+  private poolBroken = false;
+
+  constructor(private readonly config: ConfigService<Env, true>) {}
+
+  async extractFromBytes(stateUpdate: Uint8Array): Promise<ExtractResult> {
+    this.ensurePool();
+    if (this.poolBroken) return extractFromBytesSync(stateUpdate);
+    return new Promise<ExtractResult>((resolve) => {
+      this.queue.push({ id: this.nextId++, bytes: stateUpdate, resolve });
+      this.dispatch();
+    });
+  }
+
+  onApplicationShutdown(): void {
+    for (const w of this.workers) void w.terminate();
+    this.workers = [];
+    this.idle = [];
+  }
+
+  private ensurePool(): void {
+    if (this.started) return;
+    this.started = true;
+    const size = this.config.get("RTC_EXTRACT_WORKERS", { infer: true });
     try {
-      const tmpDoc = new Y.Doc();
-      const editor = createHeadlessEditor({
-        namespace: NAMESPACE,
-        nodes: serverNodes,
-        onError: (err) => log.error("headless editor error", err),
-      });
-      const docMap = new Map<string, Y.Doc>([[NAMESPACE, tmpDoc]]);
-      const provider = makeStubProvider(tmpDoc);
-      const binding = createBinding(editor, provider, NAMESPACE, tmpDoc, docMap);
-
-      binding.root.getSharedType().observeDeep((events) => {
-        try {
-          syncYjsChangesToLexical(binding, provider, events, false);
-        } catch (e) {
-          log.warn(`sync Y->L failed: ${e instanceof Error ? e.message : e}`);
-        }
-      });
-
-      Y.applyUpdate(tmpDoc, stateUpdate);
-      editor.update(() => {}, { discrete: true });
-
-      const editorState = editor.getEditorState();
-      const lexicalJson = JSON.stringify(editorState.toJSON());
-      let plainText = "";
-      editorState.read(() => {
-        plainText = $getRoot().getTextContent();
-      });
-
-      log.debug(
-        `extract OK json=${lexicalJson.length}B text=${plainText.length}ch in ${Date.now() - t0}ms`
-      );
-      return { lexicalJson, plainText };
+      for (let i = 0; i < size; i++) this.spawnWorker();
+      log.info(`extraction worker pool started (${size} worker(s))`);
     } catch (e) {
-      log.warn(
-        `headless extraction FAILED in ${Date.now() - t0}ms: ${e instanceof Error ? e.message : e}`
+      this.poolBroken = true;
+      log.error(
+        "failed to start extraction workers — falling back to main-thread extraction",
+        e
       );
-      return { lexicalJson: null, plainText: "" };
+    }
+  }
+
+  private spawnWorker(): void {
+    const worker = new Worker(join(__dirname, "lexical-extract.worker.js"));
+    worker.unref();
+    worker.on("message", (msg: { id: number } & ExtractResult) => {
+      const task = this.inFlight.get(worker);
+      this.inFlight.delete(worker);
+      this.idle.push(worker);
+      if (task && task.id === msg.id) {
+        task.resolve({ lexicalJson: msg.lexicalJson, plainText: msg.plainText });
+      } else if (task) {
+        // Should never happen (one in-flight task per worker); don't lose the
+        // flush over it — extract inline.
+        log.error(`worker answered id=${msg.id} but task id=${task.id}`);
+        task.resolve(extractFromBytesSync(task.bytes));
+      }
+      this.dispatch();
+    });
+    const onDeath = (err?: unknown) => {
+      if (err) log.error("extraction worker died", err);
+      const task = this.inFlight.get(worker);
+      this.inFlight.delete(worker);
+      this.idle = this.idle.filter((w) => w !== worker);
+      this.workers = this.workers.filter((w) => w !== worker);
+      // Resolve the orphaned task inline so its flush still completes.
+      if (task) task.resolve(extractFromBytesSync(task.bytes));
+      try {
+        this.spawnWorker();
+      } catch (e) {
+        log.error("respawn of extraction worker failed", e);
+        if (this.workers.length === 0) this.poolBroken = true;
+      }
+      this.dispatch();
+    };
+    worker.on("error", onDeath);
+    worker.on("exit", (code) => {
+      if (code !== 0) onDeath(new Error(`worker exited with code ${code}`));
+    });
+    this.workers.push(worker);
+    this.idle.push(worker);
+  }
+
+  private dispatch(): void {
+    while (this.idle.length > 0 && this.queue.length > 0) {
+      const worker = this.idle.pop()!;
+      const task = this.queue.shift()!;
+      this.inFlight.set(worker, task);
+      worker.postMessage({ id: task.id, bytes: task.bytes });
+    }
+    if (this.poolBroken) {
+      // Drain anything queued before the pool broke.
+      for (const task of this.queue.splice(0)) {
+        task.resolve(extractFromBytesSync(task.bytes));
+      }
     }
   }
 }

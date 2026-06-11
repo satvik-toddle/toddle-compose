@@ -90,7 +90,7 @@ export class SessionsService {
     // capture the extracted text at each boundary as we pass it. Boundaries use
     // the UNFILTERED log (same as previewAtSeq), even when groups are filtered
     // by clientSub.
-    const textAtBoundary = this.replayTextAtBoundaries(
+    const textAtBoundary = await this.replayTextAtBoundaries(
       await this.repo.getDocUpdateBlobsUpTo(docId, head),
       [...new Set(groups.flatMap((g) => [g.firstSeq - 1, g.lastSeq]))].sort(
         (a, b) => a - b
@@ -128,19 +128,19 @@ export class SessionsService {
    * plain text at each requested boundary, where the text at boundary `b` is
    * the state after all blobs with seq <= b — identical to previewAtSeq(b).
    */
-  private replayTextAtBoundaries(
+  private async replayTextAtBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
-  ): Map<number, string> {
+  ): Promise<Map<number, string>> {
     const textAt = new Map<number, string>();
     if (boundaries.length === 0) return textAt;
     const ydoc = new Y.Doc();
     let lastText = "";
     let dirty = true; // empty doc not yet extracted
-    const capture = (): string => {
+    const capture = async (): Promise<string> => {
       if (dirty) {
-        lastText = this.extract.extractFromBytes(
-          Y.encodeStateAsUpdate(ydoc)
+        lastText = (
+          await this.extract.extractFromBytes(Y.encodeStateAsUpdate(ydoc))
         ).plainText;
         dirty = false;
       }
@@ -149,7 +149,7 @@ export class SessionsService {
     let bi = 0;
     for (const { seq, blob } of blobs) {
       while (bi < boundaries.length && boundaries[bi] < seq) {
-        textAt.set(boundaries[bi], capture());
+        textAt.set(boundaries[bi], await capture());
         bi += 1;
       }
       if (bi >= boundaries.length) break;
@@ -157,7 +157,7 @@ export class SessionsService {
       dirty = true;
     }
     while (bi < boundaries.length) {
-      textAt.set(boundaries[bi], capture());
+      textAt.set(boundaries[bi], await capture());
       bi += 1;
     }
     return textAt;

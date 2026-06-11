@@ -1,7 +1,7 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { PrismaClient } from "@app/database";
 import { AppModule } from "../src/app.module";
 import { ActiveRealmService } from "../src/realm/active-realm.service";

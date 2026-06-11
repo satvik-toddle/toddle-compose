@@ -5,7 +5,9 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import bcrypt from "bcryptjs";
+// Native bcrypt (hashes on the libuv thread pool) — bcryptjs runs its ~250ms of
+// CPU per hash on the main event loop, so a burst of logins stalls all requests.
+import bcrypt from "bcrypt";
 import { createHash, randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import type { Env } from "../config/env";

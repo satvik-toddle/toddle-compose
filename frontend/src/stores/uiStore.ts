@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { WorkspaceRole } from '../types/roles';
+import type { IconName } from '../components/iconMap';
 
 export type ToastKind = 'info' | 'success' | 'error';
 export interface Toast {
@@ -12,7 +13,7 @@ export interface Toast {
 // matching component; mutations read the payload.
 export type ModalState =
   | { type: 'createWorkspace' }
-  | { type: 'renameWorkspace'; workspaceId: string; name: string; icon: string }
+  | { type: 'renameWorkspace'; workspaceId: string; name: string; icon: IconName }
   | { type: 'addRealmMember' }
   | { type: 'addWorkspaceMember'; workspaceId: string; workspaceName: string }
   | { type: 'confirmDeleteWorkspace'; workspaceId: string; name: string; memberCount?: number }

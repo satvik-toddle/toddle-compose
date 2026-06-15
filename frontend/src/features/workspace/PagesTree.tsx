@@ -63,7 +63,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
       role="button"
       onClick={() => selectDoc(d.id)}
     >
-      <span className="tw-emoji">{d.icon || '📄'}</span>
+      <span className="tw-emoji"><Icon name="FileOutlined" size={16} muted /></span>
       <span className="tw-lbl">{d.title}</span>
     </div>
   );
@@ -157,7 +157,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
           >
             <Icon name="ChevronRightOutlined" size={14} muted className={cn('chev', open && 'open')} />
           </span>
-          <span className="tw-emoji">{node.icon}</span>
+          <span className="tw-emoji"><Icon name="FolderOutlined" size={16} muted /></span>
           <span className="tw-lbl">{node.name}</span>
           {(canCreate || manage) && (
             <button

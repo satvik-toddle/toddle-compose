@@ -47,7 +47,7 @@ export function PagesPanel() {
           <div className="ws-crumbs">
             <span>{ctx.name}</span>
             <span className="sep">/</span>
-            <span className="cur">📄 Pages</span>
+            <span className="cur"><Icon name="FileOutlined" size={14} muted /> Pages</span>
           </div>
         </div>
         <PageSpinner />
@@ -87,7 +87,7 @@ export function PagesPanel() {
             <span className="ws-doc-crumb" role="button" onClick={back}>
               {ctx.name} /{' '}
             </span>
-            <span className="tw-emoji">{doc.icon || '📄'}</span>
+            <span className="tw-emoji"><Icon name="FileOutlined" size={16} muted /></span>
             <span className="ws-doc-nm">{doc.title}</span>
           </div>
           <div className="ws-doc-people" style={{ gap: 8 }}>
@@ -144,7 +144,7 @@ export function PagesPanel() {
   const folder = selFolder ? folders.find((f) => f.id === selFolder) : undefined;
   const listDocs = selFolder ? model.docsByFolder.get(selFolder) ?? [] : model.rootDocs;
   const title = folder ? folder.name : 'All pages';
-  const icon = folder ? folder.icon || '📁' : '📄';
+  const headIcon = folder ? 'FolderOutlined' : 'FileOutlined';
 
   const newDoc = () =>
     createDoc.mutate(
@@ -162,7 +162,7 @@ export function PagesPanel() {
           </span>
           <span className="sep">/</span>
           <span className="cur">
-            {icon} {title}
+            <Icon name={headIcon} size={14} muted /> {title}
           </span>
         </div>
         {canCreate && (
@@ -179,7 +179,7 @@ export function PagesPanel() {
       <div className="ws-scroll">
         <div className="ws-folder-head">
           <span className="ws-emoji" style={{ background: 'var(--surface-tertiary-enabled)' }}>
-            {icon}
+            <Icon name={headIcon} size={24} muted />
           </span>
           <div>
             <h1>{title}</h1>
@@ -215,7 +215,7 @@ export function PagesPanel() {
             {listDocs.map((d) => (
               <div key={d.id} className="trow" role="button" onClick={() => navigate(`/w/${ws}?doc=${d.id}`)}>
                 <div className="cell-main">
-                  <span className="tw-emoji big">{d.icon || '📄'}</span>
+                  <span className="tw-emoji big"><Icon name="FileOutlined" size={20} muted /></span>
                   <div>
                     <div className="nm">{d.title}</div>
                   </div>

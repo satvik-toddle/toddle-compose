@@ -15,10 +15,11 @@ export const documentsApi = {
       ...(b.icon ? { icon: b.icon } : {}),
     }),
   rename: (id: string, title: string) => http.patch<DocumentDto>(`/documents/${id}`, { title }),
-  // Non-collaborative HTML body (server-saved, shared across users; no RTC).
-  getBody: (id: string) => http.get<{ body: string }>(`/documents/${id}/body`),
-  saveBody: (id: string, body: string) =>
-    http.put<{ ok: true }>(`/documents/${id}/body`, { body }),
+  // Short-lived RTC token for real-time collaboration (editor|viewer role).
+  rtcToken: (id: string) =>
+    http.post<{ token: string; docId: string; role: 'editor' | 'viewer' }>(
+      `/documents/${id}/rtc-token`,
+    ),
   move: (id: string, b: { folderId?: string | null; parentId?: string | null }) =>
     http.patch<DocumentDto>(`/documents/${id}/move`, b),
   setVisibility: (id: string, visibility: Visibility) =>

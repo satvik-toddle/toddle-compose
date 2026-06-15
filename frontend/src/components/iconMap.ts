@@ -26,6 +26,9 @@ export const ICONS = {
   MultipleUsersOutlined: OutlinedIcons.MultipleUsersOutlined,
   BellRingOutlined: OutlinedIcons.BellRingOutlined,
   FolderOutlined: OutlinedIcons.FolderOutlined,
+  // Document/page icon for the Pages tree. Aliased to a ds page icon (ds-icons
+  // has no plain "FileOutlined"); swap the target here to restyle every doc icon.
+  FileOutlined: OutlinedIcons.PageFoldPortraitOutlined,
   SearchOutlined: OutlinedIcons.SearchOutlined,
   InformationOutlined: OutlinedIcons.InformationOutlined,
   EmailOutlined: OutlinedIcons.EmailOutlined,

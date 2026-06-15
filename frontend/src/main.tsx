@@ -1,4 +1,6 @@
 import { StrictMode } from 'react';
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -14,6 +16,10 @@ import './styles/index.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element #root not found');
+
+// @toddle-edu/ds-doc-editor's collaboration bundle references global React /
+// ReactDOM (UMD externals) — expose them so its CollaborationPlugin can render.
+Object.assign(window, { React, ReactDOM });
 
 const queryClient = createQueryClient();
 // Restore the session (refresh + re-enter last workspace) before first paint.

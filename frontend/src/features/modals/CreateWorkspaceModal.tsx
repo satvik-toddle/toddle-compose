@@ -5,13 +5,13 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useCreateWorkspace } from '../../hooks/useWorkspaceMutations';
 import { cn } from '../../lib/cn';
-
-const EMOJIS = ['🚀', '🛠️', '🎨', '📣', '🌱', '📈', '🔬', '📚', '💡', '🧭', '🗂️', '⚡'];
+import { WORKSPACE_ICONS } from '../../lib/workspaceVisual';
+import type { IconName } from '../../components/iconMap';
 
 export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
   const create = useCreateWorkspace();
   const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState('🚀');
+  const [icon, setIcon] = useState<IconName>(WORKSPACE_ICONS[0]);
 
   const submit = () => {
     if (!name.trim() || create.isPending) return;
@@ -30,7 +30,7 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
       <div className="m-body">
         <Field label="Workspace name">
           <span className="inp inp-emoji">
-            <span className="emoji-btn">{emoji}</span>
+            <span className="emoji-btn"><Icon name={icon} size={18} /></span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -44,14 +44,18 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Icon">
           <div className="emoji-grid">
-            {EMOJIS.map((e) => (
+            {WORKSPACE_ICONS.map((ic) => (
               <button
-                key={e}
+                key={ic}
                 type="button"
-                className={cn('emoji-cell', e === emoji && 'on')}
-                onClick={() => setEmoji(e)}
+                className={cn('emoji-cell', ic === icon && 'on')}
+                onClick={() => setIcon(ic)}
               >
-                {e}
+                <Icon
+                  name={ic}
+                  size={18}
+                  style={ic === icon ? { color: 'var(--interactive-primary)' } : undefined}
+                />
               </button>
             ))}
           </div>

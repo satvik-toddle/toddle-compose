@@ -33,7 +33,7 @@ export function WorkspaceCard({
           className="ws-emoji"
           style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
         >
-          {vis.icon}
+          <Icon name={vis.icon} size={24} style={{ color: vis.color }} />
         </span>
         {overlay ? <WSChip overlay sm /> : <WSChip role={ws.role} sm />}
       </div>

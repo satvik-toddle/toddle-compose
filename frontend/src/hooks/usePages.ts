@@ -23,20 +23,14 @@ export function useDocuments(workspaceId: string | undefined, enabled = true) {
   });
 }
 
-// Server-saved HTML body for one document (shared across users; no RTC).
-export function useDocumentBody(docId: string | undefined) {
+// Mint an RTC token for real-time collaboration on a document (Yjs/rtc-server).
+export function useRtcToken(docId: string | undefined) {
   return useQuery({
-    queryKey: docId ? ['docBody', docId] : ['docBody', '_none'],
-    queryFn: () => documentsApi.getBody(docId as string),
+    queryKey: docId ? ['rtcToken', docId] : ['rtcToken', '_none'],
+    queryFn: () => documentsApi.rtcToken(docId as string),
     enabled: !!docId,
-    staleTime: 0, // fetch fresh each open so a second viewer sees the latest
-  });
-}
-
-export function useSaveDocumentBody() {
-  return useMutation({
-    mutationFn: (v: { id: string; body: string }) => documentsApi.saveBody(v.id, v.body),
-    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+    staleTime: 4 * 60_000, // token TTL ~5min; remount mints fresh
+    gcTime: 0,
   });
 }
 

@@ -55,7 +55,7 @@ function WorkspaceSwitcher({ currentId, onClose }: { currentId: string; onClose:
               className="ws-emoji sm"
               style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
             >
-              {vis.icon}
+              <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
             </span>
             <span className="nm">{w.name}</span>
             {on && (
@@ -105,7 +105,7 @@ function WsTopbar({ ctx }: { ctx: WorkspaceCtx }) {
             className="ws-emoji sm"
             style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
           >
-            {vis.icon}
+            <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
           </span>
           <span className="nm">{ctx.name}</span>
           <Icon name="ChevronDownOutlined" size={14} muted />

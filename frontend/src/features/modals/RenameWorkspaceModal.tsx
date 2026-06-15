@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import { useRenameWorkspace } from '../../hooks/useWorkspaceMutations';
+import type { IconName } from '../../components/iconMap';
 
 export function RenameWorkspaceModal({
   onClose,
@@ -13,7 +15,7 @@ export function RenameWorkspaceModal({
   onClose: () => void;
   workspaceId: string;
   name: string;
-  icon: string;
+  icon: IconName;
 }) {
   const rename = useRenameWorkspace();
   const [name, setName] = useState(initialName);
@@ -34,7 +36,7 @@ export function RenameWorkspaceModal({
       <div className="m-body">
         <Field label="Workspace name">
           <span className="inp inp-emoji">
-            <span className="emoji-btn">{icon}</span>
+            <span className="emoji-btn"><Icon name={icon} size={18} /></span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}

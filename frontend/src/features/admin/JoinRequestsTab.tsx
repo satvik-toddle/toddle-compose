@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { WSChip } from '../../components/WSChip';
 import { RoleSelect } from '../../components/RoleSelect';
@@ -78,7 +79,7 @@ export function JoinRequestsTab() {
                           boxShadow: `inset 0 0 0 1px ${vis.color}44`,
                         }}
                       >
-                        {vis.icon}
+                        <Icon name={vis.icon} size={14} style={{ color: vis.color }} />
                       </span>
                       {r.workspace?.name ?? 'Workspace'}
                     </span>

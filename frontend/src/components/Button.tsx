@@ -36,6 +36,10 @@ export function Button({
 }: ButtonProps) {
   void _type;
   const v = VARIANT[variant] ?? VARIANT[''];
+  // ds-web "fill" buttons (primary/danger) paint a white label, but our injected
+  // <Icon> renders in a separate slot that keeps the default dark icon color — so
+  // force the icon white to match the label (otherwise the "+" looks black on red).
+  const onFill = v.dsType === 'fill';
   return (
     <DsButton
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,8 +49,8 @@ export function Button({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       size={SIZE[size] as any}
       isFullWidth={block}
-      icon={icon ? <Icon name={icon} size={14} /> : undefined}
-      rightIcon={iconRight ? <Icon name={iconRight} size={14} /> : undefined}
+      icon={icon ? <Icon name={icon} size={14} white={onFill} /> : undefined}
+      rightIcon={iconRight ? <Icon name={iconRight} size={14} white={onFill} /> : undefined}
       {...rest}
     >
       {children}

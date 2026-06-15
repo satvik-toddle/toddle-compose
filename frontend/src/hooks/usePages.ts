@@ -1,0 +1,132 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { qk } from '../lib/queryKeys';
+import { documentsApi } from '../api/documents';
+import { foldersApi } from '../api/folders';
+import { messageOf } from '../lib/errors';
+import { pushToast } from '../stores/uiStore';
+import type { Visibility } from '../types/roles';
+
+// ---- queries ----
+export function useFolders(workspaceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: workspaceId ? qk.folders(workspaceId) : ['folders', '_none'],
+    queryFn: () => foldersApi.list(workspaceId as string),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
+export function useDocuments(workspaceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: workspaceId ? qk.documents(workspaceId) : ['documents', '_none'],
+    queryFn: () => documentsApi.list(workspaceId as string),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
+// Server-saved HTML body for one document (shared across users; no RTC).
+export function useDocumentBody(docId: string | undefined) {
+  return useQuery({
+    queryKey: docId ? ['docBody', docId] : ['docBody', '_none'],
+    queryFn: () => documentsApi.getBody(docId as string),
+    enabled: !!docId,
+    staleTime: 0, // fetch fresh each open so a second viewer sees the latest
+  });
+}
+
+export function useSaveDocumentBody() {
+  return useMutation({
+    mutationFn: (v: { id: string; body: string }) => documentsApi.saveBody(v.id, v.body),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+// ---- mutations (workspaceId carried for invalidation) ----
+function useInvalidatePages() {
+  const qc = useQueryClient();
+  return {
+    qc,
+    docs: (ws: string) => qc.invalidateQueries({ queryKey: ['documents', ws] }),
+    folders: (ws: string) => qc.invalidateQueries({ queryKey: ['folders', ws] }),
+  };
+}
+
+export function useCreateDocument() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; folderId?: string | null; title?: string }) =>
+      documentsApi.create(v),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useCreateFolder() {
+  const { folders } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; parentId?: string | null; name: string }) =>
+      foldersApi.create(v),
+    onSuccess: (_d, v) => folders(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useRenameDocument() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string; title: string }) =>
+      documentsApi.rename(v.id, v.title),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useRenameFolder() {
+  const { folders } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string; name: string }) =>
+      foldersApi.rename(v.id, { name: v.name }),
+    onSuccess: (_d, v) => folders(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useDeleteDocument() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string }) => documentsApi.remove(v.id),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useDeleteFolder() {
+  const { docs, folders } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string }) => foldersApi.remove(v.id),
+    onSuccess: (_d, v) => {
+      folders(v.workspaceId);
+      docs(v.workspaceId); // a deleted folder's docs detach
+    },
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useSetDocumentVisibility() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string; visibility: Visibility }) =>
+      documentsApi.setVisibility(v.id, v.visibility),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+export function useMoveDocument() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string; folderId: string | null }) =>
+      documentsApi.move(v.id, { folderId: v.folderId }),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}

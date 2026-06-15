@@ -1,0 +1,117 @@
+/* Token layer first (CSS custom properties + fonts), then component styles,
+   then the icon adaptation overrides. Order matters. */
+@import './colors_and_type.css';
+@import './rbac.css';
+@import './icons.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--app-bg, #ececed);
+}
+#root {
+  height: 100%;
+}
+
+/* ---- app-level helpers not in the design CSS ---- */
+.rbac .tc-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .tc-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--surface-tertiary-enabled);
+  border-top-color: var(--interactive-primary);
+  animation: tc-spin 0.7s linear infinite;
+}
+@keyframes tc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* the account-menu popover */
+.rbac .acct-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--elevation-3-bottom);
+  padding: 6px;
+  z-index: 60;
+}
+.rbac .acct-menu .am-head {
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.rbac .acct-menu .am-head .nm {
+  font-size: 13px;
+  font-weight: 700;
+}
+.rbac .acct-menu .am-head .sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.rbac .acct-menu .am-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.rbac .acct-menu .am-row:hover {
+  background: var(--surface-secondary-enabled);
+}
+/* account pill as a button */
+.rbac .appbar .acct,
+.rbac .ws-acct {
+  cursor: pointer;
+  background: var(--panel-bg);
+}
+.rbac .acct-wrap {
+  position: relative;
+}
+
+/* ---- doc editor (@toddle-edu/ds-doc-editor) ---- */
+.rbac .tc-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* NavLink renders <a>; strip the UA underline/blue for rows and tabs. */
+.rbac a.tab,
+.rbac a.qk-row,
+.rbac a.sm-row {
+  text-decoration: none;
+}
+.rbac a.qk-row {
+  color: inherit;
+}
+/* The folder ⋯ button is 22px and only shows on hover; at 22px it + the row's
+   10px padding (32px) exceeded the 30px row and bumped its height. 20px fits the
+   row's content box, so hovering no longer shifts the row. */
+.rbac .tree-row .tw-more {
+  width: 20px;
+  height: 20px;
+}

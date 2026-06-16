@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, useOutletContext, useParams } from 'react-router-dom';
+import { Outlet, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
@@ -9,8 +9,10 @@ import { PageSpinner } from '../../components/Spinner';
 import { WsNav } from './WsNav';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';
+import { useCreateDocument, useDocuments } from '../../hooks/usePages';
 import { useAuthStore } from '../../stores/authStore';
-import { effectiveWorkspaceRole, isRealmAdmin } from '../../lib/roles';
+import { useUiStore } from '../../stores/uiStore';
+import { effectiveWorkspaceRole, isRealmAdmin, wsAtLeast } from '../../lib/roles';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { cn } from '../../lib/cn';
 import type { WorkspaceRole, RealmRole } from '../../types/roles';
@@ -83,42 +85,153 @@ function WorkspaceSwitcher({ currentId, onClose }: { currentId: string; onClose:
 function WsTopbar({ ctx }: { ctx: WorkspaceCtx }) {
   const me = useAuthStore((s) => s.user);
   const { data: realm } = useRealm();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const { data: docs = [] } = useDocuments(ctx.workspaceId);
+  const createDoc = useCreateDocument();
+  const openModal = useUiStore((s) => s.openModal);
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const vis = workspaceVisual(ctx.workspaceId);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !menuOpen) return;
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
+  }, [open, menuOpen]);
 
   if (!me) return null;
+
+  // Single toolbar: the workspace switcher + (when a page is open) a breadcrumb on
+  // the left, and the page's contextual actions on the right. There is no second
+  // (per-page) toolbar — this owns the doc title, Share, and the ⋯ page menu.
+  const ws = ctx.workspaceId;
+  const docId = params.get('doc');
+  const doc = docId ? docs.find((d) => d.id === docId) : undefined;
+  const canCreate = wsAtLeast(ctx.role, 'EDIT');
+  const canManage = !!doc && (ctx.isAdmin || doc.owner.id === me.id);
+
+  const newPage = () =>
+    createDoc.mutate({ workspaceId: ws, title: 'Untitled' }, { onSuccess: (d) => navigate(`/w/${ws}?doc=${d.id}`) });
+  const addSubPage = () => {
+    if (!doc) return;
+    createDoc.mutate(
+      { workspaceId: ws, parentId: doc.id, title: 'Untitled' },
+      { onSuccess: (d) => navigate(`/w/${ws}?doc=${d.id}`) },
+    );
+  };
+
   return (
     <div className="ws-topbar">
-      <div className="ws-switch-wrap" ref={ref}>
-        <button className={cn('ws-switch', open && 'open')} onClick={() => setOpen((v) => !v)}>
-          <span
-            className="ws-emoji sm"
-            style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-          >
-            <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
-          </span>
-          <span className="nm">{ctx.name}</span>
-          <Icon name="ChevronDownOutlined" size={14} muted />
-        </button>
-        {open && <WorkspaceSwitcher currentId={ctx.workspaceId} onClose={() => setOpen(false)} />}
+      <div className="ws-tb-left">
+        <div className="ws-switch-wrap" ref={ref}>
+          <button className={cn('ws-switch', open && 'open')} onClick={() => setOpen((v) => !v)}>
+            <span
+              className="ws-emoji sm"
+              style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
+            >
+              <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+            </span>
+            <span className="nm">{ctx.name}</span>
+            <Icon name="ChevronDownOutlined" size={14} muted />
+          </button>
+          {open && <WorkspaceSwitcher currentId={ctx.workspaceId} onClose={() => setOpen(false)} />}
+        </div>
+        {doc && (
+          <div className="ws-crumb">
+            <span className="ws-crumb-sep">/</span>
+            <Icon name="FileOutlined" size={16} muted />
+            <span className="ws-crumb-title">{doc.title}</span>
+          </div>
+        )}
       </div>
       <div className="ws-tb-right">
         {ctx.overlay ? <WSChip overlay /> : <WSChip role={ctx.role} />}
         <IconButton icon="SearchOutlined" iconSize={18} />
         <IconButton icon="BellRingOutlined" iconSize={18} />
-        <Button icon="ShareOutlined" size="sm">
-          Share
-        </Button>
+        {doc ? (
+          <>
+            <Button
+              icon="ShareOutlined"
+              size="sm"
+              onClick={() =>
+                openModal({
+                  type: 'shareDocument',
+                  workspaceId: ws,
+                  docId: doc.id,
+                  docTitle: doc.title,
+                  canManage,
+                  isAdmin: ctx.isAdmin,
+                })
+              }
+            >
+              Share
+            </Button>
+            {(canCreate || canManage) && (
+              <div className="ws-switch-wrap" ref={menuRef}>
+                <IconButton icon="DotsHorizontalOutlined" iconSize={18} onClick={() => setMenuOpen((v) => !v)} />
+                {menuOpen && (
+                  <div className="folder-menu">
+                    {canCreate && (
+                      <div
+                        className="fm-row"
+                        role="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          addSubPage();
+                        }}
+                      >
+                        <Icon name="AddOutlined" size={14} muted />
+                        Add sub-page
+                      </div>
+                    )}
+                    {canManage && (
+                      <div
+                        className="fm-row"
+                        role="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
+                        }}
+                      >
+                        <Icon name="PencilOutlined" size={14} muted />
+                        Rename
+                      </div>
+                    )}
+                    {canManage && (
+                      <>
+                        <div className="fm-div" />
+                        <div
+                          className="fm-row danger"
+                          role="button"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
+                          }}
+                        >
+                          <Icon name="DeleteOutlined" size={14} red />
+                          Delete
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          canCreate && (
+            <Button variant="primary" icon="AddOutlined" size="sm" onClick={newPage} disabled={createDoc.isPending}>
+              New page
+            </Button>
+          )
+        )}
         <AcctPill me={me} realmRole={realm?.role} compact />
       </div>
     </div>

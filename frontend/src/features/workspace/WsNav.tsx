@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../hooks/queries';
 import { useLeaveWorkspace } from '../../hooks/useAuthMutations';
@@ -8,6 +8,7 @@ import type { WorkspaceCtx } from './WorkspaceLayout';
 
 export function WsNav({ ctx }: { ctx: WorkspaceCtx }) {
   const { workspaceId, isAdmin } = ctx;
+  const navigate = useNavigate();
   const leave = useLeaveWorkspace();
   const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
@@ -20,7 +21,7 @@ export function WsNav({ ctx }: { ctx: WorkspaceCtx }) {
       </div>
 
       <div className="ws-nav-quick">
-        <div className="qk-row">
+        <div className="qk-row" role="button" onClick={() => navigate(`/w/${workspaceId}`)}>
           <Icon name="HomeOutlined" size={16} muted />
           Home
         </div>

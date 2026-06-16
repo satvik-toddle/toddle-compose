@@ -5,16 +5,10 @@ import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { PageSpinner } from '../../components/Spinner';
-import {
-  useCreateDocument,
-  useCreateFolder,
-  useDocuments,
-  useFolders,
-  useSetDocumentVisibility,
-} from '../../hooks/usePages';
-import { buildPages } from './pagesModel';
+import { useCreateDocument, useDocuments, useSetDocumentVisibility } from '../../hooks/usePages';
+import { buildDocTree } from './pagesModel';
 
-// The editor bundle is large — load it only when a document is opened.
+// The editor bundle is large — load it only when a page is opened.
 const DocEditor = lazy(() => import('./DocEditor').then((m) => ({ default: m.DocEditor })));
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
@@ -22,6 +16,9 @@ import { wsAtLeast } from '../../lib/roles';
 import { relativeTime } from '../../lib/time';
 import { useWorkspaceCtx } from './WorkspaceLayout';
 
+// Coda-style: everything is a page (document). The home view lists top-level
+// pages; opening a page shows its editor and lets you add sub-pages. Nesting is
+// by document parentId (see PagesTree) — there is no separate folder view.
 export function PagesPanel() {
   const ctx = useWorkspaceCtx();
   const ws = ctx.workspaceId;
@@ -29,12 +26,9 @@ export function PagesPanel() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const selDoc = params.get('doc');
-  const selFolder = params.get('folder');
 
   const { data: docs = [], isLoading } = useDocuments(ws);
-  const { data: folders = [] } = useFolders(ws);
   const createDoc = useCreateDocument();
-  const createFolder = useCreateFolder();
   const setVisibility = useSetDocumentVisibility();
   const openModal = useUiStore((s) => s.openModal);
 
@@ -47,7 +41,9 @@ export function PagesPanel() {
           <div className="ws-crumbs">
             <span>{ctx.name}</span>
             <span className="sep">/</span>
-            <span className="cur"><Icon name="FileOutlined" size={14} muted /> Pages</span>
+            <span className="cur">
+              <Icon name="FileOutlined" size={14} muted /> Pages
+            </span>
           </div>
         </div>
         <PageSpinner />
@@ -55,10 +51,11 @@ export function PagesPanel() {
     );
   }
 
-  // ---------- Reader (a doc is selected) ----------
+  // ---------- Reader (a page is open) ----------
   if (selDoc) {
     const doc = docs.find((d) => d.id === selDoc);
-    const back = () => navigate(`/w/${ws}${doc?.folderId ? `?folder=${doc.folderId}` : ''}`);
+    // Go up to the parent page if this is a sub-page, otherwise back to the home list.
+    const back = () => navigate(`/w/${ws}${doc?.parentId ? `?doc=${doc.parentId}` : ''}`);
     if (!doc) {
       return (
         <main className="ws-main">
@@ -68,11 +65,11 @@ export function PagesPanel() {
                 {ctx.name}
               </span>
               <span className="sep">/</span>
-              <span className="cur">Document</span>
+              <span className="cur">Page</span>
             </div>
           </div>
           <div className="ws-scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <EmptyState glyph="🔍" glyphStyle={{ background: 'var(--surface-secondary-enabled)' }} title="Document not found">
+            <EmptyState glyph="🔍" glyphStyle={{ background: 'var(--surface-secondary-enabled)' }} title="Page not found">
               It may have been moved or deleted.
             </EmptyState>
           </div>
@@ -80,6 +77,11 @@ export function PagesPanel() {
       );
     }
     const canManage = ctx.isAdmin || doc.owner.id === me?.id;
+    const addSubPage = () =>
+      createDoc.mutate(
+        { workspaceId: ws, parentId: doc.id, title: 'Untitled' },
+        { onSuccess: (d) => navigate(`/w/${ws}?doc=${d.id}`) },
+      );
     return (
       <main className="ws-main">
         <div className="ws-docbar">
@@ -87,10 +89,17 @@ export function PagesPanel() {
             <span className="ws-doc-crumb" role="button" onClick={back}>
               {ctx.name} /{' '}
             </span>
-            <span className="tw-emoji"><Icon name="FileOutlined" size={16} muted /></span>
+            <span className="tw-emoji">
+              <Icon name="FileOutlined" size={16} muted />
+            </span>
             <span className="ws-doc-nm">{doc.title}</span>
           </div>
           <div className="ws-doc-people" style={{ gap: 8 }}>
+            {canCreate && (
+              <Button size="sm" variant="ghost" icon="AddOutlined" disabled={createDoc.isPending} onClick={addSubPage}>
+                Sub-page
+              </Button>
+            )}
             {canManage && (
               <>
                 <Button
@@ -139,19 +148,13 @@ export function PagesPanel() {
     );
   }
 
-  // ---------- List (a folder or the root is selected) ----------
-  const model = buildPages(folders, docs);
-  const folder = selFolder ? folders.find((f) => f.id === selFolder) : undefined;
-  const listDocs = selFolder ? model.docsByFolder.get(selFolder) ?? [] : model.rootDocs;
-  const title = folder ? folder.name : 'All pages';
-  const headIcon = folder ? 'FolderOutlined' : 'FileOutlined';
-
-  const newDoc = () =>
+  // ---------- Home (top-level pages) ----------
+  const { roots } = buildDocTree(docs);
+  const newPage = () =>
     createDoc.mutate(
-      { workspaceId: ws, folderId: selFolder ?? undefined },
+      { workspaceId: ws, title: 'Untitled' },
       { onSuccess: (d) => navigate(`/w/${ws}?doc=${d.id}`) },
     );
-  const newFolder = () => createFolder.mutate({ workspaceId: ws, parentId: selFolder ?? undefined, name: 'New folder' });
 
   return (
     <main className="ws-main">
@@ -162,47 +165,42 @@ export function PagesPanel() {
           </span>
           <span className="sep">/</span>
           <span className="cur">
-            <Icon name={headIcon} size={14} muted /> {title}
+            <Icon name="FileOutlined" size={14} muted /> All pages
           </span>
         </div>
         {canCreate && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button size="sm" icon="FolderOutlined" onClick={newFolder} disabled={createFolder.isPending}>
-              New folder
-            </Button>
-            <Button size="sm" variant="primary" icon="AddOutlined" onClick={newDoc} disabled={createDoc.isPending}>
-              New doc
-            </Button>
-          </div>
+          <Button size="sm" variant="primary" icon="AddOutlined" onClick={newPage} disabled={createDoc.isPending}>
+            New page
+          </Button>
         )}
       </div>
       <div className="ws-scroll">
         <div className="ws-folder-head">
           <span className="ws-emoji" style={{ background: 'var(--surface-tertiary-enabled)' }}>
-            <Icon name={headIcon} size={24} muted />
+            <Icon name="FileOutlined" size={24} muted />
           </span>
           <div>
-            <h1>{title}</h1>
+            <h1>All pages</h1>
             <div className="sub">
-              {listDocs.length} {listDocs.length === 1 ? 'doc' : 'docs'} · in {ctx.name}
+              {roots.length} {roots.length === 1 ? 'page' : 'pages'} · in {ctx.name}
             </div>
           </div>
         </div>
 
-        {listDocs.length === 0 ? (
+        {roots.length === 0 ? (
           <EmptyState
             glyph="📄"
             glyphStyle={{ background: 'var(--surface-secondary-enabled)' }}
-            title="No documents here yet"
+            title="No pages yet"
             actions={
               canCreate ? (
-                <Button variant="primary" icon="AddOutlined" onClick={newDoc}>
-                  New doc
+                <Button variant="primary" icon="AddOutlined" onClick={newPage}>
+                  New page
                 </Button>
               ) : undefined
             }
           >
-            {canCreate ? 'Create the first one.' : 'You have read access — an editor can add documents.'}
+            {canCreate ? 'Create the first one.' : 'You have read access — an editor can add pages.'}
           </EmptyState>
         ) : (
           <div className="tbl ws-docs-tbl">
@@ -212,25 +210,32 @@ export function PagesPanel() {
               <div>Edited</div>
               <div>Sharing</div>
             </div>
-            {listDocs.map((d) => (
-              <div key={d.id} className="trow" role="button" onClick={() => navigate(`/w/${ws}?doc=${d.id}`)}>
+            {roots.map((n) => (
+              <div key={n.doc.id} className="trow" role="button" onClick={() => navigate(`/w/${ws}?doc=${n.doc.id}`)}>
                 <div className="cell-main">
-                  <span className="tw-emoji big"><Icon name="FileOutlined" size={20} muted /></span>
+                  <span className="tw-emoji big">
+                    <Icon name="FileOutlined" size={20} muted />
+                  </span>
                   <div>
-                    <div className="nm">{d.title}</div>
+                    <div className="nm">{n.doc.title}</div>
+                    {n.children.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        {n.children.length} sub-page{n.children.length === 1 ? '' : 's'}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Avatar person={{ name: d.owner.name, color: d.owner.color }} size={22} />
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{d.owner.name.split(' ')[0]}</span>
+                    <Avatar person={{ name: n.doc.owner.name, color: n.doc.owner.color }} size={22} />
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{n.doc.owner.name.split(' ')[0]}</span>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{relativeTime(d.updatedAt)}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{relativeTime(n.doc.updatedAt)}</div>
                 <div>
                   <span className="lock-note">
-                    <Icon name={d.visibility === 'PUBLIC' ? 'GlobeOutlined' : 'LockOutlined'} size={14} />
-                    {d.visibility === 'PUBLIC' ? 'Public' : 'Private'}
+                    <Icon name={n.doc.visibility === 'PUBLIC' ? 'GlobeOutlined' : 'LockOutlined'} size={14} />
+                    {n.doc.visibility === 'PUBLIC' ? 'Public' : 'Private'}
                   </span>
                 </div>
               </div>

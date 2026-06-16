@@ -1,32 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
-import {
-  useCreateDocument,
-  useCreateFolder,
-  useDocuments,
-  useFolders,
-} from '../../hooks/usePages';
-import { buildPages, type TreeFolder } from './pagesModel';
+import { useCreateDocument, useDocuments } from '../../hooks/usePages';
+import { buildDocTree, type TreeDoc } from './pagesModel';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { wsAtLeast } from '../../lib/roles';
 import { cn } from '../../lib/cn';
 import type { WorkspaceCtx } from './WorkspaceLayout';
-import type { DocumentDto } from '../../types/api';
 
+// Coda-style page tree: every row is a page (document); a page that has child
+// pages can expand. Nesting is by document parentId — no separate folder type.
 export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
   const ws = ctx.workspaceId;
   const me = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const selFolder = params.get('folder');
   const selDoc = params.get('doc');
 
-  const { data: folders = [], isLoading: lf } = useFolders(ws);
-  const { data: docs = [], isLoading: ld } = useDocuments(ws);
+  const { data: docs = [], isLoading } = useDocuments(ws);
   const createDoc = useCreateDocument();
-  const createFolder = useCreateFolder();
   const openModal = useUiStore((s) => s.openModal);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -40,11 +33,10 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
     return () => document.removeEventListener('click', close);
   }, [menuId]);
 
-  const model = buildPages(folders, docs);
-  const loading = lf || ld;
+  const { roots, isEmpty } = buildDocTree(docs);
+  const canManage = (ownerId: string) => ctx.isAdmin || me?.id === ownerId;
 
   const selectDoc = (id: string) => navigate(`/w/${ws}?doc=${id}`);
-  const selectFolder = (id: string) => navigate(`/w/${ws}?folder=${id}`);
   const toggle = (id: string) =>
     setCollapsed((s) => {
       const n = new Set(s);
@@ -52,69 +44,47 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
       else n.add(id);
       return n;
     });
-  const canManageFolder = (ownerId: string) => ctx.isAdmin || me?.id === ownerId;
+  const expand = (id: string) =>
+    setCollapsed((s) => {
+      if (!s.has(id)) return s;
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
 
-  const newRootFolder = () => createFolder.mutate({ workspaceId: ws, name: 'New folder' });
+  const newRootPage = () =>
+    createDoc.mutate({ workspaceId: ws, title: 'Untitled' }, { onSuccess: (d) => selectDoc(d.id) });
 
-  const DocRow = ({ d, depth }: { d: DocumentDto; depth: number }) => (
-    <div
-      className={cn('tree-row doc', selDoc === d.id && 'active')}
-      style={{ paddingLeft: 8 + depth * 15 }}
-      role="button"
-      onClick={() => selectDoc(d.id)}
-    >
-      <span className="tw-emoji"><Icon name="FileOutlined" size={16} muted /></span>
-      <span className="tw-lbl">{d.title}</span>
-    </div>
-  );
-
-  const FolderMenu = ({ node, manage }: { node: TreeFolder; manage: boolean }) => (
+  const PageMenu = ({ node, manage }: { node: TreeDoc; manage: boolean }) => (
     <div className="folder-menu" onClick={(e) => e.stopPropagation()}>
+      {canCreate && (
+        <div
+          className="fm-row"
+          role="button"
+          onClick={() => {
+            setMenuId(null);
+            expand(node.doc.id);
+            createDoc.mutate(
+              { workspaceId: ws, parentId: node.doc.id, title: 'Untitled' },
+              { onSuccess: (d) => selectDoc(d.id) },
+            );
+          }}
+        >
+          <Icon name="AddOutlined" size={14} muted />
+          Add sub-page
+        </div>
+      )}
       {manage && (
         <div
           className="fm-row"
           role="button"
           onClick={() => {
             setMenuId(null);
-            openModal({ type: 'renamePage', kind: 'folder', workspaceId: ws, id: node.id, name: node.name });
+            openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title });
           }}
         >
           <Icon name="PencilOutlined" size={14} muted />
           Rename
-        </div>
-      )}
-      {canCreate && (
-        <div
-          className="fm-row"
-          role="button"
-          onClick={() => {
-            setMenuId(null);
-            createDoc.mutate(
-              { workspaceId: ws, folderId: node.id },
-              { onSuccess: (d) => selectDoc(d.id) },
-            );
-          }}
-        >
-          <Icon name="AddOutlined" size={14} muted />
-          Add doc
-        </div>
-      )}
-      {canCreate && (
-        <div
-          className="fm-row"
-          role="button"
-          onClick={() => {
-            setMenuId(null);
-            setCollapsed((s) => {
-              const n = new Set(s);
-              n.delete(node.id);
-              return n;
-            });
-            createFolder.mutate({ workspaceId: ws, parentId: node.id, name: 'New folder' });
-          }}
-        >
-          <Icon name="FolderOutlined" size={14} muted />
-          Add folder
         </div>
       )}
       {manage && (
@@ -125,7 +95,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             role="button"
             onClick={() => {
               setMenuId(null);
-              openModal({ type: 'confirmDeletePage', kind: 'folder', workspaceId: ws, id: node.id, name: node.name });
+              openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title });
             }}
           >
             <Icon name="DeleteOutlined" size={14} red />
@@ -136,52 +106,47 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
     </div>
   );
 
-  const FolderNode = ({ node, depth }: { node: TreeFolder; depth: number }) => {
-    const open = !collapsed.has(node.id);
-    const manage = canManageFolder(node.ownerId);
+  const PageNode = ({ node, depth }: { node: TreeDoc; depth: number }) => {
+    const hasKids = node.children.length > 0;
+    const open = !collapsed.has(node.doc.id);
+    const manage = canManage(node.doc.owner.id);
     return (
       <>
         <div
-          className={cn('tree-row folder', selFolder === node.id && 'active', menuId === node.id && 'menu-open')}
+          className={cn('tree-row doc', selDoc === node.doc.id && 'active', menuId === node.doc.id && 'menu-open')}
           style={{ paddingLeft: 8 + depth * 15 }}
           role="button"
-          onClick={() => selectFolder(node.id)}
+          onClick={() => selectDoc(node.doc.id)}
         >
           <span
             className="chev-wrap"
-            style={{ display: 'inline-flex' }}
+            // Keep the chevron column for leaf pages too, so icons stay aligned.
+            style={{ display: 'inline-flex', visibility: hasKids ? 'visible' : 'hidden' }}
             onClick={(e) => {
               e.stopPropagation();
-              toggle(node.id);
+              toggle(node.doc.id);
             }}
           >
             <Icon name="ChevronRightOutlined" size={14} muted className={cn('chev', open && 'open')} />
           </span>
-          <span className="tw-emoji"><Icon name="FolderOutlined" size={16} muted /></span>
-          <span className="tw-lbl">{node.name}</span>
+          <span className="tw-emoji">
+            <Icon name="FileOutlined" size={16} muted />
+          </span>
+          <span className="tw-lbl">{node.doc.title}</span>
           {(canCreate || manage) && (
             <button
               className="tw-more"
               onClick={(e) => {
                 e.stopPropagation();
-                setMenuId((m) => (m === node.id ? null : node.id));
+                setMenuId((m) => (m === node.doc.id ? null : node.doc.id));
               }}
             >
               <Icon name="DotsHorizontalOutlined" size={14} muted />
             </button>
           )}
-          {menuId === node.id && <FolderMenu node={node} manage={manage} />}
+          {menuId === node.doc.id && <PageMenu node={node} manage={manage} />}
         </div>
-        {open && (
-          <>
-            {node.folders.map((f) => (
-              <FolderNode key={f.id} node={f} depth={depth + 1} />
-            ))}
-            {node.docs.map((d) => (
-              <DocRow key={d.id} d={d} depth={depth + 1} />
-            ))}
-          </>
-        )}
+        {open && hasKids && node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
       </>
     );
   };
@@ -191,15 +156,15 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
       <div className="ws-nav-grp">
         Pages
         {canCreate && (
-          <button className="grp-add" title="New folder" onClick={newRootFolder}>
+          <button className="grp-add" title="New page" onClick={newRootPage}>
             <Icon name="AddOutlined" size={14} muted />
           </button>
         )}
       </div>
       <div className="ws-tree">
-        {loading ? (
+        {isLoading ? (
           <div style={{ padding: '8px 9px', fontSize: 12, color: 'var(--text-secondary)' }}>Loading…</div>
-        ) : model.isEmpty ? (
+        ) : isEmpty ? (
           <div
             style={{
               padding: '10px 9px',
@@ -214,14 +179,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             No pages yet
           </div>
         ) : (
-          <>
-            {model.rootFolders.map((f) => (
-              <FolderNode key={f.id} node={f} depth={0} />
-            ))}
-            {model.rootDocs.map((d) => (
-              <DocRow key={d.id} d={d} depth={0} />
-            ))}
-          </>
+          roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)
         )}
       </div>
     </>

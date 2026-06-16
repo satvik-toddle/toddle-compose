@@ -1,67 +1,37 @@
-import type { DocumentDto, FolderDto } from '../../types/api';
+import type { DocumentDto } from '../../types/api';
 
-export interface TreeFolder {
-  id: string;
-  name: string;
-  icon: string;
-  ownerId: string;
-  folders: TreeFolder[];
-  docs: DocumentDto[];
+// Coda/Notion model: every page is a document, and a "folder" is just a page that
+// has child pages. We build the page tree purely from `parentId` (a page with no
+// parent is a root page). The legacy Folder model is unused here.
+export interface TreeDoc {
+  doc: DocumentDto;
+  children: TreeDoc[];
 }
 
-export interface PagesModel {
-  rootFolders: TreeFolder[];
-  rootDocs: DocumentDto[];
-  docsByFolder: Map<string | null, DocumentDto[]>;
+export interface DocTree {
+  roots: TreeDoc[];
   isEmpty: boolean;
 }
 
-// Assemble a tree from the flat folder list + documents (grouped by folderId).
-// Doc→doc sub-nesting (parentId) is folded to the folder level in this view.
-export function buildPages(folders: FolderDto[], documents: DocumentDto[]): PagesModel {
-  const docsByFolder = new Map<string | null, DocumentDto[]>();
-  for (const d of documents) {
-    const key = d.folderId;
-    const arr = docsByFolder.get(key) ?? [];
-    arr.push(d);
-    docsByFolder.set(key, arr);
+// Assemble the page tree from the flat document list, nesting by parentId.
+export function buildDocTree(docs: DocumentDto[]): DocTree {
+  const byId = new Map<string, TreeDoc>();
+  for (const d of docs) byId.set(d.id, { doc: d, children: [] });
+
+  const roots: TreeDoc[] = [];
+  for (const d of docs) {
+    const node = byId.get(d.id)!;
+    const parent = d.parentId ? byId.get(d.parentId) : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node); // no parent (or parent outside this list) → root page
   }
 
-  const nodeById = new Map<string, TreeFolder>();
-  for (const f of folders) {
-    nodeById.set(f.id, {
-      id: f.id,
-      name: f.name,
-      icon: f.icon || '📁',
-      ownerId: f.ownerId,
-      folders: [],
-      docs: docsByFolder.get(f.id) ?? [],
-    });
-  }
-
-  const rootFolders: TreeFolder[] = [];
-  for (const f of folders) {
-    const node = nodeById.get(f.id)!;
-    if (f.parentId && nodeById.has(f.parentId)) {
-      nodeById.get(f.parentId)!.folders.push(node);
-    } else {
-      rootFolders.push(node);
-    }
-  }
-
-  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
-  const byTitle = (a: DocumentDto, b: DocumentDto) => a.title.localeCompare(b.title);
-  rootFolders.sort(byName);
-  for (const n of nodeById.values()) {
-    n.folders.sort(byName);
-    n.docs.sort(byTitle);
-  }
-  const rootDocs = (docsByFolder.get(null) ?? []).slice().sort(byTitle);
-
-  return {
-    rootFolders,
-    rootDocs,
-    docsByFolder,
-    isEmpty: folders.length === 0 && documents.length === 0,
+  const byTitle = (a: TreeDoc, b: TreeDoc) => a.doc.title.localeCompare(b.doc.title);
+  const sortRec = (nodes: TreeDoc[]) => {
+    nodes.sort(byTitle);
+    for (const n of nodes) sortRec(n.children);
   };
+  sortRec(roots);
+
+  return { roots, isEmpty: docs.length === 0 };
 }

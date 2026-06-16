@@ -6,7 +6,7 @@ import { cn } from '../../lib/cn';
 import { PagesTree } from './PagesTree';
 import type { WorkspaceCtx } from './WorkspaceLayout';
 
-export function WsNav({ ctx }: { ctx: WorkspaceCtx }) {
+export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boolean }) {
   const { workspaceId, isAdmin } = ctx;
   const navigate = useNavigate();
   const leave = useLeaveWorkspace();
@@ -14,7 +14,7 @@ export function WsNav({ ctx }: { ctx: WorkspaceCtx }) {
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
 
   return (
-    <aside className="ws-nav">
+    <aside className={cn('ws-nav', collapsed && 'collapsed')}>
       <div className="ws-nav-search">
         <Icon name="SearchOutlined" size={14} muted />
         <input placeholder="Search this workspace…" readOnly />

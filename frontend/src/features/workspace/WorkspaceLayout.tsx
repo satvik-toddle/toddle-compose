@@ -82,7 +82,7 @@ function WorkspaceSwitcher({ currentId, onClose }: { currentId: string; onClose:
   );
 }
 
-function WsTopbar({ ctx }: { ctx: WorkspaceCtx }) {
+function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar: () => void }) {
   const me = useAuthStore((s) => s.user);
   const { data: realm } = useRealm();
   const navigate = useNavigate();
@@ -130,6 +130,7 @@ function WsTopbar({ ctx }: { ctx: WorkspaceCtx }) {
   return (
     <div className="ws-topbar">
       <div className="ws-tb-left">
+        <IconButton icon="HamburgerOutlined" iconSize={18} onClick={onToggleSidebar} title="Toggle sidebar" />
         <div className="ws-switch-wrap" ref={ref}>
           <button className={cn('ws-switch', open && 'open')} onClick={() => setOpen((v) => !v)}>
             <span
@@ -242,6 +243,23 @@ export function WorkspaceLayout() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { data: ws, isLoading } = useWorkspace(workspaceId);
   const { data: realm } = useRealm();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('tc-sidebar') === 'collapsed';
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebar = () =>
+    setSidebarCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem('tc-sidebar', next ? 'collapsed' : 'open');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   if (isLoading || !ws || !workspaceId) {
     return (
@@ -263,9 +281,9 @@ export function WorkspaceLayout() {
 
   return (
     <div className="rbac">
-      <WsTopbar ctx={ctx} />
+      <WsTopbar ctx={ctx} onToggleSidebar={toggleSidebar} />
       <div className="ws-body">
-        <WsNav ctx={ctx} />
+        <WsNav ctx={ctx} collapsed={sidebarCollapsed} />
         <Outlet context={ctx} />
       </div>
     </div>

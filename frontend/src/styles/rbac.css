@@ -503,9 +503,11 @@
 .rbac .sm-div { height:1px; background: var(--line); margin:5px 4px; }
 
 /* layout split */
-.rbac .ws-body { flex:1; display:flex; min-height:0; }
+.rbac .ws-body { flex:1; display:flex; min-height:0; overflow:hidden; }
 .rbac .ws-nav { width:266px; flex:none; background: var(--surface-secondary-enabled); border-right:1px solid var(--line);
-  display:flex; flex-direction:column; padding:10px; overflow:auto; }
+  display:flex; flex-direction:column; padding:10px; overflow:auto; transition: margin-left .2s ease; }
+/* Collapsible sidebar (Coda-style): slide it out; the page pane fills the space. */
+.rbac .ws-nav.collapsed { margin-left:-266px; }
 .rbac.dark .ws-nav, .dark .rbac .ws-nav { background: #1a1a1a; }
 .rbac .ws-nav-search { display:flex; align-items:center; gap:8px; height:34px; padding:0 10px; border-radius:8px;
   background: var(--panel-bg); border:1px solid var(--line); margin-bottom:8px; }

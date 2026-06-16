@@ -484,6 +484,8 @@
 .rbac .ws-switch:hover, .rbac .ws-switch.open { background: var(--surface-secondary-enabled); border-color: var(--line); }
 .rbac .ws-switch .nm { font-size:15px; font-weight:700; }
 .rbac .ws-tb-left { display:flex; align-items:center; gap:4px; min-width:0; }
+.rbac .tb-sidebar-toggle { flex:none; color: var(--text-secondary); cursor:pointer; }
+.rbac .tb-sidebar-toggle:hover { color: var(--text-primary); }
 .rbac .ws-crumb { display:flex; align-items:center; gap:7px; min-width:0; }
 .rbac .ws-crumb-sep { color: var(--text-secondary); opacity:.45; }
 .rbac .ws-crumb-title { font-size:15px; font-weight:700; letter-spacing:-.005em;

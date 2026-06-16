@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Outlet, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
+import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
 import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
 import { PageSpinner } from '../../components/Spinner';
@@ -14,7 +15,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { effectiveWorkspaceRole, isRealmAdmin, wsAtLeast } from '../../lib/roles';
 import { workspaceVisual } from '../../lib/workspaceVisual';
-import { cn } from '../../lib/cn';
 import type { WorkspaceRole, RealmRole } from '../../types/roles';
 
 export interface WorkspaceCtx {
@@ -30,55 +30,24 @@ export function useWorkspaceCtx() {
   return useOutletContext<WorkspaceCtx>();
 }
 
-function WorkspaceSwitcher({ currentId, onClose }: { currentId: string; onClose: () => void }) {
-  const { data: workspaces = [] } = useWorkspaces();
-  const { data: realm } = useRealm();
-  const enter = useEnterWorkspace();
-  const leave = useLeaveWorkspace();
-  const admin = isRealmAdmin(realm?.role);
-
+// Coda / VS Code-style "panel-left" sidebar-toggle glyph (a rounded panel with a
+// divider marking the side rail) — ds-icons has no sidebar/panel icon.
+function SidebarToggleIcon() {
   return (
-    <div className="ws-switch-menu">
-      <div className="sm-label">Switch workspace</div>
-      {workspaces.map((w) => {
-        const vis = workspaceVisual(w.id);
-        const on = w.id === currentId;
-        return (
-          <div
-            key={w.id}
-            className={cn('sm-row', on && 'on')}
-            role="button"
-            onClick={() => {
-              if (!on) enter.mutate(w.id);
-              onClose();
-            }}
-          >
-            <span
-              className="ws-emoji sm"
-              style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-            >
-              <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
-            </span>
-            <span className="nm">{w.name}</span>
-            {on && (
-              <Icon name="TickSmallOutlined" size={14} style={{ marginLeft: 'auto', color: 'var(--interactive-primary)' }} />
-            )}
-          </div>
-        );
-      })}
-      <div className="sm-div" />
-      <div
-        className="sm-row foot"
-        role="button"
-        onClick={() => {
-          leave.mutate();
-          onClose();
-        }}
-      >
-        <Icon name="ChevronLeftOutlined" size={14} muted />
-        {admin ? 'Back to all workspaces' : 'Workspace launcher'}
-      </div>
-    </div>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+    </svg>
   );
 }
 
@@ -88,23 +57,12 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
+  const { data: workspaces = [] } = useWorkspaces();
+  const enter = useEnterWorkspace();
+  const leave = useLeaveWorkspace();
   const createDoc = useCreateDocument();
   const openModal = useUiStore((s) => s.openModal);
-  const [open, setOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const vis = workspaceVisual(ctx.workspaceId);
-
-  useEffect(() => {
-    if (!open && !menuOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open, menuOpen]);
 
   if (!me) return null;
 
@@ -116,6 +74,30 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
   const doc = docId ? docs.find((d) => d.id === docId) : undefined;
   const canCreate = wsAtLeast(ctx.role, 'EDIT');
   const canManage = !!doc && (ctx.isAdmin || doc.owner.id === me.id);
+
+  // Workspace switcher entries: each workspace (tick on the current one) + a
+  // "back to launcher" footer.
+  const switcherItems: MenuItem[] = [
+    ...workspaces.map((w) => {
+      const wv = workspaceVisual(w.id);
+      return {
+        key: w.id,
+        label: w.name,
+        icon: wv.icon,
+        iconColor: wv.color,
+        onSelect: () => {
+          if (w.id !== ctx.workspaceId) enter.mutate(w.id);
+        },
+      };
+    }),
+    {
+      key: '__leave',
+      label: isRealmAdmin(realm?.role) ? 'Back to all workspaces' : 'Workspace launcher',
+      icon: 'ChevronLeftOutlined',
+      dividerBefore: true,
+      onSelect: () => leave.mutate(),
+    },
+  ];
 
   const newPage = () =>
     createDoc.mutate({ workspaceId: ws, title: 'Untitled' }, { onSuccess: (d) => navigate(`/w/${ws}?doc=${d.id}`) });
@@ -130,20 +112,32 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
   return (
     <div className="ws-topbar">
       <div className="ws-tb-left">
-        <IconButton icon="HamburgerOutlined" iconSize={18} onClick={onToggleSidebar} title="Toggle sidebar" />
-        <div className="ws-switch-wrap" ref={ref}>
-          <button className={cn('ws-switch', open && 'open')} onClick={() => setOpen((v) => !v)}>
-            <span
-              className="ws-emoji sm"
-              style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-            >
-              <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
-            </span>
-            <span className="nm">{ctx.name}</span>
-            <Icon name="ChevronDownOutlined" size={14} muted />
-          </button>
-          {open && <WorkspaceSwitcher currentId={ctx.workspaceId} onClose={() => setOpen(false)} />}
-        </div>
+        <button
+          className="ibtn tb-sidebar-toggle"
+          onClick={onToggleSidebar}
+          title="Toggle sidebar"
+          aria-label="Toggle sidebar"
+        >
+          <SidebarToggleIcon />
+        </button>
+        <ActionMenu
+          placement="bottomLeft"
+          header="Switch workspace"
+          selectedKey={ctx.workspaceId}
+          items={switcherItems}
+          trigger={
+            <button className="ws-switch">
+              <span
+                className="ws-emoji sm"
+                style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
+              >
+                <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+              </span>
+              <span className="nm">{ctx.name}</span>
+              <Icon name="ChevronDownOutlined" size={14} muted />
+            </button>
+          }
+        />
         {doc && (
           <div className="ws-crumb">
             <span className="ws-crumb-sep">/</span>
@@ -175,55 +169,41 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
               Share
             </Button>
             {(canCreate || canManage) && (
-              <div className="ws-switch-wrap" ref={menuRef}>
-                <IconButton icon="DotsHorizontalOutlined" iconSize={18} onClick={() => setMenuOpen((v) => !v)} />
-                {menuOpen && (
-                  <div className="folder-menu">
-                    {canCreate && (
-                      <div
-                        className="fm-row"
-                        role="button"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          addSubPage();
-                        }}
-                      >
-                        <Icon name="AddOutlined" size={14} muted />
-                        Add sub-page
-                      </div>
-                    )}
-                    {canManage && (
-                      <div
-                        className="fm-row"
-                        role="button"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
-                        }}
-                      >
-                        <Icon name="PencilOutlined" size={14} muted />
-                        Rename
-                      </div>
-                    )}
-                    {canManage && (
-                      <>
-                        <div className="fm-div" />
-                        <div
-                          className="fm-row danger"
-                          role="button"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
-                          }}
-                        >
-                          <Icon name="DeleteOutlined" size={14} red />
-                          Delete
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+              <ActionMenu
+                placement="bottomRight"
+                trigger={<IconButton icon="DotsHorizontalOutlined" iconSize={18} />}
+                items={[
+                  ...(canCreate
+                    ? [{ key: 'subpage', label: 'Add sub-page', icon: 'AddOutlined' as const, onSelect: addSubPage }]
+                    : []),
+                  ...(canManage
+                    ? [
+                        {
+                          key: 'rename',
+                          label: 'Rename',
+                          icon: 'PencilOutlined' as const,
+                          onSelect: () =>
+                            openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title }),
+                        },
+                        {
+                          key: 'delete',
+                          label: 'Delete',
+                          icon: 'DeleteOutlined' as const,
+                          danger: true,
+                          dividerBefore: true,
+                          onSelect: () =>
+                            openModal({
+                              type: 'confirmDeletePage',
+                              kind: 'doc',
+                              workspaceId: ws,
+                              id: doc.id,
+                              name: doc.title,
+                            }),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             )}
           </>
         ) : (

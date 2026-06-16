@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
+import { ActionMenu } from '../../components/ActionMenu';
 import { useCreateDocument, useDocuments } from '../../hooks/usePages';
 import { buildDocTree, type TreeDoc } from './pagesModel';
 import { useAuthStore } from '../../stores/authStore';
@@ -23,15 +24,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
   const openModal = useUiStore((s) => s.openModal);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [menuId, setMenuId] = useState<string | null>(null);
   const canCreate = wsAtLeast(ctx.role, 'EDIT');
-
-  useEffect(() => {
-    if (!menuId) return;
-    const close = () => setMenuId(null);
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [menuId]);
 
   const { roots, isEmpty } = buildDocTree(docs);
   const canManage = (ownerId: string) => ctx.isAdmin || me?.id === ownerId;
@@ -55,57 +48,6 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
   const newRootPage = () =>
     createDoc.mutate({ workspaceId: ws, title: 'Untitled' }, { onSuccess: (d) => selectDoc(d.id) });
 
-  const PageMenu = ({ node, manage }: { node: TreeDoc; manage: boolean }) => (
-    <div className="folder-menu" onClick={(e) => e.stopPropagation()}>
-      {canCreate && (
-        <div
-          className="fm-row"
-          role="button"
-          onClick={() => {
-            setMenuId(null);
-            expand(node.doc.id);
-            createDoc.mutate(
-              { workspaceId: ws, parentId: node.doc.id, title: 'Untitled' },
-              { onSuccess: (d) => selectDoc(d.id) },
-            );
-          }}
-        >
-          <Icon name="AddOutlined" size={14} muted />
-          Add sub-page
-        </div>
-      )}
-      {manage && (
-        <div
-          className="fm-row"
-          role="button"
-          onClick={() => {
-            setMenuId(null);
-            openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title });
-          }}
-        >
-          <Icon name="PencilOutlined" size={14} muted />
-          Rename
-        </div>
-      )}
-      {manage && (
-        <>
-          <div className="fm-div" />
-          <div
-            className="fm-row danger"
-            role="button"
-            onClick={() => {
-              setMenuId(null);
-              openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title });
-            }}
-          >
-            <Icon name="DeleteOutlined" size={14} red />
-            Delete
-          </div>
-        </>
-      )}
-    </div>
-  );
-
   const PageNode = ({ node, depth }: { node: TreeDoc; depth: number }) => {
     const hasKids = node.children.length > 0;
     const open = !collapsed.has(node.doc.id);
@@ -113,7 +55,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
     return (
       <>
         <div
-          className={cn('tree-row doc', selDoc === node.doc.id && 'active', menuId === node.doc.id && 'menu-open')}
+          className={cn('tree-row doc', selDoc === node.doc.id && 'active')}
           style={{ paddingLeft: 8 + depth * 15 }}
           role="button"
           onClick={() => selectDoc(node.doc.id)}
@@ -134,17 +76,55 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
           </span>
           <span className="tw-lbl">{node.doc.title}</span>
           {(canCreate || manage) && (
-            <button
-              className="tw-more"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuId((m) => (m === node.doc.id ? null : node.doc.id));
-              }}
-            >
-              <Icon name="DotsHorizontalOutlined" size={14} muted />
-            </button>
+            <span className="tw-more-wrap" onClick={(e) => e.stopPropagation()}>
+              <ActionMenu
+                placement="bottomRight"
+                trigger={
+                  <button className="tw-more">
+                    <Icon name="DotsHorizontalOutlined" size={14} muted />
+                  </button>
+                }
+                items={[
+                  ...(canCreate
+                    ? [
+                        {
+                          key: 'subpage',
+                          label: 'Add sub-page',
+                          icon: 'AddOutlined' as const,
+                          onSelect: () => {
+                            expand(node.doc.id);
+                            createDoc.mutate(
+                              { workspaceId: ws, parentId: node.doc.id, title: 'Untitled' },
+                              { onSuccess: (d) => selectDoc(d.id) },
+                            );
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(manage
+                    ? [
+                        {
+                          key: 'rename',
+                          label: 'Rename',
+                          icon: 'PencilOutlined' as const,
+                          onSelect: () =>
+                            openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title }),
+                        },
+                        {
+                          key: 'delete',
+                          label: 'Delete',
+                          icon: 'DeleteOutlined' as const,
+                          danger: true,
+                          dividerBefore: true,
+                          onSelect: () =>
+                            openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: ws, id: node.doc.id, name: node.doc.title }),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </span>
           )}
-          {menuId === node.doc.id && <PageMenu node={node} manage={manage} />}
         </div>
         {open && hasKids && node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
       </>

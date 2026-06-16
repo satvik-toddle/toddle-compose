@@ -22,7 +22,7 @@ export function RenamePageModal({
   const renameFolder = useRenameFolder();
   const [name, setName] = useState(initialName);
   const pending = renameDoc.isPending || renameFolder.isPending;
-  const label = kind === 'doc' ? 'document' : 'folder';
+  const label = kind === 'doc' ? 'page' : 'folder';
 
   const submit = () => {
     if (!name.trim() || pending) return;
@@ -37,7 +37,7 @@ export function RenamePageModal({
     <Modal onClose={onClose}>
       <ModalHead icon="PencilOutlined" title={`Rename ${label}`} onClose={onClose} />
       <div className="m-body">
-        <Field label={kind === 'doc' ? 'Document name' : 'Folder name'}>
+        <Field label={kind === 'doc' ? 'Page name' : 'Folder name'}>
           <TextInput
             value={name}
             onChange={(e) => setName(e.target.value)}

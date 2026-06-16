@@ -34,11 +34,11 @@ export function ConfirmDeletePageModal({
       <ModalHead
         tone="danger"
         icon="DeleteOutlined"
-        title={`Delete ${kind === 'doc' ? 'document' : 'folder'} "${name}"?`}
+        title={`Delete ${kind === 'doc' ? 'page' : 'folder'} "${name}"?`}
         sub={
           kind === 'folder'
             ? 'The folder and the documents inside it will be removed.'
-            : 'This document will be removed for everyone.'
+            : 'This page and all its sub-pages will be removed for everyone.'
         }
         onClose={onClose}
       />

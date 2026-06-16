@@ -7,6 +7,7 @@ import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWor
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
 import { RenamePageModal } from '../features/modals/RenamePageModal';
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
+import { ShareDocumentModal } from '../features/modals/ShareDocumentModal';
 
 // Renders the active modal from the UI store. One mount point at the app root.
 export function ModalRoot() {
@@ -71,6 +72,17 @@ export function ModalRoot() {
           workspaceId={modal.workspaceId}
           id={modal.id}
           name={modal.name}
+        />
+      );
+    case 'shareDocument':
+      return (
+        <ShareDocumentModal
+          onClose={close}
+          workspaceId={modal.workspaceId}
+          docId={modal.docId}
+          docTitle={modal.docTitle}
+          canManage={modal.canManage}
+          isAdmin={modal.isAdmin}
         />
       );
     default:

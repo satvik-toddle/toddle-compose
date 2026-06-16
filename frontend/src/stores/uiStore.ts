@@ -28,7 +28,15 @@ export type ModalState =
       role?: WorkspaceRole;
     }
   | { type: 'renamePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
-  | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string };
+  | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
+  | {
+      type: 'shareDocument';
+      workspaceId: string;
+      docId: string;
+      docTitle: string;
+      canManage: boolean;
+      isAdmin: boolean;
+    };
 
 interface UiState {
   modal: ModalState | null;

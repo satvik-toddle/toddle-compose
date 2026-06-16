@@ -7,6 +7,16 @@ import { useAuthStore } from '../../stores/authStore';
 import { PageSpinner } from '../../components/Spinner';
 import { RTC_WS_URL } from '../../lib/env';
 
+// Hide the editor's built-in top toolbar — formatting comes from the floating
+// selection toolbar + slash menu (Coda-style). The editable surface then fills
+// the full width and height of the page pane (no centered 800px column).
+const EDITOR_CONFIG = { toolbar: { enabled: false } };
+const EDITOR_STYLES = {
+  scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: '100%' },
+  contentBgProvider: { minHeight: '100%', padding: '28px 48px 80px', background: 'var(--panel-bg)' },
+};
+
 // Real-time collaborative editor. Mints an RTC token, then hands ds-doc-editor a
 // `collab` config whose providerFactory opens a Yjs Websocket to the rtc-server
 // (room = docId). The body lives in Yjs (rtc-database) — multi-user, live, server
@@ -59,6 +69,9 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
         collab={collab}
         viewOnly={rtc.role !== 'editor'}
         placeholder={rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'}
+        config={EDITOR_CONFIG}
+        minHeight={0}
+        styles={EDITOR_STYLES}
       />
     </div>
   );

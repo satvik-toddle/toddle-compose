@@ -556,6 +556,16 @@
 
 /* main panel */
 .rbac .ws-main { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--panel-bg); }
+/* The doc editor fills the whole page pane (full width + height), white surface
+   (the editor's `--surface-primary-active` is a dark token in our theme). */
+.rbac .tc-editor { flex:1; min-height:0; min-width:0; display:flex; flex-direction:column;
+  background: var(--panel-bg); --surface-primary-active: var(--panel-bg); }
+.rbac .tc-editor > * { flex:1; min-height:0; }
+/* White full-bleed page (no "page card" border/radius/margin), with the text
+   constrained to a centered, readable column — Coda-style. */
+.rbac .tc-editor .ds-de-anchor-element { width:100% !important; max-width:760px !important; margin:0 auto !important; }
+.rbac .tc-editor .ds-de-contentEditable-bg-provider { margin:0 !important; border:0 !important; border-radius:0 !important; }
+.rbac .tc-editor .ds-de-editorContainer { border-radius:0 !important; }
 .rbac .ws-crumbbar { height:50px; flex:none; display:flex; align-items:center; justify-content:space-between;
   padding:0 22px; border-bottom:1px solid var(--line); }
 .rbac .ws-crumbs { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--text-secondary); }

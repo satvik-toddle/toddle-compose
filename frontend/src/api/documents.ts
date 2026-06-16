@@ -7,10 +7,18 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
-  create: (b: { workspaceId: string; folderId?: string | null; title?: string; icon?: string }) =>
+  create: (b: {
+    workspaceId: string;
+    parentId?: string | null;
+    folderId?: string | null;
+    title?: string;
+    icon?: string;
+  }) =>
     http.post<DocumentDto>('/documents', {
       workspaceId: b.workspaceId,
-      ...(b.folderId ? { folderId: b.folderId } : {}),
+      // A page nests under another page (parentId) — the backend ignores folderId
+      // when parentId is set, so only send one.
+      ...(b.parentId ? { parentId: b.parentId } : b.folderId ? { folderId: b.folderId } : {}),
       ...(b.title ? { title: b.title } : {}),
       ...(b.icon ? { icon: b.icon } : {}),
     }),

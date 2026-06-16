@@ -47,8 +47,12 @@ function useInvalidatePages() {
 export function useCreateDocument() {
   const { docs } = useInvalidatePages();
   return useMutation({
-    mutationFn: (v: { workspaceId: string; folderId?: string | null; title?: string }) =>
-      documentsApi.create(v),
+    mutationFn: (v: {
+      workspaceId: string;
+      parentId?: string | null;
+      folderId?: string | null;
+      title?: string;
+    }) => documentsApi.create(v),
     onSuccess: (_d, v) => docs(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });

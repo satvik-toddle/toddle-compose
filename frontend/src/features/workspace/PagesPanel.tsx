@@ -1,11 +1,11 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
 import { PageSpinner } from '../../components/Spinner';
-import { useCreateDocument, useDocuments } from '../../hooks/usePages';
+import { useCreateDocument, useDocuments, useRenameDocument } from '../../hooks/usePages';
 import { buildDocTree } from './pagesModel';
 
 // The editor bundle is large — load it only when a page is opened.
@@ -13,6 +13,51 @@ const DocEditor = lazy(() => import('./DocEditor').then((m) => ({ default: m.Doc
 import { wsAtLeast } from '../../lib/roles';
 import { relativeTime } from '../../lib/time';
 import { useWorkspaceCtx } from './WorkspaceLayout';
+
+// Coda-style page title shown above the editor body. Editable inline (commits a
+// rename on blur / Enter) for editors; a static heading for viewers.
+function PageTitle({
+  workspaceId,
+  docId,
+  title,
+  canEdit,
+}: {
+  workspaceId: string;
+  docId: string;
+  title: string;
+  canEdit: boolean;
+}) {
+  const rename = useRenameDocument();
+  const [val, setVal] = useState(title);
+  useEffect(() => setVal(title), [title, docId]);
+
+  if (!canEdit) {
+    return <h1 className="ws-doc-title-field">{title || 'Untitled'}</h1>;
+  }
+
+  const commit = () => {
+    const t = val.trim();
+    if (!t) return setVal(title); // don't allow an empty title
+    if (t !== title) rename.mutate({ workspaceId, id: docId, title: t });
+  };
+
+  return (
+    <input
+      className="ws-doc-title-field"
+      value={val}
+      placeholder="Untitled"
+      aria-label="Page title"
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 // Coda-style: every page is a document. The breadcrumb + page actions (Share /
 // Rename / Delete / Sub-page) and "New page" all live in the single top toolbar
@@ -51,10 +96,14 @@ export function PagesPanel() {
         </main>
       );
     }
+    const canEdit = wsAtLeast(ctx.role, 'EDIT');
     return (
       <main className="ws-main">
+        <div className="ws-doc-titlewrap">
+          <PageTitle workspaceId={ws} docId={doc.id} title={doc.title} canEdit={canEdit} />
+        </div>
         <Suspense fallback={<PageSpinner />}>
-          <DocEditor key={doc.id} docId={doc.id} canEdit={wsAtLeast(ctx.role, 'EDIT')} />
+          <DocEditor key={doc.id} docId={doc.id} canEdit={canEdit} />
         </Suspense>
       </main>
     );

@@ -14,7 +14,7 @@ const EDITOR_CONFIG = { toolbar: { enabled: false } };
 const EDITOR_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: '100%' },
-  contentBgProvider: { minHeight: '100%', padding: '28px 48px 80px', background: 'var(--panel-bg)' },
+  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
 };
 
 // Real-time collaborative editor. Mints an RTC token, then hands ds-doc-editor a

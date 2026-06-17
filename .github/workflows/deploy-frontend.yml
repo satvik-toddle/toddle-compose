@@ -40,7 +40,9 @@ jobs:
         run: pnpm --filter frontend build
         env:
           # Public deploy targets — set these as repo Variables (Settings → Variables).
-          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          # Names match frontend/src/lib/env.ts: VITE_API_BASE_URL (code appends /api),
+          # VITE_RTC_WS_URL (code appends /yjs/<docId>).
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_RTC_WS_URL: ${{ vars.VITE_RTC_WS_URL }}
 
       # Deploy the built dist/ to Netlify via the CLI. Auth comes from the

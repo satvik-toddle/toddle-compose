@@ -172,12 +172,12 @@ Repo → **Settings → Secrets and variables → Actions**.
 | Secret | `NETLIFY_AUTH_TOKEN` | frontend deploy |
 | Secret | `RENDER_DEPLOY_HOOK_BACKEND` | backend deploy |
 | Secret | `RENDER_DEPLOY_HOOK_RTC` | rtc-server deploy |
-| Variable | `VITE_BACKEND_URL` | frontend build → `https://<backend>.onrender.com` |
-| Variable | `VITE_RTC_WS_URL` | frontend build → `wss://<rtc>.onrender.com` |
+| Variable | `VITE_API_BASE_URL` | frontend build → `https://<backend>.onrender.com` (no `/api`; code adds it) |
+| Variable | `VITE_RTC_WS_URL` | frontend build → `wss://<rtc>.onrender.com` (code adds `/yjs/<docId>`) |
 
 ```bash
-gh variable set VITE_BACKEND_URL --body "https://<backend>.onrender.com"
-gh variable set VITE_RTC_WS_URL  --body "wss://<rtc>.onrender.com"
+gh variable set VITE_API_BASE_URL --body "https://<backend>.onrender.com"
+gh variable set VITE_RTC_WS_URL   --body "wss://<rtc>.onrender.com"
 ```
 
 ---

@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import s from './PasswordStrength.module.scss';
 
 // 0–4 score from length + character-class variety.
 export function scorePassword(pw: string): number {
@@ -17,12 +18,12 @@ export function PasswordStrength({ password }: { password: string }) {
   const score = scorePassword(password);
   if (!password) return null;
   return (
-    <div className="pw-strength">
-      <span className={cn('bar', 's1', score >= 1 && 'on')} />
-      <span className={cn('bar', 's2', score >= 2 && 'on')} />
-      <span className={cn('bar', 's3', score >= 3 && 'on')} />
-      <span className={cn('bar', score >= 4 && 'on')} />
-      <span className="pw-label">{LABELS[score]}</span>
+    <div className={s.pwStrength}>
+      <span className={cn(s.bar, s.s1, score >= 1 && s.on)} />
+      <span className={cn(s.bar, s.s2, score >= 2 && s.on)} />
+      <span className={cn(s.bar, s.s3, score >= 3 && s.on)} />
+      <span className={cn(s.bar, score >= 4 && s.on)} />
+      <span className={s.pwLabel}>{LABELS[score]}</span>
     </div>
   );
 }

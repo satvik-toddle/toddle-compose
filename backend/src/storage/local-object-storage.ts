@@ -13,11 +13,7 @@ import {
   type StoredObject,
 } from "./object-storage";
 
-/**
- * Filesystem-backed ObjectStorage (dev default). Files land in `STORAGE_DIR` and
- * are served back by `UploadsController` at `<BACKEND_PUBLIC_URL>/api/uploads/:key`.
- * Not for production scale — point `STORAGE_DRIVER=s3` at a bucket for that.
- */
+// Filesystem-backed ObjectStorage (dev default); not for production scale.
 @Injectable()
 export class LocalObjectStorage implements ObjectStorage {
   private readonly logger = new Logger(LocalObjectStorage.name);

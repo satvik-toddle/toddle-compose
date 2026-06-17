@@ -6,16 +6,9 @@ import { KeysService } from "../keys/keys.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 import type { Env } from "../config/env";
 
-// The rtc-server treats 'denied' as a hard reject; the backend never mints it
-// (it returns 403 instead), so only the two grant roles are emitted here.
 export type RtcRole = "editor" | "viewer";
 
-/**
- * Mints the short-lived RS256 token a client presents to the rtc-server. The
- * rtc-server verifies it via the backend's JWKS and trusts the claims — so the
- * permission decision is made HERE (per-request, against the live DB) and frozen
- * into the token. Identity claims (name/email/color) drive presence/cursors.
- */
+// Mints the short-lived RS256 token; the permission decision is made here and frozen into it.
 @Injectable()
 export class RtcTokenService {
   constructor(
@@ -25,9 +18,7 @@ export class RtcTokenService {
 
   async mint(user: AuthUser, docId: string, role: RtcRole): Promise<string> {
     const { privateKey } = await this.keys.getKeys();
-    // ±10% jitter: the rtc-server closes sockets at token expiry, so tokens
-    // minted together (page load after a deploy) must not all expire — and
-    // trigger reconnect+cold-load — in the same instant.
+    // ±10% jitter so tokens minted together don't all expire (and reconnect) at once.
     const baseTtl = this.config.get("RTC_TOKEN_TTL_SEC", { infer: true });
     const ttl = Math.round(baseTtl * (0.9 + Math.random() * 0.2));
     return new SignJWT({

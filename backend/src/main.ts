@@ -9,7 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
-  // Restrict CORS to the configured allowlist (no wildcard).
+  // CORS restricted to the configured allowlist (no wildcard).
   app.enableCors({
     origin: corsOrigins(config.get("CORS_ORIGINS", { infer: true })),
     credentials: true,

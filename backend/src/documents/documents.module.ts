@@ -6,8 +6,6 @@ import { DocumentsService } from "./documents.service";
 import { DocumentsController } from "./documents.controller";
 
 @Module({
-  // RealmModule exports AuthzService + ActiveRealmService (the shared authz choke point).
-  // RtcModule exports RtcTokenService (mint) + RtcInternalClient (provisioning).
   imports: [AuthModule, RealmModule, RtcModule],
   providers: [DocumentsService],
   controllers: [DocumentsController],

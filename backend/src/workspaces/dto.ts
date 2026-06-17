@@ -7,7 +7,6 @@ import {
   MinLength,
 } from "class-validator";
 
-// Full workspace ladder is assignable (unlike realm OWNER, which is reserved).
 const WORKSPACE_ROLES = ["READ", "COMMENT", "EDIT", "ADMIN"] as const;
 type WorkspaceRoleInput = (typeof WORKSPACE_ROLES)[number];
 

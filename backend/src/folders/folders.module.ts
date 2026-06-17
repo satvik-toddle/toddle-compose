@@ -7,8 +7,6 @@ import { FoldersController } from "./folders.controller";
 import { FoldersPurgeScheduler } from "./folders-purge.scheduler";
 
 @Module({
-  // RealmModule exports AuthzService + ActiveRealmService (the shared authz choke point).
-  // RtcModule exports RtcInternalClient — the purge drops RTC rows of deleted docs.
   imports: [AuthModule, RealmModule, RtcModule],
   providers: [FoldersService, FoldersPurgeScheduler],
   controllers: [FoldersController],

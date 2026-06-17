@@ -17,9 +17,13 @@ datasource db {
 
 model RtcDocument {
   id            String  @id
+  // The CRDT source of truth: the encoded Yjs document. ALL content (DOC lexical
+  // tree or SHEET grid) lives here. We deliberately do NOT persist a derived
+  // content/plain-text projection — it would be redundant with yjsState and was
+  // write-only (nothing read it back). History/preview re-derive by replaying the
+  // update log, so a projection earns its place only once a reader (search,
+  // export, list previews) actually needs one.
   yjsState      Bytes?  @map("yjs_state")
-  lexicalJson   String? @map("lexical_json")
-  plainText     String? @map("plain_text")
   version       Int     @default(0)
   updatedAt     BigInt  @map("updated_at")
   snapshotAtSeq Int     @default(0) @map("snapshot_at_seq")

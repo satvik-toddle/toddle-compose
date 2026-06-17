@@ -9,6 +9,9 @@ import {
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
 type VisibilityInput = (typeof VISIBILITIES)[number];
 
+const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
+type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
+
 export class CreateDocumentDto {
   @IsOptional()
   @IsString()
@@ -21,18 +24,22 @@ export class CreateDocumentDto {
   @MaxLength(16)
   icon?: string;
 
-  // Place the new document inside a folder of the same workspace; omit for the root.
+  // DOC (rich-text, default) or SHEET (data grid); both share the RTC/Yjs stack.
+  @IsOptional()
+  @IsIn(DOCUMENT_TYPES)
+  type?: DocumentTypeInput;
+
+  // Folder of the same workspace; omit for the root.
   @IsOptional()
   @IsString()
   folderId?: string;
 
-  // Nest the new document under an existing document (a "subdoc") of the same
-  // workspace; omit for a top-level document. When set, folderId is ignored.
+  // Nest under an existing document (a subdoc); when set, folderId is ignored.
   @IsOptional()
   @IsString()
   parentId?: string;
 
-  // Target workspace; defaults to the caller's active workspace from the session.
+  // Defaults to the caller's active workspace from the session.
   @IsOptional()
   @IsString()
   workspaceId?: string;
@@ -46,14 +53,12 @@ export class RenameDocumentDto {
 }
 
 export class MoveDocumentDto {
-  // Move into a folder of the same workspace; null/omitted → workspace root.
-  // Mutually exclusive with parentId (parentId wins if both are provided).
+  // Move into a folder; null/omitted → workspace root. Mutually exclusive with parentId (parentId wins).
   @IsOptional()
   @IsString()
   folderId?: string | null;
 
-  // Re-parent under another document (a subdoc) of the same workspace;
-  // null/omitted → detach from any parent.
+  // Re-parent under another document; null/omitted → detach.
   @IsOptional()
   @IsString()
   parentId?: string | null;
@@ -65,18 +70,17 @@ export class SetVisibilityDto {
 }
 
 export class ListDocumentsDto {
-  // Narrow the listing to a single folder; omit for the whole workspace.
+  // Narrow to a single folder; omit for the whole workspace.
   @IsOptional()
   @IsString()
   folderId?: string;
 
-  // Narrow to one document's direct subdocs. "null" (string) → top-level docs only
-  // (no parent); a document id → that document's children. Omit for the whole workspace.
+  // "null" (string) → top-level docs only; a document id → that doc's children; omit → whole workspace.
   @IsOptional()
   @IsString()
   parentId?: string;
 
-  // Target workspace; defaults to the caller's active workspace from the session.
+  // Defaults to the caller's active workspace from the session.
   @IsOptional()
   @IsString()
   workspaceId?: string;

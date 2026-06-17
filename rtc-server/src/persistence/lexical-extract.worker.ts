@@ -1,10 +1,7 @@
 import { parentPort } from "worker_threads";
 import { extractFromBytesSync } from "./lexical-extract.core";
 
-// Worker entry: receives { id, bytes }, runs the CPU-heavy headless-Lexical
-// extraction off the main event loop, and posts the result back keyed by id.
-// extractFromBytesSync never throws (it returns a null/empty result on failure),
-// so every request gets exactly one response.
+// Worker entry: runs extraction off the main loop, posts result keyed by id. extractFromBytesSync never throws, so every request gets one response.
 
 type ExtractRequest = { id: number; bytes: Uint8Array };
 

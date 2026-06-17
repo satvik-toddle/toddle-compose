@@ -5,8 +5,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-// Native bcrypt (hashes on the libuv thread pool) — bcryptjs runs its ~250ms of
-// CPU per hash on the main event loop, so a burst of logins stalls all requests.
+// Native bcrypt hashes on the libuv thread pool; bcryptjs would block the event loop per hash.
 import bcrypt from "bcrypt";
 import { createHash, randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -65,11 +64,7 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
-  /**
-   * Exchange a valid refresh token for a fresh token pair. Rotates: the presented
-   * refresh token is revoked and a new one issued. A token that is unknown, expired,
-   * or already revoked → 401 (revoked reuse is treated as compromise; see below).
-   */
+  // Rotates: presented token revoked, new one issued; reuse of a revoked token is treated as compromise.
   async refresh(rawToken: string): Promise<TokenPair> {
     const tokenHash = this.hash(rawToken);
     const record = await this.prisma.refreshToken.findUnique({
@@ -79,7 +74,7 @@ export class AuthService {
     if (!record) throw new UnauthorizedException("invalid refresh token");
 
     if (record.revokedAt) {
-      // Reuse of an already-rotated token => likely theft. Revoke the whole family.
+      // Reuse of an already-rotated token => likely theft; revoke the whole family.
       await this.prisma.refreshToken.updateMany({
         where: { userId: record.userId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -97,7 +92,7 @@ export class AuthService {
     return this.issueTokens(record.user);
   }
 
-  /** Invalidate a single refresh token (logout). Idempotent — unknown tokens are a no-op. */
+  // Logout; idempotent — unknown tokens are a no-op.
   async logout(rawToken: string): Promise<{ ok: true }> {
     await this.prisma.refreshToken.updateMany({
       where: { tokenHash: this.hash(rawToken), revokedAt: null },
@@ -106,11 +101,7 @@ export class AuthService {
     return { ok: true };
   }
 
-  /**
-   * Mint a standalone access JWT. `activeWorkspaceId` scopes the session to one
-   * workspace (set on workspace "enter", cleared on "leave"). Roles are never put
-   * in the token — they are resolved per request by AuthzService.
-   */
+  // Mint an access JWT; activeWorkspaceId scopes the session. Roles are never in the token (resolved per request by AuthzService).
   async mintAccessToken(
     user: { id: string; email: string },
     opts?: { activeWorkspaceId?: string | null }

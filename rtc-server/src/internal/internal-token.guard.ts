@@ -21,8 +21,7 @@ export class InternalTokenGuard implements CanActivate {
     }
     const providedBuf = Buffer.from(provided);
     const expectedBuf = Buffer.from(expected);
-    // timingSafeEqual requires equal byte lengths; a length mismatch is an
-    // immediate (non-secret-dependent) reject.
+    // timingSafeEqual requires equal byte lengths; a length mismatch rejects immediately.
     if (
       providedBuf.byteLength !== expectedBuf.byteLength ||
       !timingSafeEqual(providedBuf, expectedBuf)

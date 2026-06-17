@@ -47,19 +47,6 @@ h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-
   align-items: center;
   justify-content: center;
 }
-.rbac .tc-spinner {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 3px solid var(--surface-tertiary-enabled);
-  border-top-color: var(--interactive-primary);
-  animation: tc-spin 0.7s linear infinite;
-}
-@keyframes tc-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 /* the account-menu popover */
 .rbac .acct-menu {
   position: absolute;
@@ -114,10 +101,3 @@ h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-
   position: relative;
 }
 
-/* .tc-editor moved to DocEditor.module.scss (consolidated with the rbac.css rules).
-   .qk-row anchor reset moved into WsNav.module.scss; .tree-row .tw-more sizing
-   moved into PagesTree.module.scss (both classes are now hashed). */
-/* NavLink (Tabs) renders <a>; strip the UA underline. */
-.rbac a.tab {
-  text-decoration: none;
-}

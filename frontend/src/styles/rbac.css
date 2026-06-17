@@ -154,14 +154,7 @@
 /* ---------------- Toast ---------------- */
 /* .toast → Toast.module.scss */
 
-/* ---------------- Tabs ---------------- */
-.rbac .tabs { display:flex; align-items:center; gap:4px; padding:0 22px; background: var(--panel-bg);
-  border-bottom:1px solid var(--line); }
-.rbac .tab { display:inline-flex; align-items:center; gap:8px; padding:13px 12px; font-size:13px; font-weight:600;
-  color: var(--text-secondary); border-bottom:2px solid transparent; margin-bottom:-1px; }
-.rbac .tab.on { color: var(--text-primary); border-bottom-color: var(--interactive-primary); }
-.rbac .tab .ct { font-size:11px; font-weight:700; padding:0 6px; height:16px; line-height:16px; border-radius:999px;
-  background: var(--surface-tertiary-enabled); color: var(--text-secondary); }
+/* .tabs/.tab/.tab.on/.tab .ct removed as dead — AdminConsole uses the ds-web <Tabs>. */
 
 /* ---------------- Misc ---------------- */
 .rbac .page { flex:1; overflow:auto; padding:26px 30px 40px; }
@@ -243,12 +236,10 @@
      .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss
    Removed as dead (unused after the table redesign):
      .srch-box, .ad-ws-grid, .ad-ws-card, .ad-mem-group, .ad-mem-cards, .mem-card, .grp-h
-   Kept global (used cross-feature): .you-tag (also workspace MembersPanel),
-   .tab .ct.alert (shared Tabs component). */
+   Kept global (used cross-feature): .you-tag (also workspace MembersPanel). */
 .rbac .you-tag { font-size:10px; font-weight:700; color: var(--blue-400); background: var(--surface-primary-selected);
   border-radius:5px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
 .rbac.dark .you-tag, .dark .rbac .you-tag { background: rgba(0,176,194,.16); color: var(--blue-600); }
-.rbac .tab .ct.alert { background: var(--red-500); color:#fff; }
 
 /* ============================================================
    INSIDE A WORKSPACE

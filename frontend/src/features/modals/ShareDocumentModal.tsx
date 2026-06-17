@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
 import { cn } from '../../lib/cn';
 import type { WorkspaceRole } from '../../types/roles';
+import s from './ShareDocumentModal.module.scss';
 
 // Share dialog for a document. Surfaces who can access it, lets a manager flip
 // PUBLIC/PRIVATE, copies a deep link, and (for workspace admins) invites people
@@ -94,10 +95,10 @@ export function ShareDocumentModal({
       />
       <div className="m-body">
         {/* General access — visibility */}
-        <div className="share-vis">
+        <div className={s.shareVis}>
           <button
             type="button"
-            className={cn('share-opt', !isPublic && 'on')}
+            className={cn(s.shareOpt, !isPublic && s.on)}
             disabled={!canManage}
             onClick={() => setVis('PRIVATE')}
           >
@@ -110,7 +111,7 @@ export function ShareDocumentModal({
           </button>
           <button
             type="button"
-            className={cn('share-opt', isPublic && 'on')}
+            className={cn(s.shareOpt, isPublic && s.on)}
             disabled={!canManage}
             onClick={() => setVis('PUBLIC')}
           >
@@ -123,7 +124,7 @@ export function ShareDocumentModal({
           </button>
         </div>
         {!canManage && (
-          <div className="share-note">
+          <div className={s.shareNote}>
             <Icon name="InformationOutlined" size={14} muted />
             Only the owner or a workspace admin can change this.
           </div>
@@ -131,8 +132,8 @@ export function ShareDocumentModal({
 
         {/* Invite by email — workspace admins only */}
         {isAdmin && (
-          <div className="share-invite">
-            <div className="share-invite-row">
+          <div className={s.shareInvite}>
+            <div className={s.shareInviteRow}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <TextInput
                   icon="EmailOutlined"
@@ -166,7 +167,7 @@ export function ShareDocumentModal({
                 {addMember.isPending ? '…' : 'Add'}
               </Button>
             </div>
-            <div className="share-note">
+            <div className={s.shareNote}>
               <Icon name="InformationOutlined" size={14} muted />
               Adds them to the workspace — they’ll get access to all its pages.
             </div>
@@ -187,18 +188,18 @@ export function ShareDocumentModal({
 
         {/* People with access */}
         <div className="share-people">
-          <div className="share-people-h">People with access</div>
+          <div className={s.sharePeopleH}>People with access</div>
           {doc && (
-            <div className="share-row">
+            <div className={s.shareRow}>
               <Avatar person={{ name: doc.owner.name, color: doc.owner.color }} size={28} />
               <div className="who">
                 <div className="nm">{doc.owner.name}</div>
               </div>
-              <span className="share-tag">Owner</span>
+              <span className={s.shareTag}>Owner</span>
             </div>
           )}
           {otherMembers.map((m) => (
-            <div key={m.userId} className="share-row">
+            <div key={m.userId} className={s.shareRow}>
               <Avatar person={{ name: m.user.name, color: m.user.color }} size={28} />
               <div className="who">
                 <div className="nm">{m.user.name}</div>
@@ -207,7 +208,7 @@ export function ShareDocumentModal({
               <WSChip role={m.role} sm />
               {isAdmin && m.userId !== me?.id && (
                 <button
-                  className="share-x"
+                  className={s.shareX}
                   title="Remove from workspace"
                   disabled={removeMember.isPending}
                   onClick={() => removeMember.mutate({ workspaceId, userId: m.userId })}
@@ -218,8 +219,8 @@ export function ShareDocumentModal({
             </div>
           ))}
           {isPublic && (
-            <div className="share-row">
-              <span className="share-globe">
+            <div className={s.shareRow}>
+              <span className={s.shareGlobe}>
                 <Icon name="GlobeOutlined" size={16} muted />
               </span>
               <div className="who">

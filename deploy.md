@@ -104,11 +104,13 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
 - **Branch:** `staging/backend-rtc-server` · **Region:** same as Postgres · **Root Directory:** _(blank)_ · **Auto-Deploy: No**
 - **Build Command:**
   ```
-  npm install -g pnpm@9.12.3 && pnpm install --filter backend... --frozen-lockfile && pnpm --filter @app/database generate && pnpm --filter backend build
+  npm install -g pnpm@9.12.3 && pnpm install --filter backend... --frozen-lockfile --prod=false && pnpm --filter @app/database generate && pnpm --filter backend build
   ```
   (`--filter backend...` skips the frontend, so Render never needs the `@toddle-edu` token.
-  Use `npm install -g pnpm`, **not** `corepack enable` — corepack can't symlink into Render's
-  read-only `/usr/bin`. The repo's `.node-version` pins Node 20.)
+  `--prod=false` forces devDependencies (prisma, @nestjs/cli) to install even with
+  `NODE_ENV=production` set — the build needs them. Use `npm install -g pnpm`, **not**
+  `corepack enable` — corepack can't symlink into Render's read-only `/usr/bin`. The repo's
+  `.node-version` pins Node 20.)
 - **Start Command:** `pnpm --filter backend start`
 - **Health Check Path:** `/health`
 - **Environment:**
@@ -130,7 +132,7 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
 **New + → Web Service** → same repo, **branch `staging/backend-rtc-server`**, same region, root blank, **Auto-Deploy: No**.
 - **Build Command:**
   ```
-  npm install -g pnpm@9.12.3 && pnpm install --filter rtc-server... --frozen-lockfile && pnpm --filter @app/rtc-database generate && pnpm --filter rtc-server build
+  npm install -g pnpm@9.12.3 && pnpm install --filter rtc-server... --frozen-lockfile --prod=false && pnpm --filter @app/rtc-database generate && pnpm --filter rtc-server build
   ```
   (The Lexical server-nodes bundle is committed at `rtc-server/vendor/server-nodes.cjs`,
   so no `doc-editor` checkout is needed.)

@@ -58,7 +58,7 @@ function PageTitle({
     <input
       className={s.wsDocTitleField}
       value={val}
-      placeholder="Untitled"
+      placeholder="Add a page title"
       aria-label="Page title"
       onChange={(e) => setVal(e.target.value)}
       onBlur={commit}

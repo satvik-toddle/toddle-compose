@@ -14,13 +14,7 @@ type Task = {
   resolve: (r: ExtractResult) => void;
 };
 
-/**
- * Headless-Lexical extraction behind a small worker-thread pool. Extraction is
- * pure CPU (full doc parse per flush): running it on the main thread stalls
- * every WebSocket on the server, so flushes for many active docs would serialize
- * behind it. Falls back to inline (synchronous) extraction if workers can't be
- * spawned or a worker dies mid-task — behavior-identical, just main-thread.
- */
+// Headless-Lexical extraction on a worker pool (CPU-heavy; would stall all WebSockets on the main thread). Falls back to inline if workers can't spawn/die.
 @Injectable()
 export class LexicalExtractService implements OnApplicationShutdown {
   private workers: Worker[] = [];
@@ -74,8 +68,7 @@ export class LexicalExtractService implements OnApplicationShutdown {
       if (task && task.id === msg.id) {
         task.resolve({ lexicalJson: msg.lexicalJson, plainText: msg.plainText });
       } else if (task) {
-        // Should never happen (one in-flight task per worker); don't lose the
-        // flush over it — extract inline.
+        // Shouldn't happen (one in-flight task per worker); extract inline so the flush isn't lost.
         log.error(`worker answered id=${msg.id} but task id=${task.id}`);
         task.resolve(extractFromBytesSync(task.bytes));
       }
@@ -112,8 +105,8 @@ export class LexicalExtractService implements OnApplicationShutdown {
       this.inFlight.set(worker, task);
       worker.postMessage({ id: task.id, bytes: task.bytes });
     }
-    if (this.poolBroken) {
-      // Drain anything queued before the pool broke.
+    if (this.poolBroken || this.workers.length === 0) {
+      // No live worker can pick these up; drain inline so no task hangs unresolved.
       for (const task of this.queue.splice(0)) {
         task.resolve(extractFromBytesSync(task.bytes));
       }

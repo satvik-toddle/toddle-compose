@@ -9,8 +9,7 @@ import { CurrentUser, AuthUser } from "./current-user.decorator";
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  // The unauthenticated entry points are rate-limited per client IP to blunt
-  // credential stuffing / brute force (skipped under e2e — see app.module).
+  // Unauthenticated entry points rate-limited per client IP to blunt credential stuffing.
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("register")

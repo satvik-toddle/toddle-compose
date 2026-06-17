@@ -18,9 +18,7 @@ async function bootstrap() {
   );
 }
 
-// After an uncaught error the process state is unknown: attempt a graceful
-// app.close() (triggers the shutdown flush) bounded by a timeout, then exit
-// non-zero so the supervisor restarts us — never log-and-continue.
+// On uncaught error, attempt a timeout-bounded graceful close, then exit non-zero for the supervisor to restart.
 const CRASH_SHUTDOWN_TIMEOUT_MS = 5000;
 let crashing = false;
 

@@ -2,11 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 
-/**
- * Daily garbage collection of dead refresh tokens: rows that have expired, or
- * were revoked (rotation/logout) more than RETENTION_DAYS ago. Revoked rows are
- * kept for a while so reuse-detection (token-theft signal) still fires.
- */
+// Daily GC of dead refresh tokens; revoked rows are kept RETENTION_DAYS so reuse-detection still fires.
 @Injectable()
 export class AuthTokensGcScheduler {
   private readonly log = new Logger("AuthTokensGc");

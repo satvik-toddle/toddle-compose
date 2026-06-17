@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
-import { VersionsService, SheetSnapshot } from "./versions.service";
+import { SheetSnapshot, extractSheet } from "./versions.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
@@ -22,20 +22,14 @@ export type Session = {
   beforeText: string;
   afterText: string;
   origin: string | null;
-  // For SHEET docs: the cells whose value changed during this session
-  // (added or updated), so the UI can highlight them. Empty for DOC docs.
+  // SHEET docs only: cells changed this session (for UI highlight); empty for DOC.
   changedCells: ChangedCell[];
 };
 
-// Normalize a cell value for equality: undefined and null collapse to the same
-// "empty" so a freshly-added blank cell isn't reported as a change.
+// undefined and null collapse to the same "empty" so a blank cell isn't reported as a change.
 const cellRepr = (v: unknown) => JSON.stringify(v === undefined ? null : v);
 
-/**
- * Cells that differ between two sheet states, keyed by rowId+colId. Covers
- * added rows (everything in them is "changed") and updated cells. Rows removed
- * in `after` can't be highlighted (they're gone) and are ignored.
- */
+// Cells differing between two sheet states; rows removed in `after` are ignored (nothing to highlight).
 function diffSheetCells(
   before: SheetSnapshot | null,
   after: SheetSnapshot | null
@@ -76,9 +70,7 @@ export type SessionList = {
 export class SessionsService {
   constructor(
     private readonly repo: DocRepository,
-    private readonly extract: LexicalExtractService,
-    // Used to reconstruct per-boundary grid snapshots for SHEET changed-cell diffs.
-    private readonly versions: VersionsService
+    private readonly extract: LexicalExtractService
   ) {}
 
   async buildSessions(
@@ -127,39 +119,25 @@ export class SessionsService {
       }
     }
 
-    // Single-pass replay: instead of calling previewAtSeq per session boundary
-    // (each of which replays ALL blobs from seq 1 — O(N²)), load the full blob
-    // log once in ascending seq order, apply progressively to ONE Y.Doc, and
-    // capture the extracted text at each boundary as we pass it. Boundaries use
-    // the UNFILTERED log (same as previewAtSeq), even when groups are filtered
-    // by clientSub.
-    const textAtBoundary = await this.replayTextAtBoundaries(
+    // Single-pass O(N) replay snapshotting every boundary, not replaying from seq 1 per boundary.
+    const atBoundary = await this.replayBoundaries(
       await this.repo.getDocUpdateBlobsUpTo(docId, head),
       [...new Set(groups.flatMap((g) => [g.firstSeq - 1, g.lastSeq]))].sort(
         (a, b) => a - b
       )
     );
 
-    // Only SHEET docs need per-boundary grid snapshots for changed-cell
-    // highlighting. Detect kind once (single preview at head) so DOC docs keep
-    // the O(N) single-pass text replay and skip the extra per-boundary work.
-    const isSheet = (await this.versions.previewAtSeq(docId, head)).sheet !== null;
-
     const sessions: Session[] = [];
     for (const g of groups) {
-      // Text/no-op detection uses the single-pass boundary replay (cheap).
-      const beforeText = textAtBoundary.get(g.firstSeq - 1) ?? "";
-      const afterText = textAtBoundary.get(g.lastSeq) ?? "";
+      const before = atBoundary.get(g.firstSeq - 1);
+      const after = atBoundary.get(g.lastSeq);
+      const beforeText = before?.text ?? "";
+      const afterText = after?.text ?? "";
       const noop = beforeText === afterText;
-
-      // SHEET docs: diff the grid snapshots at the boundaries for changed cells.
-      let changedCells: ChangedCell[] = [];
-      if (isSheet) {
-        const before = await this.versions.previewAtSeq(docId, g.firstSeq - 1);
-        const after = await this.versions.previewAtSeq(docId, g.lastSeq);
-        changedCells = diffSheetCells(before.sheet, after.sheet);
-      }
-
+      const changedCells = diffSheetCells(
+        before?.sheet ?? null,
+        after?.sheet ?? null
+      );
       sessions.push({ ...g, noop, beforeText, afterText, changedCells });
     }
 
@@ -181,33 +159,36 @@ export class SessionsService {
     };
   }
 
-  /**
-   * Applies `blobs` (ascending seq) to a single Y.Doc and returns the extracted
-   * plain text at each requested boundary, where the text at boundary `b` is
-   * the state after all blobs with seq <= b — identical to previewAtSeq(b).
-   */
-  private async replayTextAtBoundaries(
+  // Single-pass equivalent of previewAtSeq per boundary; for SHEET docs `text` is the grid's canonical serialization (so cell changes aren't seen as no-ops).
+  private async replayBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
-  ): Promise<Map<number, string>> {
-    const textAt = new Map<number, string>();
-    if (boundaries.length === 0) return textAt;
+  ): Promise<Map<number, { text: string; sheet: SheetSnapshot | null }>> {
+    type Snap = { text: string; sheet: SheetSnapshot | null };
+    const at = new Map<number, Snap>();
+    if (boundaries.length === 0) return at;
     const ydoc = new Y.Doc();
-    let lastText = "";
-    let dirty = true; // empty doc not yet extracted
-    const capture = async (): Promise<string> => {
+    let last: Snap = { text: "", sheet: null };
+    let dirty = true;
+    const capture = async (): Promise<Snap> => {
       if (dirty) {
-        lastText = (
-          await this.extract.extractFromBytes(Y.encodeStateAsUpdate(ydoc))
-        ).plainText;
+        // Read the grid off the live doc before worker extraction (see previewAtSeq).
+        const sheet = extractSheet(ydoc);
+        const { plainText } = await this.extract.extractFromBytes(
+          Y.encodeStateAsUpdate(ydoc)
+        );
+        const text = sheet
+          ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
+          : plainText;
+        last = { text, sheet };
         dirty = false;
       }
-      return lastText;
+      return last;
     };
     let bi = 0;
     for (const { seq, blob } of blobs) {
       while (bi < boundaries.length && boundaries[bi] < seq) {
-        textAt.set(boundaries[bi], await capture());
+        at.set(boundaries[bi], await capture());
         bi += 1;
       }
       if (bi >= boundaries.length) break;
@@ -215,9 +196,9 @@ export class SessionsService {
       dirty = true;
     }
     while (bi < boundaries.length) {
-      textAt.set(boundaries[bi], await capture());
+      at.set(boundaries[bi], await capture());
       bi += 1;
     }
-    return textAt;
+    return at;
   }
 }

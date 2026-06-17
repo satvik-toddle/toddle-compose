@@ -41,7 +41,6 @@ export class DocumentsController {
       user,
       {
         folderId: q.folderId,
-        // ?parentId=null (or empty) → top-level docs only; an id → that doc's children.
         parentId: parseParentId(q.parentId),
         workspaceId: q.workspaceId,
       },
@@ -60,7 +59,7 @@ export class DocumentsController {
     return this.documents.get(user.id, id);
   }
 
-  /** Direct subdocs (immediate children) of a document. Requires READ on the parent. */
+  // Direct subdocs of a document; requires READ on the parent.
   @Get(":id/subdocs")
   subdocs(
     @CurrentUser() user: AuthUser,
@@ -70,23 +69,19 @@ export class DocumentsController {
     return this.documents.listSubdocs(user.id, id, page.skip, page.take);
   }
 
-  /**
-   * Sidebar hierarchy: the root ancestor expanded down the spine to this document,
-   * with every node on the path listing its direct children. For building a tree
-   * sidebar focused on the current document.
-   */
+  // Sidebar hierarchy: root ancestor expanded down the spine to this document.
   @Get(":id/hierarchy")
   hierarchy(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.hierarchy(user.id, id);
   }
 
-  /** Per-author edit sessions (history timeline). Read access required. */
+  // Per-author edit sessions (history timeline); read access required.
   @Get(":id/history")
   history(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.history(user.id, id);
   }
 
-  /** Read-only snapshot of the document at a given update seq (sheet grid state). */
+  // Read-only snapshot of the document at a given update seq.
   @Get(":id/history/:seq")
   historyAt(
     @CurrentUser() user: AuthUser,
@@ -96,11 +91,7 @@ export class DocumentsController {
     return this.documents.historySnapshot(user.id, id, Number(seq));
   }
 
-  /**
-   * Issue a short-lived RTC token for this document. Resolves the caller's role
-   * (editor/viewer) per current DB state; 403 if they have no access. The client
-   * presents this token to the rtc-server WebSocket.
-   */
+  // Short-lived RTC token for this document; 403 if the caller has no access.
   @Post(":id/rtc-token")
   async rtcToken(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     const role = await this.documents.resolveRtcRole(user.id, id);
@@ -144,12 +135,7 @@ export class DocumentsController {
   }
 }
 
-/**
- * Map the `parentId` query string to the service's filter:
- *   - omitted        → undefined (no parent filter; whole workspace)
- *   - "" or "null"   → null      (top-level docs only)
- *   - "<id>"         → that id   (that document's direct subdocs)
- */
+// parentId query → filter: omitted=undefined (no filter), ""/"null"=null (top-level), id=that doc's subdocs.
 function parseParentId(raw?: string): string | null | undefined {
   if (raw === undefined) return undefined;
   if (raw === "" || raw === "null") return null;

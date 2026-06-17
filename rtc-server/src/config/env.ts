@@ -1,10 +1,9 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  // The rtc-server talks ONLY to the separate, write-heavy RTC database.
+  // Separate, write-heavy RTC database only.
   RTC_DATABASE_URL: z.string(),
-  // In production the internal token must be explicitly provisioned and
-  // non-trivial; the weak default exists only for local development.
+  // Default is dev-only; production requires an explicit non-trivial token.
   INTERNAL_TOKEN:
     process.env.NODE_ENV === "production"
       ? z.string().min(32)
@@ -19,9 +18,7 @@ export const envSchema = z.object({
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
   RTC_DEBOUNCE_IDLE_MS: z.coerce.number().default(2000),
   RTC_DEBOUNCE_MAX_MS: z.coerce.number().default(10000),
-  // Yjs updates are coalesced per (doc, author) for this window before being
-  // appended as ONE log row — cuts DB write load by ~an order of magnitude
-  // while typing. Crash exposure is bounded by this window.
+  // Coalesce Yjs updates per (doc, author) into one log row; crash exposure is bounded by this window.
   RTC_APPEND_COALESCE_MS: z.coerce.number().default(250),
   // Headless-Lexical extraction worker threads (CPU-bound; keep small).
   RTC_EXTRACT_WORKERS: z.coerce.number().int().min(1).max(8).default(2),

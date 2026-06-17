@@ -3,10 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import type { Env } from "../config/env";
 
-/**
- * Pins this backend instance to exactly one realm (REALM_ID). Every realm/workspace
- * query scopes to `id`. Boot fails fast if the realm row is missing — run the seed.
- */
+// Pins this backend to one realm (REALM_ID); every realm/workspace query scopes to `id`.
 @Injectable()
 export class ActiveRealmService implements OnModuleInit {
   private readonly logger = new Logger(ActiveRealmService.name);

@@ -24,11 +24,7 @@ type DebounceState = {
   pendingAppend: PendingAppend | null;
 };
 
-/**
- * Updates buffered for append-coalescing. Only updates sharing the SAME
- * (originDesc, clientSub) are merged into one log row — session history groups
- * rows by author, so a batch must stay attributable to a single client.
- */
+// Coalescing buffer: only same-(originDesc, clientSub) updates merge, so each log row stays attributable to one client.
 type PendingAppend = {
   blobs: Buffer[];
   bytes: number;
@@ -37,8 +33,7 @@ type PendingAppend = {
   timer: NodeJS.Timeout | null;
 };
 
-// Force an append (ending the coalescing window early) past either bound, so a
-// paste-storm can't buffer unbounded bytes in memory.
+// Bounds force an early append so a paste-storm can't buffer unbounded bytes in memory.
 const APPEND_COALESCE_MAX_UPDATES = 200;
 const APPEND_COALESCE_MAX_BYTES = 256 * 1024;
 
@@ -79,8 +74,7 @@ export class DocStateService {
   }
 
   private async drain(docId: string): Promise<void> {
-    // Anything still in the coalescing buffer must reach the chain first, or
-    // flush/checkpoint would record a snapshotAtSeq that excludes it.
+    // Buffer must reach the chain first, or flush/checkpoint records a snapshotAtSeq that excludes it.
     this.flushPendingAppend(docId);
     const chain = this.chains.get(docId);
     if (chain) await chain;
@@ -185,12 +179,7 @@ export class DocStateService {
     });
   }
 
-  /**
-   * Coalesce updates per (doc, author) for RTC_APPEND_COALESCE_MS before
-   * appending them as a single merged log row. Typing emits many tiny updates;
-   * one row per update means one transaction per keystroke, which is what caps
-   * DB write throughput at scale.
-   */
+  // Coalesce updates per (doc, author) for RTC_APPEND_COALESCE_MS into one row, else typing means one tx per keystroke.
   private bufferAppend(
     docName: string,
     blob: Buffer,
@@ -199,7 +188,7 @@ export class DocStateService {
   ): void {
     const entry = this.docState.get(docName);
     if (!entry) {
-      // Doc evicted mid-flight: append directly, nothing to coalesce against.
+      // Doc evicted mid-flight: nothing to coalesce against.
       this.enqueueAppend(docName, blob, originDesc, clientSub);
       return;
     }
@@ -314,11 +303,7 @@ export class DocStateService {
         state.updates = 0;
         state.bytesIn = 0;
         await this.drain(docName);
-        // Capture the last drained seq BEFORE encoding: every update counted in
-        // lastAppendedSeq was applied to the ydoc before it was enqueued, so the
-        // encoded state is guaranteed to contain at least seq 1..flushedSeq.
-        // (snapshotAtSeq may lag the state — replay is idempotent — but must
-        // never exceed it, or compaction could drop unsnapshotted updates.)
+        // Capture seq BEFORE encoding: snapshotAtSeq may lag state but must never exceed it, or compaction drops unsnapshotted updates.
         const flushedSeq = state.lastAppendedSeq;
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
@@ -409,10 +394,7 @@ export class DocStateService {
     } catch (e) {
       persistLog.error(`'${docName}' on-disconnect compaction FAILED`, e);
     }
-    // Evict in-memory state so docState/chains don't grow forever. y-websocket
-    // removes the doc from its map synchronously when the last client leaves,
-    // so a quick reconnect runs bindState concurrently and replaces the entry —
-    // only evict if our entry is still the live one.
+    // Only evict if our entry is still live: a quick reconnect can run bindState concurrently and replace it.
     await this.drain(docName);
     if (entry && this.docState.get(docName) === entry) {
       this.clearAllTimers(entry.state);
@@ -443,21 +425,16 @@ export class DocStateService {
     }
   }
 
-  /**
-   * Drop all in-memory state for a doc WITHOUT flushing — used when the doc is
-   * being deleted. Callers must close/tear down any live connections first so
-   * no new updates (or a rebind) arrive while we evict.
-   */
+  // Drop in-memory state WITHOUT flushing (doc being deleted); callers must tear down live connections first.
   async evictDocNoFlush(docName: string): Promise<void> {
     const entry = this.docState.get(docName);
     if (entry) {
       this.clearAllTimers(entry.state);
       entry.state.dirty = false;
-      // Discard (not flush) buffered updates: the doc is being deleted, and an
-      // append landing after the DB delete would re-create rows.
+      // Discard buffered updates: an append after the DB delete would re-create rows.
       entry.state.pendingAppend = null;
     }
-    // Let any in-flight appends settle so they can't land after the DB delete.
+    // Let in-flight appends settle so they can't land after the DB delete.
     await this.drain(docName);
     this.docState.delete(docName);
     this.chains.delete(docName);

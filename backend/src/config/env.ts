@@ -1,22 +1,15 @@
 import { z } from "zod";
 
-/**
- * Backend env schema (modules wired so far: Config, Prisma, Keys, Auth, Users).
- * In production, secrets are REQUIRED with no insecure defaults — the app refuses
- * to boot without them; outside production some carry dev-only defaults (see
- * INTERNAL_TOKEN). Unknown vars in the root .env are ignored by zod.
- */
+// In production, secrets are REQUIRED with no defaults; outside production some carry dev-only defaults (see INTERNAL_TOKEN).
 const isProduction = process.env.NODE_ENV === "production";
 
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
-  // The single realm this backend instance is pinned to. Every realm/workspace
-  // operation scopes to it; the backend refuses to boot if no realm row matches
-  // (run the seed to create it). See packages/database/prisma/seed.ts.
+  // The single realm this backend is pinned to; refuses to boot if no realm row matches (run the seed).
   REALM_ID: z.string().min(1, "REALM_ID is required"),
 
-  // Signs access JWTs (HS256). Required; must be long/high-entropy. No default.
+  // Signs access JWTs (HS256); must be long/high-entropy, no default.
   JWT_USER_SECRET: z
     .string()
     .min(32, "JWT_USER_SECRET must be at least 32 characters"),
@@ -34,43 +27,34 @@ export const envSchema = z.object({
   RTC_PRIVATE_KEY_PATH: z.string().default("./.keys/rtc-private.pem"),
   RTC_PUBLIC_KEY_PATH: z.string().default("./.keys/rtc-public.pem"),
 
-  // RTC access tokens the backend mints (RS256, verified by the rtc-server via JWKS).
-  // Short-lived by design: it only needs to cover the WS handshake (re-minted on
-  // reconnect), so a leaked token ages out fast.
+  // RTC access tokens (RS256, verified by rtc-server via JWKS); short-lived since they only cover the WS handshake.
   RTC_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(300),
   RTC_TOKEN_ISS: z.string().default("toddlecompose-backend"),
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
 
-  // Internal HTTP channel to the rtc-server (shared-secret authed). The dev
-  // default is convenience-only: production REQUIRES a long random secret.
+  // Internal HTTP channel to rtc-server (shared-secret authed); production REQUIRES a long random secret.
   RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
   INTERNAL_TOKEN: isProduction
     ? z.string().min(32, "INTERNAL_TOKEN must be at least 32 characters in production")
     : z.string().min(1).default("dev-internal-secret-change-me"),
 
   // --- Object storage ---------------------------------------------------------
-  // Public origin of THIS backend; used to build absolute URLs for stored objects
-  // served by the local driver (e.g. <BACKEND_PUBLIC_URL>/api/uploads/<key>).
+  // Public origin of THIS backend; used to build absolute URLs for objects served by the local driver.
   BACKEND_PUBLIC_URL: z.string().url().default("http://localhost:4000"),
-  // Which ObjectStorage provider to use. `local` = filesystem (dev default);
-  // `s3` = S3-compatible (AWS S3 / MinIO / Cloudflare R2). Swappable with no
-  // consumer code changes — see backend/src/storage.
+  // ObjectStorage provider: local filesystem or s3-compatible (swappable with no consumer changes).
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   // Local driver: directory uploaded files are written to (gitignored).
   STORAGE_DIR: z.string().default("./.storage"),
   // Max accepted upload size, in megabytes (both drivers).
   STORAGE_MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
 
-  // S3 driver settings — only consulted when STORAGE_DRIVER=s3. Left optional so
-  // the app boots on the local driver without them; the S3 provider validates
-  // what it needs at init and tells you exactly what's missing.
+  // S3 driver settings (only consulted when STORAGE_DRIVER=s3); optional so the app boots on the local driver.
   STORAGE_S3_BUCKET: z.string().optional(),
   STORAGE_S3_REGION: z.string().optional(),
   STORAGE_S3_ENDPOINT: z.string().optional(), // custom endpoint for MinIO / R2
   STORAGE_S3_ACCESS_KEY_ID: z.string().optional(),
   STORAGE_S3_SECRET_ACCESS_KEY: z.string().optional(),
-  // If the bucket is fronted by a public/CDN base URL, objects link there;
-  // otherwise the provider returns time-limited pre-signed GET URLs.
+  // If set, objects link to this public/CDN base URL; otherwise the provider returns pre-signed GET URLs.
   STORAGE_S3_PUBLIC_URL: z.string().optional(),
   STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
 });

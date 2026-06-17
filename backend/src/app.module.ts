@@ -21,10 +21,7 @@ import { HealthController } from "./health.controller";
       validate: validateEnv,
     }),
     ScheduleModule.forRoot(),
-    // Rate limiting (applied per-route via ThrottlerGuard + @Throttle — see the
-    // auth controller). Disabled under e2e tests so they can hammer the API.
-    // NOTE: in-memory storage — limits are per-instance, so N replicas multiply
-    // them by N. Use a Redis-backed throttler storage when scaling out.
+    // In-memory storage: per-instance limits, so N replicas multiply them by N (use Redis-backed storage when scaling out).
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 100 }],
       skipIf: () => process.env.NODE_ENV === "test",

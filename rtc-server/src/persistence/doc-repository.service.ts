@@ -71,12 +71,7 @@ export class DocRepository {
     });
   }
 
-  // SINGLE-REPLICA ASSUMPTION: the design is single-writer-per-doc. The
-  // in-memory Y.Doc held by this process is authoritative for a warm doc, and
-  // seq is computed via max(seq)+1 inside a transaction — correct only when one
-  // instance appends for a given doc. This service MUST NOT be horizontally
-  // scaled without doc-to-instance affinity (e.g. consistent-hash routing),
-  // otherwise two replicas would race on seq and diverge on in-memory state.
+  // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.
   async appendDocUpdate(
     docId: string,
     blob: Buffer,

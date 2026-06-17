@@ -6,10 +6,7 @@ import { createLogger } from "../logger";
 
 const log = createLogger("versions");
 
-// Sheet (ds-data-grid) Yjs model — mirrors the frontend SheetView:
-//  • getArray('rows') → one Y.Map per row (stable '__id' + one key per column id)
-//  • getMap('colTypes') → column id → cell type
-// A DOC (lexical) doc has no 'rows' root, so sheet extraction is a no-op for it.
+// Sheet Yjs model (mirrors frontend SheetView): 'rows' Array of per-row Y.Map keyed by '__id', 'colTypes' Map. DOC docs have no 'rows' root.
 const ROWS_KEY = "rows";
 const ID_KEY = "__id";
 const COL_TYPE_KEY = "colTypes";
@@ -28,17 +25,13 @@ export type VersionPreview = {
   lexicalJson: string | null;
   plainText: string;
   rawTexts: Record<string, string>;
-  // Present only for SHEET docs: the reconstructed grid at this seq. null for DOCs.
+  // SHEET docs only: reconstructed grid at this seq; null for DOCs.
   sheet: SheetSnapshot | null;
   elapsedMs: number;
 };
 
-/**
- * If this Y.Doc is a sheet (has a 'rows' root array), pull out the grid state:
- * each row's stable id + its cell values, plus the per-column types. Returns null
- * for non-sheet docs so the lexical path is untouched.
- */
-function extractSheet(ydoc: Y.Doc): SheetSnapshot | null {
+// Extract grid state (row id + cell values, column types) if this is a sheet; null for non-sheet docs.
+export function extractSheet(ydoc: Y.Doc): SheetSnapshot | null {
   if (!ydoc.share.has(ROWS_KEY)) return null;
   const yrows = ydoc.getArray(ROWS_KEY);
   const ycolTypes = ydoc.getMap(COL_TYPE_KEY);
@@ -76,13 +69,9 @@ export class VersionsService {
     }
     const yjsState = Y.encodeStateAsUpdate(ydoc);
 
-    // Pull the sheet out FIRST: this fixes 'rows'/'colTypes' to their concrete
-    // Array/Map constructors. The rawTexts loop below calls getText() on every
-    // share key, which would otherwise coerce the still-generic 'rows' root to a
-    // Y.Text and make a later typed read throw. Returns null for non-sheet docs.
+    // Extract sheet FIRST to fix 'rows'/'colTypes' to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce 'rows' to Y.Text and break later typed reads.
     const sheet = extractSheet(ydoc);
 
-    // Keep the `lexicalText` alias — `plainText` is re-derived below (sheet vs lexical).
     const { lexicalJson, plainText: lexicalText } =
       await this.extract.extractFromBytes(yjsState);
 
@@ -96,10 +85,7 @@ export class VersionsService {
       }
     }
 
-    // For a sheet, lexical extraction yields empty text, which would make EVERY
-    // session look like a no-op (and get filtered out). Use a canonical
-    // serialization of the grid as the "text" so a real cell/type change is
-    // detected as a change. DOC docs keep the lexical plain text.
+    // Sheets yield empty lexical text (every session would look like a no-op), so use a canonical grid serialization; DOC docs keep lexical text.
     const plainText = sheet
       ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
       : lexicalText;

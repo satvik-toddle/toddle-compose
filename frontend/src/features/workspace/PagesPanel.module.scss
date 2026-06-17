@@ -31,15 +31,14 @@
   padding: 0;
 
   &::placeholder {
-    /* subtle — lighter than body placeholder text, and not bold-heavy at 40px */
-    color: var(--text-disabled);
-    font-weight: 500;
+    color: var(--neutral-600);
+    font-weight: 600;
   }
 }
 
-/* viewer's read-only title when the page is unnamed — matches the placeholder grey */
+/* viewer's read-only title when the page is unnamed — matches the placeholder grey above */
 .untitled {
-  color: var(--text-placeholder);
+  color: var(--neutral-600);
 }
 
 .ws-docs-tbl {

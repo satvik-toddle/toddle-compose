@@ -331,41 +331,13 @@
 .rbac .auth-banner { display:flex; align-items:center; gap:9px; padding:10px 13px; border-radius:10px; font-size:13px; font-weight:500; margin-bottom:18px; }
 .rbac .auth-banner.err { background: var(--surface-semantic-error); color: var(--text-semantic-error); border:1px solid var(--border-semantic-error); }
 .rbac .auth-banner.err .ic-14 { filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%); }
-.rbac .pw-strength { display:flex; align-items:center; gap:5px; margin:-4px 0 0; }
-.rbac .pw-strength .bar { height:4px; flex:1; border-radius:99px; background: var(--surface-tertiary-enabled); }
-.rbac .pw-strength .bar.s1.on { background: var(--red-500); }
-.rbac .pw-strength .bar.s2.on { background: var(--yellow-600); }
-.rbac .pw-strength .bar.s3.on { background: var(--teal-500); }
-.rbac .pw-strength .pw-label { font-size:11px; font-weight:700; color: var(--teal-400); margin-left:4px; }
-/* success */
-.rbac .auth-success { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; }
-.rbac .suc-glyph { width:64px; height:64px; border-radius:18px; background: var(--surface-semantic-success);
-  display:flex; align-items:center; justify-content:center; margin-bottom:6px; }
-.rbac .suc-glyph .ic-24 { filter: invert(45%) sepia(60%) saturate(560%) hue-rotate(118deg) brightness(.85); }
-.rbac .suc-wait { display:inline-flex; align-items:center; gap:9px; padding:9px 14px; margin:10px 0 4px;
-  border-radius:999px; background: var(--surface-secondary-enabled); border:1px solid var(--line);
-  font-size:12px; font-weight:600; color: var(--text-secondary); }
-.rbac .suc-wait .pulse { width:8px; height:8px; border-radius:50%; background: var(--yellow-600);
-  box-shadow: 0 0 0 0 rgba(214,125,0,.5); animation: rbacpulse 1.8s infinite; }
-@keyframes rbacpulse { 0%{ box-shadow:0 0 0 0 rgba(214,125,0,.5);} 70%{ box-shadow:0 0 0 7px rgba(214,125,0,0);} 100%{ box-shadow:0 0 0 0 rgba(214,125,0,0);} }
+/* .pw-strength/.bar/.pw-label → PasswordStrength.module.scss
+   .auth-success/.suc-glyph/.suc-wait/.pulse (+ @keyframes rbacpulse) → RegisterSuccessPage.module.scss */
 
 /* request-access / discover workspaces */
 .rbac .auth-card.ra-card { width:540px; }
-.rbac .ra-search { height:40px; margin:2px 0 16px; }
-.rbac .ra-list { display:flex; flex-direction:column; gap:8px; }
-.rbac .ra-row { display:grid; grid-template-columns: 36px 1fr auto auto; align-items:center; gap:12px;
-  padding:11px 12px; border:1px solid var(--line); border-radius:12px; background: var(--panel-bg); }
-.rbac .ra-row:hover { border-color: var(--border-hover); }
-.rbac .ra-info { min-width:0; }
-.rbac .ra-info .nm { font-size:14px; font-weight:700; }
-.rbac .ra-info .sub { font-size:12px; color: var(--text-secondary); margin-top:1px; }
-.rbac .ra-vis { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
-.rbac .ra-vis.pub { background: var(--decorative-background-teal); color: var(--decorative-foreground-teal); }
-.rbac .ra-vis.pub .ic-12 { filter: invert(35%) sepia(60%) saturate(560%) hue-rotate(120deg) brightness(.85); }
-.rbac .ra-vis.priv { background: var(--surface-tertiary-enabled); color: var(--text-secondary); }
-.rbac .ra-vis.priv .ic-12 { opacity:.6; }
-.rbac.dark .ra-vis.pub, .dark .rbac .ra-vis.pub { background: rgba(0,172,138,.18); color: var(--teal-700); }
-.rbac.dark .ra-vis.pub .ic-12, .dark .rbac .ra-vis.pub .ic-12 { filter: invert(70%) sepia(40%) saturate(900%) hue-rotate(110deg) brightness(1.05); }
+/* .ra-search/.ra-list/.ra-row/.ra-info/.ra-vis → RequestAccessPage.module.scss
+   (.ra-card width + .btn.ra-requested kept global — they modify global .auth-card/.btn) */
 .rbac .btn.ra-requested { color: var(--text-secondary); }
 .rbac .btn.ra-requested .ic-14 { filter: invert(45%) sepia(60%) saturate(560%) hue-rotate(118deg) brightness(.85); opacity:1; }
 
@@ -426,159 +398,40 @@
 /* ============================================================
    ADMIN CONSOLE
    ============================================================ */
-.rbac .ad-subbar { display:flex; align-items:center; gap:12px; padding:14px 22px 12px; background: var(--panel-bg); }
-.rbac .ad-title { display:flex; align-items:center; gap:9px; font-size:16px; font-weight:800; letter-spacing:-.01em; }
-.rbac .ad-crumb { font-size:12px; color: var(--text-secondary); background: var(--surface-secondary-enabled);
-  border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
-.rbac .srch-box { display:flex; align-items:center; gap:8px; height:36px; padding:0 12px; border-radius:8px;
-  border:1px solid var(--line-strong); background: var(--panel-bg); min-width:220px; }
-.rbac .srch-box input { border:0; outline:0; background:transparent; font-family:inherit; font-size:13px; color: var(--text-primary); flex:1; min-width:0; }
+/* Moved to co-located CSS Modules:
+     .ad-subbar/.ad-title/.ad-crumb → AdminConsolePage.module.scss
+     .ad-ws-tbl/.ad-foot            → WorkspacesTab.module.scss
+     .ad-mem-tbl                    → RealmMembersTab.module.scss
+     .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss
+   Removed as dead (unused after the table redesign):
+     .srch-box, .ad-ws-grid/.ad-ws-card*, .ad-mem-group/.ad-mem-cards/.mem-card*/.grp-h*
+   Kept global (used cross-feature): .you-tag (also workspace MembersPanel),
+   .tab .ct.alert (shared Tabs component). */
 .rbac .you-tag { font-size:10px; font-weight:700; color: var(--blue-400); background: var(--surface-primary-selected);
   border-radius:5px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
 .rbac.dark .you-tag, .dark .rbac .you-tag { background: rgba(0,176,194,.16); color: var(--blue-600); }
-.rbac .ad-foot { font-size:12px; color: var(--text-secondary); padding:14px 4px 0; }
-
-/* workspaces table */
-.rbac .ad-ws-tbl .thead, .rbac .ad-ws-tbl .trow { grid-template-columns: 1.6fr 180px 160px 200px; }
-.rbac .ad-mem-tbl .thead, .rbac .ad-mem-tbl .trow { grid-template-columns: 1.8fr 200px 170px 120px; }
-
-/* workspaces cards (v2) */
-.rbac .ad-ws-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
-.rbac .ad-ws-card { background: var(--panel-bg); border:1px solid var(--line); border-radius:15px; overflow:hidden;
-  display:flex; flex-direction:column; transition: box-shadow .14s, border-color .14s; }
-.rbac .ad-ws-card:hover { box-shadow: var(--elevation-2-bottom); border-color: var(--border-hover); }
-.rbac .ad-ws-card .hd { height:70px; padding:14px; display:flex; align-items:center; justify-content:space-between; }
-.rbac .ad-ws-card .ad-card-more { background: var(--surface-primary-overlay); }
-.rbac .ad-ws-card .bd { padding:0 16px 12px; }
-.rbac .ad-ws-card .bd .nm { font-size:16px; font-weight:700; margin-top:2px; }
-.rbac .ad-ws-card .bd .sub { font-size:12px; color: var(--text-secondary); margin-top:2px; }
-.rbac .ad-ws-card .bd .row { display:flex; align-items:center; gap:10px; margin-top:13px; }
-.rbac .ad-ws-card .bd .row .ct { font-size:12px; color: var(--text-secondary); }
-.rbac .ad-ws-card .ft { padding:12px 16px; border-top:1px solid var(--line); margin-top:auto; }
-
-/* members grouped (v2) */
-.rbac .ad-mem-group { margin-bottom:26px; }
-.rbac .grp-h { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-.rbac .grp-h .ct { font-size:12px; font-weight:700; color: var(--text-secondary); }
-.rbac .grp-h .grp-desc { font-size:12px; color: var(--text-secondary); margin-left:4px; }
-.rbac .ad-mem-cards { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
-.rbac .mem-card { display:flex; align-items:center; gap:11px; padding:13px 14px; background: var(--panel-bg);
-  border:1px solid var(--line); border-radius:12px; }
-.rbac .mem-card .mc-body { min-width:0; flex:1; }
-.rbac .mem-card .mc-body .nm { font-size:13px; font-weight:700; }
-.rbac .mem-card .mc-body .sub { font-size:12px; color: var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-/* join requests */
 .rbac .tab .ct.alert { background: var(--red-500); color:#fff; }
-.rbac .ad-req-tbl .thead, .rbac .ad-req-tbl .trow { grid-template-columns: 1.6fr 1fr 150px 120px 200px; }
-.rbac .ws-pill { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; }
 
 /* ============================================================
    INSIDE A WORKSPACE
    ============================================================ */
-.rbac .ws-topbar { height:56px; flex:none; display:flex; align-items:center; justify-content:space-between;
-  padding:0 16px 0 12px; background: var(--panel-bg); border-bottom:1px solid var(--line); }
-.rbac .ws-switch-wrap { position:relative; }
-.rbac .ws-switch { display:flex; align-items:center; gap:9px; height:40px; padding:0 10px; border:1px solid transparent;
-  background:transparent; border-radius:9px; }
-.rbac .ws-switch:hover, .rbac .ws-switch.open { background: var(--surface-secondary-enabled); border-color: var(--line); }
-.rbac .ws-switch .nm { font-size:15px; font-weight:700; }
-.rbac .ws-tb-left { display:flex; align-items:center; gap:4px; min-width:0; }
-.rbac .tb-sidebar-toggle { flex:none; color: var(--text-secondary); cursor:pointer; }
-.rbac .tb-sidebar-toggle:hover { color: var(--text-primary); }
-.rbac .ws-crumb { display:flex; align-items:center; gap:7px; min-width:0; }
-.rbac .ws-crumb-sep { color: var(--text-secondary); opacity:.45; }
-.rbac .ws-crumb-title { font-size:15px; font-weight:700; letter-spacing:-.005em;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.rbac .ws-tb-right { display:flex; align-items:center; gap:8px; }
+/* Moved to co-located CSS Modules:
+     topbar + body split (.ws-topbar/.ws-switch/.ws-tb-*/.ws-crumb*/.ws-body) → WorkspaceLayout.module.scss
+     sidebar rail (.ws-nav*/.qk-row/.qk-ct/.ws-nav-foot)                      → WsNav.module.scss
+     pages tree (.ws-nav-grp/.grp-add/.ws-tree/.tree-row/.chev/.tw-lbl/.tw-more) → PagesTree.module.scss
+   Removed as dead (menus now render via the ds ActionMenu/Dropdown):
+     .ws-switch-wrap, .ws-switch-menu/.sm-*, .folder-menu/.fm-*, .tree-row.menu-open
+   Kept global: .ws-acct (owned by AcctPill), .tw-emoji (shared with PagesPanel). */
 .rbac .ws-acct { display:flex; align-items:center; gap:4px; padding:3px 4px 3px 3px; border:1px solid var(--line); border-radius:999px; }
-
-/* switcher dropdown */
-.rbac .ws-switch-menu { position:absolute; top:46px; left:0; width:268px; background: var(--panel-bg);
-  border:1px solid var(--line); border-radius:12px; box-shadow: var(--elevation-3-bottom); padding:6px; z-index:50; }
-.rbac .sm-label { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--text-secondary); padding:7px 9px 5px; }
-.rbac .sm-row { display:flex; align-items:center; gap:10px; padding:8px 9px; border-radius:8px; font-size:13px; font-weight:600; }
-.rbac .sm-row:hover { background: var(--surface-secondary-enabled); }
-.rbac .sm-row.on { background: var(--surface-primary-selected); }
-.rbac.dark .sm-row.on, .dark .rbac .sm-row.on { background: rgba(0,176,194,.12); }
-.rbac .sm-row.foot { color: var(--text-secondary); font-weight:600; }
-.rbac .sm-div { height:1px; background: var(--line); margin:5px 4px; }
-
-/* layout split */
-.rbac .ws-body { flex:1; display:flex; min-height:0; overflow:hidden; }
-.rbac .ws-nav { width:266px; flex:none; background: var(--surface-secondary-enabled); border-right:1px solid var(--line);
-  display:flex; flex-direction:column; padding:10px; overflow:auto; transition: margin-left .2s ease; }
-/* Collapsible sidebar (Coda-style): slide it out; the page pane fills the space. */
-.rbac .ws-nav.collapsed { margin-left:-266px; }
-.rbac.dark .ws-nav, .dark .rbac .ws-nav { background: #1a1a1a; }
-.rbac .ws-nav-search { display:flex; align-items:center; gap:8px; height:34px; padding:0 10px; border-radius:8px;
-  background: var(--panel-bg); border:1px solid var(--line); margin-bottom:8px; }
-.rbac .ws-nav-search input { border:0; outline:0; background:transparent; font-family:inherit; font-size:13px; color: var(--text-secondary); flex:1; min-width:0; }
-.rbac .ws-nav-quick { display:flex; flex-direction:column; gap:1px; }
-.rbac .qk-row { display:flex; align-items:center; gap:10px; padding:6px 9px; border-radius:7px; font-size:13px; font-weight:500; }
-.rbac .qk-row:hover { background: var(--surface-tertiary-hover, rgba(0,0,0,.05)); }
-.rbac.dark .qk-row:hover, .dark .rbac .qk-row:hover { background: rgba(255,255,255,.06); }
-.rbac .qk-row.active { background: var(--surface-primary-selected); color: var(--blue-200); font-weight:700; }
-.rbac.dark .qk-row.active, .dark .rbac .qk-row.active { background: rgba(0,176,194,.16); color: var(--blue-600); }
-.rbac .qk-row.active .ic { filter: invert(22%) sepia(92%) saturate(1450%) hue-rotate(170deg) brightness(.8); }
-.rbac .qk-ct { margin-left:auto; font-size:11px; color: var(--text-secondary); font-weight:700; }
-
-.rbac .ws-nav-grp { display:flex; align-items:center; font-size:11px; font-weight:700; letter-spacing:.04em;
-  text-transform:uppercase; color: var(--text-secondary); padding:16px 9px 6px; }
-.rbac .ws-nav-grp .grp-add { margin-left:auto; width:20px; height:20px; border:0; background:transparent; border-radius:5px; display:flex; align-items:center; justify-content:center; }
-.rbac .ws-nav-grp .grp-add:hover { background: rgba(0,0,0,.07); }
-
-/* tree */
-.rbac .ws-tree { display:flex; flex-direction:column; gap:1px; }
-.rbac .tree-row { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:7px; font-size:13px;
-  min-height:30px; position:relative; cursor:pointer; }
-.rbac .tree-row:hover { background: rgba(0,0,0,.05); }
-.rbac.dark .tree-row:hover, .dark .rbac .tree-row:hover { background: rgba(255,255,255,.06); }
-.rbac .tree-row.active { background: var(--panel-bg); box-shadow: inset 0 0 0 1px var(--line); font-weight:700; }
-.rbac .tree-row .chev { transition: transform .15s; }
-.rbac .tree-row .chev.open { transform: rotate(90deg); }
-.rbac .tree-row.doc { padding-left:8px; }
 .rbac .tw-emoji { font-size:15px; line-height:1; width:18px; text-align:center; flex:none;
   display:inline-flex; align-items:center; justify-content:center; }
 .rbac .tw-emoji.big { font-size:20px; width:24px; }
-.rbac .tw-lbl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.rbac .tw-more { width:22px; height:22px; border:0; background:transparent; border-radius:5px; display:none;
-  align-items:center; justify-content:center; flex:none; }
-.rbac .tree-row:hover .tw-more, .rbac .tree-row.menu-open .tw-more { display:flex; }
-.rbac .tw-more:hover { background: rgba(0,0,0,.10); }
-.rbac.dark .tw-more:hover, .dark .rbac .tw-more:hover { background: rgba(255,255,255,.12); }
-
-/* folder ⋯ menu */
-.rbac .folder-menu { position:absolute; top:30px; right:4px; width:188px; background: var(--panel-bg);
-  border:1px solid var(--line); border-radius:11px; box-shadow: var(--elevation-3-bottom); padding:5px; z-index:55; }
-.rbac .fm-row { display:flex; align-items:center; gap:10px; padding:8px 9px; border-radius:7px; font-size:13px; font-weight:500; }
-.rbac .fm-row:hover { background: var(--surface-secondary-enabled); }
-.rbac .fm-row.danger { color: var(--text-semantic-error); }
-.rbac .fm-div { height:1px; background: var(--line); margin:4px 4px; }
-
-.rbac .ws-nav-foot { margin-top:auto; padding-top:10px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:1px; }
 
 /* main panel */
 .rbac .ws-main { flex:1; min-width:0; display:flex; flex-direction:column; background: var(--panel-bg); }
-/* The doc editor fills the whole page pane (full width + height), white surface
-   (the editor's `--surface-primary-active` is a dark token in our theme). */
-.rbac .tc-editor { flex:1; min-height:0; min-width:0; display:flex; flex-direction:column;
-  background: var(--panel-bg); --surface-primary-active: var(--panel-bg); }
-.rbac .tc-editor > * { flex:1; min-height:0; }
-/* White full-bleed page (no "page card" border/radius/margin), with the text
-   constrained to a centered, readable column — Coda-style. */
-.rbac .tc-editor .ds-de-anchor-element { width:100% !important; max-width:760px !important; margin:0 auto !important; }
-.rbac .tc-editor .ds-de-contentEditable-bg-provider { margin:0 !important; border:0 !important; border-radius:0 !important; }
-.rbac .tc-editor .ds-de-editorContainer { border-radius:0 !important; }
-.rbac .tc-editor .ds-de-contentEditable { padding-top:12px !important; }
+/* .tc-editor (+ .ds-de-* editor internals) moved to DocEditor.module.scss */
 
-/* Coda-style page title above the editor body, aligned to the content column
-   (760px column + 48px bg padding + 40px editable padding = 88px text inset). */
-.rbac .ws-doc-titlewrap { flex:none; width:100%; max-width:760px; margin:0 auto; padding:28px 88px 0; }
-.rbac .ws-doc-title-field { display:block; width:100%; border:0; outline:0; background:transparent;
-  font-family:inherit; color:var(--text-primary); font-size:32px; font-weight:800; letter-spacing:-.02em;
-  line-height:1.25; margin:0; padding:0; }
-.rbac .ws-doc-title-field::placeholder { color:var(--text-placeholder); }
+/* .ws-doc-titlewrap / .ws-doc-title-field moved to PagesPanel.module.scss */
 .rbac .ws-crumbbar { height:50px; flex:none; display:flex; align-items:center; justify-content:space-between;
   padding:0 22px; border-bottom:1px solid var(--line); }
 .rbac .ws-crumbs { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--text-secondary); }
@@ -590,57 +443,13 @@
 .rbac .ws-folder-head h1 { font-size:24px; font-weight:800; letter-spacing:-.01em; margin:0; }
 .rbac .ws-folder-head .sub { font-size:13px; color: var(--text-secondary); margin-top:3px; }
 
-.rbac .ws-docs-tbl .thead, .rbac .ws-docs-tbl .trow { grid-template-columns: 2fr 150px 130px 130px; }
-.rbac .ws-mem-tbl .thead, .rbac .ws-mem-tbl .trow { grid-template-columns: 2fr 220px 120px; }
-.rbac .ws-req-tbl .thead, .rbac .ws-req-tbl .trow { grid-template-columns: 2fr 160px 120px 210px; }
+/* .ws-docs-tbl / .ws-mem-tbl / .ws-req-tbl column grids → their per-panel modules */
 .rbac .qk-ct.alert { background: var(--red-500); color:#fff; border-radius:999px; min-width:18px; height:16px; line-height:16px; text-align:center; padding:0 5px; }
 
-/* blocked-remove tooltip */
-.rbac .blocked-wrap { position:relative; display:inline-flex; }
-.rbac .blocked-wrap .blocked-tip { position:absolute; right:0; top:-34px; display:none; align-items:center; gap:6px;
-  white-space:nowrap; background: var(--neutral-100); color: var(--neutral-950); font-size:11px; font-weight:600;
-  padding:6px 9px; border-radius:7px; box-shadow: var(--elevation-2-bottom); }
-.rbac .blocked-wrap:hover .blocked-tip { display:flex; }
-
-/* ---- doc reader (floating toolbar) ---- */
-.rbac .ws-docbar { height:58px; flex:none; display:flex; align-items:center; justify-content:space-between;
-  padding:0 22px; border-bottom:1px solid var(--line); }
-.rbac .ws-doc-title { display:flex; align-items:center; gap:8px; min-width:0; }
-.rbac .ws-doc-crumb { font-size:12px; color: var(--text-secondary); }
-.rbac .ws-doc-nm { font-size:16px; font-weight:700; letter-spacing:-.005em; }
-.rbac .ibtn.sm { width:26px; height:26px; }
-.rbac .ws-doc-people { display:flex; align-items:center; gap:12px; }
-.rbac .ws-doc-people .presence { font-size:11px; font-weight:600; color: var(--teal-400); display:inline-flex; align-items:center; gap:6px; }
-.rbac .ws-doc-people .presence::before { content:""; width:7px; height:7px; border-radius:50%; background: var(--teal-500); }
-
-.rbac .ws-doc { max-width:760px; margin:0 auto; padding:46px 40px 80px; }
-.rbac .ws-doc .dt { font-size:34px; font-weight:800; letter-spacing:-.02em; margin:0 0 8px; }
-.rbac .ws-doc .doc-meta { font-size:12px; color: var(--text-secondary); margin-bottom:24px; }
-.rbac .ws-doc p { font-size:16px; line-height:1.65; color: var(--text-primary); margin:0 0 15px; }
-.rbac .ws-doc .dh { font-size:21px; font-weight:700; letter-spacing:-.01em; margin:26px 0 9px; }
-.rbac .ws-doc b { font-weight:700; }
-.rbac .ws-doc .doc-callout { display:flex; gap:12px; padding:13px 15px; background: var(--surface-semantic-info);
-  border:1px solid var(--border-semantic-info); border-radius:10px; margin:14px 0; font-size:14px; line-height:1.5; color: var(--text-primary); }
-.rbac .ws-doc .doc-callout .ic-18 { filter: invert(40%) sepia(80%) saturate(900%) hue-rotate(150deg) brightness(.9); flex:none; }
-
-/* selection + floating bubble */
-.rbac .ws-doc .sel-anchor { position:relative; }
-.rbac .ws-doc .sel-hl { background: rgba(0,176,194,.22); box-shadow: 0 0 0 1px rgba(0,176,194,.28); border-radius:2px; padding:1px 0; }
-.rbac .ws-doc .fl-tb { position:absolute; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%);
-  display:inline-flex; align-items:center; gap:2px; padding:6px; background:#1f1f1f; border-radius:10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.22); white-space:nowrap; z-index:30; }
-.rbac .ws-doc .fl-tb::after { content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  border:6px solid transparent; border-top-color:#1f1f1f; }
-.rbac .ws-doc .fl-i { display:inline-flex; align-items:center; justify-content:center; height:28px; min-width:28px;
-  padding:0 7px; border:0; background:transparent; color:#fff; border-radius:6px; font-size:13px; }
-.rbac .ws-doc .fl-i:hover { background: rgba(255,255,255,.12); }
-.rbac .ws-doc .fl-bold { font-weight:700; }
-.rbac .ws-doc .fl-i img { filter: invert(1) brightness(2); opacity:.85; }
-.rbac .ws-doc .fl-pl { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 8px; border:0;
-  background:transparent; color:#fff; border-radius:6px; font-size:13px; }
-.rbac .ws-doc .fl-pl:hover { background: rgba(255,255,255,.12); }
-.rbac .ws-doc .fl-pl img { filter: invert(1) brightness(2); opacity:.7; }
-.rbac .ws-doc .fl-sep { width:1px; height:18px; background: rgba(255,255,255,.18); margin:0 3px; }
+/* .blocked-wrap/.blocked-tip moved to MembersPanel.module.scss.
+   The static doc-reader mockup (.ws-docbar, .ws-doc*, .doc-callout, .sel-*,
+   .fl-* floating toolbar, .ibtn.sm) was removed as dead — superseded by the live
+   DocEditor (@toddle-edu/ds-doc-editor) and its DocEditor.module.scss. */
 
 /* ============================================================
    MODALS — extra bits

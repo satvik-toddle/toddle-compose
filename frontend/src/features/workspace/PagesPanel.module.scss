@@ -35,6 +35,11 @@
   }
 }
 
+/* viewer's read-only title when the page is unnamed — matches the placeholder grey */
+.untitled {
+  color: var(--text-placeholder);
+}
+
 .ws-docs-tbl {
   :global(.thead),
   :global(.trow) {

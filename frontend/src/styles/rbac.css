@@ -34,11 +34,7 @@
 .rbac.dark .ic-muted, .dark .rbac .ic-muted { filter: invert(72%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(85%); }
 
 /* ---------------- Avatars ---------------- */
-.rbac .av { border-radius: 50%; display:inline-flex; align-items:center; justify-content:center;
-  font-weight: 700; color:#fff; flex:none; letter-spacing: .01em; }
-.rbac .av-stack { display:inline-flex; }
-.rbac .av-stack .av + .av { margin-left: -7px; }
-.rbac .av-ring { box-shadow: 0 0 0 2px var(--panel-bg); }
+/* .av/.av-stack/.av-ring removed as dead — Avatar/AvStack render the ds-web Avatar. */
 
 /* ---------------- Role chips ---------------- */
 /* Realm role — SOLID / authoritative */
@@ -75,30 +71,13 @@
 .rbac.dark .wchip.admin .ic-12, .dark .rbac .wchip.admin .ic-12 { filter: invert(60%) sepia(50%) saturate(1600%) hue-rotate(215deg) brightness(1.05); }
 
 /* ---------------- Buttons ---------------- */
-.rbac .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; height:36px;
-  padding:0 14px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid var(--line);
-  background: var(--panel-bg); color: var(--text-primary); white-space:nowrap; transition: background .12s, border-color .12s; }
-.rbac .btn:hover { background: var(--surface-secondary-enabled); }
-.rbac .btn.sm { height:30px; padding:0 11px; font-size:12px; border-radius:7px; }
-.rbac .btn.lg { height:44px; padding:0 18px; font-size:15px; border-radius:9px; }
-.rbac .btn.block { width:100%; }
-.rbac .btn.primary { background: var(--interactive-primary); border-color: transparent; color:#fff; box-shadow: 0 1px 2px rgba(214,58,63,.28); }
-.rbac .btn.primary:hover { background: var(--interactive-primary-hover); }
-.rbac .btn.primary .ic, .rbac .btn.primary .ic-14 { filter: brightness(0) invert(1); }
-.rbac .btn.danger { background: var(--red-400); border-color: transparent; color:#fff; }
-.rbac .btn.danger:hover { background: var(--red-300); }
-.rbac .btn.danger .ic, .rbac .btn.danger .ic-14 { filter: brightness(0) invert(1); }
-.rbac .btn.ghost { background: transparent; border-color: transparent; }
-.rbac .btn.ghost:hover { background: var(--surface-secondary-enabled); }
-.rbac .btn[disabled], .rbac .btn.disabled { opacity:.5; cursor:not-allowed; box-shadow:none; }
+/* .btn* removed as dead — Button/IconButton wrappers render the ds-web Button. */
 .rbac .ibtn { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center;
   border:0; background:transparent; border-radius:7px; }
 .rbac .ibtn:hover { background: var(--surface-secondary-enabled); }
 
 /* ---------------- Form fields ---------------- */
-.rbac .field { display:flex; flex-direction:column; gap:6px; }
-.rbac .field > label { font-size:12px; font-weight:600; color: var(--text-primary); }
-.rbac .field .hint { font-size:11px; color: var(--text-secondary); }
+/* .field → Field.module.scss */
 .rbac .inp { display:flex; align-items:center; gap:8px; height:42px; padding:0 12px; border-radius:9px;
   border:1px solid var(--line-strong); background: var(--panel-bg); }
 .rbac .inp:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(0,176,194,.16); }
@@ -153,13 +132,7 @@
 .rbac .cell-main .nm { font-weight:600; font-size:13px; }
 .rbac .cell-main .sub { font-size:12px; color: var(--text-secondary); margin-top:1px; }
 
-/* inline role dropdown in a table */
-.rbac .role-dd { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 7px 0 8px; border-radius:7px;
-  border:1px solid transparent; background:transparent; }
-.rbac .role-dd:hover { border-color: var(--line); background: var(--panel-bg); }
-.rbac .role-dd .ic-14 { opacity:.6; }
-.rbac .role-dd.locked { opacity:.7; }
-.rbac .role-dd.locked:hover { border-color:transparent; background:transparent; }
+/* .role-dd (inline role dropdown chip) → RoleSelect.module.scss */
 
 /* ---------------- Modal / overlay ---------------- */
 /* .scrim/.modal/.modal.wide removed as dead — the ds-web <Modal> renders the
@@ -213,33 +186,13 @@
 .rbac .found .nm { font-size:13px; font-weight:600; }
 .rbac .found .sub { font-size:12px; color: var(--text-secondary); }
 
-/* radio role picker (workspace add modal) */
-.rbac .role-opt { display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid var(--line);
-  border-radius:10px; }
-.rbac .role-opt.on { border-color: var(--border-selected); background: var(--surface-primary-selected); }
-.rbac.dark .role-opt.on, .dark .rbac .role-opt.on { background: rgba(0,176,194,.12); }
-.rbac .role-opt .rd { width:18px; height:18px; border-radius:50%; border:2px solid var(--border-primary); flex:none; position:relative; }
-.rbac .role-opt.on .rd { border-color: var(--border-selected); }
-.rbac .role-opt.on .rd::after { content:""; position:absolute; inset:3px; border-radius:50%; background: var(--border-selected); }
-.rbac .role-opt .ttl { font-size:13px; font-weight:600; }
-.rbac .role-opt .ds { font-size:12px; color: var(--text-secondary); margin-top:1px; }
+/* .role-opt (radio role picker) → RoleRadios.module.scss */
 
 /* ---------------- Empty states ---------------- */
-.rbac .empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:7px;
-  padding:56px 32px; }
-.rbac .empty .glyph { width:84px; height:84px; border-radius:22px; display:flex; align-items:center; justify-content:center;
-  font-size:40px; margin-bottom:8px; }
-.rbac .empty h2 { font-size:21px; font-weight:700; margin:0; }
-.rbac .empty p { font-size:14px; color: var(--text-secondary); margin:0; max-width:420px; line-height:1.5; }
+/* .empty* removed as dead — EmptyState renders the ds-web EmptyState. */
 
 /* ---------------- Toast ---------------- */
-.rbac .toast { position:absolute; left:50%; bottom:26px; transform:translateX(-50%); z-index:60;
-  display:flex; align-items:center; gap:12px; padding:12px 14px 12px 16px; border-radius:12px;
-  background: var(--neutral-100); color: var(--neutral-950); box-shadow: var(--elevation-3-bottom); max-width:480px; }
-.rbac .toast .ic-18 { filter: brightness(0) invert(1); opacity:.9; }
-.rbac .toast .tx { font-size:13px; line-height:1.4; }
-.rbac .toast .tx b { font-weight:700; }
-.rbac .toast .act { font-size:13px; font-weight:700; color: var(--blue-700); padding:6px 8px; border-radius:7px; }
+/* .toast → Toast.module.scss */
 
 /* ---------------- Tabs ---------------- */
 .rbac .tabs { display:flex; align-items:center; gap:4px; padding:0 22px; background: var(--panel-bg);
@@ -311,9 +264,8 @@
 /* request-access / discover workspaces */
 .rbac .auth-card.ra-card { width:540px; }
 /* .ra-search/.ra-list/.ra-row/.ra-info/.ra-vis → RequestAccessPage.module.scss
-   (.ra-card width + .btn.ra-requested kept global — they modify global .auth-card/.btn) */
-.rbac .btn.ra-requested { color: var(--text-secondary); }
-.rbac .btn.ra-requested .ic-14 { filter: invert(45%) sepia(60%) saturate(560%) hue-rotate(118deg) brightness(.85); opacity:1; }
+   (.ra-card width kept global — it modifies the global .auth-card.
+   .btn.ra-requested was removed with the dead .btn rules.) */
 
 /* ============================================================
    LAUNCHER
@@ -396,15 +348,11 @@
   font-size:17px; display:flex; align-items:center; justify-content:center; }
 .rbac .emoji-cell:hover { background: var(--surface-secondary-enabled); }
 .rbac .emoji-cell.on { border-color: var(--border-selected); box-shadow: 0 0 0 2px rgba(0,176,194,.18); }
-.rbac .role-radios { display:flex; flex-direction:column; gap:9px; }
-.rbac .role-radios.cols { display:grid; grid-template-columns: 1fr 1fr; gap:9px; }
-.rbac .role-radios.cols .role-opt { gap:8px; }
-.rbac .role-radios.cols .role-opt .ds { font-size:11px; }
+/* .role-radios → RoleRadios.module.scss */
 .rbac .invite-fallback { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px dashed var(--border-primary);
   border-radius:10px; background: var(--surface-secondary-enabled); }
 .rbac .invite-fallback .t { font-size:13px; font-weight:700; }
 .rbac .invite-fallback .d { font-size:12px; color: var(--text-secondary); margin-top:2px; }
-.rbac .invite-fallback .btn { flex:none; margin-left:auto; }
 .rbac .danger-box { display:flex; align-items:center; gap:9px; padding:10px 13px; border-radius:9px;
   background: var(--surface-semantic-error); border:1px solid var(--border-semantic-error);
   color: var(--text-semantic-error); font-size:13px; font-weight:600; }

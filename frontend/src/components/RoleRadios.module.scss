@@ -1,0 +1,49 @@
+/* Radio role picker. Co-located, auto-scoped CSS Module.
+   The radio control itself is the ds-web RadioButton (the old custom .rd dot is
+   gone); this owns the option rows + layout. */
+
+.role-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  &.cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+
+    .role-opt {
+      gap: 8px;
+    }
+    .role-opt .ds {
+      font-size: 11px;
+    }
+  }
+}
+
+.role-opt {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+
+  &.on {
+    border-color: var(--border-selected);
+    background: var(--surface-primary-selected);
+  }
+  :global(.dark) &.on {
+    background: rgba(0, 176, 194, 0.12);
+  }
+
+  .ttl {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ds {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+  }
+}

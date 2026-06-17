@@ -47,11 +47,9 @@ h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-
   align-items: center;
   justify-content: center;
 }
-/* the account-menu popover */
-.rbac .acct-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+/* account-menu popover content (the ds-web Dropdown positions the popup; these
+   styles are unscoped from .rbac so they apply even if antd portals it to body) */
+.acct-menu {
   width: 240px;
   background: var(--panel-bg);
   border: 1px solid var(--line);
@@ -60,21 +58,21 @@ h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-
   padding: 6px;
   z-index: 60;
 }
-.rbac .acct-menu .am-head {
+.acct-menu .am-head {
   padding: 10px 10px 8px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
 }
-.rbac .acct-menu .am-head .nm {
+.acct-menu .am-head .nm {
   font-size: 13px;
   font-weight: 700;
 }
-.rbac .acct-menu .am-head .sub {
+.acct-menu .am-head .sub {
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 1px;
 }
-.rbac .acct-menu .am-row {
+.acct-menu .am-row {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -88,16 +86,13 @@ h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-
   text-align: left;
   cursor: pointer;
 }
-.rbac .acct-menu .am-row:hover {
+.acct-menu .am-row:hover {
   background: var(--surface-secondary-enabled);
 }
-/* account pill as a button */
+/* account pill as a button (the ds Dropdown trigger) */
 .rbac .appbar .acct,
 .rbac .ws-acct {
   cursor: pointer;
   background: var(--panel-bg);
-}
-.rbac .acct-wrap {
-  position: relative;
 }
 

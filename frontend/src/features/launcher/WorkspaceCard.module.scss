@@ -1,0 +1,101 @@
+/* Workspace card (launcher grid). Co-located, auto-scoped CSS Module.
+   .ws-emoji stays global (shared cross-feature). The dashed ".add" tile is
+   rendered by LauncherPage, which imports this module. */
+
+.ws-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  text-align: left;
+  transition: box-shadow 0.14s, transform 0.14s, border-color 0.14s;
+
+  &:hover {
+    box-shadow: var(--elevation-2-bottom);
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+  }
+
+  &.add {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-style: dashed;
+    border-color: var(--border-primary);
+    background: transparent;
+    gap: 5px;
+    min-height: 196px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--surface-secondary-enabled);
+      transform: none;
+    }
+
+    .add-glyph {
+      width: 46px;
+      height: 46px;
+      border-radius: 13px;
+      background: var(--surface-tertiary-enabled);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    .add-nm {
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .add-ds {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.ws-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.ws-card-nm {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ws-card-meta {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.ws-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+
+  .enter {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--interactive-primary); /* the icon inherits this via currentColor */
+  }
+}

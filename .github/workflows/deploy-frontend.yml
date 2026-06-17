@@ -1,13 +1,17 @@
 name: Deploy Frontend (Netlify)
 
-# Triggered by `pnpm staging:frontend` (which pushes HEAD → staging/frontend).
-# Builds the Vite app and pushes the built dist/ to Netlify.
+# Deploy flow: open a PR into staging/frontend (base) from develop, get it
+# reviewed, and merge.
+#   • On the PR → builds the Vite app as a required check (no Netlify deploy).
+#   • On merge  → builds, then deploys dist/ to Netlify.
 #
 # Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
-# NETLIFY_AUTH_TOKEN. Optional repo variables: VITE_BACKEND_URL, VITE_RTC_WS_URL.
+# NETLIFY_AUTH_TOKEN. Optional repo variables: VITE_API_BASE_URL, VITE_RTC_WS_URL.
 on:
+  pull_request:
+    branches: [staging/frontend] # build-only check on the deploy PR
   push:
-    branches: [staging/frontend]
+    branches: [staging/frontend] # merge → build + deploy
   workflow_dispatch: {} # allow manual re-deploys from the Actions tab
 
 concurrency:
@@ -50,7 +54,9 @@ jobs:
       # which would echo the token into the public Actions log). Site ID is not
       # sensitive, so it stays inline. --filter selects this package in the pnpm
       # monorepo (without it the CLI refuses, unsure which package to deploy).
+      # Only deploy on merge/push (or manual run) — PR builds stop after the build above.
       - name: Deploy to Netlify
+        if: github.event_name != 'pull_request'
         run: npx --yes netlify-cli@latest deploy --prod --filter=frontend --dir=frontend/dist --site=28189552-7700-4ccc-b48d-99ce67cfa13d --message="Deploy ${{ github.sha }} from ${{ github.ref_name }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

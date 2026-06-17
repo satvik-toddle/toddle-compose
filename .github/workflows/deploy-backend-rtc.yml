@@ -1,15 +1,19 @@
 name: Deploy Backend + RTC (Render)
 
-# Triggered by `pnpm staging:backend` (which pushes HEAD → staging/backend-rtc-server).
-# Builds backend + rtc-server to catch breakage, then triggers the two Render
-# services to deploy (Render itself rebuilds from the staging/backend-rtc-server
-# branch it is connected to).
+# Deploy flow: open a PR into staging/backend-rtc-server (base) from develop, get
+# it reviewed, and merge.
+#   • On the PR  → the `build` job runs as a required check (compiles backend + rtc,
+#                  but does NOT touch Render). This is the review gate.
+#   • On merge   → the same build runs, then the `deploy` job triggers the two Render
+#                  deploy hooks. (Render auto-deploy stays OFF; the hook is the trigger.)
 #
 # Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
 # RENDER_DEPLOY_HOOK_BACKEND, RENDER_DEPLOY_HOOK_RTC.
 on:
+  pull_request:
+    branches: [staging/backend-rtc-server] # build-only check on the deploy PR
   push:
-    branches: [staging/backend-rtc-server]
+    branches: [staging/backend-rtc-server] # merge → build + deploy
   workflow_dispatch: {} # allow manual re-deploys from the Actions tab
 
 concurrency:
@@ -52,6 +56,8 @@ jobs:
 
   deploy:
     needs: build
+    # Only deploy on merge/push (or manual run) — never on a PR build check.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       # Each Render service exposes a Deploy Hook URL (Settings → Deploy Hook).

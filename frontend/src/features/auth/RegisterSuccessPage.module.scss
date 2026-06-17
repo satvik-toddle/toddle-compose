@@ -18,10 +18,8 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 6px;
-
-  :global(.ic-24) {
-    filter: invert(45%) sepia(60%) saturate(560%) hue-rotate(118deg) brightness(0.85);
-  }
+  /* the icon inherits this via currentColor (icons.css neutralizes filters) */
+  color: var(--text-semantic-success);
 }
 
 .suc-wait {

@@ -55,18 +55,14 @@
 
   &.pub {
     background: var(--decorative-background-teal);
-    color: var(--decorative-foreground-teal);
-
-    :global(.ic-12) {
-      filter: invert(35%) sepia(60%) saturate(560%) hue-rotate(120deg) brightness(0.85);
-    }
+    color: var(--decorative-foreground-teal); /* icon inherits via currentColor */
   }
 
   &.priv {
     background: var(--surface-tertiary-enabled);
     color: var(--text-secondary);
 
-    :global(.ic-12) {
+    :global(.ic) {
       opacity: 0.6;
     }
   }
@@ -74,9 +70,5 @@
   :global(.dark) &.pub {
     background: rgba(0, 172, 138, 0.18);
     color: var(--teal-700);
-
-    :global(.ic-12) {
-      filter: invert(70%) sepia(40%) saturate(900%) hue-rotate(110deg) brightness(1.05);
-    }
   }
 }

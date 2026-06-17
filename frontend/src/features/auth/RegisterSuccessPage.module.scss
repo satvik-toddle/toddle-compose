@@ -1,5 +1,5 @@
 /* Register-success screen. Co-located, auto-scoped CSS Module.
-   .ic-24 is the global icon size class; the pulse keyframe is scoped to this module. */
+   The pulse keyframe is scoped to this module. */
 
 .auth-success {
   display: flex;
@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 6px;
-  /* the icon inherits this via currentColor (icons.css neutralizes filters) */
+  /* the icon inherits this via currentColor */
   color: var(--text-semantic-success);
 }
 

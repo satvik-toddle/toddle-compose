@@ -2,7 +2,6 @@
    then the icon adaptation overrides. Order matters. */
 @import './colors_and_type.css';
 @import './rbac.css';
-@import './icons.css';
 
 html,
 body,

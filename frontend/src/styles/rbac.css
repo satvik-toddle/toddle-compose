@@ -22,16 +22,12 @@
 .rbac button { font-family: inherit; cursor: pointer; }
 
 /* icon helpers (outlined svg as <img>, tint via filter) */
-.rbac .ic   { width: 16px; height: 16px; flex: none; display:block; }
-.rbac .ic-12 { width: 12px; height: 12px; flex: none; display:block; }
-.rbac .ic-14 { width: 14px; height: 14px; flex: none; display:block; }
-.rbac .ic-18 { width: 18px; height: 18px; flex: none; display:block; }
-.rbac .ic-20 { width: 20px; height: 20px; flex: none; display:block; }
-.rbac .ic-24 { width: 24px; height: 24px; flex: none; display:block; }
-.rbac .ic-muted { filter: invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(85%); }
-.rbac .ic-white { filter: brightness(0) invert(1); }
-.rbac .ic-red   { filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%); }
-.rbac.dark .ic-muted, .dark .rbac .ic-muted { filter: invert(72%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(85%); }
+/* Icons: ds-icons SVGs whose paths use fill: currentColor, so `color` drives the
+   fill. The Icon component sets size + color inline; this is just the marker the
+   component tags every icon with (for context styles) + the currentColor rule.
+   (Replaces the old icons.css adaptation layer.) */
+.rbac .ic { flex: none; display: block; }
+.rbac .fill-current { fill: currentColor; }
 
 /* ---------------- Avatars ---------------- */
 /* .av/.av-stack/.av-ring removed as dead — Avatar/AvStack render the ds-web Avatar. */
@@ -57,7 +53,6 @@
 .rbac .inp.err { border-color: var(--border-semantic-error); }
 .rbac .inp.err:focus-within { box-shadow: 0 0 0 3px rgba(214,58,63,.16); }
 .rbac .err-text { font-size:12px; color: var(--text-semantic-error); display:flex; align-items:center; gap:6px; }
-.rbac .err-text .ic-14 { filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%); }
 
 /* .sel (fake dropdown) removed as dead — RoleSelect renders the ds-web SelectDropdown. */
 
@@ -177,7 +172,7 @@
 /* .seg (segmented control) removed as dead — unused. */
 .rbac .meta-sub { display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary); }
 .rbac .lock-note { display:inline-flex; align-items:center; gap:6px; font-size:12px; color: var(--text-secondary); }
-.rbac .lock-note .ic-14 { opacity:.7; }
+.rbac .lock-note .ic { opacity:.7; }
 
 /* ============================================================
    AUTH screens
@@ -214,12 +209,10 @@
 .rbac .auth-check { display:flex; align-items:center; gap:8px; color: var(--text-secondary); font-weight:600; cursor:pointer; }
 .rbac .cbx { width:16px; height:16px; border-radius:5px; border:1.5px solid var(--border-primary); display:inline-flex; align-items:center; justify-content:center; }
 .rbac .cbx.on { background: var(--interactive-primary); border-color: var(--interactive-primary); }
-.rbac .cbx.on .ic-12 { filter: brightness(0) invert(1); }
 .rbac .auth-fine { font-size:11px; color: var(--text-secondary); text-align:center; line-height:1.5; margin:4px 0 0; }
 .rbac .auth-foot { margin-top:18px; font-size:13px; color: var(--text-secondary); }
 .rbac .auth-banner { display:flex; align-items:center; gap:9px; padding:10px 13px; border-radius:10px; font-size:13px; font-weight:500; margin-bottom:18px; }
 .rbac .auth-banner.err { background: var(--surface-semantic-error); color: var(--text-semantic-error); border:1px solid var(--border-semantic-error); }
-.rbac .auth-banner.err .ic-14 { filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%); }
 /* .pw-strength/.bar/.pw-label → PasswordStrength.module.scss
    .auth-success/.suc-glyph/.suc-wait/.pulse (+ @keyframes rbacpulse) → RegisterSuccessPage.module.scss */
 
@@ -249,7 +242,7 @@
      .ad-mem-tbl                    → RealmMembersTab.module.scss
      .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss
    Removed as dead (unused after the table redesign):
-     .srch-box, .ad-ws-grid/.ad-ws-card*, .ad-mem-group/.ad-mem-cards/.mem-card*/.grp-h*
+     .srch-box, .ad-ws-grid, .ad-ws-card, .ad-mem-group, .ad-mem-cards, .mem-card, .grp-h
    Kept global (used cross-feature): .you-tag (also workspace MembersPanel),
    .tab .ct.alert (shared Tabs component). */
 .rbac .you-tag { font-size:10px; font-weight:700; color: var(--blue-400); background: var(--surface-primary-selected);
@@ -261,9 +254,9 @@
    INSIDE A WORKSPACE
    ============================================================ */
 /* Moved to co-located CSS Modules:
-     topbar + body split (.ws-topbar/.ws-switch/.ws-tb-*/.ws-crumb*/.ws-body) → WorkspaceLayout.module.scss
-     sidebar rail (.ws-nav*/.qk-row/.qk-ct/.ws-nav-foot)                      → WsNav.module.scss
-     pages tree (.ws-nav-grp/.grp-add/.ws-tree/.tree-row/.chev/.tw-lbl/.tw-more) → PagesTree.module.scss
+     topbar + body split (ws-topbar, ws-switch, ws-tb-left/right, ws-crumb, ws-body) → WorkspaceLayout.module.scss
+     sidebar rail (ws-nav, qk-row, qk-ct, ws-nav-foot)                      → WsNav.module.scss
+     pages tree (ws-nav-grp, grp-add, ws-tree, tree-row, chev, tw-lbl, tw-more) → PagesTree.module.scss
    Removed as dead (menus now render via the ds ActionMenu/Dropdown):
      .ws-switch-wrap, .ws-switch-menu/.sm-*, .folder-menu/.fm-*, .tree-row.menu-open
    Kept global: .ws-acct (owned by AcctPill), .tw-emoji (shared with PagesPanel). */

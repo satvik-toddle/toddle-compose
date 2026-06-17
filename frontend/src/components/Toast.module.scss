@@ -17,8 +17,7 @@
   box-shadow: var(--elevation-3-bottom);
   max-width: 480px;
 
-  :global(.ic-18) {
-    filter: brightness(0) invert(1);
+  :global(.ic) {
     opacity: 0.9;
   }
 

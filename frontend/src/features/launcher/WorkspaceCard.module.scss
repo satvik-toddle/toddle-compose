@@ -96,10 +96,6 @@
     gap: 3px;
     font-size: 13px;
     font-weight: 700;
-    color: var(--interactive-primary);
-
-    :global(.ic-14) {
-      filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%);
-    }
+    color: var(--interactive-primary); /* the icon inherits this via currentColor */
   }
 }

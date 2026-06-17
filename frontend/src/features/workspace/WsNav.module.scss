@@ -71,12 +71,8 @@
 
   &.active {
     background: var(--surface-primary-selected);
-    color: var(--blue-200);
+    color: var(--blue-200); /* the icon inherits this via currentColor */
     font-weight: 700;
-
-    :global(.ic) {
-      filter: invert(22%) sepia(92%) saturate(1450%) hue-rotate(170deg) brightness(0.8);
-    }
   }
 
   :global(.dark) &:hover {

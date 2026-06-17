@@ -245,7 +245,7 @@
 /* Moved to co-located CSS Modules:
      topbar + body split (ws-topbar, ws-switch, ws-tb-left/right, ws-crumb, ws-body) → WorkspaceLayout.module.scss
      sidebar rail (ws-nav, qk-row, qk-ct, ws-nav-foot)                      → WsNav.module.scss
-     pages tree (ws-nav-grp, grp-add, ws-tree, tree-row, chev, tw-lbl, tw-more) → PagesTree.module.scss
+     pages tree (ws-nav-grp, ws-tree, tree-row, chev, tw-lbl, tw-more, new-page-row) → PagesTree.module.scss
    Removed as dead (menus now render via the ds ActionMenu/Dropdown):
      .ws-switch-wrap, .ws-switch-menu/.sm-*, .folder-menu/.fm-*, .tree-row.menu-open
    Kept global: .ws-acct (owned by AcctPill), .tw-emoji (shared with PagesPanel). */

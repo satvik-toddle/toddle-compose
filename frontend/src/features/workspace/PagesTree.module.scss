@@ -13,19 +13,23 @@
   padding: 16px 9px 6px;
 }
 
-.grp-add {
-  margin-left: auto;
-  width: 20px;
-  height: 20px;
-  border: 0;
-  background: transparent;
-  border-radius: 5px;
+/* Coda-style "New page" row at the bottom of the tree */
+.new-page-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.07);
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+  }
+  :global(.dark) &:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
 }
 

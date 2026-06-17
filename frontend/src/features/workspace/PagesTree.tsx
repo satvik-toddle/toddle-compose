@@ -134,33 +134,36 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
 
   return (
     <>
-      <div className={s.wsNavGrp}>
-        Pages
-        {canCreate && (
-          <button className={s.grpAdd} title="New page" onClick={newRootPage}>
-            <Icon name="AddOutlined" size={14} muted />
-          </button>
-        )}
-      </div>
+      <div className={s.wsNavGrp}>Pages</div>
       <div className={s.wsTree}>
         {isLoading ? (
           <div style={{ padding: '8px 9px', fontSize: 12, color: 'var(--text-secondary)' }}>Loading…</div>
-        ) : isEmpty ? (
-          <div
-            style={{
-              padding: '10px 9px',
-              fontSize: 12,
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-            }}
-          >
-            <Icon name="InformationOutlined" size={14} muted />
-            No pages yet
-          </div>
         ) : (
-          roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)
+          <>
+            {!isEmpty && roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)}
+            {isEmpty && !canCreate && (
+              <div
+                style={{
+                  padding: '10px 9px',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                }}
+              >
+                <Icon name="InformationOutlined" size={14} muted />
+                No pages yet
+              </div>
+            )}
+            {/* Coda-style "New page" row at the bottom of the tree */}
+            {canCreate && (
+              <div className={s.newPageRow} role="button" onClick={newRootPage}>
+                <Icon name="AddOutlined" size={16} muted />
+                New page
+              </div>
+            )}
+          </>
         )}
       </div>
     </>

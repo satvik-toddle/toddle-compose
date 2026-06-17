@@ -1,0 +1,65 @@
+/* Launcher page layout. Co-located, auto-scoped CSS Module.
+   The page shell (.page/.page-wrap) and .sub stay global; the workspace card
+   system lives in WorkspaceCard.module.scss. */
+
+.lc-greet {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 8px;
+
+  h1 {
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  :global(.sub) {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+  }
+}
+
+.lc-greet-actions {
+  display: flex;
+  gap: 10px;
+  flex: none;
+}
+
+.lc-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-secondary-enabled);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 16px 0 4px;
+
+  b {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+}
+
+.lc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.lc-waitcard {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 22px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-bg);
+}

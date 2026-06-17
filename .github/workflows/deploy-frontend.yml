@@ -1,0 +1,54 @@
+name: Deploy Frontend (Netlify)
+
+# Triggered by `pnpm staging:frontend` (which pushes HEAD → staging/frontend).
+# Builds the Vite app and pushes the built dist/ to Netlify.
+on:
+  push:
+    branches: [staging/frontend]
+  workflow_dispatch: {} # allow manual re-deploys from the Actions tab
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true # a newer push supersedes an in-flight deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # @toddle-edu/* live on the private GitHub npm registry (see .npmrc),
+      # so install needs a token with read:packages.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      - name: Build frontend
+        run: pnpm --filter frontend build
+        env:
+          # Public deploy targets — set these as repo Variables (Settings → Variables).
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          VITE_RTC_WS_URL: ${{ vars.VITE_RTC_WS_URL }}
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: frontend/dist
+          production-deploy: true
+          deploy-message: "Deploy ${{ github.sha }} from ${{ github.ref_name }}"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

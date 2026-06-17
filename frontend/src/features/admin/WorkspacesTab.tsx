@@ -2,6 +2,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { PageSpinner } from '../../components/Spinner';
+import s from './WorkspacesTab.module.scss';
 import { useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useUiStore } from '../../stores/uiStore';
@@ -32,7 +33,7 @@ export function WorkspacesTab() {
           </div>
         </div>
 
-        <div className="tbl ad-ws-tbl">
+        <div className={`tbl ${s.adWsTbl}`}>
           <div className="thead">
             <div>Workspace</div>
             <div>Default access</div>
@@ -83,7 +84,7 @@ export function WorkspacesTab() {
             );
           })}
         </div>
-        <div className="ad-foot">{list.length} workspaces</div>
+        <div className={s.adFoot}>{list.length} workspaces</div>
       </div>
     </div>
   );

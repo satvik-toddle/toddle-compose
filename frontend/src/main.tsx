@@ -10,6 +10,11 @@ import { createQueryClient } from './lib/queryClient';
 import { bootstrapAuth } from './lib/http';
 import { App } from './App';
 // DS base styles must load before our own so app styles can override them.
+// main.css is the DS's *compiled* bundle — it already includes the Tailwind
+// utility classes (text-body, mt-3, flex, …) and tokens that web-app consumes,
+// so those utilities are available app-wide without us running any Tailwind build.
+// (Do NOT import dist/assets/tailwind.css — that's the uncompiled Tailwind source
+// with @import "tailwindcss/base" and fails outside the DS's own build.)
 import '@toddle-edu/ds-web/dist/assets/antd.css';
 import '@toddle-edu/ds-web/dist/assets/main.css';
 import './styles/index.css';

@@ -1,0 +1,17 @@
+/* Form field wrapper. Co-located, auto-scoped CSS Module. */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  > label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+}

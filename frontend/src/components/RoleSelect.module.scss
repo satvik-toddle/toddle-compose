@@ -1,0 +1,31 @@
+/* Inline role dropdown chip. Co-located, auto-scoped CSS Module.
+   The dropdown itself is the ds-web SelectDropdown; this styles the locked chip. */
+
+.role-dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 7px 0 8px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+
+  &:hover {
+    border-color: var(--line);
+    background: var(--panel-bg);
+  }
+
+  :global(.ic) {
+    opacity: 0.6;
+  }
+
+  &.locked {
+    opacity: 0.7;
+
+    &:hover {
+      border-color: transparent;
+      background: transparent;
+    }
+  }
+}

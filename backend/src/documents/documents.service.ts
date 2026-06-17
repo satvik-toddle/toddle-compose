@@ -23,10 +23,6 @@ type CreateDocumentInput = {
   workspaceId?: string;
 };
 
-const DEFAULT_ICON: Record<DocumentType, string> = {
-  [DocumentType.DOC]: "📄",
-  [DocumentType.SHEET]: "📊",
-};
 type ListDocumentsInput = {
   folderId?: string;
   // null → top-level docs only; a string → that parent's direct children.
@@ -40,13 +36,13 @@ type MoveDocumentInput = {
   parentId?: string | null;
 };
 
-type Breadcrumb = { id: string; title: string; icon: string };
+type Breadcrumb = { id: string; title: string; icon: string | null };
 
 // `children` is populated only for nodes on the expanded spine; off-path siblings get null + childCount.
 type HierarchyNode = {
   id: string;
   title: string;
-  icon: string;
+  icon: string | null;
   type: DocumentType;
   parentId: string | null;
   childCount: number;
@@ -155,7 +151,7 @@ export class DocumentsService {
     const doc = await this.prisma.document.create({
       data: {
         title: input.title,
-        icon: input.icon ?? DEFAULT_ICON[type],
+        icon: input.icon ?? null,
         type,
         workspaceId: wsId,
         ownerId: user.id,
@@ -510,7 +506,7 @@ export class DocumentsService {
     meta: {
       id: string;
       title: string;
-      icon: string;
+      icon: string | null;
       type: DocumentType;
       parentId: string | null;
     },

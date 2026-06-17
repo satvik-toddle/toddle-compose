@@ -411,9 +411,9 @@ function decode(jwt: string): Record<string, unknown> {
 
 /**
  * Sheet support (e2e) — the DOC/SHEET document kind: type round-trips through
- * create, per-kind default icons, validation of the `type` field, and that BOTH
- * kinds nest under a valid parent (DOC↔SHEET in either direction). Boots the real
- * AppModule against DATABASE_URL.
+ * create, icon is null unless explicitly set, validation of the `type` field, and
+ * that BOTH kinds nest under a valid parent (DOC↔SHEET in either direction). Boots
+ * the real AppModule against DATABASE_URL.
  */
 describe("Sheet support (e2e)", () => {
   let app: INestApplication;
@@ -433,27 +433,27 @@ describe("Sheet support (e2e)", () => {
     await app.close();
   });
 
-  it("creates a SHEET document → type SHEET, default 📊 icon", async () => {
+  it("creates a SHEET document → type SHEET, no default icon", async () => {
     const res = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))
       .send({ title: "Q3 Numbers", type: "SHEET" })
       .expect(201);
     expect(res.body.type).toBe("SHEET");
-    expect(res.body.icon).toBe("📊");
+    expect(res.body.icon).toBeNull();
   });
 
-  it("defaults to a DOC (type DOC, 📄 icon) when type is omitted", async () => {
+  it("defaults to a DOC (type DOC, no icon) when type is omitted", async () => {
     const res = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))
       .send({ title: "Plain Doc" })
       .expect(201);
     expect(res.body.type).toBe("DOC");
-    expect(res.body.icon).toBe("📄");
+    expect(res.body.icon).toBeNull();
   });
 
-  it("honours an explicit icon over the per-kind default", async () => {
+  it("honours an explicit icon", async () => {
     const res = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))

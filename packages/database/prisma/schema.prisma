@@ -151,7 +151,7 @@ model RefreshToken {
 model Folder {
   id          String    @id @default(cuid())
   name        String
-  icon        String    @default("📁")
+  icon        String?
   isPersonal  Boolean   @default(false) @map("is_personal")
   // Owning workspace — read access is granted to anyone with READ on it
   // (workspace members + the realm OWNER/MAINTAINER → ADMIN overlay).
@@ -179,7 +179,7 @@ model Folder {
 model Document {
   id          String     @id @default(cuid())
   title       String     @default("Untitled")
-  icon        String     @default("📄")
+  icon        String?
   type        DocumentType @default(DOC)
   // Owning workspace — read access follows workspace READ (members + realm overlay).
   workspaceId String     @map("workspace_id")

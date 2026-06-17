@@ -31,7 +31,9 @@
   padding: 0;
 
   &::placeholder {
-    color: var(--text-placeholder);
+    /* subtle — lighter than body placeholder text, and not bold-heavy at 40px */
+    color: var(--text-disabled);
+    font-weight: 500;
   }
 }
 

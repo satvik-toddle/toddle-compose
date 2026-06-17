@@ -21,7 +21,9 @@
   background: transparent;
   font-family: inherit;
   color: var(--text-primary);
-  font-size: 32px;
+  /* larger than the doc editor's h1 (32px) so the page title clearly outranks
+     in-document headings */
+  font-size: 40px;
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.25;

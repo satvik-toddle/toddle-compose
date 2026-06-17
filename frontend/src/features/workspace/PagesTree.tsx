@@ -127,7 +127,29 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             </span>
           )}
         </div>
-        {open && hasKids && node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
+        {open && hasKids && (
+          <>
+            {node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
+            {/* Coda-style "New page" row at the bottom of an expanded parent's children */}
+            {canCreate && (
+              <div
+                className={s.newPageRow}
+                style={{ paddingLeft: 8 + (depth + 1) * 15 }}
+                role="button"
+                onClick={() => {
+                  expand(node.doc.id);
+                  createDoc.mutate(
+                    { workspaceId: ws, parentId: node.doc.id, title: 'Untitled' },
+                    { onSuccess: (d) => selectDoc(d.id) },
+                  );
+                }}
+              >
+                <Icon name="AddOutlined" size={16} muted />
+                New page
+              </div>
+            )}
+          </>
+        )}
       </>
     );
   };

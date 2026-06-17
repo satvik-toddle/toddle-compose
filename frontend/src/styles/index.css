@@ -1,7 +1,15 @@
-/* Token layer first (CSS custom properties + fonts), then component styles,
-   then the icon adaptation overrides. Order matters. */
-@import './colors_and_type.css';
+/* The DS bundle (ds-web main.css, imported in main.tsx) provides the full color /
+   spacing / elevation token set + dark mode. This file adds the app-specific
+   tokens, the shared rbac component styles, base typography, and a few helpers. */
 @import './rbac.css';
+
+/* App-specific tokens (the DS uses different token names for these) */
+:root {
+  --font-family-base: "AvenirNext", "Nunito Sans", "Avenir Next",
+                      "AvenirNextWorld", Arial, sans-serif, system-ui;
+  --font-family-display: "Nunito", "AvenirNext", sans-serif;
+  --font-weight-medium: 500;
+}
 
 html,
 body,
@@ -10,11 +18,27 @@ body,
 }
 body {
   margin: 0;
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-100);
+  line-height: var(--line-height-100);
+  color: var(--text-primary);
   background: var(--app-bg, #ececed);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 #root {
   height: 100%;
 }
+
+/* Base headings — font-family inherits from body; size/weight are usually set by
+   the page container or a class, so these are just the fallback. */
+h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
+h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
+h3 { font-weight: 700; font-size: var(--font-size-600); line-height: var(--line-height-300); margin: 0; }
+h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-height-400); margin: 0; }
+h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
+h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
 
 /* ---- app-level helpers not in the design CSS ---- */
 .rbac .tc-center {

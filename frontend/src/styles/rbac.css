@@ -1,7 +1,7 @@
 /* ============================================================
    TODDLE COMPOSE — RBAC / Workspace management surfaces
-   All component styles, authored against DS semantic tokens so
-   the .dark scope (from colors_and_type.css) flips automatically.
+   All component styles, authored against DS semantic tokens so the
+   DS bundle's .dark scope flips them automatically.
    ============================================================ */
 
 .rbac {

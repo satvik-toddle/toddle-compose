@@ -134,7 +134,8 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             {canCreate && (
               <div
                 className={s.newPageRow}
-                style={{ paddingLeft: 8 + (depth + 1) * 15 }}
+                // align the + with the child page-icon column (chevron 14 + 7 gap)
+                style={{ paddingLeft: 8 + (depth + 1) * 15 + 21 }}
                 role="button"
                 onClick={() => {
                   expand(node.doc.id);
@@ -180,7 +181,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             )}
             {/* Coda-style "New page" row at the bottom of the tree */}
             {canCreate && (
-              <div className={s.newPageRow} role="button" onClick={newRootPage}>
+              <div className={s.newPageRow} style={{ paddingLeft: 8 + 21 }} role="button" onClick={newRootPage}>
                 <Icon name="AddOutlined" size={16} muted />
                 New page
               </div>

@@ -4,6 +4,9 @@ name: Deploy Backend + RTC (Render)
 # Builds backend + rtc-server to catch breakage, then triggers the two Render
 # services to deploy (Render itself rebuilds from the staging/backend-rtc-server
 # branch it is connected to).
+#
+# Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
+# RENDER_DEPLOY_HOOK_BACKEND, RENDER_DEPLOY_HOOK_RTC.
 on:
   push:
     branches: [staging/backend-rtc-server]
@@ -32,6 +35,12 @@ jobs:
         run: pnpm install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      # @app/database / @app/rtc-database resolve to their generated Prisma
+      # clients (generated/ is gitignored), so generate them before the build —
+      # otherwise the model types are missing and the backend won't compile.
+      - name: Generate Prisma clients
+        run: pnpm db:generate
 
       # Build = the gate. If either service fails to compile, we never trigger
       # Render, so a broken push can't reach staging.

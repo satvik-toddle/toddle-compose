@@ -41,13 +41,18 @@
     "typescript-eslint": "^8.11.0"
   },
   "pnpm": {
-    "comment": "Single-instance pins for the doc-editor (@toddle-edu/ds-doc-editor). Plain versions track its temp/lexical-yjs branch; bump in lockstep on editor upgrades. Add every @lexical/* subpackage you import. react/react-dom pinned to 17 to match the @toddle-edu/* peer ranges and guarantee a single React instance.",
+    "comment": "Single-instance pins for the doc-editor (@toddle-edu/ds-doc-editor). Plain versions track its temp/lexical-yjs branch; bump in lockstep on editor upgrades. Add every @lexical/* subpackage you import. react/react-dom pinned to 18 for the new frontend (@toddle-edu/ds-* peer ranges allow ^18 and guarantee a single React instance). lexical/yjs/y-websocket stay pinned for rtc-server.",
     "overrides": {
-      "react": "17.0.2",
-      "react-dom": "17.0.2",
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
       "lexical": "0.30.0",
       "@lexical/react": "0.30.0",
       "@lexical/yjs": "0.30.0",
+      "@lexical/rich-text": "0.30.0",
+      "@lexical/list": "0.30.0",
+      "@lexical/code": "0.30.0",
+      "@lexical/link": "0.30.0",
+      "@lexical/utils": "0.30.0",
       "yjs": "13.6.27",
       "y-websocket": "2.0.4"
     },

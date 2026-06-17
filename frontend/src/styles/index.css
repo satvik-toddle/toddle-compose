@@ -91,27 +91,10 @@ body {
   position: relative;
 }
 
-/* ---- doc editor (@toddle-edu/ds-doc-editor) ---- */
-.rbac .tc-editor {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-/* NavLink renders <a>; strip the UA underline/blue for rows and tabs. */
-.rbac a.tab,
-.rbac a.qk-row,
-.rbac a.sm-row {
+/* .tc-editor moved to DocEditor.module.scss (consolidated with the rbac.css rules).
+   .qk-row anchor reset moved into WsNav.module.scss; .tree-row .tw-more sizing
+   moved into PagesTree.module.scss (both classes are now hashed). */
+/* NavLink (Tabs) renders <a>; strip the UA underline. */
+.rbac a.tab {
   text-decoration: none;
-}
-.rbac a.qk-row {
-  color: inherit;
-}
-/* The folder ⋯ button is 22px and only shows on hover; at 22px it + the row's
-   10px padding (32px) exceeded the 30px row and bumped its height. 20px fits the
-   row's content box, so hovering no longer shifts the row. */
-.rbac .tree-row .tw-more {
-  width: 20px;
-  height: 20px;
 }

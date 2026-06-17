@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { PageSpinner } from '../../components/Spinner';
 import { useCreateDocument, useDocuments, useRenameDocument } from '../../hooks/usePages';
 import { buildDocTree } from './pagesModel';
+import s from './PagesPanel.module.scss';
 
 // The editor bundle is large — load it only when a page is opened.
 const DocEditor = lazy(() => import('./DocEditor').then((m) => ({ default: m.DocEditor })));
@@ -32,7 +33,7 @@ function PageTitle({
   useEffect(() => setVal(title), [title, docId]);
 
   if (!canEdit) {
-    return <h1 className="ws-doc-title-field">{title || 'Untitled'}</h1>;
+    return <h1 className={s.wsDocTitleField}>{title || 'Untitled'}</h1>;
   }
 
   const commit = () => {
@@ -43,7 +44,7 @@ function PageTitle({
 
   return (
     <input
-      className="ws-doc-title-field"
+      className={s.wsDocTitleField}
       value={val}
       placeholder="Untitled"
       aria-label="Page title"
@@ -99,7 +100,7 @@ export function PagesPanel() {
     const canEdit = wsAtLeast(ctx.role, 'EDIT');
     return (
       <main className="ws-main">
-        <div className="ws-doc-titlewrap">
+        <div className={s.wsDocTitlewrap}>
           <PageTitle workspaceId={ws} docId={doc.id} title={doc.title} canEdit={canEdit} />
         </div>
         <Suspense fallback={<PageSpinner />}>
@@ -148,7 +149,7 @@ export function PagesPanel() {
             {canCreate ? 'Create the first one.' : 'You have read access — an editor can add pages.'}
           </EmptyState>
         ) : (
-          <div className="tbl ws-docs-tbl">
+          <div className={`tbl ${s.wsDocsTbl}`}>
             <div className="thead">
               <div>Name</div>
               <div>Owner</div>

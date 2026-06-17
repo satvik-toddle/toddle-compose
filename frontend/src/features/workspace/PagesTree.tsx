@@ -9,6 +9,7 @@ import { useUiStore } from '../../stores/uiStore';
 import { wsAtLeast } from '../../lib/roles';
 import { cn } from '../../lib/cn';
 import type { WorkspaceCtx } from './WorkspaceLayout';
+import s from './PagesTree.module.scss';
 
 // Coda-style page tree: every row is a page (document); a page that has child
 // pages can expand. Nesting is by document parentId — no separate folder type.
@@ -55,7 +56,7 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
     return (
       <>
         <div
-          className={cn('tree-row doc', selDoc === node.doc.id && 'active')}
+          className={cn(s.treeRow, s.doc, selDoc === node.doc.id && s.active)}
           style={{ paddingLeft: 8 + depth * 15 }}
           role="button"
           onClick={() => selectDoc(node.doc.id)}
@@ -69,18 +70,18 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
               toggle(node.doc.id);
             }}
           >
-            <Icon name="ChevronRightOutlined" size={14} muted className={cn('chev', open && 'open')} />
+            <Icon name="ChevronRightOutlined" size={14} muted className={cn(s.chev, open && s.open)} />
           </span>
           <span className="tw-emoji">
             <Icon name="FileOutlined" size={16} muted />
           </span>
-          <span className="tw-lbl">{node.doc.title}</span>
+          <span className={s.twLbl}>{node.doc.title}</span>
           {(canCreate || manage) && (
             <span className="tw-more-wrap" onClick={(e) => e.stopPropagation()}>
               <ActionMenu
                 placement="bottomRight"
                 trigger={
-                  <button className="tw-more">
+                  <button className={s.twMore}>
                     <Icon name="DotsHorizontalOutlined" size={14} muted />
                   </button>
                 }
@@ -133,15 +134,15 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
 
   return (
     <>
-      <div className="ws-nav-grp">
+      <div className={s.wsNavGrp}>
         Pages
         {canCreate && (
-          <button className="grp-add" title="New page" onClick={newRootPage}>
+          <button className={s.grpAdd} title="New page" onClick={newRootPage}>
             <Icon name="AddOutlined" size={14} muted />
           </button>
         )}
       </div>
-      <div className="ws-tree">
+      <div className={s.wsTree}>
         {isLoading ? (
           <div style={{ padding: '8px 9px', fontSize: 12, color: 'var(--text-secondary)' }}>Loading…</div>
         ) : isEmpty ? (

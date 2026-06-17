@@ -8,6 +8,7 @@ import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
 import { PageSpinner } from '../../components/Spinner';
 import { WsNav } from './WsNav';
+import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';
 import { useCreateDocument, useDocuments } from '../../hooks/usePages';
@@ -110,10 +111,10 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
   };
 
   return (
-    <div className="ws-topbar">
-      <div className="ws-tb-left">
+    <div className={s.wsTopbar}>
+      <div className={s.wsTbLeft}>
         <button
-          className="ibtn tb-sidebar-toggle"
+          className={`ibtn ${s.tbSidebarToggle}`}
           onClick={onToggleSidebar}
           title="Toggle sidebar"
           aria-label="Toggle sidebar"
@@ -126,7 +127,7 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
           selectedKey={ctx.workspaceId}
           items={switcherItems}
           trigger={
-            <button className="ws-switch">
+            <button className={s.wsSwitch}>
               <span
                 className="ws-emoji sm"
                 style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
@@ -139,14 +140,14 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
           }
         />
         {doc && (
-          <div className="ws-crumb">
-            <span className="ws-crumb-sep">/</span>
+          <div className={s.wsCrumb}>
+            <span className={s.wsCrumbSep}>/</span>
             <Icon name="FileOutlined" size={16} muted />
-            <span className="ws-crumb-title">{doc.title}</span>
+            <span className={s.wsCrumbTitle}>{doc.title}</span>
           </div>
         )}
       </div>
-      <div className="ws-tb-right">
+      <div className={s.wsTbRight}>
         {ctx.overlay ? <WSChip overlay /> : <WSChip role={ctx.role} />}
         <IconButton icon="SearchOutlined" iconSize={18} />
         <IconButton icon="BellRingOutlined" iconSize={18} />
@@ -262,7 +263,7 @@ export function WorkspaceLayout() {
   return (
     <div className="rbac">
       <WsTopbar ctx={ctx} onToggleSidebar={toggleSidebar} />
-      <div className="ws-body">
+      <div className={s.wsBody}>
         <WsNav ctx={ctx} collapsed={sidebarCollapsed} />
         <Outlet context={ctx} />
       </div>

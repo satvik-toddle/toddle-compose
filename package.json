@@ -50,6 +50,9 @@
       "@lexical/yjs": "0.30.0",
       "yjs": "13.6.27",
       "y-websocket": "2.0.4"
+    },
+    "patchedDependencies": {
+      "@toddle-edu/ds-icons@1.21.1": "patches/@toddle-edu__ds-icons@1.21.1.patch"
     }
   }
 }

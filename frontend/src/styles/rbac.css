@@ -37,38 +37,7 @@
 /* .av/.av-stack/.av-ring removed as dead — Avatar/AvStack render the ds-web Avatar. */
 
 /* ---------------- Role chips ---------------- */
-/* Realm role — SOLID / authoritative */
-.rbac .rchip { display:inline-flex; align-items:center; gap:5px; height:21px; padding:0 9px;
-  border-radius:999px; font-size:11px; font-weight:700; line-height:1; white-space:nowrap; }
-.rbac .rchip .ic-12 { filter: brightness(0) invert(1); opacity:.92; }
-.rbac .rchip.owner      { background: var(--red-500);    color:#fff; }
-.rbac .rchip.maintainer { background: var(--violet-400); color:#fff; }
-.rbac .rchip.member     { background: var(--surface-tertiary-enabled); color: var(--text-secondary); }
-.rbac .rchip.member .ic-12 { filter: none; }
-.rbac.dark .rchip.member, .dark .rbac .rchip.member { background: var(--neutral-300); color: var(--neutral-800); }
-
-/* Workspace role — SOFT / tinted, leading icon */
-.rbac .wchip { display:inline-flex; align-items:center; gap:5px; height:21px; padding:0 8px 0 7px;
-  border-radius:6px; font-size:11px; font-weight:600; line-height:1; white-space:nowrap; }
-.rbac .wchip .ic-12 { opacity:.85; }
-.rbac .wchip.read    { background: var(--decorative-background-neutral); color: var(--decorative-foreground-neutral); }
-.rbac .wchip.comment { background: var(--decorative-background-blue);    color: var(--decorative-foreground-blue); }
-.rbac .wchip.comment .ic-12 { filter: invert(22%) sepia(92%) saturate(1450%) hue-rotate(170deg) brightness(.8); }
-.rbac .wchip.edit    { background: var(--decorative-background-teal);    color: var(--decorative-foreground-teal); }
-.rbac .wchip.edit .ic-12 { filter: invert(35%) sepia(60%) saturate(560%) hue-rotate(120deg) brightness(.85); }
-.rbac .wchip.admin   { background: var(--decorative-background-violet);  color: var(--decorative-foreground-violet); }
-.rbac .wchip.admin .ic-12 { filter: invert(24%) sepia(60%) saturate(2200%) hue-rotate(230deg) brightness(.85); }
-.rbac .wchip.overlay { background: transparent; border:1px dashed var(--border-primary); color: var(--text-secondary); font-weight:600; }
-.rbac .wchip.overlay .ic-12 { filter: none; opacity:.7; }
-
-/* dark tints for soft chips */
-.rbac.dark .wchip.read,    .dark .rbac .wchip.read    { background: #2c2c2c; color: var(--neutral-700); }
-.rbac.dark .wchip.comment, .dark .rbac .wchip.comment { background: rgba(0,176,194,.18); color: var(--blue-700); }
-.rbac.dark .wchip.comment .ic-12, .dark .rbac .wchip.comment .ic-12 { filter: invert(64%) sepia(60%) saturate(1200%) hue-rotate(140deg) brightness(1.1); }
-.rbac.dark .wchip.edit,    .dark .rbac .wchip.edit    { background: rgba(0,172,138,.18); color: var(--teal-700); }
-.rbac.dark .wchip.edit .ic-12, .dark .rbac .wchip.edit .ic-12 { filter: invert(70%) sepia(40%) saturate(900%) hue-rotate(110deg) brightness(1.05); }
-.rbac.dark .wchip.admin,   .dark .rbac .wchip.admin   { background: rgba(90,90,226,.22); color: var(--violet-700); }
-.rbac.dark .wchip.admin .ic-12, .dark .rbac .wchip.admin .ic-12 { filter: invert(60%) sepia(50%) saturate(1600%) hue-rotate(215deg) brightness(1.05); }
+/* .rchip/.wchip removed as dead — RealmChip/WSChip render the ds-web Tag. */
 
 /* ---------------- Buttons ---------------- */
 /* .btn* removed as dead — Button/IconButton wrappers render the ds-web Button. */
@@ -90,11 +59,7 @@
 .rbac .err-text { font-size:12px; color: var(--text-semantic-error); display:flex; align-items:center; gap:6px; }
 .rbac .err-text .ic-14 { filter: invert(38%) sepia(83%) saturate(2046%) hue-rotate(327deg) brightness(94%) contrast(94%); }
 
-/* select control (fake dropdown) */
-.rbac .sel { display:inline-flex; align-items:center; gap:8px; height:42px; padding:0 10px 0 12px; border-radius:9px;
-  border:1px solid var(--line-strong); background: var(--panel-bg); font-size:14px; color: var(--text-primary); justify-content:space-between; }
-.rbac .sel.sm { height:30px; border-radius:7px; font-size:12px; padding:0 6px 0 10px; }
-.rbac .sel .ic-14 { margin-left:2px; }
+/* .sel (fake dropdown) removed as dead — RoleSelect renders the ds-web SelectDropdown. */
 
 /* ---------------- App chrome (post-login) ---------------- */
 .rbac .appbar { height:60px; flex:none; display:flex; align-items:center; gap:14px; padding:0 22px;
@@ -209,10 +174,7 @@
 .rbac .page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:20px; }
 .rbac .page-head h1 { font-size:25px; font-weight:800; letter-spacing:-.01em; margin:0; }
 .rbac .page-head .sub { font-size:13px; color: var(--text-secondary); margin-top:4px; }
-.rbac .seg { display:inline-flex; padding:3px; border:1px solid var(--line); background: var(--panel-bg); border-radius:9px; gap:2px; }
-.rbac .seg .sb { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; font-size:12px; font-weight:600;
-  color: var(--text-secondary); border-radius:6px; }
-.rbac .seg .sb.on { background: var(--surface-tertiary-enabled); color: var(--text-primary); }
+/* .seg (segmented control) removed as dead — unused. */
 .rbac .meta-sub { display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary); }
 .rbac .lock-note { display:inline-flex; align-items:center; gap:6px; font-size:12px; color: var(--text-secondary); }
 .rbac .lock-note .ic-14 { opacity:.7; }

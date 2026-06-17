@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RATE_LIMIT_DEFAULTS } from "./rate-limit";
 
 // In production, secrets are REQUIRED with no defaults; outside production some carry dev-only defaults (see INTERNAL_TOKEN).
 const isProduction = process.env.NODE_ENV === "production";
@@ -22,6 +23,16 @@ export const envSchema = z.object({
 
   // CORS allowlist (comma-separated origins). No wildcard in production.
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
+
+  // --- Rate limiting (@nestjs/throttler) -------------------------------------
+  // Window all limits below are measured over, in milliseconds.
+  RATE_LIMIT_TTL_MS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.ttlMs),
+  // Global default (per client IP) for routes guarded by ThrottlerGuard.
+  RATE_LIMIT_GLOBAL_LIMIT: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.globalLimit),
+  // Stricter per-route caps on the unauthenticated auth endpoints (anti credential-stuffing).
+  RATE_LIMIT_AUTH_REGISTER: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authRegister),
+  RATE_LIMIT_AUTH_LOGIN: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authLogin),
+  RATE_LIMIT_AUTH_REFRESH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authRefresh),
 
   // RS256 keypair backing the JWKS endpoint (rtc-server verifies against it later).
   RTC_PRIVATE_KEY_PATH: z.string().default("./.keys/rtc-private.pem"),

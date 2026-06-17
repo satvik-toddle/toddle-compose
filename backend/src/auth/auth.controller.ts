@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { rateLimit } from "../config/rate-limit";
 import { AuthService } from "./auth.service";
 import { LoginDto, RefreshDto, RegisterDto } from "./dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -11,21 +12,21 @@ export class AuthController {
 
   // Unauthenticated entry points rate-limited per client IP to blunt credential stuffing.
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: rateLimit.authRegister, ttl: rateLimit.ttlMs } })
   @Post("register")
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto.email, dto.password, dto.name);
   }
 
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: rateLimit.authLogin, ttl: rateLimit.ttlMs } })
   @Post("login")
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);
   }
 
   @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Throttle({ default: { limit: rateLimit.authRefresh, ttl: rateLimit.ttlMs } })
   @Post("refresh")
   refresh(@Body() dto: RefreshDto) {
     return this.auth.refresh(dto.refreshToken);

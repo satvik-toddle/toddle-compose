@@ -10,6 +10,9 @@ export const envSchema = z.object({
       : z.string().default("dev-internal-secret-change-me"),
   RTC_PORT: z.coerce.number().default(4001),
   RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
+  // Per-connection token bucket for inbound WS messages: bucket size (burst) and steady refill rate per second.
+  RTC_RATE_LIMIT_CAPACITY: z.coerce.number().int().positive().default(500),
+  RTC_RATE_LIMIT_REFILL_PER_SEC: z.coerce.number().int().positive().default(100),
   RTC_INTERNAL_PORT: z.coerce.number().default(4002),
   JWKS_URL: z
     .string()

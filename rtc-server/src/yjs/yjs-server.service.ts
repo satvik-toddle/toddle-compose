@@ -15,10 +15,6 @@ import type { Env } from "../config/env";
 
 const log = createLogger("ws");
 
-// Per-connection token bucket for message rate limiting.
-const RATE_LIMIT_CAPACITY = 500;
-const RATE_LIMIT_REFILL_PER_SEC = 100;
-
 // y-websocket protocol message types: 0 = sync, 1 = awareness.
 const MESSAGE_AWARENESS = 1;
 const AWARENESS_MAX_PER_SEC = 15;
@@ -107,6 +103,14 @@ export class YjsServerService
   }
 
   private startWss(port: number): WebSocketServer {
+    // Per-connection token bucket for inbound WS messages (env-tunable).
+    const rateLimitCapacity = this.config.get("RTC_RATE_LIMIT_CAPACITY", {
+      infer: true,
+    });
+    const rateLimitRefillPerSec = this.config.get(
+      "RTC_RATE_LIMIT_REFILL_PER_SEC",
+      { infer: true }
+    );
     const wss = new WebSocketServer({
       port,
       maxPayload: this.config.get("RTC_WS_MAX_PAYLOAD_BYTES", { infer: true }),
@@ -193,14 +197,14 @@ export class YjsServerService
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 
       // Message wrapper: awareness coalescing, token-bucket rate limiting, and dropping viewer sync writes.
-      let bucketTokens = RATE_LIMIT_CAPACITY;
+      let bucketTokens = rateLimitCapacity;
       let bucketRefilledAt = Date.now();
       const takeToken = (): boolean => {
         const now = Date.now();
         bucketTokens = Math.min(
-          RATE_LIMIT_CAPACITY,
+          rateLimitCapacity,
           bucketTokens +
-            ((now - bucketRefilledAt) / 1000) * RATE_LIMIT_REFILL_PER_SEC
+            ((now - bucketRefilledAt) / 1000) * rateLimitRefillPerSec
         );
         bucketRefilledAt = now;
         if (bucketTokens < 1) return false;

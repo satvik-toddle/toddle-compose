@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { validateEnv } from "./config/env";
+import { rateLimit } from "./config/rate-limit";
 import { PrismaModule } from "./prisma/prisma.module";
 import { KeysModule } from "./keys/keys.module";
 import { AuthModule } from "./auth/auth.module";
@@ -23,7 +24,7 @@ import { HealthController } from "./health.controller";
     ScheduleModule.forRoot(),
     // In-memory storage: per-instance limits, so N replicas multiply them by N (use Redis-backed storage when scaling out).
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 100 }],
+      throttlers: [{ ttl: rateLimit.ttlMs, limit: rateLimit.globalLimit }],
       skipIf: () => process.env.NODE_ENV === "test",
     }),
     PrismaModule,

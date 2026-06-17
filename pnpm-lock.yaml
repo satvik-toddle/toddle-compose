@@ -18,6 +18,11 @@ overrides:
   yjs: 13.6.27
   y-websocket: 2.0.4
 
+patchedDependencies:
+  '@toddle-edu/ds-icons@1.21.1':
+    hash: zlofyfyrxrrnce2rima5ad4a6u
+    path: patches/@toddle-edu__ds-icons@1.21.1.patch
+
 importers:
 
   .:
@@ -147,8 +152,8 @@ importers:
         specifier: 0.9.1
         version: 0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@toddle-edu/ds-icons':
-        specifier: 1.22.1
-        version: 1.22.1(react@18.3.1)
+        specifier: 1.21.1
+        version: 1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
       '@toddle-edu/ds-theme':
         specifier: 2.8.8
         version: 2.8.8
@@ -1710,8 +1715,8 @@ packages:
       react: 18.3.1
       react-dom: 18.3.1
 
-  '@toddle-edu/ds-icons@1.22.1':
-    resolution: {integrity: sha512-sVjkWA+NyZwGrf40soCwmgP9K7wVsqQwmsQMUn//kEpWEObLhc/5oXOLdN0csN9zMqGR/Tiid6g7QITfI1ZF6Q==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-icons/1.22.1/992848f468943b5288b505596d003f116393954f}
+  '@toddle-edu/ds-icons@1.21.1':
+    resolution: {integrity: sha512-OXFxJul1wYylhpnebEMHvYy8fbvHpE+tshiPwXj/BnS5nP36/rRwu0PAKYQzEiGRWTEI3mqLgXkRa/MImPXf5A==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-icons/1.21.1/c3707f615414602a9602e5e8c9b9a7ba7df4671c}
     peerDependencies:
       react: 18.3.1
 
@@ -2140,8 +2145,8 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
-  axios@1.18.0:
-    resolution: {integrity: sha512-E32NzpYKp++W7XRe52rHiXV2ehxmh3wbdgO7MHeFM+vqxLBYHzt0ElkiImtOBxtOmyp0yoC8C6uESVV84Y2/hw==}
+  axios@1.17.0:
+    resolution: {integrity: sha512-J8SwNxprqqpbfenehxWYXE7CW+wM1BB4w3+N+g+/Wx40xM4rsLrfPmHHxSWIxJLYDgSY/HqlFPIYb2/S3rxafw==}
 
   babel-jest@29.7.0:
     resolution: {integrity: sha512-BrvGY3xZSwEcCzKvKsCi2GgHqDqsYkOP4/by5xCgIwGXQxIEh+8ew3gmrE1y7XRR6LHZIj6yLYnUi/mm2KXKBg==}
@@ -6670,7 +6675,7 @@ snapshots:
 
   '@toddle-edu/common-utils@2.3.48(esbuild@0.28.0)':
     dependencies:
-      axios: 1.18.0
+      axios: 1.17.0
       crypto-js: 4.2.0
       esbuild-plugin-polyfill-node: 0.3.0(esbuild@0.28.0)
       lodash: 4.18.1
@@ -6685,7 +6690,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@toddle-edu/ds-icons@1.22.1(react@18.3.1)':
+  '@toddle-edu/ds-icons@1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)':
     dependencies:
       '@toddle-edu/ds-theme': 2.8.8
       classnames: 2.5.1
@@ -6714,7 +6719,7 @@ snapshots:
       '@seznam/compose-react-refs': 1.0.6
       '@tailwindcss/forms': 0.5.11(tailwindcss@4.3.0)
       '@tanstack/react-virtual': 3.13.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@toddle-edu/ds-icons': 1.22.1(react@18.3.1)
+      '@toddle-edu/ds-icons': 1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
       '@toddle-edu/ds-theme': 2.8.8
       '@toddle-edu/react-mentions': 4.4.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@toddle-edu/react-tiny-popover': 6.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -7316,7 +7321,7 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.18.0:
+  axios@1.17.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5

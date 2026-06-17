@@ -19,11 +19,7 @@ const KID = "rtc-key-1";
 
 type KeyMaterial = { privateKey: KeyLike; publicKey: KeyLike; publicJwk: JWK };
 
-/**
- * Generates (once) and serves an RS256 keypair. Private key signs RTC tokens;
- * the public JWK is exposed at /.well-known/rtc-jwks.json for the rtc-server to
- * verify against. Keys are persisted under the repo-root .keys/ dir (gitignored).
- */
+// RS256 keypair: private key signs RTC tokens, public JWK is served at /.well-known/rtc-jwks.json. Persisted (once) under repo-root .keys/.
 @Injectable()
 export class KeysService {
   readonly alg = ALG;

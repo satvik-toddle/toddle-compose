@@ -14,10 +14,7 @@ const NAMESPACE = "ds-doc-editor-collab";
 
 export type ExtractResult = { lexicalJson: string | null; plainText: string };
 
-// Server node classes are pre-bundled to CJS (lexical/yjs externalized) so they
-// share the loading context's single lexical/yjs instances — this holds both on
-// the main thread and inside a worker thread, each of which has its own module
-// registry. See scripts/bundle-server-nodes.mjs.
+// Pre-bundled CJS (lexical/yjs externalized) so nodes share the loading context's single lexical/yjs instances. See scripts/bundle-server-nodes.mjs.
 const serverNodes: Array<Klass<LexicalNode>> =
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime CJS bundle, not a typed module
   require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
@@ -33,11 +30,7 @@ function makeStubProvider(ydoc: Y.Doc): Provider {
   } as unknown as Provider;
 }
 
-/**
- * Synchronous headless-Lexical extraction. CPU-heavy (full doc parse) — callers
- * on the main thread should go through LexicalExtractService, which runs this in
- * a worker pool; this direct form exists for the worker itself and as a fallback.
- */
+// Synchronous, CPU-heavy headless-Lexical extraction; main-thread callers use LexicalExtractService's worker pool instead.
 export function extractFromBytesSync(stateUpdate: Uint8Array): ExtractResult {
   const t0 = Date.now();
   try {

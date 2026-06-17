@@ -7,11 +7,7 @@ import { LocalObjectStorage } from "./local-object-storage";
 import { S3ObjectStorage } from "./s3-object-storage";
 import { UploadsController } from "./uploads.controller";
 
-/**
- * Wires the configured ObjectStorage provider behind the OBJECT_STORAGE token.
- * The driver is chosen once, from STORAGE_DRIVER, at startup — consumers inject
- * the interface and never know which backend they got.
- */
+// Wires the ObjectStorage driver (chosen once from STORAGE_DRIVER) behind the OBJECT_STORAGE token.
 @Module({
   imports: [AuthModule], // provides JwtAuthGuard for the upload route
   controllers: [UploadsController],

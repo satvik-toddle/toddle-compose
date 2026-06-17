@@ -7,7 +7,7 @@ import { RealmRole, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
 
-/** Cumulative rank for each ladder; higher number = strictly more capable. */
+// Rank per ladder; higher = more capable.
 const REALM_ORDER: Record<RealmRole, number> = {
   MEMBER: 0,
   MAINTAINER: 1,
@@ -20,12 +20,7 @@ const WS_ORDER: Record<WorkspaceRole, number> = {
   ADMIN: 3,
 };
 
-/**
- * Single authorization choke point. Roles are resolved per-request from the DB
- * (never trusted from the JWT) so demotions take effect immediately and there is
- * one source of truth. Realm OWNER/MAINTAINER project to workspace ADMIN on every
- * workspace in the realm (the "overlay").
- */
+// Authz choke point: roles resolved per-request from the DB (not the JWT) so demotions take effect immediately. Realm OWNER/MAINTAINER overlay as workspace ADMIN.
 @Injectable()
 export class AuthzService {
   constructor(
@@ -58,11 +53,7 @@ export class AuthzService {
     return ws;
   }
 
-  /**
-   * Effective workspace role = MAX(direct membership, realm overlay).
-   * Returns null when the user exists in the realm but has no access to this workspace.
-   * 404s when the workspace is not in this realm.
-   */
+  // Effective role = MAX(direct membership, realm overlay); null if no access, 404 if workspace not in realm.
   async effectiveWorkspaceRole(
     userId: string,
     workspaceId: string

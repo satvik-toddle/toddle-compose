@@ -9,16 +9,7 @@ import {
   type StoredObject,
 } from "./object-storage";
 
-/**
- * S3-compatible ObjectStorage (AWS S3 / MinIO / Cloudflare R2).
- *
- * The AWS SDK is imported LAZILY (and only when STORAGE_DRIVER=s3) so the project
- * builds and runs on the `local` driver without `@aws-sdk/client-s3` installed.
- * To enable S3:
- *   1. `pnpm --filter backend add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner`
- *   2. set STORAGE_DRIVER=s3 + STORAGE_S3_BUCKET / _REGION / credentials in .env
- * No consumer code changes — everything talks to the ObjectStorage interface.
- */
+// S3-compatible ObjectStorage; the AWS SDK is imported lazily so the local driver needs it not installed.
 @Injectable()
 export class S3ObjectStorage implements ObjectStorage {
   private readonly logger = new Logger(S3ObjectStorage.name);
@@ -61,8 +52,7 @@ export class S3ObjectStorage implements ObjectStorage {
   /** Lazily import the AWS SDK and build a memoized client. */
   private async load() {
     if (this.sdk) return this.sdk;
-    // Non-literal specifiers so TypeScript doesn't require the packages at build
-    // time; they're only needed when this driver is actually selected.
+    // Non-literal specifiers so TS doesn't require the packages at build time.
     const clientSpec = "@aws-sdk/client-s3";
     const presignSpec = "@aws-sdk/s3-request-presigner";
     let s3mod: any;
@@ -128,8 +118,10 @@ export class S3ObjectStorage implements ObjectStorage {
         contentType: res.ContentType ?? "application/octet-stream",
         size: body.length,
       };
-    } catch {
-      return null;
+    } catch (e) {
+      // Only a genuine 404 is `null`; transient failures must propagate so callers can retry.
+      if (isNotFound(e)) return null;
+      throw e;
     }
   }
 
@@ -150,6 +142,22 @@ export class S3ObjectStorage implements ObjectStorage {
       { expiresIn: this.signTtlSec }
     );
   }
+}
+
+// True only when an error means the object does not exist (NoSuchKey / 404), not a transient error.
+function isNotFound(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const err = e as {
+    name?: string;
+    Code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  return (
+    err.name === "NoSuchKey" ||
+    err.name === "NotFound" ||
+    err.Code === "NoSuchKey" ||
+    err.$metadata?.httpStatusCode === 404
+  );
 }
 
 /** Collect an AWS SDK response body stream into a Buffer. */

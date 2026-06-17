@@ -11,7 +11,7 @@ export type RtcClaims = {
   sub: string;
   docId: string;
   role: Role;
-  /** JWT expiry (seconds since epoch), used to close sockets at expiry. */
+  // JWT expiry (epoch seconds), used to close sockets at expiry.
   exp?: number;
 };
 

@@ -314,7 +314,7 @@ Content-Type: application/json
 # 6. DOCUMENTS  (/api/documents)  — workspace-scoped
 # =============================================================================
 
-### Create a document inside the folder → capture its id (PRIVATE by default)
+### Create a document inside the folder → capture its id (PRIVATE by default, type DOC)
 # @name createDoc
 POST {{baseUrl}}/documents
 Authorization: Bearer {{wsToken}}
@@ -325,6 +325,21 @@ Content-Type: application/json
 > {%
   client.global.set("docId", response.body.id);
   client.test("doc private by default", () => client.assert(response.body.visibility === "PRIVATE"));
+  client.test("defaults to type DOC", () => client.assert(response.body.type === "DOC"));
+%}
+
+### Create a SHEET document (data grid) → capture its id; icon defaults to 📊 when omitted
+# @name createSheet
+POST {{baseUrl}}/documents
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "title": "Q3 Numbers", "type": "SHEET", "folderId": "{{folderId}}" }
+
+> {%
+  client.global.set("sheetDocId", response.body.id);
+  client.test("is a SHEET", () => client.assert(response.body.type === "SHEET"));
+  client.test("default sheet icon", () => client.assert(response.body.icon === "📊"));
 %}
 
 ### List documents in the active workspace (newest first)
@@ -352,6 +367,16 @@ Content-Type: application/json
 { "title": "Subdoc — appendix", "icon": "📎", "parentId": "{{docId}}" }
 
 > {% client.global.set("subdocId", response.body.id); %}
+
+### Nest a SHEET under the (DOC) document — both kinds are nestable under any parent
+# @name createNestedSheet
+POST {{baseUrl}}/documents
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "title": "Embedded sheet", "type": "SHEET", "parentId": "{{docId}}" }
+
+> {% client.test("nested sheet keeps its kind", () => client.assert(response.body.type === "SHEET" && response.body.parentId === client.global.get("docId"))); %}
 
 ### List the document's direct subdocs (immediate children)
 GET {{baseUrl}}/documents/{{docId}}/subdocs
@@ -403,6 +428,16 @@ Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
 { "parentId": "{{subdocId}}" }
+
+### Edit history — per-author sessions (newest first). For SHEET docs each session
+### carries `changedCells`. Requires READ. (Needs the rtc-server running.)
+GET {{baseUrl}}/documents/{{sheetDocId}}/history
+Authorization: Bearer {{wsToken}}
+
+### Read-only snapshot at an update seq — for a SHEET this returns the grid (`sheet`),
+### null for a DOC. `400` if seq isn't a non-negative integer. (Needs the rtc-server running.)
+GET {{baseUrl}}/documents/{{sheetDocId}}/history/0
+Authorization: Bearer {{wsToken}}
 
 ### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member
 PATCH {{baseUrl}}/documents/{{docId}}/visibility

@@ -16,7 +16,7 @@ import { WorkspaceSessionController } from "./workspace-session.controller";
     WorkspaceSessionService,
   ],
   controllers: [RealmController, WorkspaceSessionController],
-  // Shared so WorkspacesModule resolves realm scope + the same authz choke point.
+  // Shared so WorkspacesModule reuses the same authz choke point.
   exports: [ActiveRealmService, AuthzService],
 })
 export class RealmModule {}

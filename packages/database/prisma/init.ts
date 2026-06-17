@@ -1,14 +1,7 @@
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
-/**
- * Realm bootstrap — the minimum the backend needs to boot (it refuses to start
- * unless a realm row matching REALM_ID exists). Safe to run in any environment:
- * creates the realm + the static OWNER from env, no demo data, and never logs the
- * password. Idempotent; re-running does NOT reset an existing owner's password.
- *
- * Run:  pnpm db:init   (locally, typically `db:init && db:seed`)
- */
+// Realm bootstrap (the backend refuses to start without a realm matching REALM_ID); prod-safe and idempotent.
 const prisma = new PrismaClient();
 const BCRYPT_COST = 12; // matches the auth service
 

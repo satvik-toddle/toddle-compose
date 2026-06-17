@@ -9,11 +9,7 @@ import {
   MinLength,
 } from "class-validator";
 
-/**
- * Pagination for the folders list. Deliberately NOT the shared PaginationDto:
- * the client assembles the folder tree from this flat list, so a small page cap
- * would truncate trees. 2000 covers any realistic workspace in one request.
- */
+// Not the shared PaginationDto: the client builds the tree from this flat list, so the cap is 2000 to avoid truncating trees.
 export class ListFoldersDto {
   @IsOptional()
   @Type(() => Number)
@@ -40,12 +36,12 @@ export class CreateFolderDto {
   @MaxLength(16)
   icon?: string;
 
-  // Nest under an existing folder (same workspace); omit for a top-level folder.
+  // Nest under an existing folder; omit for a top-level folder.
   @IsOptional()
   @IsString()
   parentId?: string;
 
-  // Target workspace; defaults to the caller's active workspace from the session.
+  // Defaults to the caller's active workspace from the session.
   @IsOptional()
   @IsString()
   workspaceId?: string;
@@ -65,7 +61,7 @@ export class UpdateFolderDto {
 }
 
 export class MoveFolderDto {
-  // null/omitted → move to the top level; otherwise re-parent under this folder.
+  // null/omitted → top level; otherwise re-parent under this folder.
   @IsOptional()
   @IsString()
   parentId?: string | null;

@@ -13,6 +13,15 @@ enum Visibility {
   PUBLIC
 }
 
+// Document kind. DOC is the collaborative rich-text editor (default); SHEET is
+// the collaborative data grid. Both share the same RTC/Yjs persistence, keyed
+// by Document.id — only the client-side surface differs. Both kinds nest the
+// same way (parentId DocumentTree below).
+enum DocumentType {
+  DOC
+  SHEET
+}
+
 // Realm hierarchy (cumulative): OWNER > MAINTAINER > MEMBER.
 // OWNER is the seeded static realm owner; MAINTAINER can create workspaces and
 // run all realm/workspace operations; MEMBER belongs to the realm only.
@@ -142,7 +151,7 @@ model RefreshToken {
 model Folder {
   id          String    @id @default(cuid())
   name        String
-  icon        String    @default("📁")
+  icon        String?
   isPersonal  Boolean   @default(false) @map("is_personal")
   // Owning workspace — read access is granted to anyone with READ on it
   // (workspace members + the realm OWNER/MAINTAINER → ADMIN overlay).
@@ -170,7 +179,8 @@ model Folder {
 model Document {
   id          String     @id @default(cuid())
   title       String     @default("Untitled")
-  icon        String     @default("📄")
+  icon        String?
+  type        DocumentType @default(DOC)
   // Owning workspace — read access follows workspace READ (members + realm overlay).
   workspaceId String     @map("workspace_id")
   workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

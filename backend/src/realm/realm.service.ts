@@ -37,10 +37,7 @@ export class RealmService {
     });
   }
 
-  /**
-   * Add an existing user to the realm. Owner manages maintainers; maintainers
-   * manage members. OWNER is never assignable here.
-   */
+  // Owner manages maintainers; maintainers manage members. OWNER never assignable.
   async addUser(actorId: string, email: string, role: RealmRole) {
     await this.requireAuthorityOver(actorId, role);
 
@@ -71,7 +68,7 @@ export class RealmService {
     if (existing.role === "OWNER") {
       throw new ForbiddenException("cannot change the realm owner");
     }
-    // Authority is the max of the current and target roles.
+    // Need authority over both current and target roles.
     await this.requireAuthorityOver(actorId, existing.role);
     await this.requireAuthorityOver(actorId, role);
 
@@ -90,8 +87,7 @@ export class RealmService {
     }
     await this.requireAuthorityOver(actorId, existing.role);
 
-    // The realm is the tenant boundary: leaving it must also revoke every
-    // workspace membership and pending join request inside it, atomically.
+    // Realm is the tenant boundary: also revoke all workspace memberships + pending requests, atomically.
     await this.prisma.$transaction(async (tx) => {
       await tx.workspaceMember.deleteMany({
         where: { userId: targetUserId, workspace: { realmId: this.realm.id } },

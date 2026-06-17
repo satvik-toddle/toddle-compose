@@ -90,10 +90,7 @@ export class InternalController {
 
   @Delete(":docId")
   async deleteDoc(@Param("docId") docId: string) {
-    // Tear down any live y-websocket doc first — the doc is being deleted, so
-    // nothing is flushed. Clearing `conns` before closing the sockets prevents
-    // y-websocket's closeConn from triggering writeState (which would
-    // re-persist the doc we are about to delete).
+    // Tear down any live doc without flushing; clear `conns` before closing so closeConn doesn't re-persist via writeState.
     const liveDoc = ywsDocs.get(docId);
     if (liveDoc) {
       const conns = [...liveDoc.conns.keys()];
@@ -110,8 +107,7 @@ export class InternalController {
     }
     // Drop in-memory persistence state (timers, debounce, append chain).
     await this.docState.evictDocNoFlush(docId);
-    // Delete the doc row and all its update rows atomically. Idempotent: a
-    // nonexistent doc still yields { ok: true }.
+    // Atomically delete the doc and its update rows; idempotent.
     await this.repo.deleteDocCompletely(docId);
     return { ok: true, docId };
   }

@@ -2,8 +2,7 @@ import { Module } from "@nestjs/common";
 import { RtcTokenService } from "./rtc-token.service";
 import { RtcInternalClient } from "./rtc-internal.client";
 
-// KeysService is provided globally (KeysModule is @Global), so RtcTokenService can
-// inject it without importing KeysModule here.
+// KeysService is provided globally (@Global), so no KeysModule import needed here.
 @Module({
   providers: [RtcTokenService, RtcInternalClient],
   exports: [RtcTokenService, RtcInternalClient],

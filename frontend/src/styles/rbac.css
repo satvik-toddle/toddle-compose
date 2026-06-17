@@ -163,7 +163,6 @@
 .rbac .page-head h1 { font-size:25px; font-weight:800; letter-spacing:-.01em; margin:0; }
 .rbac .page-head .sub { font-size:13px; color: var(--text-secondary); margin-top:4px; }
 /* .seg (segmented control) removed as dead — unused. */
-.rbac .meta-sub { display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary); }
 .rbac .lock-note { display:inline-flex; align-items:center; gap:6px; font-size:12px; color: var(--text-secondary); }
 .rbac .lock-note .ic { opacity:.7; }
 

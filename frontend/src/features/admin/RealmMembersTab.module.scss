@@ -1,0 +1,9 @@
+/* Realm members tab. Co-located, auto-scoped CSS Module.
+   Shared table primitive stays global; only this tab's column grid lives here. */
+
+.ad-mem-tbl {
+  :global(.thead),
+  :global(.trow) {
+    grid-template-columns: 1.8fr 200px 170px 120px;
+  }
+}

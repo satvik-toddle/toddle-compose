@@ -207,8 +207,8 @@ export class DocumentsService {
     });
     // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
     this.cache.set(doc.id, doc);
-    // Best-effort RTC provisioning: the rtc-server also creates the row lazily on first connect.
-    await this.rtc.initDocBestEffort(doc.id);
+    // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
+    void this.rtc.initDocBestEffort(doc.id);
     return doc;
   }
 
@@ -411,7 +411,7 @@ export class DocumentsService {
     for (const docId of ids) this.cache.invalidate(docId);
     // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
     for (const docId of ids) {
-      await this.rtc.deleteDocBestEffort(docId);
+      void this.rtc.deleteDocBestEffort(docId);
     }
     return { ok: true as const, deleted: ids.length };
   }

@@ -104,6 +104,13 @@ export class DocumentsService {
     return row;
   }
 
+  private async invalidateChildSet(parentId: string | null): Promise<void> {
+    if (!parentId) return;
+    this.cache.invalidateChildren(parentId);
+    const parent = await this.loadDocRow(parentId);
+    if (parent?.parentId) this.cache.invalidateChildren(parent.parentId);
+  }
+
   // Documents in the (active or given) workspace, optionally narrowed to a folder.
   // TODO(pagination): offset-based for now; move to cursor-based once workspaces grow large (tracked in Coda).
   async list(
@@ -207,6 +214,7 @@ export class DocumentsService {
     });
     // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
     this.cache.set(doc.id, doc);
+    if (doc.parentId) await this.invalidateChildSet(doc.parentId);
     // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
     void this.rtc.initDocBestEffort(doc.id);
     return doc;
@@ -340,19 +348,22 @@ export class DocumentsService {
 
   // Content/metadata edit — any workspace EDITor (or the creator).
   async rename(userId: string, id: string, title: string) {
-    await this.requireDocWrite(userId, id, "EDIT");
-    return this.writeThrough(
+    const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
         data: { title },
         select: this.summarySelect(),
       })
     );
+    if (doc.parentId) this.cache.invalidateChildren(doc.parentId);
+    return row;
   }
 
   // Move within the workspace: parentId nests (clears folderId), folderId files, neither detaches to root.
   async move(userId: string, id: string, input: MoveDocumentInput) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const oldParentId = doc.parentId;
 
     if (input.parentId) {
       if (input.parentId === id) {
@@ -360,34 +371,42 @@ export class DocumentsService {
       }
       await this.requireDocInWorkspace(input.parentId, doc.workspaceId);
       await this.assertNoDocCycle(id, input.parentId);
-      return this.writeThrough(
+      const row = await this.writeThrough(
         this.prisma.document.update({
           where: { id },
           data: { parentId: input.parentId, folderId: null },
           select: this.summarySelect(),
         })
       );
+      // The doc leaves one parent's child set and joins another — both snapshots are now stale.
+      await this.invalidateChildSet(oldParentId);
+      await this.invalidateChildSet(input.parentId);
+      return row;
     }
 
     if (input.folderId) {
       await this.requireFolderInWorkspace(input.folderId, doc.workspaceId);
-      return this.writeThrough(
+      const row = await this.writeThrough(
         this.prisma.document.update({
           where: { id },
           data: { folderId: input.folderId, parentId: null },
           select: this.summarySelect(),
         })
       );
+      await this.invalidateChildSet(oldParentId);
+      return row;
     }
 
     // Neither target → detach to the workspace root.
-    return this.writeThrough(
+    const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
         data: { folderId: null, parentId: null },
         select: this.summarySelect(),
       })
     );
+    await this.invalidateChildSet(oldParentId);
+    return row;
   }
 
   // Public/private toggle — creator or workspace ADMIN only.
@@ -407,8 +426,11 @@ export class DocumentsService {
     const doc = await this.requireDocWrite(userId, id, "ADMIN");
     const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
     await this.prisma.document.delete({ where: { id } });
-    // Drop the deleted subtree from the cache so no reader serves a tombstoned row.
-    for (const docId of ids) this.cache.invalidate(docId);
+    for (const docId of ids) {
+      this.cache.invalidate(docId);
+      this.cache.invalidateChildren(docId);
+    }
+    await this.invalidateChildSet(doc.parentId);
     // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
     for (const docId of ids) {
       void this.rtc.deleteDocBestEffort(docId);
@@ -493,11 +515,7 @@ export class DocumentsService {
     for (let i = 0; cursor !== null && i < MAX_DOC_DEPTH; i++) {
       if (seen.has(cursor)) break;
       seen.add(cursor);
-      const node: { parentId: string | null } | null =
-        await this.prisma.document.findUnique({
-          where: { id: cursor },
-          select: { parentId: true },
-        });
+      const node = await this.loadDocRow(cursor);
       if (!node) break;
       ids.push(cursor);
       cursor = node.parentId;
@@ -507,6 +525,8 @@ export class DocumentsService {
 
   // Direct children of `parentId` as collapsed hierarchy nodes (children: null).
   private async loadDirectChildren(parentId: string): Promise<HierarchyNode[]> {
+    const cached = this.cache.getChildren(parentId) as HierarchyNode[] | undefined;
+    if (cached) return cached;
     const rows = await this.prisma.document.findMany({
       where: { parentId },
       select: {
@@ -519,7 +539,7 @@ export class DocumentsService {
       },
       orderBy: { createdAt: "asc" },
     });
-    return rows.map((r) => ({
+    const children: HierarchyNode[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
       icon: r.icon,
@@ -528,22 +548,17 @@ export class DocumentsService {
       childCount: r._count.children,
       children: null,
     }));
+    this.cache.setChildren(parentId, children);
+    return children;
   }
 
-  // Metadata (+ direct child count) for a set of document ids, keyed by id.
   private async loadNodeMeta(ids: string[]) {
-    const rows = await this.prisma.document.findMany({
-      where: { id: { in: ids } },
-      select: {
-        id: true,
-        title: true,
-        icon: true,
-        type: true,
-        parentId: true,
-        _count: { select: { children: true } },
-      },
-    });
-    return new Map(rows.map((r) => [r.id, r]));
+    const map = new Map<string, DocRow>();
+    for (const id of ids) {
+      const row = await this.loadDocRow(id);
+      if (row) map.set(id, row);
+    }
+    return map;
   }
 
   // Assemble an expanded hierarchy node from its metadata + resolved children.

@@ -1,10 +1,22 @@
-import { DocEditor } from '@toddle-edu/ds-doc-editor';
-
-// Stylesheets required by the editor (mirrors the doc-editor playground).
-import '@toddle-edu/ds-web/dist/assets/antd.css';
-import '@toddle-edu/ds-web/dist/assets/main.css';
-import '@toddle-edu/ds-doc-editor/dist/main.css';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AppRoutes } from './routes';
+import { ModalRoot } from './app/ModalRoot';
+import { ToastHost } from './components/Toast';
+import { registerNavigate } from './lib/scopeGuard';
 
 export function App() {
-  return <DocEditor />;
+  const navigate = useNavigate();
+  // Let non-React code (access-lost guard) redirect.
+  useEffect(() => {
+    registerNavigate((to) => navigate(to));
+  }, [navigate]);
+
+  return (
+    <>
+      <AppRoutes />
+      <ModalRoot />
+      <ToastHost />
+    </>
+  );
 }

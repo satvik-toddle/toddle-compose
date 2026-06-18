@@ -161,8 +161,7 @@ export class DocumentsService {
       },
       select: this.summarySelect(),
     });
-    // Best-effort RTC provisioning: the rtc-server also creates the row lazily on first connect.
-    await this.rtc.initDocBestEffort(doc.id);
+    void this.rtc.initDocBestEffort(doc.id);
     return doc;
   }
 
@@ -361,9 +360,8 @@ export class DocumentsService {
     const doc = await this.requireDocWrite(userId, id, "ADMIN");
     const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
     await this.prisma.document.delete({ where: { id } });
-    // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
     for (const docId of ids) {
-      await this.rtc.deleteDocBestEffort(docId);
+      void this.rtc.deleteDocBestEffort(docId);
     }
     return { ok: true as const, deleted: ids.length };
   }

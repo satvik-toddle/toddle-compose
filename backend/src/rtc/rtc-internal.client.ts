@@ -17,7 +17,8 @@ export class RtcInternalClient {
   private async call(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    timeoutMs = 8000
   ): Promise<unknown> {
     const headers: Record<string, string> = {
       "X-Internal-Token": this.config.get("INTERNAL_TOKEN", { infer: true }),
@@ -30,6 +31,7 @@ export class RtcInternalClient {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       throw new HttpException({ error: "rtc-server unreachable" }, 502);
@@ -45,7 +47,7 @@ export class RtcInternalClient {
 
   /** Provision the RTC row for a document id (idempotent upsert on the rtc side). */
   initDoc(docId: string): Promise<unknown> {
-    return this.call("POST", "/internal/docs/init", { docId });
+    return this.call("POST", "/internal/docs/init", { docId }, 3000);
   }
 
   // If rtc-server is down, log and move on — it lazily creates the row on first connect.
@@ -79,7 +81,12 @@ export class RtcInternalClient {
 
   /** Delete the RTC row (yjs state + update log) for a document id. */
   deleteDoc(docId: string): Promise<unknown> {
-    return this.call("DELETE", `/internal/docs/${encodeURIComponent(docId)}`);
+    return this.call(
+      "DELETE",
+      `/internal/docs/${encodeURIComponent(docId)}`,
+      undefined,
+      3000
+    );
   }
 
   // If rtc-server is down, log and move on — the leftover row is orphaned, not harmful.

@@ -127,9 +127,8 @@ export class FoldersService {
       return { purged: res.count, docIds: docs.map((d) => d.id) };
     });
 
-    // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is harmless.
     for (const docId of docIds) {
-      await this.rtc.deleteDocBestEffort(docId);
+      void this.rtc.deleteDocBestEffort(docId);
     }
     return purged;
   }

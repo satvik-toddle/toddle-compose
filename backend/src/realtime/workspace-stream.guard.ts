@@ -1,0 +1,58 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { PrismaService } from "../prisma/prisma.service";
+import { AuthzService } from "../realm/authz.service";
+import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from "../auth/jwt.constants";
+
+// EventSource can't set headers, so the access token arrives as a `?token=` query param.
+// Verification mirrors JwtAuthGuard; the workspace READ gate ensures a member only streams
+// workspaces they can already see.
+@Injectable()
+export class WorkspaceStreamGuard implements CanActivate {
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly authz: AuthzService
+  ) {}
+
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const req = ctx.switchToHttp().getRequest();
+    const token: string | undefined = req.query?.token;
+    if (!token) throw new UnauthorizedException("missing token");
+
+    let sub: string;
+    try {
+      const payload = await this.jwt.verifyAsync(token, {
+        algorithms: [JWT_ALGORITHM],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      });
+      if (payload.type !== "access") {
+        throw new UnauthorizedException("not an access token");
+      }
+      sub = payload.sub;
+    } catch {
+      throw new UnauthorizedException("invalid token");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: sub },
+      select: { id: true, email: true, name: true, color: true },
+    });
+    if (!user) throw new UnauthorizedException("user not found");
+
+    const workspaceId: string = req.params.workspaceId;
+    const role = await this.authz.effectiveWorkspaceRole(user.id, workspaceId);
+    if (role === null) {
+      throw new UnauthorizedException("no access to this workspace");
+    }
+
+    req.user = { ...user, activeWorkspaceId: null };
+    return true;
+  }
+}

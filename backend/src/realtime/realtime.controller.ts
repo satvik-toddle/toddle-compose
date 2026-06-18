@@ -1,4 +1,4 @@
-import { Controller, Param, Sse, UseGuards } from "@nestjs/common";
+import { Controller, Param, Req, Sse, UseGuards } from "@nestjs/common";
 import type { MessageEvent } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { WorkspaceEventsService } from "./realtime.service";
@@ -11,7 +11,10 @@ export class RealtimeController {
   // GET /api/realtime/workspaces/:workspaceId/stream?token=<access-jwt>
   @UseGuards(WorkspaceStreamGuard)
   @Sse("workspaces/:workspaceId/stream")
-  stream(@Param("workspaceId") workspaceId: string): Observable<MessageEvent> {
-    return this.events.subscribe(workspaceId);
+  stream(
+    @Param("workspaceId") workspaceId: string,
+    @Req() req: { tokenExp?: number }
+  ): Observable<MessageEvent> {
+    return this.events.subscribe(workspaceId, req.tokenExp);
   }
 }

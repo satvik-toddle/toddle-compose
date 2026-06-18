@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { MessageEvent } from "@nestjs/common";
-import { Observable, Subject, interval, merge } from "rxjs";
-import { filter, map } from "rxjs/operators";
+import { Observable, Subject, interval, merge, timer } from "rxjs";
+import { filter, map, takeUntil } from "rxjs/operators";
 
 export type WorkspaceEvent =
   | { type: "document.created"; document: unknown }
@@ -36,7 +36,9 @@ export class WorkspaceEventsService {
     this.publish(workspaceId, { type: "document.deleted", id });
   }
 
-  subscribe(workspaceId: string): Observable<MessageEvent> {
+  // `tokenExpSec` (the JWT `exp`, seconds) closes the stream at expiry so a stale token can't hold
+  // it open; the client reconnects with a refreshed token.
+  subscribe(workspaceId: string, tokenExpSec?: number): Observable<MessageEvent> {
     const events$ = this.stream$.pipe(
       filter((e) => e.workspaceId === workspaceId),
       map((e): MessageEvent => ({ data: e.event }))
@@ -45,6 +47,9 @@ export class WorkspaceEventsService {
     const heartbeat$ = interval(HEARTBEAT_MS).pipe(
       map((): MessageEvent => ({ data: { type: "ping" } }))
     );
-    return merge(events$, heartbeat$);
+    const merged = merge(events$, heartbeat$);
+    if (typeof tokenExpSec !== "number") return merged;
+    const ttlMs = Math.max(0, tokenExpSec * 1000 - Date.now());
+    return merged.pipe(takeUntil(timer(ttlMs)));
   }
 }

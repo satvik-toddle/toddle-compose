@@ -26,6 +26,7 @@ export class WorkspaceStreamGuard implements CanActivate {
     if (!token) throw new UnauthorizedException("missing token");
 
     let sub: string;
+    let exp: number | undefined;
     try {
       const payload = await this.jwt.verifyAsync(token, {
         algorithms: [JWT_ALGORITHM],
@@ -36,6 +37,7 @@ export class WorkspaceStreamGuard implements CanActivate {
         throw new UnauthorizedException("not an access token");
       }
       sub = payload.sub;
+      exp = typeof payload.exp === "number" ? payload.exp : undefined;
     } catch {
       throw new UnauthorizedException("invalid token");
     }
@@ -53,6 +55,8 @@ export class WorkspaceStreamGuard implements CanActivate {
     }
 
     req.user = { ...user, activeWorkspaceId: null };
+    // Surfaced so the stream self-closes at expiry instead of outliving the token.
+    req.tokenExp = exp;
     return true;
   }
 }

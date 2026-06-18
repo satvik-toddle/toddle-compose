@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { IncomingMessage } from "http";
+import type { IncomingMessage, Server as HttpServer } from "http";
 import * as decoding from "lib0/decoding";
 import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
@@ -88,9 +88,10 @@ export class YjsServerService
         await this.docState.writeState(docName);
       },
     } as never);
+  }
 
-    const port = this.config.get("RTC_PORT", { infer: true });
-    this.wss = this.startWss(port);
+  attach(server: HttpServer): void {
+    this.wss = this.startWss(server);
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -102,7 +103,7 @@ export class YjsServerService
     this.wss?.close();
   }
 
-  private startWss(port: number): WebSocketServer {
+  private startWss(server: HttpServer): WebSocketServer {
     // Per-connection token bucket for inbound WS messages (env-tunable).
     const rateLimitCapacity = this.config.get("RTC_RATE_LIMIT_CAPACITY", {
       infer: true,
@@ -112,7 +113,7 @@ export class YjsServerService
       { infer: true }
     );
     const wss = new WebSocketServer({
-      port,
+      server,
       maxPayload: this.config.get("RTC_WS_MAX_PAYLOAD_BYTES", { infer: true }),
       // Only invoked when the client offers subprotocols (bearer-token clients): select "yjs" if offered, else refuse.
       handleProtocols: (protocols) => (protocols.has("yjs") ? "yjs" : false),
@@ -280,8 +281,8 @@ export class YjsServerService
       setupWSConnection(ws, req, { docName: parsed.docId, gc: true });
     });
 
-    wss.on("listening", () => log.info(`WSS listening on :${port}`));
     wss.on("error", (err) => log.error("WSS error", err));
+    log.info("WS server attached to the HTTP server (shared port)");
     return wss;
   }
 }

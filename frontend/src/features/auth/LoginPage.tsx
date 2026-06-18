@@ -77,7 +77,7 @@ export function LoginPage() {
           </label>
           <a>Forgot password?</a>
         </div>
-        <Button type="submit" variant="primary" size="lg" block disabled={login.isPending} onClick={submit}>
+        <Button type="submit" variant="primary" size="lg" block disabled={login.isPending}>
           {login.isPending ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

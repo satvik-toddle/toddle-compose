@@ -1,0 +1,38 @@
+/* Doc editor pane. Co-located, auto-scoped CSS Module.
+   The editor fills the whole page pane (full width + height) on a white surface
+   (the editor's --surface-primary-active is a dark token in our theme). The
+   ds-de-* selectors target @toddle-edu/ds-doc-editor internals (global classes),
+   constraining the text to a centered, readable column — Coda-style. */
+
+.tc-editor {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  --surface-primary-active: var(--panel-bg);
+
+  > * {
+    flex: 1;
+    min-height: 0;
+  }
+
+  :global(.ds-de-anchor-element) {
+    width: 100% !important;
+    max-width: 760px !important;
+    margin: 0 auto !important;
+  }
+  :global(.ds-de-contentEditable-bg-provider) {
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+  :global(.ds-de-editorContainer) {
+    border-radius: 0 !important;
+  }
+  :global(.ds-de-contentEditable) {
+    padding-top: 12px !important;
+  }
+}

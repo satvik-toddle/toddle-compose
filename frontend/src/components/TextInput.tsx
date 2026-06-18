@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactElement, ReactNode } from 'react';
+import type { InputHTMLAttributes, ReactElement, ReactNode, SyntheticEvent } from 'react';
 import { TextInput as DsTextInput } from '@toddle-edu/ds-web';
 import { Icon, type IconName } from './Icon';
 
@@ -31,7 +31,17 @@ export function TextInput({
     <DsTextInput
       leadingIcon={icon ? <Icon name={icon} size={14} muted /> : undefined}
       trailingIcon={(trailing as ReactElement) ?? undefined}
-      onTrailingIconClick={onTrailingClick ? () => onTrailingClick() : undefined}
+      // ds-web renders the trailing icon in a native <button> with no type attr,
+      // which defaults to type="submit" — so inside a <form> a tap would submit it
+      // (e.g. the password eye toggle logging the user in). Swallow the default.
+      onTrailingIconClick={
+        onTrailingClick
+          ? (e?: SyntheticEvent) => {
+              e?.preventDefault?.();
+              onTrailingClick();
+            }
+          : undefined
+      }
       error={err ? ' ' : undefined}
       type={dsType}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

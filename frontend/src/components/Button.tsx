@@ -29,8 +29,10 @@ export function Button({
   iconRight,
   block,
   children,
-  // Accepted for API compatibility; ds-web v2 Button has no HTML submit type, so
-  // forms wire submission via onClick (see auth pages). `type` is otherwise unused.
+  // Accepted for API compatibility. ds-web v2 Button uses its own `type` for visual
+  // styling, so we drop it here — but it renders a native <button> with no HTML type
+  // attribute, which defaults to type="submit". So a Button inside a <form> already
+  // submits on click; do NOT also add onClick={submit} or the handler fires twice.
   type: _type,
   ...rest
 }: ButtonProps) {

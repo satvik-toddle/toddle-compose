@@ -89,7 +89,7 @@ export function RegisterPage() {
           />
         </Field>
         {mismatch && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
-        <Button type="submit" variant="primary" size="lg" block disabled={register.isPending} onClick={submit}>
+        <Button type="submit" variant="primary" size="lg" block disabled={register.isPending}>
           {register.isPending ? 'Creating account…' : 'Create account'}
         </Button>
         <p className="auth-fine">By continuing you agree to Toddle's Terms and Privacy Policy.</p>

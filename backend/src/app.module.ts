@@ -12,6 +12,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { FoldersModule } from "./folders/folders.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
+import { RealtimeModule } from "./realtime/realtime.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -35,6 +36,7 @@ import { HealthController } from "./health.controller";
     FoldersModule,
     DocumentsModule,
     StorageModule,
+    RealtimeModule,
   ],
   controllers: [HealthController],
 })

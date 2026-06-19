@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
+import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 
@@ -78,7 +79,8 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
     private readonly rtc: RtcInternalClient,
-    private readonly cache: DocumentCacheService
+    private readonly cache: DocumentCacheService,
+    private readonly events: WorkspaceEventsService
   ) {}
 
   // Single funnel for by-id metadata-row reads: serve a fresh cached row, else load from the
@@ -217,6 +219,8 @@ export class DocumentsService {
     if (doc.parentId) await this.invalidateChildSet(doc.parentId);
     // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
     void this.rtc.initDocBestEffort(doc.id);
+    // Push to every member streaming this workspace so their side panel reflects the new doc live.
+    this.events.documentCreated(wsId, doc);
     return doc;
   }
 
@@ -357,6 +361,7 @@ export class DocumentsService {
       })
     );
     if (doc.parentId) this.cache.invalidateChildren(doc.parentId);
+    this.events.documentUpdated(row.workspaceId, row);
     return row;
   }
 
@@ -381,6 +386,7 @@ export class DocumentsService {
       // The doc leaves one parent's child set and joins another — both snapshots are now stale.
       await this.invalidateChildSet(oldParentId);
       await this.invalidateChildSet(input.parentId);
+      this.events.documentUpdated(row.workspaceId, row);
       return row;
     }
 
@@ -394,6 +400,7 @@ export class DocumentsService {
         })
       );
       await this.invalidateChildSet(oldParentId);
+      this.events.documentUpdated(row.workspaceId, row);
       return row;
     }
 
@@ -406,19 +413,22 @@ export class DocumentsService {
       })
     );
     await this.invalidateChildSet(oldParentId);
+    this.events.documentUpdated(row.workspaceId, row);
     return row;
   }
 
   // Public/private toggle — creator or workspace ADMIN only.
   async setVisibility(userId: string, id: string, visibility: Visibility) {
     await this.requireDocWrite(userId, id, "ADMIN");
-    return this.writeThrough(
+    const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
         data: { visibility },
         select: this.summarySelect(),
       })
     );
+    this.events.documentUpdated(row.workspaceId, row);
+    return row;
   }
 
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
@@ -435,6 +445,8 @@ export class DocumentsService {
     for (const docId of ids) {
       void this.rtc.deleteDocBestEffort(docId);
     }
+    // Announce the subtree root; subscribers drop it and its descendants from the side panel.
+    this.events.documentDeleted(doc.workspaceId, id);
     return { ok: true as const, deleted: ids.length };
   }
 

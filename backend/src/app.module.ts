@@ -14,6 +14,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
 import { AccessTokensModule } from "./access-tokens/access-tokens.module";
 import { RequestContextMiddleware } from "./auth/request-context";
+import { RealtimeModule } from "./realtime/realtime.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -38,6 +39,7 @@ import { HealthController } from "./health.controller";
     DocumentsModule,
     StorageModule,
     AccessTokensModule,
+    RealtimeModule,
   ],
   controllers: [HealthController],
 })

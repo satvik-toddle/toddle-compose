@@ -4,14 +4,35 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Visibility, DocumentType } from "@app/database";
+import { Visibility, DocumentType, Prisma } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
+import { DocumentCacheService } from "./document-cache.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
+import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 
 const OWNER_SELECT = { id: true, name: true, color: true } as const;
+
+// The shared document-summary projection, lifted to a const so both the cache and the
+// DocRow type below stay in lockstep with what every read/write returns.
+const SUMMARY_SELECT = {
+  id: true,
+  title: true,
+  icon: true,
+  type: true,
+  visibility: true,
+  workspaceId: true,
+  folderId: true,
+  parentId: true,
+  createdAt: true,
+  updatedAt: true,
+  owner: { select: OWNER_SELECT },
+} as const;
+
+// Cached/returned row shape, derived from SUMMARY_SELECT so it can never drift from the query.
+type DocRow = Prisma.DocumentGetPayload<{ select: typeof SUMMARY_SELECT }>;
 
 type CreateDocumentInput = {
   title?: string;
@@ -57,8 +78,40 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
-    private readonly rtc: RtcInternalClient
+    private readonly rtc: RtcInternalClient,
+    private readonly cache: DocumentCacheService,
+    private readonly events: WorkspaceEventsService
   ) {}
+
+  // Single funnel for by-id metadata-row reads: serve a fresh cached row, else load from the
+  // DB and cache it (lazy fill). Returns null when the document does not exist (not cached).
+  // The cached value is the summarySelect() shape; callers still gate access per-user on top.
+  private async loadDocRow(id: string): Promise<DocRow | null> {
+    const cached = this.cache.get(id) as DocRow | undefined;
+    if (cached) return cached;
+    const doc = await this.prisma.document.findUnique({
+      where: { id },
+      select: this.summarySelect(),
+    });
+    if (doc) this.cache.set(id, doc);
+    return doc;
+  }
+
+  // Write-through: await the committed DB mutation, then refresh the cache from the row it
+  // returns so the next reader sees the update. DB-first ordering means a failed write never
+  // poisons the cache. (In-memory + per-instance — see DocumentCacheService for the caveat.)
+  private async writeThrough(update: Promise<DocRow>): Promise<DocRow> {
+    const row = await update;
+    this.cache.set(row.id, row);
+    return row;
+  }
+
+  private async invalidateChildSet(parentId: string | null): Promise<void> {
+    if (!parentId) return;
+    this.cache.invalidateChildren(parentId);
+    const parent = await this.loadDocRow(parentId);
+    if (parent?.parentId) this.cache.invalidateChildren(parent.parentId);
+  }
 
   // Documents in the (active or given) workspace, optionally narrowed to a folder.
   // TODO(pagination): offset-based for now; move to cursor-based once workspaces grow large (tracked in Coda).
@@ -161,21 +214,24 @@ export class DocumentsService {
       },
       select: this.summarySelect(),
     });
+    // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
+    this.cache.set(doc.id, doc);
+    if (doc.parentId) await this.invalidateChildSet(doc.parentId);
+    // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
     void this.rtc.initDocBestEffort(doc.id);
+    // Push to every member streaming this workspace so their side panel reflects the new doc live.
+    this.events.documentCreated(wsId, doc);
     return doc;
   }
 
   // RTC role for the token: editor for owner/EDIT+, viewer for READ/COMMENT or PUBLIC; 404/403 when no access.
   async resolveRtcRole(userId: string, docId: string): Promise<RtcRole> {
-    const doc = await this.prisma.document.findUnique({
-      where: { id: docId },
-      select: { id: true, ownerId: true, workspaceId: true, visibility: true },
-    });
+    const doc = await this.loadDocRow(docId);
     if (!doc) throw new NotFoundException("document not found");
 
     this.authz.assertWorkspaceInScope(doc.workspaceId);
 
-    if (doc.ownerId === userId) {
+    if (doc.owner.id === userId) {
       return this.authz.tokenAllowsWorkspaceRole("EDIT") ? "editor" : "viewer";
     }
 
@@ -201,10 +257,7 @@ export class DocumentsService {
 
   // Read gate shared by `get`/`listSubdocs`; 404 (not 403) so a hidden doc's existence isn't revealed.
   private async requireDocRead(userId: string, id: string) {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
-      select: this.summarySelect(),
-    });
+    const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
 
     this.authz.assertWorkspaceInScope(doc.workspaceId);
@@ -232,11 +285,7 @@ export class DocumentsService {
     for (let i = 0; cursor !== null && i < MAX_DOC_DEPTH; i++) {
       if (seen.has(cursor)) break;
       seen.add(cursor);
-      const node: (Breadcrumb & { parentId: string | null }) | null =
-        await this.prisma.document.findUnique({
-          where: { id: cursor },
-          select: { id: true, title: true, icon: true, parentId: true },
-        });
+      const node = await this.loadDocRow(cursor);
       if (!node) break;
       chain.push({ id: node.id, title: node.title, icon: node.icon });
       cursor = node.parentId;
@@ -309,17 +358,23 @@ export class DocumentsService {
 
   // Content/metadata edit — any workspace EDITor (or the creator).
   async rename(userId: string, id: string, title: string) {
-    await this.requireDocWrite(userId, id, "EDIT");
-    return this.prisma.document.update({
-      where: { id },
-      data: { title },
-      select: this.summarySelect(),
-    });
+    const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const row = await this.writeThrough(
+      this.prisma.document.update({
+        where: { id },
+        data: { title },
+        select: this.summarySelect(),
+      })
+    );
+    if (doc.parentId) this.cache.invalidateChildren(doc.parentId);
+    this.events.documentUpdated(row.workspaceId, row);
+    return row;
   }
 
   // Move within the workspace: parentId nests (clears folderId), folderId files, neither detaches to root.
   async move(userId: string, id: string, input: MoveDocumentInput) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const oldParentId = doc.parentId;
 
     if (input.parentId) {
       if (input.parentId === id) {
@@ -327,38 +382,59 @@ export class DocumentsService {
       }
       await this.requireDocInWorkspace(input.parentId, doc.workspaceId);
       await this.assertNoDocCycle(id, input.parentId);
-      return this.prisma.document.update({
-        where: { id },
-        data: { parentId: input.parentId, folderId: null },
-        select: this.summarySelect(),
-      });
+      const row = await this.writeThrough(
+        this.prisma.document.update({
+          where: { id },
+          data: { parentId: input.parentId, folderId: null },
+          select: this.summarySelect(),
+        })
+      );
+      // The doc leaves one parent's child set and joins another — both snapshots are now stale.
+      await this.invalidateChildSet(oldParentId);
+      await this.invalidateChildSet(input.parentId);
+      this.events.documentUpdated(row.workspaceId, row);
+      return row;
     }
 
     if (input.folderId) {
       await this.requireFolderInWorkspace(input.folderId, doc.workspaceId);
-      return this.prisma.document.update({
-        where: { id },
-        data: { folderId: input.folderId, parentId: null },
-        select: this.summarySelect(),
-      });
+      const row = await this.writeThrough(
+        this.prisma.document.update({
+          where: { id },
+          data: { folderId: input.folderId, parentId: null },
+          select: this.summarySelect(),
+        })
+      );
+      await this.invalidateChildSet(oldParentId);
+      this.events.documentUpdated(row.workspaceId, row);
+      return row;
     }
 
     // Neither target → detach to the workspace root.
-    return this.prisma.document.update({
-      where: { id },
-      data: { folderId: null, parentId: null },
-      select: this.summarySelect(),
-    });
+    const row = await this.writeThrough(
+      this.prisma.document.update({
+        where: { id },
+        data: { folderId: null, parentId: null },
+        select: this.summarySelect(),
+      })
+    );
+    await this.invalidateChildSet(oldParentId);
+    this.events.documentUpdated(row.workspaceId, row);
+    return row;
   }
 
   // Public/private toggle — creator or workspace ADMIN only.
   async setVisibility(userId: string, id: string, visibility: Visibility) {
     await this.requireDocWrite(userId, id, "ADMIN");
-    return this.prisma.document.update({
-      where: { id },
-      data: { visibility },
-      select: this.summarySelect(),
-    });
+    const row = await this.writeThrough(
+      this.prisma.document.update({
+        where: { id },
+        data: { visibility },
+        select: this.summarySelect(),
+      })
+    );
+    this.events.documentUpdated(row.workspaceId, row);
+    return row;
   }
 
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
@@ -367,8 +443,16 @@ export class DocumentsService {
     const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
     await this.prisma.document.delete({ where: { id } });
     for (const docId of ids) {
+      this.cache.invalidate(docId);
+      this.cache.invalidateChildren(docId);
+    }
+    await this.invalidateChildSet(doc.parentId);
+    // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
+    for (const docId of ids) {
       void this.rtc.deleteDocBestEffort(docId);
     }
+    // Announce the subtree root; subscribers drop it and its descendants from the side panel.
+    this.events.documentDeleted(doc.workspaceId, id);
     return { ok: true as const, deleted: ids.length };
   }
 
@@ -389,12 +473,9 @@ export class DocumentsService {
     id: string,
     min: "EDIT" | "ADMIN"
   ) {
-    const doc = await this.prisma.document.findUnique({
-      where: { id },
-      select: { id: true, ownerId: true, workspaceId: true },
-    });
+    const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
-    if (doc.ownerId === userId) {
+    if (doc.owner.id === userId) {
       await this.authz.requireWorkspaceRole(userId, doc.workspaceId, "READ");
       if (!this.authz.tokenAllowsWorkspaceRole("EDIT")) {
         throw new ForbiddenException("requires workspace role EDIT or higher");
@@ -455,11 +536,7 @@ export class DocumentsService {
     for (let i = 0; cursor !== null && i < MAX_DOC_DEPTH; i++) {
       if (seen.has(cursor)) break;
       seen.add(cursor);
-      const node: { parentId: string | null } | null =
-        await this.prisma.document.findUnique({
-          where: { id: cursor },
-          select: { parentId: true },
-        });
+      const node = await this.loadDocRow(cursor);
       if (!node) break;
       ids.push(cursor);
       cursor = node.parentId;
@@ -469,6 +546,8 @@ export class DocumentsService {
 
   // Direct children of `parentId` as collapsed hierarchy nodes (children: null).
   private async loadDirectChildren(parentId: string): Promise<HierarchyNode[]> {
+    const cached = this.cache.getChildren(parentId) as HierarchyNode[] | undefined;
+    if (cached) return cached;
     const rows = await this.prisma.document.findMany({
       where: { parentId },
       select: {
@@ -481,7 +560,7 @@ export class DocumentsService {
       },
       orderBy: { createdAt: "asc" },
     });
-    return rows.map((r) => ({
+    const children: HierarchyNode[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
       icon: r.icon,
@@ -490,22 +569,17 @@ export class DocumentsService {
       childCount: r._count.children,
       children: null,
     }));
+    this.cache.setChildren(parentId, children);
+    return children;
   }
 
-  // Metadata (+ direct child count) for a set of document ids, keyed by id.
   private async loadNodeMeta(ids: string[]) {
-    const rows = await this.prisma.document.findMany({
-      where: { id: { in: ids } },
-      select: {
-        id: true,
-        title: true,
-        icon: true,
-        type: true,
-        parentId: true,
-        _count: { select: { children: true } },
-      },
-    });
-    return new Map(rows.map((r) => [r.id, r]));
+    const map = new Map<string, DocRow>();
+    for (const id of ids) {
+      const row = await this.loadDocRow(id);
+      if (row) map.set(id, row);
+    }
+    return map;
   }
 
   // Assemble an expanded hierarchy node from its metadata + resolved children.
@@ -557,18 +631,6 @@ export class DocumentsService {
   }
 
   private summarySelect() {
-    return {
-      id: true,
-      title: true,
-      icon: true,
-      type: true,
-      visibility: true,
-      workspaceId: true,
-      folderId: true,
-      parentId: true,
-      createdAt: true,
-      updatedAt: true,
-      owner: { select: OWNER_SELECT },
-    } as const;
+    return SUMMARY_SELECT;
   }
 }

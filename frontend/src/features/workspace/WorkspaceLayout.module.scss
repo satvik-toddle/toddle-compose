@@ -1,0 +1,87 @@
+/* Workspace top toolbar + body split. Co-located, auto-scoped CSS Module.
+   Shared classes (.ws-emoji, .nm, .ibtn) and the account pill (.ws-acct, owned by
+   AcctPill) stay global. The workspace switcher + page menus render via the ds
+   ActionMenu (Dropdown), so the old custom .ws-switch-menu/.sm-* styles are gone. */
+
+.ws-topbar {
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 0 12px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.ws-tb-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tb-sidebar-toggle {
+  flex: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.ws-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 9px;
+
+  &:hover {
+    background: var(--surface-secondary-enabled);
+    border-color: var(--line);
+  }
+
+  :global(.nm) {
+    font-size: 15px;
+    font-weight: 700;
+  }
+}
+
+.ws-crumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ws-crumb-sep {
+  color: var(--text-secondary);
+  opacity: 0.45;
+}
+
+.ws-crumb-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-tb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}

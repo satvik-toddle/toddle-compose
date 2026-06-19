@@ -1,0 +1,30 @@
+/* Admin console page chrome. Co-located, auto-scoped CSS Module.
+   Shared primitives (.tbl/.thead/.trow, .nm/.sub) stay global for now;
+   only the admin-page-specific chrome lives here. Design tokens are global
+   CSS custom properties, so var(--…) resolves without the old .rbac prefix. */
+
+.ad-subbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px 12px;
+  background: var(--panel-bg);
+}
+
+.ad-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.ad-crumb {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-secondary-enabled);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}

@@ -146,7 +146,7 @@ export class YjsServerService
             return;
           }
           (req as IncomingMessage & { rtcClaims: RtcClaims }).rtcClaims = claims;
-          log.info(
+          log.debug(
             `verifyClient ACCEPT sub=${claims.sub} doc='${parsed.docId}' role=${claims.role}`
           );
           cb(true);
@@ -179,7 +179,7 @@ export class YjsServerService
       const cid = nextConnId();
       const clog = log.child(cid);
       this.docState.registerClaims(ws, claims);
-      clog.info(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
+      clog.debug(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
 
       // JWT is verified once at connect; close the socket at expiry so a stale token can't hold it open.
       let expiryTimer: NodeJS.Timeout | null = null;
@@ -206,7 +206,7 @@ export class YjsServerService
           awarenessTimer = null;
         }
         latestAwareness = null;
-        clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
+        clog.debug(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
       });
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 

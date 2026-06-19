@@ -11,7 +11,10 @@ const COLORS: Record<LogLevel, string> = {
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
 
-const envLevel = (process.env.LOG_LEVEL ?? "debug").toLowerCase() as LogLevel;
+// Default to "info" so normal operation shows only important logs (lifecycle,
+// warnings, errors). Routine per-doc/per-update chatter is logged at "debug" —
+// set LOG_LEVEL=debug to see it.
+const envLevel = (process.env.LOG_LEVEL ?? "info").toLowerCase() as LogLevel;
 const minIdx = Math.max(
   0,
   LEVELS.indexOf(LEVELS.includes(envLevel) ? envLevel : "debug")

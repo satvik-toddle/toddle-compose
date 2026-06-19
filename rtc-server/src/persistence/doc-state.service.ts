@@ -172,7 +172,7 @@ export class DocStateService {
   }
 
   private async loadState(docName: string, ydoc: Y.Doc): Promise<void> {
-    persistLog.info(`'${docName}' bindState — cold-load`);
+    persistLog.debug(`'${docName}' bindState — cold-load`);
     await this.repo.ensureRtcDoc(docName);
     const row = await this.repo.getRtcDoc(docName);
     const snapshotAtSeq = row?.snapshotAtSeq ?? 0;
@@ -180,14 +180,14 @@ export class DocStateService {
     if (row?.yjsState) {
       try {
         Y.applyUpdate(ydoc, new Uint8Array(row.yjsState));
-        persistLog.info(
+        persistLog.debug(
           `'${docName}' cold-loaded snapshot ${row.yjsState.byteLength}B at_seq=${snapshotAtSeq}`
         );
       } catch (e) {
         persistLog.error(`'${docName}' apply yjs_state FAILED`, e);
       }
     } else {
-      persistLog.info(`'${docName}' no snapshot yet`);
+      persistLog.debug(`'${docName}' no snapshot yet`);
     }
 
     const head = await this.repo.getHeadSeq(docName);
@@ -205,7 +205,7 @@ export class DocStateService {
           persistLog.error(`'${docName}' tail-apply FAILED`, e);
         }
       }
-      persistLog.info(
+      persistLog.debug(
         `'${docName}' replayed ${applied}/${tail.length} tail updates seq=${snapshotAtSeq + 1}..${head}`
       );
     }
@@ -220,7 +220,7 @@ export class DocStateService {
             "cold-load-seed",
             null
           );
-          persistLog.info(
+          persistLog.debug(
             `'${docName}' seeded history seq=${seq} with ${baseUpdate.byteLength}B baseline`
           );
         } catch (e) {
@@ -409,7 +409,7 @@ export class DocStateService {
           flushedSeq
         );
         state.snapshotAtSeq = flushedSeq;
-        log.info(
+        log.debug(
           `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
       } catch (e) {
@@ -457,7 +457,7 @@ export class DocStateService {
         blob,
         state.lastAppendedSeq
       );
-      persistLog.info(
+      persistLog.debug(
         `'${docName}' checkpoint reason=${reason} → snapshot=${blob.byteLength}B at_seq=${state.lastAppendedSeq}`
       );
       state.snapshotAtSeq = state.lastAppendedSeq;
@@ -477,7 +477,7 @@ export class DocStateService {
   }
 
   async writeState(docName: string): Promise<void> {
-    persistLog.info(`'${docName}' writeState — final flush + checkpoint + compaction`);
+    persistLog.debug(`'${docName}' writeState — final flush + checkpoint + compaction`);
     const entry = this.docState.get(docName);
     this.clearCheckpointTimer(docName);
     await this.writeCheckpoint(docName, "writeState");
@@ -496,9 +496,9 @@ export class DocStateService {
       this.clearAllTimers(entry.state);
       this.docState.delete(docName);
       this.chains.delete(docName);
-      persistLog.info(`'${docName}' evicted in-memory state`);
+      persistLog.debug(`'${docName}' evicted in-memory state`);
     } else if (this.docState.get(docName) !== entry) {
-      persistLog.info(`'${docName}' rebound during writeState — skip eviction`);
+      persistLog.debug(`'${docName}' rebound during writeState — skip eviction`);
     }
   }
 
@@ -534,7 +534,7 @@ export class DocStateService {
     await this.drain(docName);
     this.docState.delete(docName);
     this.chains.delete(docName);
-    persistLog.info(`'${docName}' evicted in-memory state (no flush)`);
+    persistLog.debug(`'${docName}' evicted in-memory state (no flush)`);
   }
 
   async shutdownAndFlushAll(): Promise<void> {

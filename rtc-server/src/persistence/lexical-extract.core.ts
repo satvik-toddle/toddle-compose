@@ -1,3 +1,4 @@
+import "../silence-benign-yjs";
 import * as Y from "yjs";
 import { createHeadlessEditor } from "@lexical/headless";
 import {

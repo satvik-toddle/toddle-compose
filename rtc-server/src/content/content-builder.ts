@@ -1,3 +1,4 @@
+import "../silence-benign-yjs";
 import * as Y from "yjs";
 import { createHeadlessEditor } from "@lexical/headless";
 import {
@@ -456,9 +457,18 @@ export function buildOpsUpdate(
   );
 
   // Yjs → Lexical (load existing content). Skip our own writes (origin === binding).
+  // Wrap the sync: while applying the base state, a transient "Invalid access"
+  // can surface mid-integration. It's benign (the discrete flush below rebuilds
+  // the editor state correctly), but if it escaped this observer Yjs would
+  // console.error the bare message — so swallow it to debug, matching the
+  // extract path.
   binding.root.getSharedType().observeDeep((events, tx) => {
     if (tx.origin !== binding) {
-      syncYjsChangesToLexical(binding, provider, events, false);
+      try {
+        syncYjsChangesToLexical(binding, provider, events, false);
+      } catch (e) {
+        log.debug(`Y->L base-load sync skipped: ${e instanceof Error ? e.message : e}`);
+      }
     }
   });
 

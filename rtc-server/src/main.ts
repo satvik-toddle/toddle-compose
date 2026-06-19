@@ -6,6 +6,8 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
 
+import "./silence-benign-yjs";
+
 let app: INestApplication | null = null;
 
 async function bootstrap() {

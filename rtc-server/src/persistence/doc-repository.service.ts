@@ -251,7 +251,7 @@ export class DocRepository {
       this.prisma.rtcDocumentUpdate.deleteMany({ where: { docId } }),
       this.prisma.rtcDocument.deleteMany({ where: { id: docId } }),
     ]);
-    log.info(
+    log.debug(
       `deleteDocCompletely '${docId}' removed doc=${docsDeleted.count} updates=${updates.count}`
     );
   }

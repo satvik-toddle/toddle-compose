@@ -142,7 +142,27 @@ export class DocStateService {
 
   // Apply high-level content ops: build a delta off the doc's current state via
   // the headless Lexical↔Yjs binding, then merge it in (persist + broadcast).
+  //
+  // Additive-safety guard: destructive ops (`clear`) racing with a live editor
+  // can corrupt the doc (the clear's deletions conflict with the client's state
+  // and can resolve to empty). Append ops are CRDT-safe and merge cleanly, so we
+  // only block destructive ops while someone has the doc open — AI edits stay
+  // additive for live users.
   editDoc(docId: string, ops: ContentOp[]): Promise<number> {
+    const destructive = ops.filter((o) => o.op === "clear");
+    if (destructive.length > 0) {
+      const shared = ywsDocs.get(docId);
+      const liveConns = shared ? shared.conns.size : 0;
+      if (liveConns > 0) {
+        return Promise.reject(
+          new Error(
+            `refusing destructive op '${destructive[0].op}' while ${liveConns} ` +
+              `editor(s) have this doc open — AI edits must be additive. Drop the ` +
+              `clear (append instead) or retry when the doc is idle.`
+          )
+        );
+      }
+    }
     return this.withWarmDoc(docId, (ydoc) => {
       const base = Y.encodeStateAsUpdate(ydoc);
       const delta = buildOpsUpdate(base, ops);

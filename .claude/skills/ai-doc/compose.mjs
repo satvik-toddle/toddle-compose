@@ -7,8 +7,15 @@
 // Usage:
 //   node compose.mjs whoami
 //   node compose.mjs workspaces
-//   node compose.mjs tree --workspace <id>
-//   node compose.mjs create-doc --workspace <id> [--parent <docId>] --title <t> [--type DOC|SHEET]
+//   node compose.mjs tree --workspace <id|url>
+//   node compose.mjs create-doc --workspace <id|url> [--parent <docId>] --title <t> [--type DOC|SHEET]
+//   node compose.mjs get --doc <id>
+//   node compose.mjs subdocs --doc <id>
+//   node compose.mjs rename --doc <id> --title <t>
+//   node compose.mjs move --doc <id> [--parent <docId>]        (omit --parent → top level)
+//   node compose.mjs visibility --doc <id> --value <PRIVATE|PUBLIC>
+//   node compose.mjs delete --doc <id>
+//   node compose.mjs edit --doc <id> (--ops <json> | --ops-file <path>)   # content
 //   node compose.mjs rtc-role --doc <id>
 //   node compose.mjs apply-update --doc <id> (--b64 <base64> | --file <path>)
 
@@ -126,6 +133,41 @@ switch (cmd) {
     if (a.parent) body.parentId = a.parent;
     if (a.type) body.type = a.type;
     out(await api("POST", "/documents", body));
+    break;
+  }
+  case "get": {
+    if (!a.doc) die("--doc <id> required");
+    out(await api("GET", `/documents/${encodeURIComponent(a.doc)}`));
+    break;
+  }
+  case "subdocs": {
+    if (!a.doc) die("--doc <id> required");
+    out(await api("GET", `/documents/${encodeURIComponent(a.doc)}/subdocs`));
+    break;
+  }
+  case "rename": {
+    if (!a.doc) die("--doc <id> required");
+    if (!a.title) die("--title <t> required");
+    out(await api("PATCH", `/documents/${encodeURIComponent(a.doc)}`, { title: a.title }));
+    break;
+  }
+  case "move": {
+    if (!a.doc) die("--doc <id> required");
+    // --parent <id> nests under a doc; --parent "" (or omit) moves to top level.
+    const body = { parentId: a.parent && a.parent !== true ? a.parent : null };
+    if (a.folder) body.folderId = a.folder;
+    out(await api("PATCH", `/documents/${encodeURIComponent(a.doc)}/move`, body));
+    break;
+  }
+  case "visibility": {
+    if (!a.doc) die("--doc <id> required");
+    if (!a.value) die('--value <PRIVATE|PUBLIC> required');
+    out(await api("PATCH", `/documents/${encodeURIComponent(a.doc)}/visibility`, { visibility: a.value }));
+    break;
+  }
+  case "delete": {
+    if (!a.doc) die("--doc <id> required");
+    out(await api("DELETE", `/documents/${encodeURIComponent(a.doc)}`));
     break;
   }
   case "rtc-role": {

@@ -4,6 +4,33 @@ import { createLogger } from "../logger";
 
 const log = createLogger("db");
 
+// Prisma error codes for transient transaction failures that succeed on retry:
+// P2028 = transaction API error (timed-out / closed interactive tx), P2034 =
+// write conflict / deadlock. Under bursty concurrent writes these are expected
+// and retryable rather than fatal.
+const TRANSIENT_TX_CODES = new Set(["P2028", "P2034"]);
+function isTransientTxError(e: unknown): boolean {
+  const code = (e as { code?: string })?.code;
+  if (code && TRANSIENT_TX_CODES.has(code)) return true;
+  const msg = e instanceof Error ? e.message : String(e);
+  return /Transaction (not found|already closed)|deadlock|write conflict/i.test(msg);
+}
+async function withTxRetry<T>(label: string, fn: () => Promise<T>, tries = 4): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (!isTransientTxError(e)) throw e;
+      const backoff = 25 * 2 ** i; // 25, 50, 100ms
+      log.warn(`${label}: transient tx error (attempt ${i + 1}/${tries}), retrying in ${backoff}ms`);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+  throw lastErr;
+}
+
 export type RtcUpdateRow = {
   seq: number;
   byte_len: number;
@@ -78,25 +105,27 @@ export class DocRepository {
     origin: string | null,
     clientSub: string | null
   ): Promise<number> {
-    const seq = await this.prisma.$transaction(async (tx) => {
-      const agg = await tx.rtcDocumentUpdate.aggregate({
-        where: { docId },
-        _max: { seq: true },
-      });
-      const next = (agg._max.seq ?? 0) + 1;
-      await tx.rtcDocumentUpdate.create({
-        data: {
-          docId,
-          seq: next,
-          updateBlob: blob,
-          byteLen: blob.byteLength,
-          origin,
-          clientSub,
-          createdAt: BigInt(Date.now()),
-        },
-      });
-      return next;
-    });
+    const seq = await withTxRetry(`appendDocUpdate '${docId}'`, () =>
+      this.prisma.$transaction(async (tx) => {
+        const agg = await tx.rtcDocumentUpdate.aggregate({
+          where: { docId },
+          _max: { seq: true },
+        });
+        const next = (agg._max.seq ?? 0) + 1;
+        await tx.rtcDocumentUpdate.create({
+          data: {
+            docId,
+            seq: next,
+            updateBlob: blob,
+            byteLen: blob.byteLength,
+            origin,
+            clientSub,
+            createdAt: BigInt(Date.now()),
+          },
+        });
+        return next;
+      })
+    );
     log.debug(
       `appendDocUpdate '${docId}' seq=${seq} ${blob.byteLength}B origin=${origin ?? "-"} client=${clientSub ?? "-"}`
     );

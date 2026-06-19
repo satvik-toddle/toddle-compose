@@ -43,7 +43,17 @@ async function crash(kind: string, e: unknown): Promise<void> {
   process.exit(1);
 }
 
+// An uncaught *exception* leaves the process in an unknown state — shut down.
 process.on("uncaughtException", (e) => void crash("uncaughtException", e));
-process.on("unhandledRejection", (e) => void crash("unhandledRejection", e));
+// An unhandled *rejection* (e.g. a transient DB error on a fire-and-forget write
+// path) must NOT take down a live collaborative server and disconnect every
+// editor. Log it loudly and keep serving; the originating path handles its own
+// ret/persistence. (Promote back to crash() if a class of these proves fatal.)
+process.on("unhandledRejection", (e) => {
+  new Logger("rtc").error(
+    "unhandledRejection (non-fatal; logged, server continues)",
+    e instanceof Error ? e.stack : e
+  );
+});
 
 bootstrap();

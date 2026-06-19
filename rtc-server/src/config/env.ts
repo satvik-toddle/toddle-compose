@@ -30,6 +30,8 @@ export const envSchema = z.object({
   RTC_TIER1_AGE_MS: z.coerce.number().default(7 * 24 * 60 * 60 * 1000),
   RTC_TIER2_AGE_MS: z.coerce.number().default(30 * 24 * 60 * 60 * 1000),
   RTC_SESSION_GAP_MS: z.coerce.number().default(30 * 1000),
+  // Debug: when >0, log every inbound Yjs update as base64 (for capture/replay of editor ops).
+  RTC_CAPTURE_UPDATES: z.coerce.number().int().default(0),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -23,4 +23,9 @@ declare module "y-websocket/bin/utils" {
     string,
     Y.Doc & { conns: Map<WebSocket, Set<number>> }
   >;
+
+  export function getYDoc(
+    docname: string,
+    gc?: boolean
+  ): Y.Doc & { conns: Map<WebSocket, Set<number>> };
 }

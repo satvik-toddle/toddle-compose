@@ -2,13 +2,18 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { Logger, type INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
 
 let app: INestApplication | null = null;
 
 async function bootstrap() {
-  app = await NestFactory.create(AppModule);
+  const nestApp = await NestFactory.create<NestExpressApplication>(AppModule);
+  app = nestApp;
+  // Content updates (base64 Yjs deltas, incl. embedded images) can exceed the
+  // 100kB express default; bound to the same ceiling as a WS frame.
+  nestApp.useBodyParser("json", { limit: "8mb" });
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
   const port = config.get<number>("RTC_PORT") ?? 4001;

@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
+import { docs as ywsDocs, getYDoc } from "y-websocket/bin/utils";
+import { buildOpsUpdate, type ContentOp } from "../content/content-builder";
 import { DocRepository } from "./doc-repository.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
@@ -9,6 +11,7 @@ import type { RtcClaims } from "../tokens/tokens.service";
 
 const log = createLogger("ws");
 const persistLog = createLogger("persist");
+const captureLog = createLogger("capture");
 
 type DebounceState = {
   idleTimer: NodeJS.Timeout | null;
@@ -45,6 +48,8 @@ export class DocStateService {
   >();
   private readonly chains = new Map<string, Promise<unknown>>();
   private readonly wsToClaims = new WeakMap<object, RtcClaims>();
+  // In-flight cold-load per doc, so applyUpdate can await load before mutating.
+  private readonly loading = new Map<string, Promise<void>>();
 
   constructor(
     private readonly repo: DocRepository,
@@ -80,7 +85,73 @@ export class DocStateService {
     if (chain) await chain;
   }
 
-  async bindState(docName: string, ydoc: Y.Doc): Promise<void> {
+  // y-websocket persistence hook. Tracks the load promise so applyUpdate (and any
+  // out-of-WS caller) can await the cold-load before mutating a freshly-warmed doc.
+  bindState(docName: string, ydoc: Y.Doc): Promise<void> {
+    const p = this.loadState(docName, ydoc);
+    this.loading.set(docName, p);
+    void p
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.loading.get(docName) === p) this.loading.delete(docName);
+      });
+    return p;
+  }
+
+  /** Resolves once the doc's cold-load (if any) has finished. */
+  whenLoaded(docName: string): Promise<void> {
+    return (this.loading.get(docName) ?? Promise.resolve()).catch(() => undefined);
+  }
+
+  // Run `fn` against a doc's single in-memory shared Y.Doc whether or not it's
+  // open. Routes through getYDoc so it's race-safe with a client connecting
+  // mid-op: changes persist via the update pipeline and broadcast to live
+  // editors. If we warmed the doc just for this, flush and evict it afterward.
+  private async withWarmDoc<T>(
+    docId: string,
+    fn: (ydoc: Y.Doc) => T | Promise<T>
+  ): Promise<T> {
+    const wasLive = ywsDocs.has(docId);
+    const ydoc = getYDoc(docId, true);
+    await this.whenLoaded(docId);
+    try {
+      return await fn(ydoc);
+    } finally {
+      if (!wasLive) {
+        const shared = ywsDocs.get(docId);
+        // Only tear down if no client connected while we held it.
+        if (shared && shared.conns.size === 0) {
+          await this.drain(docId);
+          await this.writeState(docId);
+          if (ywsDocs.get(docId) === shared && shared.conns.size === 0) {
+            ywsDocs.delete(docId);
+            shared.destroy();
+          }
+        }
+      }
+    }
+  }
+
+  /** Apply a raw Yjs update (base64-decoded) to a doc. */
+  applyUpdate(docId: string, update: Uint8Array, origin = "http-apply"): Promise<number> {
+    return this.withWarmDoc(docId, (ydoc) => {
+      Y.applyUpdate(ydoc, update, origin);
+      return update.byteLength;
+    });
+  }
+
+  // Apply high-level content ops: build a delta off the doc's current state via
+  // the headless Lexical↔Yjs binding, then merge it in (persist + broadcast).
+  editDoc(docId: string, ops: ContentOp[]): Promise<number> {
+    return this.withWarmDoc(docId, (ydoc) => {
+      const base = Y.encodeStateAsUpdate(ydoc);
+      const delta = buildOpsUpdate(base, ops);
+      Y.applyUpdate(ydoc, delta, "content-builder");
+      return delta.byteLength;
+    });
+  }
+
+  private async loadState(docName: string, ydoc: Y.Doc): Promise<void> {
     persistLog.info(`'${docName}' bindState — cold-load`);
     await this.repo.ensureRtcDoc(docName);
     const row = await this.repo.getRtcDoc(docName);
@@ -172,6 +243,11 @@ export class DocStateService {
       if (origin && typeof origin === "object") {
         const claims = this.wsToClaims.get(origin);
         if (claims) clientSub = claims.sub;
+      }
+      if (this.env("RTC_CAPTURE_UPDATES")) {
+        captureLog.info(
+          `docId=${docName} origin=${originDesc} sub=${clientSub ?? "-"} bytes=${update.byteLength} b64=${Buffer.from(update).toString("base64")}`
+        );
       }
       this.bufferAppend(docName, Buffer.from(update), originDesc, clientSub);
       this.armCheckpointTimer(docName);

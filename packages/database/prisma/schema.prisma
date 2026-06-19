@@ -47,6 +47,22 @@ enum JoinRequestState {
   REJECTED
 }
 
+// REALM-wide (every workspace) or confined to a single WORKSPACE.
+enum AccessTokenScope {
+  REALM
+  WORKSPACE
+}
+
+// Capability ceiling for an access token. VIEW < COMMENT < EDIT < ADMIN mirror
+// WorkspaceRole (VIEW == READ); MAINTAINER (realm-admin) is REALM-scope only.
+enum AccessTokenPermission {
+  VIEW
+  COMMENT
+  EDIT
+  ADMIN
+  MAINTAINER
+}
+
 model Realm {
   id         String        @id @default(cuid())
   name       String
@@ -83,6 +99,7 @@ model Workspace {
   joinRequests JoinRequest[]
   folders      Folder[]
   documents    Document[]
+  accessTokens AccessToken[]
 
   @@index([realmId])
   @@map("workspaces")
@@ -131,6 +148,7 @@ model User {
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
+  accessTokens         AccessToken[]
 
   @@map("users")
 }
@@ -146,6 +164,29 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Opaque Bearer credential that authenticates as its creator, capped to
+// `permission` and confined to `scope`. Only the sha256 hash is stored.
+model AccessToken {
+  id          String                @id @default(cuid())
+  name        String
+  tokenHash   String                @unique @map("token_hash")
+  prefix      String
+  scope       AccessTokenScope
+  permission  AccessTokenPermission
+  workspaceId String?               @map("workspace_id")
+  workspace   Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdById String                @map("created_by_id")
+  createdBy   User                  @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime?             @map("expires_at")
+  lastUsedAt  DateTime?             @map("last_used_at")
+  revokedAt   DateTime?             @map("revoked_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  @@index([createdById])
+  @@index([workspaceId])
+  @@map("access_tokens")
 }
 
 model Folder {

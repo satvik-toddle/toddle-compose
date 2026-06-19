@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -186,6 +187,9 @@ export class FoldersService {
     const folder = await this.loadFolder(id);
     if (folder.ownerId === userId) {
       await this.authz.requireWorkspaceRole(userId, folder.workspaceId, "READ");
+      if (!this.authz.tokenAllowsWorkspaceRole("EDIT")) {
+        throw new ForbiddenException("requires workspace role EDIT or higher");
+      }
     } else {
       await this.authz.requireWorkspaceRole(userId, folder.workspaceId, "ADMIN");
     }

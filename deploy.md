@@ -63,7 +63,7 @@ RTC_DATABASE_URL=postgresql://toddle:<pw>@<internal-host>/toddle_compose_rtc
 Run once from your laptop, pointing at the **External** URLs (`?sslmode=require`):
 
 ```bash
-# create the schema in BOTH databases
+# create the schema in BOTH databases (initial bootstrap)
 DATABASE_URL="<ext app url>" RTC_DATABASE_URL="<ext rtc url>" pnpm db:push
 
 # create the realm row the backend requires to boot (REALM_ID)
@@ -74,6 +74,17 @@ DATABASE_URL="<ext app url>" \
   pnpm db:init
 ```
 `db:seed` is **local-only** demo data — don't run it against staging.
+
+> **Both DB schemas stay in sync automatically on every deploy.** Each service's
+> `start` script runs `prisma db push --skip-generate` before booting (see the
+> `db:deploy` script in `backend/package.json` and `rtc-server/package.json`): the
+> backend syncs the app DB (`DATABASE_URL`), the rtc-server syncs the RTC DB
+> (`RTC_DATABASE_URL`). A schema change ships just by deploying — no manual
+> `db:push` after this initial bootstrap. The push runs at **runtime** (Start
+> Command), where the Internal DB URL is reachable; it can't run in the Build
+> Command (no DB network there). `db push` runs **without** `--accept-data-loss`, so
+> a destructive change fails the deploy instead of dropping data — resolve those
+> manually. `db:init` (the realm row) is still one-time.
 
 ### 3. Backend keys
 Three secrets. Generate them once.
@@ -112,6 +123,7 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   `corepack enable` — corepack can't symlink into Render's read-only `/usr/bin`. The repo's
   `.node-version` pins Node 20.)
 - **Start Command:** `pnpm --filter backend start`
+  (runs `prisma db push` to sync the app-DB schema, then boots — see §2.)
 - **Health Check Path:** `/health`
 - **Environment:**
   ```
@@ -137,6 +149,7 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   (The Lexical server-nodes bundle is committed at `rtc-server/vendor/server-nodes.cjs`,
   so no `doc-editor` checkout is needed.)
 - **Start Command:** `pnpm --filter rtc-server start`
+  (runs `prisma db push` to sync the RTC-DB schema, then boots — see §2.)
 - **Environment:**
   ```
   NODE_ENV=production

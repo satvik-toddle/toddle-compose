@@ -10,7 +10,8 @@
     "bundle:nodes": "node scripts/bundle-server-nodes.mjs",
     "dev": "nest start --watch",
     "build": "nest build",
-    "start": "node dist/main.js",
+    "db:deploy": "pnpm --filter @app/rtc-database exec prisma db push --skip-generate",
+    "start": "pnpm run db:deploy && node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },

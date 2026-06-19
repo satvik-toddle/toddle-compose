@@ -173,7 +173,11 @@ export class DocumentsService {
     });
     if (!doc) throw new NotFoundException("document not found");
 
-    if (doc.ownerId === userId) return "editor";
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
+
+    if (doc.ownerId === userId) {
+      return this.authz.tokenAllowsWorkspaceRole("EDIT") ? "editor" : "viewer";
+    }
 
     const role = await this.authz.effectiveWorkspaceRole(userId, doc.workspaceId);
     if (role === "ADMIN" || role === "EDIT") return "editor";
@@ -202,6 +206,8 @@ export class DocumentsService {
       select: this.summarySelect(),
     });
     if (!doc) throw new NotFoundException("document not found");
+
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
 
     if (doc.owner.id === userId) return doc;
 
@@ -390,6 +396,9 @@ export class DocumentsService {
     if (!doc) throw new NotFoundException("document not found");
     if (doc.ownerId === userId) {
       await this.authz.requireWorkspaceRole(userId, doc.workspaceId, "READ");
+      if (!this.authz.tokenAllowsWorkspaceRole("EDIT")) {
+        throw new ForbiddenException("requires workspace role EDIT or higher");
+      }
     } else {
       await this.authz.requireWorkspaceRole(userId, doc.workspaceId, min);
     }

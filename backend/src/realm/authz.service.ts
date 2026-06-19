@@ -6,6 +6,8 @@ import {
 import { RealmRole, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
+import { currentTokenAuth } from "../auth/request-context";
+import { permissionToWorkspaceRole } from "../auth/access-token.util";
 
 // Rank per ladder; higher = more capable.
 const REALM_ORDER: Record<RealmRole, number> = {
@@ -35,9 +37,8 @@ export class AuthzService {
     return member?.role ?? null;
   }
 
-  /** Throws 403 unless the user holds at least `min` in the realm. Returns the actual role. */
   async requireRealmRole(userId: string, min: RealmRole): Promise<RealmRole> {
-    const role = await this.realmRole(userId);
+    const role = this.capRealmRole(await this.realmRole(userId));
     if (role === null || REALM_ORDER[role] < REALM_ORDER[min]) {
       throw new ForbiddenException(`requires realm role ${min} or higher`);
     }
@@ -60,6 +61,11 @@ export class AuthzService {
   ): Promise<WorkspaceRole | null> {
     await this.getWorkspaceInRealm(workspaceId);
 
+    const token = currentTokenAuth();
+    if (token && token.scope === "WORKSPACE" && token.workspaceId !== workspaceId) {
+      return null;
+    }
+
     const realmRole = await this.realmRole(userId);
     const overlay: WorkspaceRole | null =
       realmRole === "OWNER" || realmRole === "MAINTAINER" ? "ADMIN" : null;
@@ -69,7 +75,27 @@ export class AuthzService {
     });
     const direct = member?.role ?? null;
 
-    return this.maxWorkspaceRole(overlay, direct);
+    let effective = this.maxWorkspaceRole(overlay, direct);
+    if (token) {
+      effective = this.minWorkspaceRole(
+        effective,
+        permissionToWorkspaceRole(token.permission)
+      );
+    }
+    return effective;
+  }
+
+  assertWorkspaceInScope(workspaceId: string): void {
+    const token = currentTokenAuth();
+    if (token && token.scope === "WORKSPACE" && token.workspaceId !== workspaceId) {
+      throw new NotFoundException("not found");
+    }
+  }
+
+  tokenAllowsWorkspaceRole(min: WorkspaceRole): boolean {
+    const token = currentTokenAuth();
+    if (!token) return true;
+    return WS_ORDER[permissionToWorkspaceRole(token.permission)] >= WS_ORDER[min];
   }
 
   /** Throws 403 unless the user holds at least `min` in the workspace. Returns the actual role. */
@@ -92,5 +118,22 @@ export class AuthzService {
     if (a === null) return b;
     if (b === null) return a;
     return WS_ORDER[a] >= WS_ORDER[b] ? a : b;
+  }
+
+  private minWorkspaceRole(
+    a: WorkspaceRole | null,
+    b: WorkspaceRole | null
+  ): WorkspaceRole | null {
+    if (a === null || b === null) return null;
+    return WS_ORDER[a] <= WS_ORDER[b] ? a : b;
+  }
+
+  private capRealmRole(live: RealmRole | null): RealmRole | null {
+    const token = currentTokenAuth();
+    if (!token || live === null) return live;
+    if (token.scope === "WORKSPACE") return null;
+    const ceiling: RealmRole =
+      token.permission === "MAINTAINER" ? "MAINTAINER" : "MEMBER";
+    return REALM_ORDER[live] <= REALM_ORDER[ceiling] ? live : ceiling;
   }
 }

@@ -12,16 +12,26 @@ export class AuthTokensGcScheduler {
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async purge(): Promise<void> {
+    const now = new Date();
     const revokedCutoff = new Date(
-      Date.now() - AuthTokensGcScheduler.REVOKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      now.getTime() - AuthTokensGcScheduler.REVOKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
     );
-    const res = await this.prisma.refreshToken.deleteMany({
+    const refresh = await this.prisma.refreshToken.deleteMany({
       where: {
-        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: revokedCutoff } }],
+        OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
       },
     });
-    if (res.count > 0) {
-      this.log.log(`purged ${res.count} expired/long-revoked refresh token(s)`);
+    if (refresh.count > 0) {
+      this.log.log(`purged ${refresh.count} expired/long-revoked refresh token(s)`);
+    }
+
+    const access = await this.prisma.accessToken.deleteMany({
+      where: {
+        OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
+      },
+    });
+    if (access.count > 0) {
+      this.log.log(`purged ${access.count} expired/long-revoked access token(s)`);
     }
   }
 }

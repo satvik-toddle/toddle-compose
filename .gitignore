@@ -4,8 +4,13 @@ dist
 build
 *.tsbuildinfo
 
+# Local env files (incl. .env.local, .env.development.local, .env.*.local).
+# These hold per-machine config (e.g. localhost API URLs) and must never be
+# baked into a production build — keep the committed .env.example as the
+# template and set real values via the host's build env vars.
 .env
-.env.local
+.env.*
+!.env.example
 .keys/
 
 *.log

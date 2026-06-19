@@ -1,0 +1,18 @@
+/* Join requests tab. Co-located, auto-scoped CSS Module.
+   Shared table primitive stays global; this tab's column grid + the
+   workspace pill live here. */
+
+.ad-req-tbl {
+  :global(.thead),
+  :global(.trow) {
+    grid-template-columns: 1.6fr 1fr 150px 120px 200px;
+  }
+}
+
+.ws-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}

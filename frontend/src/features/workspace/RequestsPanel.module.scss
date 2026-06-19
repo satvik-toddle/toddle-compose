@@ -1,0 +1,10 @@
+/* Requests panel. Co-located, auto-scoped CSS Module.
+   Shared workspace shell + table primitives stay global; only this panel's
+   table column grid lives here. */
+
+.ws-req-tbl {
+  :global(.thead),
+  :global(.trow) {
+    grid-template-columns: 2fr 160px 120px 210px;
+  }
+}

@@ -11,12 +11,20 @@ import {
 import { Awareness } from "y-protocols/awareness";
 import {
   $createParagraphNode,
+  $createRangeSelection,
   $createTextNode,
   $getRoot,
+  $getSelection,
+  $isElementNode,
+  $isRangeSelection,
+  $isTextNode,
+  $setSelection,
   type ElementNode,
   type Klass,
   type LexicalNode,
+  type RangeSelection,
   type TextFormatType,
+  type TextNode,
 } from "lexical";
 import {
   $createHeadingNode,
@@ -89,6 +97,10 @@ export type ListItemSpec =
   | string
   | { text?: string; format?: TextFormatType[]; runs?: TextRun[]; checked?: boolean };
 
+// A selection point (Lexical anchor/focus shape): the top-level block index and
+// a character offset within that block's text.
+export type SelPoint = { parentId: number; offset: number };
+
 // High-level authoring ops, applied in order, appended to the document root.
 export type ContentOp =
   | { op: "clear" }
@@ -160,6 +172,55 @@ export type ContentOp =
       src: string;
       mimeType?: string;
       fileName?: string;
+    }
+  // ---- IN-PLACE edits (Lexical selection: anchor/focus points) --------------
+  // These edit EXISTING content the way a user would: they build a Lexical
+  // RangeSelection from an `anchor` to a `focus` point and run the editor's own
+  // selection.formatText()/insertText(), so the emitted Yjs op is exactly what a
+  // real user edit produces — minimal and CRDT-safe to apply on a doc someone has
+  // open. A Point is { parentId, offset }: `parentId` = 0-based index of the
+  // top-level block, `offset` = character offset within that block's text.
+  // Discover blocks/text with `compose.mjs read --doc <id>` (the content API),
+  // then build concrete points — no fuzzy matching.
+  | {
+      // e.g. {op:"format", anchor:{parentId:1,offset:10}, focus:{parentId:1,offset:15}, operations:["bold"]}
+      op: "format";
+      anchor: SelPoint;
+      focus: SelPoint;
+      operations?: TextFormatType[]; // format bits to apply (alias: `format`)
+      format?: TextFormatType[];
+      color?: string;
+      fontSize?: number | string;
+      highlight?: string;
+      href?: string; // wrap the selected range in a link (same-block only)
+    }
+  | {
+      // Delete the selected range (anchor → focus). NO "replace" op exists by
+      // design: to replace text the agent composes concrete ops from the read
+      // API — `delete` the range, then `insert` the new text — so every edit is
+      // explicit (which block, which offsets) rather than a fuzzy find/replace.
+      op: "delete";
+      anchor: SelPoint;
+      focus: SelPoint;
+    }
+  | {
+      // Insert at a caret, or a new block relative to an existing one.
+      //  • inline caret: {op:"insert", anchor:{parentId,offset}, text}
+      //  • new block: {op:"insert", insertAfter|insertBefore:<blockIndex>, ...}
+      //    or {op:"insert", parentOffset:<childIndex>, ...} — content from a
+      //    `block` op spec, or `text` → a paragraph.
+      op: "insert";
+      text?: string;
+      anchor?: SelPoint;
+      operations?: TextFormatType[];
+      format?: TextFormatType[];
+      color?: string;
+      fontSize?: number | string;
+      highlight?: string;
+      insertAfter?: number;
+      insertBefore?: number;
+      parentOffset?: number;
+      block?: ContentOp;
     };
 
 function makeStubProvider(ydoc: Y.Doc): Provider {
@@ -267,6 +328,146 @@ function fillBlock(
 ): void {
   if (spec.runs?.length) appendRuns(parent, spec.runs);
   else if (spec.text) appendText(parent, spec.text, spec);
+}
+
+// ---- in-place editing (find/select by offset → restyle/replace/insert) ------
+// These operate on the doc's EXISTING content (loaded into the editor before ops
+// run) and touch only the targeted text, so the produced Yjs delta is minimal
+// and merges cleanly with a live editor — no clear/re-author needed.
+
+type InlineStyleSpec = {
+  format?: TextFormatType[];
+  fontSize?: number | string;
+  color?: string;
+  highlight?: string;
+};
+
+// CSS declarations to set (font-size/color/background-color) for inline style.
+function styleAdditions(s: InlineStyleSpec): Record<string, string> {
+  const a: Record<string, string> = {};
+  if (s.fontSize !== undefined) {
+    a["font-size"] = typeof s.fontSize === "number" ? `${s.fontSize}px` : s.fontSize;
+  }
+  if (s.color) a["color"] = s.color;
+  if (s.highlight) a["background-color"] = s.highlight;
+  return a;
+}
+
+// Merge `adds` into an existing CSS `style` string (set/override per property).
+function mergeCss(existing: string, adds: Record<string, string>): string {
+  const map = new Map<string, string>();
+  for (const decl of existing.split(";")) {
+    const i = decl.indexOf(":");
+    if (i > 0) map.set(decl.slice(0, i).trim(), decl.slice(i + 1).trim());
+  }
+  for (const [k, v] of Object.entries(adds)) map.set(k, v);
+  return [...map.entries()].map(([k, v]) => `${k}: ${v};`).join(" ");
+}
+
+function collectTextNodes(node: LexicalNode, out: TextNode[]): void {
+  if ($isTextNode(node)) out.push(node);
+  else if ($isElementNode(node)) for (const c of node.getChildren()) collectTextNodes(c, out);
+}
+function textNodesUnder(scope: LexicalNode | null): TextNode[] {
+  const out: TextNode[] = [];
+  const roots = scope ? [scope] : $getRoot().getChildren();
+  for (const r of roots) collectTextNodes(r, out);
+  return out;
+}
+
+// Resolve the top-level block at index `parentId` (root's Nth child element).
+function blockAt(parentId: number): ElementNode | null {
+  const kids = $getRoot().getChildren();
+  const b = kids[Number(parentId)];
+  return b && $isElementNode(b) ? b : null;
+}
+
+// Map a character offset within a block to (text node, local text offset). An
+// offset at/over the end clamps to the last text node's end.
+function pointInBlock(
+  block: ElementNode,
+  off: number
+): { node: TextNode; offset: number } | null {
+  const texts = textNodesUnder(block);
+  if (texts.length === 0) return null;
+  let base = 0;
+  for (const t of texts) {
+    const len = t.getTextContent().length;
+    if (off <= base + len) return { node: t, offset: Math.max(0, off - base) };
+    base += len;
+  }
+  const last = texts[texts.length - 1];
+  return { node: last, offset: last.getTextContent().length };
+}
+
+// Resolve a text `match` to concrete (block, start, end) ranges by scanning each
+// Build and activate a Lexical RangeSelection over [start, end) chars of `block`
+// — the same anchor/focus a user's selection would have. Returns it, or null.
+function selectRange(
+  block: ElementNode,
+  start: number,
+  end: number
+): RangeSelection | null {
+  const a = pointInBlock(block, start);
+  const f = pointInBlock(block, end);
+  if (!a || !f) return null;
+  const sel = $createRangeSelection();
+  sel.anchor.set(a.node.getKey(), a.offset, "text");
+  sel.focus.set(f.node.getKey(), f.offset, "text");
+  $setSelection(sel);
+  const active = $getSelection();
+  return $isRangeSelection(active) ? active : null;
+}
+
+// Build + activate a RangeSelection from anchor → focus points (each a block
+// index + char offset). Returns the selection plus, when both points are in the
+// same block, that block — so style can be applied to the exact range.
+function selectPoints(
+  anchor: SelPoint,
+  focus: SelPoint
+): { sel: RangeSelection; block: ElementNode | null } | null {
+  const ab = blockAt(anchor.parentId);
+  const fb = blockAt(focus.parentId);
+  if (!ab || !fb) return null;
+  const a = pointInBlock(ab, anchor.offset);
+  const f = pointInBlock(fb, focus.offset);
+  if (!a || !f) return null;
+  const sel = $createRangeSelection();
+  sel.anchor.set(a.node.getKey(), a.offset, "text");
+  sel.focus.set(f.node.getKey(), f.offset, "text");
+  $setSelection(sel);
+  const active = $getSelection();
+  if (!$isRangeSelection(active)) return null;
+  return { sel: active, block: anchor.parentId === focus.parentId ? ab : null };
+}
+
+// Split `block` at the range boundaries and return the text nodes that exactly
+// cover [start, end) — used to apply inline STYLE (color/size/bg) to just the
+// selection, mirroring what $patchStyleText does for a real selection.
+function rangeTextNodes(block: ElementNode, start: number, end: number): TextNode[] {
+  const segs: TextNode[] = [];
+  let base = 0;
+  for (const t of textNodesUnder(block)) {
+    const len = t.getTextContent().length;
+    const ns = Math.max(0, start - base);
+    const ne = Math.min(len, end - base);
+    base += len;
+    if (ns >= ne) continue;
+    const offs: number[] = [];
+    if (ns > 0) offs.push(ns);
+    if (ne < len) offs.push(ne);
+    if (offs.length === 0) {
+      segs.push(t);
+    } else {
+      const parts = t.splitText(...offs);
+      let acc = 0;
+      for (const p of parts) {
+        if (acc === ns) { segs.push(p); break; }
+        acc += p.getTextContent().length;
+      }
+    }
+  }
+  return segs;
 }
 
 // Resolve a registered node class by its type string. The editor's custom nodes
@@ -421,6 +622,99 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         table.append(tr);
       });
       parent.append(table);
+      break;
+    }
+    case "format": {
+      const picked = selectPoints(op.anchor, op.focus);
+      if (!picked) { log.debug(`format: bad selection`); break; }
+      // Format bits via the editor's own selection.formatText (the user action).
+      const fmts = op.operations ?? op.format ?? [];
+      for (const f of fmts) if (!picked.sel.hasFormat(f)) picked.sel.formatText(f);
+      // Inline style (color/size/bg) → split the range and style its text nodes.
+      const adds = styleAdditions(op);
+      if (Object.keys(adds).length > 0 && picked.block) {
+        for (const node of rangeTextNodes(picked.block, op.anchor.offset, op.focus.offset)) {
+          node.setStyle(mergeCss(node.getStyle(), adds));
+        }
+      } else if (Object.keys(adds).length > 0) {
+        for (const node of picked.sel.getNodes())
+          if ($isTextNode(node)) node.setStyle(mergeCss(node.getStyle(), adds));
+      }
+      // Hyperlink the exact selected range: split it into its covering text nodes
+      // (same path as inline style) and move them into a LinkNode, just as a user
+      // selecting text and applying a link would. Same-block only.
+      if (op.href !== undefined && picked.block) {
+        const linkNodes = rangeTextNodes(picked.block, op.anchor.offset, op.focus.offset);
+        if (linkNodes.length > 0) {
+          const link = $createLinkNode(op.href);
+          linkNodes[0].insertBefore(link);
+          for (const node of linkNodes) link.append(node);
+        }
+      } else if (op.href !== undefined) {
+        log.debug(`format: href needs a same-block selection`);
+      }
+      log.debug(`format ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset}`);
+      break;
+    }
+    case "delete": {
+      const picked = selectPoints(op.anchor, op.focus);
+      if (!picked) { log.debug(`delete: bad selection`); break; }
+      // Deleting a non-collapsed selection = typing "" over it (editor's own delete).
+      picked.sel.insertText("");
+      log.debug(`delete ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset}`);
+      break;
+    }
+    case "insert": {
+      // (a) inline caret insertion at an anchor point
+      if (op.anchor !== undefined) {
+        const block = blockAt(op.anchor.parentId);
+        const at = op.anchor.offset;
+        if (block) {
+          const sel = selectRange(block, at, at); // collapsed caret
+          if (sel && op.text) {
+            sel.insertText(op.text);
+            const adds = styleAdditions(op);
+            const fmts = op.operations ?? op.format ?? [];
+            if (Object.keys(adds).length > 0 || fmts.length > 0) {
+              const sel2 = selectRange(block, at, at + op.text.length);
+              if (sel2) for (const f of fmts) if (!sel2.hasFormat(f)) sel2.formatText(f);
+              if (Object.keys(adds).length > 0)
+                for (const node of rangeTextNodes(block, at, at + op.text.length))
+                  node.setStyle(mergeCss(node.getStyle(), adds));
+            }
+          }
+        }
+        log.debug(`insert text ${op.anchor.parentId}@${at}`);
+        break;
+      }
+      // (b) new block relative to an existing block (insertAfter/Before/parentOffset).
+      // Build by appending to root, then move the new node(s) into position.
+      const root = $getRoot();
+      const kids = root.getChildren();
+      const before = root.getChildrenSize();
+      if (op.block) {
+        applyOp(op.block, root);
+      } else if (op.text !== undefined) {
+        const p = $createParagraphNode();
+        appendText(p, op.text, {
+          format: op.operations ?? op.format,
+          color: op.color,
+          fontSize: op.fontSize,
+          highlight: op.highlight,
+        });
+        root.append(p);
+      }
+      const built = root.getChildren().slice(before);
+      if (built.length === 0) { log.debug("insert: nothing to insert"); break; }
+      if (op.insertAfter !== undefined && kids[op.insertAfter]) {
+        let ref: LexicalNode = kids[op.insertAfter];
+        for (const node of built) { ref.insertAfter(node); ref = node; }
+      } else if (op.insertBefore !== undefined && kids[op.insertBefore]) {
+        for (const node of built) kids[op.insertBefore].insertBefore(node);
+      } else if (op.parentOffset !== undefined && kids[op.parentOffset]) {
+        for (const node of built) kids[op.parentOffset].insertBefore(node);
+      } // else: leave appended at end
+      log.debug(`insert block(s)=${built.length}`);
       break;
     }
     default:

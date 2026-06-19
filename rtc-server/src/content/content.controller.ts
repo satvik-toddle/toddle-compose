@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Headers,
   Param,
   Post,
@@ -41,6 +42,35 @@ export class ContentController {
     }
     const applied = await this.docState.applyUpdate(docId, new Uint8Array(bytes));
     return { ok: true, docId, applied };
+  }
+
+  // Read the doc's current content as an outline the agent uses to target edits:
+  // each top-level block's index (parentId), node type, and concatenated text
+  // (the offset space in-place ops address). `raw` carries the full Lexical JSON.
+  @Get(":docId/content")
+  async content(
+    @Param("docId") docId: string,
+    @Headers("authorization") authorization: string | undefined
+  ) {
+    await this.requireEditor(authorization, docId);
+    const lexicalJson = await this.docState.readContent(docId);
+    let blocks: Array<{ parentId: number; type: string; text: string; length: number }> = [];
+    try {
+      const root = JSON.parse(lexicalJson || '{"root":{"children":[]}}').root;
+      const textOf = (node: { type?: string; text?: string; children?: unknown[] }): string => {
+        if (node.type === "text") return node.text ?? "";
+        return ((node.children as typeof node[]) ?? []).map(textOf).join("");
+      };
+      blocks = (root.children ?? []).map(
+        (b: { type: string }, i: number) => {
+          const text = textOf(b);
+          return { parentId: i, type: b.type, text, length: text.length };
+        }
+      );
+    } catch {
+      /* empty/invalid → no blocks */
+    }
+    return { docId, blocks, raw: lexicalJson };
   }
 
   // Apply high-level content ops (paragraphs, headings, tables) built server-side.

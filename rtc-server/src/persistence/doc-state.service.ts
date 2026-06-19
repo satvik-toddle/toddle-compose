@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { docs as ywsDocs, getYDoc } from "y-websocket/bin/utils";
 import { buildOpsUpdate, type ContentOp } from "../content/content-builder";
+import { extractFromBytesSync } from "./lexical-extract.core";
 import { DocRepository } from "./doc-repository.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
@@ -168,6 +169,16 @@ export class DocStateService {
       const delta = buildOpsUpdate(base, ops);
       Y.applyUpdate(ydoc, delta, "content-builder");
       return delta.byteLength;
+    });
+  }
+
+  // Read the doc's current content as extracted Lexical JSON — the source of
+  // truth an agent reads to discover block indices (parentId) and text before
+  // composing concrete in-place edits.
+  readContent(docId: string): Promise<string> {
+    return this.withWarmDoc(docId, (ydoc) => {
+      const { lexicalJson } = extractFromBytesSync(Y.encodeStateAsUpdate(ydoc));
+      return lexicalJson ?? "";
     });
   }
 

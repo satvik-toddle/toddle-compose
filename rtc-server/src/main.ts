@@ -4,12 +4,15 @@ import { Logger, type INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
+import { traceMiddleware } from "./tracing/trace";
 
 let app: INestApplication | null = null;
 
 async function bootstrap() {
   app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
+  // Per-request HTTP tracing: times each request and logs a span breakdown.
+  app.use(traceMiddleware);
   const config = app.get(ConfigService);
   const port = config.get<number>("RTC_PORT") ?? 4001;
   await app.listen(port);

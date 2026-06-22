@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@app/rtc-database";
 import type { Env } from "../config/env";
+import { traceEnabled } from "../tracing/trace";
 
 @Injectable()
 export class PrismaService
@@ -17,6 +18,21 @@ export class PrismaService
   }
 
   async onModuleInit(): Promise<void> {
+    // Log each query's duration to the console (no-op when tracing is off).
+    if (traceEnabled()) {
+      this.$use(async (params, next) => {
+        const start = performance.now();
+        try {
+          return await next(params);
+        } finally {
+          const op = params.model
+            ? `${params.model}.${params.action}`
+            : params.action;
+          const ms = (performance.now() - start).toFixed(1);
+          console.log(`[trace] db ${op} ${ms}ms`);
+        }
+      });
+    }
     await this.$connect();
   }
 

@@ -19,9 +19,9 @@ overrides:
   y-websocket: 2.0.4
 
 patchedDependencies:
-  '@toddle-edu/ds-icons@1.21.1':
+  '@toddle-edu/ds-icons':
     hash: zlofyfyrxrrnce2rima5ad4a6u
-    path: patches/@toddle-edu__ds-icons@1.21.1.patch
+    path: patches/@toddle-edu__ds-icons.patch
 
 importers:
 
@@ -149,17 +149,17 @@ importers:
         specifier: 2.3.48
         version: 2.3.48(esbuild@0.28.0)
       '@toddle-edu/ds-doc-editor':
-        specifier: 0.9.1
-        version: 0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 0.10.0
+        version: 0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@toddle-edu/ds-icons':
-        specifier: 1.21.1
-        version: 1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
+        specifier: 1.22.1
+        version: 1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
       '@toddle-edu/ds-theme':
         specifier: 2.8.8
         version: 2.8.8
       '@toddle-edu/ds-web':
-        specifier: 1.157.2
-        version: 1.157.2(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.3.0)
+        specifier: 1.157.4
+        version: 1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.3.0)
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -1709,22 +1709,22 @@ packages:
     resolution: {integrity: sha512-AdEI007yWpEDfp+7Mus1W8SWwuPvNC5g9JNv+tHCj+Pd8KlPD8OhxAYxdRNc2+drKUleTodPFQLCvs+7aOyKKg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/common-utils/2.3.48/9a0085764b6225fd5f846035bb3f2578f99b8bd0}
     engines: {node: '>=18 <23'}
 
-  '@toddle-edu/ds-doc-editor@0.9.1':
-    resolution: {integrity: sha512-OOgy29JXKuq5u4SVwF2YpmHkfN5vcEFuTW52yx1RDZs6t9Svb3AxOC9tGjuhh24q5qy+6F2RRlE44I8jvygrlA==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-doc-editor/0.9.1/4c635c7cbc43ff7b54bf7c37e87b3fa476eff736}
+  '@toddle-edu/ds-doc-editor@0.10.0':
+    resolution: {integrity: sha512-eg/9BBBwku5itPDLVZEWKwvy3TT8j1pH07ZgSVlpsuvNLzBPOgkgM0GWNfpDjsu0sHBYzI1h4xB+dwKoaK9HXQ==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-doc-editor/0.10.0/9396b695d9a2f533af5ce07e36a20f0819e4ff24}
     peerDependencies:
       react: 18.3.1
       react-dom: 18.3.1
 
-  '@toddle-edu/ds-icons@1.21.1':
-    resolution: {integrity: sha512-OXFxJul1wYylhpnebEMHvYy8fbvHpE+tshiPwXj/BnS5nP36/rRwu0PAKYQzEiGRWTEI3mqLgXkRa/MImPXf5A==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-icons/1.21.1/c3707f615414602a9602e5e8c9b9a7ba7df4671c}
+  '@toddle-edu/ds-icons@1.22.1':
+    resolution: {integrity: sha512-sVjkWA+NyZwGrf40soCwmgP9K7wVsqQwmsQMUn//kEpWEObLhc/5oXOLdN0csN9zMqGR/Tiid6g7QITfI1ZF6Q==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-icons/1.22.1/992848f468943b5288b505596d003f116393954f}
     peerDependencies:
       react: 18.3.1
 
   '@toddle-edu/ds-theme@2.8.8':
     resolution: {integrity: sha512-pxfHsrFZXsAQPW/OQh+F6i5Koik5ePKTn8RhD8q7jJnIR3zQawyg5zcoz4AbMOQYwbREiVQIXWIp22x/qQssGg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-theme/2.8.8/8a185c6f409f125c04ebdcfc608e4a11901cde16}
 
-  '@toddle-edu/ds-web@1.157.2':
-    resolution: {integrity: sha512-5e1KlmNJgG/PEpg+RyAmJOuUSULh5v+xEyAetI2IXTEHdfOWf+aQLgD0iobh7hyChLZrZRGosUsW4XKRryzfIw==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-web/1.157.2/188138df3db7687439ebca692d3bcf3946750d25}
+  '@toddle-edu/ds-web@1.157.4':
+    resolution: {integrity: sha512-zIb3P2M+VPpnte8EsTbnT4KcnDmUZki99C/3TPC3mqjVcDjIv+TdfkR1IK/2i1ZH1mhcHOXuA9HvBBnwKfuqMg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-web/1.157.4/9dbcd04e83f3d7c561e217e759d6cf71a1f1c9b8}
 
   '@toddle-edu/react-mentions@4.4.8':
     resolution: {integrity: sha512-nWv/l9fFLHTwa8uKLfWjRCHHrQJV2HhTCF+v94hWwMaKE/Wj/4XhwGurwxi5Px/lUAMVkrJxd1TKpbjUdvfX7Q==, tarball: https://npm.pkg.github.com/download/@toddle-edu/react-mentions/4.4.8/923e4eac470a9c69bc41a3a0f1f61bed6821d4c3}
@@ -6685,12 +6685,12 @@ snapshots:
       - esbuild
       - supports-color
 
-  '@toddle-edu/ds-doc-editor@0.9.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@toddle-edu/ds-doc-editor@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@toddle-edu/ds-icons@1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)':
+  '@toddle-edu/ds-icons@1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)':
     dependencies:
       '@toddle-edu/ds-theme': 2.8.8
       classnames: 2.5.1
@@ -6701,7 +6701,7 @@ snapshots:
       '@types/lodash': 4.17.24
       lodash: 4.18.1
 
-  '@toddle-edu/ds-web@1.157.2(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.3.0)':
+  '@toddle-edu/ds-web@1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.3.0)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@dnd-kit/modifiers': 8.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
@@ -6719,7 +6719,7 @@ snapshots:
       '@seznam/compose-react-refs': 1.0.6
       '@tailwindcss/forms': 0.5.11(tailwindcss@4.3.0)
       '@tanstack/react-virtual': 3.13.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@toddle-edu/ds-icons': 1.21.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
+      '@toddle-edu/ds-icons': 1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
       '@toddle-edu/ds-theme': 2.8.8
       '@toddle-edu/react-mentions': 4.4.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@toddle-edu/react-tiny-popover': 6.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

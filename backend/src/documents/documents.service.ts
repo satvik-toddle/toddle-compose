@@ -607,25 +607,23 @@ export class DocumentsService {
     workspaceId: string,
     rootId: string
   ): Promise<string[]> {
-    const all = await this.prisma.document.findMany({
-      where: { workspaceId },
-      select: { id: true, parentId: true },
-    });
-    const childrenByParent = new Map<string, string[]>();
-    for (const d of all) {
-      if (!d.parentId) continue;
-      const arr = childrenByParent.get(d.parentId) ?? [];
-      arr.push(d.id);
-      childrenByParent.set(d.parentId, arr);
-    }
-    const ids: string[] = [];
-    const stack = [rootId];
-    while (stack.length > 0) {
-      const cur = stack.pop() as string;
-      ids.push(cur);
-      for (const child of childrenByParent.get(cur) ?? []) stack.push(child);
-    }
-    return ids;
+    // Walk the subtree in the DB with a recursive CTE: one round trip returning just the
+    // descendants, rather than loading every document in the workspace and walking it in
+    // memory (which was O(workspace size) on each delete). The tree is workspace-scoped, so
+    // anchoring the root to workspaceId is enough — descendants follow parent_id from there.
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      WITH RECURSIVE subtree AS (
+        SELECT id
+        FROM documents
+        WHERE id = ${rootId} AND workspace_id = ${workspaceId}
+        UNION ALL
+        SELECT d.id
+        FROM documents d
+        JOIN subtree s ON d.parent_id = s.id
+      )
+      SELECT id FROM subtree
+    `;
+    return rows.map((r) => r.id);
   }
 
   private summarySelect() {

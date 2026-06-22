@@ -539,3 +539,100 @@ describe("Sheet support (e2e)", () => {
     expect(node.type).toBe("SHEET"); // kind travels with the node
   });
 });
+
+describe("Hierarchy cache invalidation (e2e)", () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  const stamp = Date.now();
+  let wsId = "";
+  let ownerWs = "";
+  let root = "";
+
+  const childIds = (body: { children?: { id: string }[] }) =>
+    (body.children ?? []).map((c) => c.id);
+  const hierarchy = (id: string) =>
+    http(app).get(`/api/documents/${id}/hierarchy`).set(auth(ownerWs)).expect(200);
+  const createDoc = (body: Record<string, unknown>) =>
+    http(app).post("/api/documents").set(auth(ownerWs)).send(body).expect(201);
+
+  beforeAll(async () => {
+    app = await bootApp();
+    prisma = app.get(PrismaService);
+    const ownerTok = await login(app, "owner@toddle.test");
+    wsId = await createWorkspace(app, ownerTok, `e2e-hier-cache-${stamp}`);
+    ownerWs = await enterWorkspace(app, ownerTok, wsId);
+    root = (await createDoc({ title: "Root" })).body.id;
+  });
+
+  afterAll(async () => {
+    await prisma.workspace.deleteMany({ where: { id: wsId } });
+    await app.close();
+  });
+
+  it("create under a warmed parent surfaces the new child on the next fetch", async () => {
+    const anchor = (await createDoc({ title: "Anchor", parentId: root })).body.id;
+    await hierarchy(anchor);
+
+    const fresh = (await createDoc({ title: "Fresh", parentId: root })).body.id;
+    const res = await hierarchy(anchor);
+    expect(childIds(res.body)).toEqual(expect.arrayContaining([anchor, fresh]));
+  });
+
+  it("rename surfaces the new title in the parent's collapsed child list", async () => {
+    const onPath = (await createDoc({ title: "OnPath", parentId: root })).body.id;
+    const sibling = (await createDoc({ title: "Before", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app)
+      .patch(`/api/documents/${sibling}`)
+      .set(auth(ownerWs))
+      .send({ title: "After" })
+      .expect(200);
+
+    const res = await hierarchy(onPath);
+    const sib = res.body.children.find((c: { id: string }) => c.id === sibling);
+    expect(sib.title).toBe("After");
+  });
+
+  it("move out of a warmed parent removes the child on the next fetch", async () => {
+    const onPath = (await createDoc({ title: "Stay", parentId: root })).body.id;
+    const mover = (await createDoc({ title: "Mover", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app)
+      .patch(`/api/documents/${mover}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: onPath })
+      .expect(200);
+
+    const res = await hierarchy(onPath);
+    expect(childIds(res.body)).not.toContain(mover);
+    const onPathNode = res.body.children.find((c: { id: string }) => c.id === onPath);
+    expect(childIds(onPathNode)).toContain(mover);
+  });
+
+  it("delete removes the child from its parent's warmed snapshot", async () => {
+    const onPath = (await createDoc({ title: "Keep", parentId: root })).body.id;
+    const doomed = (await createDoc({ title: "Doomed", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app).delete(`/api/documents/${doomed}`).set(auth(ownerWs)).expect(200);
+
+    const res = await hierarchy(onPath);
+    expect(childIds(res.body)).not.toContain(doomed);
+  });
+
+  it("a grandchild create refreshes the parent's childCount on a collapsed sibling", async () => {
+    const onPath = (await createDoc({ title: "Spine", parentId: root })).body.id;
+    const branch = (await createDoc({ title: "Branch", parentId: root })).body.id;
+    let res = await hierarchy(onPath);
+    let branchNode = res.body.children.find((c: { id: string }) => c.id === branch);
+    expect(branchNode.childCount).toBe(0);
+
+    await createDoc({ title: "Leaf", parentId: branch });
+    res = await hierarchy(onPath);
+    branchNode = res.body.children.find((c: { id: string }) => c.id === branch);
+    expect(branchNode.childCount).toBe(1);
+  });
+});

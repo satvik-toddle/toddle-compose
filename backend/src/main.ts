@@ -4,13 +4,14 @@ import { Logger, ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
 import { corsOrigins, type Env } from "./config/env";
-import { traceMiddleware } from "./tracing/trace";
+import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
-  // Per-request tracing: times each request and logs a span breakdown.
+  // Per-request tracing: times each request and logs its DB-query breakdown.
+  setTracingEnabled(config.get("TRACE_REQUESTS", { infer: true }));
   app.use(traceMiddleware);
 
   // CORS restricted to the configured allowlist (no wildcard).

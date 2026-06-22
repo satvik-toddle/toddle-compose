@@ -30,6 +30,14 @@ export const envSchema = z.object({
   RTC_TIER1_AGE_MS: z.coerce.number().default(7 * 24 * 60 * 60 * 1000),
   RTC_TIER2_AGE_MS: z.coerce.number().default(30 * 24 * 60 * 60 * 1000),
   RTC_SESSION_GAP_MS: z.coerce.number().default(30 * 1000),
+
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -2,14 +2,13 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaClient } from "@app/rtc-database";
 import type { Env } from "../config/env";
-import { traceEnabled } from "../tracing/trace";
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  constructor(config: ConfigService<Env, true>) {
+  constructor(private readonly config: ConfigService<Env, true>) {
     super({
       datasources: {
         db: { url: config.get("RTC_DATABASE_URL", { infer: true }) },
@@ -18,8 +17,10 @@ export class PrismaService
   }
 
   async onModuleInit(): Promise<void> {
-    // Log each query's duration to the console (no-op when tracing is off).
-    if (traceEnabled()) {
+    // Log each query's duration to the console when tracing is enabled. Read
+    // straight from the validated config since onModuleInit runs before the
+    // bootstrap flag in main.ts is set.
+    if (this.config.get("TRACE_REQUESTS", { infer: true })) {
       this.$use(async (params, next) => {
         const start = performance.now();
         try {

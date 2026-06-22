@@ -8,11 +8,21 @@ import type { Request, Response, NextFunction } from "express";
 //   [trace] db Document.create 120.4ms
 //   [trace] storage.put 55.1ms
 //
-// Disabled in tests and when TRACE_REQUESTS=false.
+// Off by default; enable by setting TRACE_REQUESTS=true (validated in
+// config/env.ts and applied at bootstrap via setTracingEnabled).
+
+// Cached at startup from the validated env so the middleware and trace() helper
+// never read process.env per call. Defaults off, so tests and any context that
+// doesn't bootstrap (e.g. the e2e harness) stay silent.
+let enabled = false;
+
+/** Apply the validated TRACE_REQUESTS value. Call once during bootstrap. */
+export function setTracingEnabled(on: boolean): void {
+  enabled = on;
+}
 
 export function traceEnabled(): boolean {
-  if (process.env.NODE_ENV === "test") return false;
-  return process.env.TRACE_REQUESTS === "true";
+  return enabled;
 }
 
 /** Time a section of work and log its duration. Safe to call anywhere; when

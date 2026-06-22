@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { TextInput, PasswordTextInput, Checkbox, Button } from '@toddle-edu/ds-web';
+import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
 import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
@@ -12,7 +12,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
-  const err = login.isError;
+  const loginFailed = login.isError;
   const isLoggingIn = login.isPending;
 
   const submit = () => {
@@ -36,14 +36,15 @@ export function LoginPage() {
       <h1 className="auth-h">Welcome back</h1>
       <p className="auth-p">Sign in to reach your workspaces.</p>
 
-      {err && (
-        <div className="auth-banner err">
-          <Icon name="WarningTriangleOutlined" size={14} />
-          {messageOf(login.error, "That email and password don't match. Try again.")}
-        </div>
-      )}
-
       <form className="auth-form" onSubmit={onSubmit}>
+        {loginFailed && (
+          <Alert
+            dsVersion="2.0"
+            type="error"
+            message={messageOf(login.error, "That email and password don't match. Try again.")}
+          />
+        )}
+
         <TextInput
           dsVersion="2.0"
           label="Email"
@@ -54,17 +55,18 @@ export function LoginPage() {
           placeholder="you@toddle.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={err ? ' ' : undefined}
+          error={loginFailed ? ' ' : undefined}
           required
           autoFocus
         />
+
         <PasswordTextInput
           dsVersion="2.0"
           label="Password"
           leadingIcon={<Icon name="LockOutlined" size={14} muted />}
           required
           value={password}
-          error={err ? ' ' : undefined}
+          error={loginFailed ? ' ' : undefined}
           onChange={(e) => setPassword(e.target.value)}
           onTrailingIconClick={(e) => e.preventDefault()}
         />

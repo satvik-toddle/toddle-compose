@@ -12,6 +12,7 @@ import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';
 import { useCreateDocument, useDocuments } from '../../hooks/usePages';
+import { useWorkspaceEvents } from '../../hooks/useWorkspaceEvents';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { effectiveWorkspaceRole, isRealmAdmin, wsAtLeast } from '../../lib/roles';
@@ -224,6 +225,8 @@ export function WorkspaceLayout() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { data: ws, isLoading } = useWorkspace(workspaceId);
   const { data: realm } = useRealm();
+  // Live sidebar: refetch the doc list when another member changes a doc.
+  useWorkspaceEvents(workspaceId);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('tc-sidebar') === 'collapsed';

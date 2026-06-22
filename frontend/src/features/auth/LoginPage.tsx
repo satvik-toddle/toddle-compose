@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { Field } from '../../components/Field';
 import { TextInput } from '../../components/TextInput';
+import { PasswordTextInput } from '@toddle-edu/ds-web';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
@@ -13,7 +14,6 @@ export function LoginPage() {
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const err = login.isError;
 
   const submit = () => {
@@ -56,18 +56,17 @@ export function LoginPage() {
             autoFocus
           />
         </Field>
-        <Field label="Password">
-          <TextInput
-            type={showPw ? 'text' : 'password'}
-            icon="LockOutlined"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            err={err}
-            required
-            trailing={<Icon name="EyeOutlined" size={14} muted />}
-            onTrailingClick={() => setShowPw((v) => !v)}
-          />
-        </Field>
+        <PasswordTextInput
+          dsVersion="2.0"
+          label="Password"
+          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          required
+          value={password}
+          error={err ? ' ' : undefined}
+          onChange={(e) => setPassword(e.target.value)}
+          onTrailingIconClick={(e) => e.preventDefault()}
+        />
+
         <div className="auth-row">
           <label className="auth-check">
             <span className="cbx on">
@@ -77,7 +76,14 @@ export function LoginPage() {
           </label>
           <a>Forgot password?</a>
         </div>
-        <Button type="submit" variant="primary" size="lg" block disabled={login.isPending} onClick={submit}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          block
+          disabled={login.isPending}
+          onClick={submit}
+        >
           {login.isPending ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

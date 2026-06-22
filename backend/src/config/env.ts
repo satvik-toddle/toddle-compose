@@ -34,6 +34,11 @@ export const envSchema = z.object({
   RATE_LIMIT_AUTH_LOGIN: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authLogin),
   RATE_LIMIT_AUTH_REFRESH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authRefresh),
 
+  // --- Document metadata cache -----------------------------------------------
+  // How long a cached document row stays fresh before the next read reloads it from the DB.
+  // In-memory + per-instance (like the throttler above), so N replicas each keep their own copy.
+  DOCUMENT_CACHE_TTL_MS: z.coerce.number().int().positive().default(300_000), // 5 min
+
   // RS256 keypair backing the JWKS endpoint (rtc-server verifies against it later).
   RTC_PRIVATE_KEY_PATH: z.string().default("./.keys/rtc-private.pem"),
   RTC_PUBLIC_KEY_PATH: z.string().default("./.keys/rtc-public.pem"),

@@ -1,0 +1,7 @@
+/* App-authored Tailwind layer. corePlugins.preflight=false (see tailwind.config.js),
+   so this emits NO base reset — only @tailwind components + utilities. The reset,
+   the DS's precompiled utilities, and the design tokens all come from
+   @toddle-edu/ds-web/dist/assets/main.css, which main.tsx imports BEFORE this file.
+   `@tailwind base` is intentionally omitted: the DS owns the reset. */
+@tailwind components;
+@tailwind utilities;

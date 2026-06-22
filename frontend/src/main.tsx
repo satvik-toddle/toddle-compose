@@ -11,12 +11,18 @@ import { bootstrapAuth } from './lib/http';
 import { App } from './App';
 // DS base styles must load before our own so app styles can override them.
 // main.css is the DS's *compiled* bundle — it already includes the Tailwind
-// utility classes (text-body, mt-3, flex, …) and tokens that web-app consumes,
-// so those utilities are available app-wide without us running any Tailwind build.
-// (Do NOT import dist/assets/tailwind.css — that's the uncompiled Tailwind source
-// with @import "tailwindcss/base" and fails outside the DS's own build.)
+// utility classes (text-body, mt-3, flex, …), the full Preflight, and the tokens
+// that web-app consumes. (Do NOT import dist/assets/tailwind.css — that's the
+// uncompiled Tailwind source with @import "tailwindcss/base" and fails outside
+// the DS's own build.)
+//
+// styles/tailwind.css is OUR app-owned Tailwind build (utilities only, Preflight
+// off — see tailwind.config.js). It loads AFTER the DS bundle so our utilities
+// win over DS utilities of equal specificity, but BEFORE index.css so rbac.css's
+// `.rbac …` component rules and the index.css typography stay authoritative.
 import '@toddle-edu/ds-web/dist/assets/antd.css';
 import '@toddle-edu/ds-web/dist/assets/main.css';
+import './styles/tailwind.css';
 import './styles/index.css';
 
 const rootEl = document.getElementById('root');

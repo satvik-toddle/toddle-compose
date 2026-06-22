@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { TextInput, PasswordTextInput } from '@toddle-edu/ds-web';
+import { TextInput, PasswordTextInput, Checkbox } from '@toddle-edu/ds-web';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
@@ -12,6 +12,7 @@ export function LoginPage() {
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
   const err = login.isError;
 
   const submit = () => {
@@ -68,14 +69,17 @@ export function LoginPage() {
         />
 
         <div className="auth-row">
-          <label className="auth-check">
-            <span className="cbx on">
-              <Icon name="TickSmallOutlined" size={12} white />
-            </span>
+          <Checkbox
+            dsVersion="2.0"
+            size="small"
+            isChecked={keepSignedIn}
+            onChange={(e) => setKeepSignedIn((e.target as HTMLInputElement).checked)}
+          >
             Keep me signed in
-          </label>
+          </Checkbox>
           <a>Forgot password?</a>
         </div>
+
         <Button
           type="submit"
           variant="primary"

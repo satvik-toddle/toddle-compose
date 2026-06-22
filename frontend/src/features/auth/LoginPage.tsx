@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { TextInput, PasswordTextInput, Checkbox } from '@toddle-edu/ds-web';
-import { Button } from '../../components/Button';
+import { TextInput, PasswordTextInput, Checkbox, Button } from '@toddle-edu/ds-web';
 import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
@@ -14,11 +13,13 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const err = login.isError;
+  const isLoggingIn = login.isPending;
 
   const submit = () => {
-    if (login.isPending) return;
+    if (isLoggingIn) return;
     login.mutate({ email, password }, { onSuccess: () => navigate('/') });
   };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     submit();
@@ -77,18 +78,13 @@ export function LoginPage() {
           >
             Keep me signed in
           </Checkbox>
-          <a>Forgot password?</a>
+          <Button variant="progressive" type="inline" size="small">
+            Forgot password?
+          </Button>
         </div>
 
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          block
-          disabled={login.isPending}
-          onClick={submit}
-        >
-          {login.isPending ? 'Signing in…' : 'Sign in'}
+        <Button size="large" isFullWidth disabled={isLoggingIn}>
+          {isLoggingIn ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
     </AuthShell>

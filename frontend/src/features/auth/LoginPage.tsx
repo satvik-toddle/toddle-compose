@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { Field } from '../../components/Field';
-import { TextInput } from '../../components/TextInput';
-import { PasswordTextInput } from '@toddle-edu/ds-web';
+import { TextInput, PasswordTextInput } from '@toddle-edu/ds-web';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
@@ -44,18 +42,20 @@ export function LoginPage() {
       )}
 
       <form className="auth-form" onSubmit={onSubmit}>
-        <Field label="Email">
-          <TextInput
-            icon="EmailOutlined"
-            type="email"
-            placeholder="you@toddle.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            err={err}
-            required
-            autoFocus
-          />
-        </Field>
+        <TextInput
+          dsVersion="2.0"
+          label="Email"
+          leadingIcon={<Icon name="EmailOutlined" size={14} muted />}
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@toddle.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={err ? ' ' : undefined}
+          required
+          autoFocus
+        />
         <PasswordTextInput
           dsVersion="2.0"
           label="Password"

@@ -12,6 +12,7 @@ import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
+import { trace } from "../tracing/trace";
 
 const OWNER_SELECT = { id: true, name: true, color: true } as const;
 
@@ -121,29 +122,31 @@ export class DocumentsService {
     skip = 0,
     take = 100
   ) {
-    const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-    await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
+    return trace("documents.list", async () => {
+      const wsId = this.resolveWorkspaceId(user, input.workspaceId);
+      await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
 
-    // A folder filter must reference a folder of THIS workspace (404 otherwise).
-    if (input.folderId !== undefined) {
-      await this.requireFolderInWorkspace(input.folderId, wsId);
-    }
-    const folderScope =
-      input.folderId === undefined ? {} : { folderId: input.folderId };
+      // A folder filter must reference a folder of THIS workspace (404 otherwise).
+      if (input.folderId !== undefined) {
+        await this.requireFolderInWorkspace(input.folderId, wsId);
+      }
+      const folderScope =
+        input.folderId === undefined ? {} : { folderId: input.folderId };
 
-    // null → top-level only; a string parent must live in this workspace (404 otherwise).
-    if (typeof input.parentId === "string") {
-      await this.requireDocInWorkspace(input.parentId, wsId);
-    }
-    const parentScope =
-      input.parentId === undefined ? {} : { parentId: input.parentId };
+      // null → top-level only; a string parent must live in this workspace (404 otherwise).
+      if (typeof input.parentId === "string") {
+        await this.requireDocInWorkspace(input.parentId, wsId);
+      }
+      const parentScope =
+        input.parentId === undefined ? {} : { parentId: input.parentId };
 
-    return this.prisma.document.findMany({
-      where: { workspaceId: wsId, ...folderScope, ...parentScope },
-      select: this.summarySelect(),
-      orderBy: { updatedAt: "desc" },
-      skip,
-      take,
+      return this.prisma.document.findMany({
+        where: { workspaceId: wsId, ...folderScope, ...parentScope },
+        select: this.summarySelect(),
+        orderBy: { updatedAt: "desc" },
+        skip,
+        take,
+      });
     });
   }
 
@@ -192,36 +195,38 @@ export class DocumentsService {
   }
 
   async create(user: AuthUser, input: CreateDocumentInput) {
-    const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-    await this.authz.requireWorkspaceRole(user.id, wsId, "EDIT");
+    return trace("documents.create", async () => {
+      const wsId = this.resolveWorkspaceId(user, input.workspaceId);
+      await this.authz.requireWorkspaceRole(user.id, wsId, "EDIT");
 
-    // parentId wins over folderId — a subdoc is located by its parent.
-    if (input.parentId) await this.requireDocInWorkspace(input.parentId, wsId);
-    else if (input.folderId)
-      await this.requireFolderInWorkspace(input.folderId, wsId);
+      // parentId wins over folderId — a subdoc is located by its parent.
+      if (input.parentId) await this.requireDocInWorkspace(input.parentId, wsId);
+      else if (input.folderId)
+        await this.requireFolderInWorkspace(input.folderId, wsId);
 
-    const type = (input.type as DocumentType) ?? DocumentType.DOC;
-    const doc = await this.prisma.document.create({
-      data: {
-        title: input.title,
-        icon: input.icon ?? null,
-        type,
-        workspaceId: wsId,
-        ownerId: user.id,
-        parentId: input.parentId ?? null,
-        folderId: input.parentId ? null : (input.folderId ?? null),
-        visibility: Visibility.PRIVATE,
-      },
-      select: this.summarySelect(),
+      const type = (input.type as DocumentType) ?? DocumentType.DOC;
+      const doc = await this.prisma.document.create({
+        data: {
+          title: input.title,
+          icon: input.icon ?? null,
+          type,
+          workspaceId: wsId,
+          ownerId: user.id,
+          parentId: input.parentId ?? null,
+          folderId: input.parentId ? null : (input.folderId ?? null),
+          visibility: Visibility.PRIVATE,
+        },
+        select: this.summarySelect(),
+      });
+      // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
+      this.cache.set(doc.id, doc);
+      if (doc.parentId) await this.invalidateChildSet(doc.parentId);
+      // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
+      void this.rtc.initDocBestEffort(doc.id);
+      // Push to every member streaming this workspace so their side panel reflects the new doc live.
+      this.events.documentCreated(wsId, doc);
+      return doc;
     });
-    // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
-    this.cache.set(doc.id, doc);
-    if (doc.parentId) await this.invalidateChildSet(doc.parentId);
-    // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
-    void this.rtc.initDocBestEffort(doc.id);
-    // Push to every member streaming this workspace so their side panel reflects the new doc live.
-    this.events.documentCreated(wsId, doc);
-    return doc;
   }
 
   // RTC role for the token: editor for owner/EDIT+, viewer for READ/COMMENT or PUBLIC; 404/403 when no access.
@@ -433,21 +438,23 @@ export class DocumentsService {
 
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
   async remove(userId: string, id: string) {
-    const doc = await this.requireDocWrite(userId, id, "ADMIN");
-    const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
-    await this.prisma.document.delete({ where: { id } });
-    for (const docId of ids) {
-      this.cache.invalidate(docId);
-      this.cache.invalidateChildren(docId);
-    }
-    await this.invalidateChildSet(doc.parentId);
-    // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
-    for (const docId of ids) {
-      void this.rtc.deleteDocBestEffort(docId);
-    }
-    // Announce the subtree root; subscribers drop it and its descendants from the side panel.
-    this.events.documentDeleted(doc.workspaceId, id);
-    return { ok: true as const, deleted: ids.length };
+    return trace("documents.remove", async () => {
+      const doc = await this.requireDocWrite(userId, id, "ADMIN");
+      const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
+      await this.prisma.document.delete({ where: { id } });
+      for (const docId of ids) {
+        this.cache.invalidate(docId);
+        this.cache.invalidateChildren(docId);
+      }
+      await this.invalidateChildSet(doc.parentId);
+      // Best-effort: an orphaned RTC row is inert, so a transient rtc-server outage is fine.
+      for (const docId of ids) {
+        void this.rtc.deleteDocBestEffort(docId);
+      }
+      // Announce the subtree root; subscribers drop it and its descendants from the side panel.
+      this.events.documentDeleted(doc.workspaceId, id);
+      return { ok: true as const, deleted: ids.length };
+    });
   }
 
   // Active workspace from the session token, or an explicit override; 400 if neither.

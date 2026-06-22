@@ -57,7 +57,7 @@
       "y-websocket": "2.0.4"
     },
     "patchedDependencies": {
-      "@toddle-edu/ds-icons@1.21.1": "patches/@toddle-edu__ds-icons@1.21.1.patch"
+      "@toddle-edu/ds-icons": "patches/@toddle-edu__ds-icons.patch"
     }
   }
 }

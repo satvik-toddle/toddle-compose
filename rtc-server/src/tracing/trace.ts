@@ -12,7 +12,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 export function traceEnabled(): boolean {
   if (process.env.NODE_ENV === "test") return false;
-  return process.env.TRACE_REQUESTS !== "false";
+  return process.env.TRACE_REQUESTS === "true";
 }
 
 /** Time a section of work and log its duration. Safe to call anywhere; when

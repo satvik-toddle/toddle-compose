@@ -15,14 +15,10 @@ export function LoginPage() {
   const loginFailed = login.isError;
   const isLoggingIn = login.isPending;
 
-  const submit = () => {
-    if (isLoggingIn) return;
-    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
-  };
-
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submit();
+    if (isLoggingIn) return;
+    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
   };
 
   return (

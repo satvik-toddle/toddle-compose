@@ -47,16 +47,11 @@ const log = createLogger("content-builder");
 // Must match the editor's collaboration namespace (the Yjs root key).
 const NAMESPACE = "ds-doc-editor-collab";
 
-// The editor's real node set (incl. the custom-table-cell replacement), shared
-// from the same lexical/yjs instances as this process. See lexical-extract.core.
 const serverNodes: Array<Klass<LexicalNode>> =
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime CJS bundle, not a typed module
   require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
 
-// The custom table cell carries array/object props (border types/colors) that
-// yjs can't store as XML attributes — syncing them throws "Unexpected content
-// type" and corrupts the cell (dropping its children). Exclude them from collab
-// sync; the node's constructor re-applies sensible defaults on read.
+// Custom table cell's array/object props (border types/colors) break yjs XML-attr sync; exclude them, constructor re-applies defaults.
 const excludedProperties: Map<Klass<LexicalNode>, Set<string>> = (() => {
   const map = new Map<Klass<LexicalNode>, Set<string>>();
   const cellKlass = serverNodes.find(
@@ -71,34 +66,24 @@ const excludedProperties: Map<Klass<LexicalNode>, Set<string>> = (() => {
   return map;
 })();
 
-// Usable content width of a page (px) — the editable surface minus its padding.
-// Tables with no explicit column widths spread their columns evenly across this
-// so a fresh table fills the page instead of collapsing to its content width.
-const DEFAULT_TABLE_WIDTH = 584;
+// Usable content width of a page (px) — editable surface minus padding; auto-width tables spread evenly across this.
+const DEFAULT_TABLE_WIDTH = 582;
 
-// A run of text with its own formatting — lets a single paragraph/heading mix
-// formats inline (e.g. bold just one word). When `runs` is given it wins over
-// the flat `text`/`format` pair. Beyond the `format` bitfield flags, a run can
-// carry inline CSS style (font size / color / highlight) and an optional link.
+// A run of inline text with its own formatting/style/link; `runs` wins over the flat `text`/`format` pair.
 export type TextRun = {
   text: string;
   format?: TextFormatType[];
-  // Inline style — written to the text node's CSS `style` string.
   fontSize?: number | string; // number → px
-  color?: string; // text color (e.g. "#e11" or "rgb(...)")
-  highlight?: string; // background-color (text highlight)
-  // Wrap this run in a link node pointing at `href`.
+  color?: string;
+  highlight?: string; // background-color
   href?: string;
 };
 
-// One item in a list — plain text, or rich text via runs, plus a checkbox state
-// for check lists.
 export type ListItemSpec =
   | string
   | { text?: string; format?: TextFormatType[]; runs?: TextRun[]; checked?: boolean };
 
-// A selection point (Lexical anchor/focus shape): the top-level block index and
-// a character offset within that block's text.
+// Lexical anchor/focus shape: top-level block index + char offset within that block's text.
 export type SelPoint = { parentId: number; offset: number };
 
 // High-level authoring ops, applied in order, appended to the document root.
@@ -109,7 +94,6 @@ export type ContentOp =
       text?: string;
       format?: TextFormatType[];
       runs?: TextRun[];
-      // shorthand inline style for the flat `text` form
       fontSize?: number | string;
       color?: string;
       highlight?: string;
@@ -132,21 +116,16 @@ export type ContentOp =
       op: "table";
       rows: string[][];
       header?: boolean;
-      // Per-column width in px. Missing/non-positive entries (and any columns
-      // beyond the array) are treated as "auto" and share the leftover space
-      // evenly. Omit entirely to size every column evenly.
+      // Per-column px width; missing/non-positive/extra columns are "auto" and split leftover space evenly.
       columnWidths?: number[];
-      // Total width (px) to spread columns across. Defaults to the page width.
-      tableWidth?: number;
+      tableWidth?: number; // total width to spread columns across; defaults to page width
     }
   | {
-      // Multi-column layout (the editor's layout-container/layout-item nodes).
-      // Each entry in `columns` is a list of block ops placed in that column.
+      // Multi-column layout (layout-container/layout-item); each `columns` entry is block ops for that column.
       op: "columns";
       columns: ContentOp[][];
     }
   | {
-      // An image (the editor's `image` node). `src` is the image URL.
       op: "image";
       src: string;
       altText?: string;
@@ -156,9 +135,7 @@ export type ContentOp =
       caption?: string;
     }
   | {
-      // Embed a link / media / file (the editor's `embed-media` node). Give the
-      // URL as `src` and, optionally, its `mimeType` (e.g. "video/mp4",
-      // "application/pdf", "text/html"). Files are embeds with a file mimeType.
+      // embed-media node; `mimeType` e.g. "video/mp4"/"application/pdf"/"text/html". A file is an embed with a file mimeType.
       op: "embed";
       src: string;
       mimeType?: string;
@@ -167,48 +144,33 @@ export type ContentOp =
       maxWidth?: number;
     }
   | {
-      // Convenience alias for embedding a file by URL — same node as `embed`.
+      // Alias for embedding a file by URL — same node as `embed`.
       op: "file";
       src: string;
       mimeType?: string;
       fileName?: string;
     }
-  // ---- IN-PLACE edits (Lexical selection: anchor/focus points) --------------
-  // These edit EXISTING content the way a user would: they build a Lexical
-  // RangeSelection from an `anchor` to a `focus` point and run the editor's own
-  // selection.formatText()/insertText(), so the emitted Yjs op is exactly what a
-  // real user edit produces — minimal and CRDT-safe to apply on a doc someone has
-  // open. A Point is { parentId, offset }: `parentId` = 0-based index of the
-  // top-level block, `offset` = character offset within that block's text.
-  // Discover blocks/text with `compose.mjs read --doc <id>` (the content API),
-  // then build concrete points — no fuzzy matching.
+  // In-place edits build a real RangeSelection (anchor→focus) and run the editor's own formatText/insertText,
+  // so the Yjs op matches a real user edit — minimal and CRDT-safe. Point = {parentId: block index, offset: char offset}.
   | {
-      // e.g. {op:"format", anchor:{parentId:1,offset:10}, focus:{parentId:1,offset:15}, operations:["bold"]}
       op: "format";
       anchor: SelPoint;
       focus: SelPoint;
-      operations?: TextFormatType[]; // format bits to apply (alias: `format`)
+      operations?: TextFormatType[]; // alias: `format`
       format?: TextFormatType[];
       color?: string;
       fontSize?: number | string;
       highlight?: string;
-      href?: string; // wrap the selected range in a link (same-block only)
+      href?: string; // wrap selected range in a link (same-block only)
     }
   | {
-      // Delete the selected range (anchor → focus). NO "replace" op exists by
-      // design: to replace text the agent composes concrete ops from the read
-      // API — `delete` the range, then `insert` the new text — so every edit is
-      // explicit (which block, which offsets) rather than a fuzzy find/replace.
+      // No "replace" op by design: replace = `delete` the range then `insert`, so every edit is explicit (block + offsets).
       op: "delete";
       anchor: SelPoint;
       focus: SelPoint;
     }
   | {
-      // Insert at a caret, or a new block relative to an existing one.
-      //  • inline caret: {op:"insert", anchor:{parentId,offset}, text}
-      //  • new block: {op:"insert", insertAfter|insertBefore:<blockIndex>, ...}
-      //    or {op:"insert", parentOffset:<childIndex>, ...} — content from a
-      //    `block` op spec, or `text` → a paragraph.
+      // Insert at a caret (anchor), or a new block via insertAfter/insertBefore/parentOffset (content from `block` op or `text`).
       op: "insert";
       text?: string;
       anchor?: SelPoint;
@@ -234,8 +196,7 @@ function makeStubProvider(ydoc: Y.Doc): Provider {
   } as unknown as Provider;
 }
 
-// Split `total` px across `n` columns as evenly as possible, handing the
-// rounding remainder to the leftmost columns so the parts sum exactly to `total`.
+// Split `total` px across `n` columns evenly; remainder goes to leftmost columns so parts sum to `total`.
 function evenWidths(n: number, total: number): number[] {
   if (n <= 0) return [];
   const base = Math.floor(total / n);
@@ -243,10 +204,7 @@ function evenWidths(n: number, total: number): number[] {
   return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0));
 }
 
-// Resolve a px width for each of `numCols` columns. Explicit `columnWidths` win;
-// any column left unspecified (missing entry, non-positive, or beyond the array)
-// is "auto" and splits the width left over after the fixed columns evenly. With
-// no explicit widths at all, every column gets an equal share of `tableWidth`.
+// Resolve px width per column: explicit `columnWidths` win; unspecified columns are "auto" and split the leftover evenly.
 function resolveColumnWidths(
   numCols: number,
   tableWidth: number,
@@ -268,7 +226,6 @@ function resolveColumnWidths(
   return explicit.map((w) => w ?? autoWidths[ai++]);
 }
 
-// Build the CSS `style` string the editor uses for inline text styling.
 function styleString(s: {
   fontSize?: number | string;
   color?: string;
@@ -298,9 +255,7 @@ function appendText(parent: ElementNode, text: string, style?: TextStyle): void 
   parent.append(node);
 }
 
-// Append inline runs (each its own text node + format/style, optionally wrapped
-// in a link) onto a parent element, so one paragraph/heading can mix formats —
-// e.g. bold a single word, color another, or hyperlink a third.
+// Append inline runs (each its own text node + format/style, optionally link-wrapped) so one block can mix formats.
 function appendRuns(parent: ElementNode, runs: TextRun[]): void {
   for (const run of runs) {
     if (run.href) {
@@ -313,8 +268,7 @@ function appendRuns(parent: ElementNode, runs: TextRun[]): void {
   }
 }
 
-// Render either rich `runs` or a flat `text` (+ optional whole-text style) onto
-// a parent block element.
+// Render rich `runs` or a flat `text` (+ optional whole-text style) onto a parent block.
 function fillBlock(
   parent: ElementNode,
   spec: {
@@ -330,11 +284,7 @@ function fillBlock(
   else if (spec.text) appendText(parent, spec.text, spec);
 }
 
-// ---- in-place editing (find/select by offset → restyle/replace/insert) ------
-// These operate on the doc's EXISTING content (loaded into the editor before ops
-// run) and touch only the targeted text, so the produced Yjs delta is minimal
-// and merges cleanly with a live editor — no clear/re-author needed.
-
+// In-place editing: operate on the doc's existing content and touch only targeted text, so the Yjs delta stays minimal.
 type InlineStyleSpec = {
   format?: TextFormatType[];
   fontSize?: number | string;
@@ -342,7 +292,6 @@ type InlineStyleSpec = {
   highlight?: string;
 };
 
-// CSS declarations to set (font-size/color/background-color) for inline style.
 function styleAdditions(s: InlineStyleSpec): Record<string, string> {
   const a: Record<string, string> = {};
   if (s.fontSize !== undefined) {
@@ -375,15 +324,13 @@ function textNodesUnder(scope: LexicalNode | null): TextNode[] {
   return out;
 }
 
-// Resolve the top-level block at index `parentId` (root's Nth child element).
 function blockAt(parentId: number): ElementNode | null {
   const kids = $getRoot().getChildren();
   const b = kids[Number(parentId)];
   return b && $isElementNode(b) ? b : null;
 }
 
-// Map a character offset within a block to (text node, local text offset). An
-// offset at/over the end clamps to the last text node's end.
+// Map a char offset within a block to (text node, local offset); past-end clamps to the last text node's end.
 function pointInBlock(
   block: ElementNode,
   off: number
@@ -400,9 +347,7 @@ function pointInBlock(
   return { node: last, offset: last.getTextContent().length };
 }
 
-// Resolve a text `match` to concrete (block, start, end) ranges by scanning each
-// Build and activate a Lexical RangeSelection over [start, end) chars of `block`
-// — the same anchor/focus a user's selection would have. Returns it, or null.
+// Build and activate a RangeSelection over [start, end) chars of `block`, as a user's selection would be.
 function selectRange(
   block: ElementNode,
   start: number,
@@ -419,9 +364,7 @@ function selectRange(
   return $isRangeSelection(active) ? active : null;
 }
 
-// Build + activate a RangeSelection from anchor → focus points (each a block
-// index + char offset). Returns the selection plus, when both points are in the
-// same block, that block — so style can be applied to the exact range.
+// Build + activate a RangeSelection from anchor→focus points; also returns the block when both points share one (for ranged styling).
 function selectPoints(
   anchor: SelPoint,
   focus: SelPoint
@@ -441,9 +384,7 @@ function selectPoints(
   return { sel: active, block: anchor.parentId === focus.parentId ? ab : null };
 }
 
-// Split `block` at the range boundaries and return the text nodes that exactly
-// cover [start, end) — used to apply inline STYLE (color/size/bg) to just the
-// selection, mirroring what $patchStyleText does for a real selection.
+// Split `block` at the boundaries and return the text nodes exactly covering [start, end), for applying inline style to just the selection.
 function rangeTextNodes(block: ElementNode, start: number, end: number): TextNode[] {
   const segs: TextNode[] = [];
   let base = 0;
@@ -470,10 +411,7 @@ function rangeTextNodes(block: ElementNode, start: number, end: number): TextNod
   return segs;
 }
 
-// Resolve a registered node class by its type string. The editor's custom nodes
-// (layout, image, embed) live in the shared server bundle, not a typed module,
-// and we build them via their `importJSON` (same path the editor uses to load a
-// saved doc), so we don't have to hand-roll their internals.
+// Resolve a registered node class by type string; custom nodes live in the untyped server bundle and are built via their `importJSON`.
 function nodeKlass(type: string): {
   importJSON: (json: Record<string, unknown>) => LexicalNode;
 } {
@@ -493,7 +431,6 @@ function layoutKlass(type: "layout-container" | "layout-item"): {
   return nodeKlass(type) as { importJSON: (json: Record<string, unknown>) => ElementNode };
 }
 
-// Equal-fraction CSS grid template for an n-column layout.
 function gridTemplate(n: number): string {
   return Array.from({ length: n }, () => "1fr").join(" ");
 }
@@ -535,8 +472,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         const li = $createListItemNode(
           listType === "check" ? Boolean(spec.checked) : undefined
         );
-        // value is the 1-based ordinal for ordered lists.
-        if (listType === "number") li.setValue(i + 1);
+        if (listType === "number") li.setValue(i + 1); // 1-based ordinal
         fillBlock(li, spec);
         list.append(li);
       });
@@ -555,8 +491,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
           version: 1,
         });
         for (const subOp of colOps) applyOp(subOp, item);
-        // A layout-item must hold at least one block.
-        if (item.getChildrenSize() === 0) item.append($createParagraphNode());
+        if (item.getChildrenSize() === 0) item.append($createParagraphNode()); // layout-item needs >=1 block
         container.append(item);
       });
       parent.append(container);
@@ -568,8 +503,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         version: 1,
         src: op.src,
         altText: op.altText ?? "",
-        // 0 → the node treats it as "inherit" (natural dimension).
-        width: op.width ?? 0,
+        width: op.width ?? 0, // 0 → node treats as "inherit" (natural)
         height: op.height ?? 0,
         maxWidth: op.maxWidth ?? DEFAULT_TABLE_WIDTH,
         showCaption: op.caption ? true : false,
@@ -600,10 +534,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         op.columnWidths
       );
       const table = $createTableNode();
-      // The editor renders column widths from the table's colgroup (`colWidths`),
-      // NOT from per-cell width. Without this, columns auto-size to content and
-      // the table doesn't fill the page. Set both: colWidths drives layout, the
-      // per-cell width keeps cells consistent if colWidths is ever dropped.
+      // Editor lays out columns from the table's colgroup (`colWidths`), not per-cell width; we set both for robustness.
       table.setColWidths(widths);
       op.rows.forEach((row, r) => {
         const tr = $createTableRowNode();
@@ -627,10 +558,8 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     case "format": {
       const picked = selectPoints(op.anchor, op.focus);
       if (!picked) { log.debug(`format: bad selection`); break; }
-      // Format bits via the editor's own selection.formatText (the user action).
       const fmts = op.operations ?? op.format ?? [];
       for (const f of fmts) if (!picked.sel.hasFormat(f)) picked.sel.formatText(f);
-      // Inline style (color/size/bg) → split the range and style its text nodes.
       const adds = styleAdditions(op);
       if (Object.keys(adds).length > 0 && picked.block) {
         for (const node of rangeTextNodes(picked.block, op.anchor.offset, op.focus.offset)) {
@@ -640,9 +569,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         for (const node of picked.sel.getNodes())
           if ($isTextNode(node)) node.setStyle(mergeCss(node.getStyle(), adds));
       }
-      // Hyperlink the exact selected range: split it into its covering text nodes
-      // (same path as inline style) and move them into a LinkNode, just as a user
-      // selecting text and applying a link would. Same-block only.
+      // Hyperlink: split the range into its covering text nodes and move them into a LinkNode. Same-block only.
       if (op.href !== undefined && picked.block) {
         const linkNodes = rangeTextNodes(picked.block, op.anchor.offset, op.focus.offset);
         if (linkNodes.length > 0) {
@@ -659,8 +586,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     case "delete": {
       const picked = selectPoints(op.anchor, op.focus);
       if (!picked) { log.debug(`delete: bad selection`); break; }
-      // Deleting a non-collapsed selection = typing "" over it (editor's own delete).
-      picked.sel.insertText("");
+      picked.sel.insertText(""); // delete = type "" over the selection (editor's own delete)
       log.debug(`delete ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset}`);
       break;
     }
@@ -687,8 +613,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         log.debug(`insert text ${op.anchor.parentId}@${at}`);
         break;
       }
-      // (b) new block relative to an existing block (insertAfter/Before/parentOffset).
-      // Build by appending to root, then move the new node(s) into position.
+      // (b) new block: build by appending to root, then move the new node(s) into position.
       const root = $getRoot();
       const kids = root.getChildren();
       const before = root.getChildrenSize();
@@ -722,11 +647,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
   }
 }
 
-// Build a Yjs update (delta) that applies `ops` on top of `baseState` (the doc's
-// current Yjs state, or null for an empty doc). Runs the editor's real headless
-// Lexical↔Yjs binding so the produced bytes are exactly what the editor itself
-// would emit. The returned delta is relative to baseState, so it merges cleanly
-// onto the live doc.
+// Build a Yjs delta applying `ops` on top of `baseState` (null = empty doc), via the editor's real headless Lexical↔Yjs binding so the bytes match the editor's own and merge cleanly.
 export function buildOpsUpdate(
   baseState: Uint8Array | null,
   ops: ContentOp[]
@@ -750,12 +671,7 @@ export function buildOpsUpdate(
     excludedProperties
   );
 
-  // Yjs → Lexical (load existing content). Skip our own writes (origin === binding).
-  // Wrap the sync: while applying the base state, a transient "Invalid access"
-  // can surface mid-integration. It's benign (the discrete flush below rebuilds
-  // the editor state correctly), but if it escaped this observer Yjs would
-  // console.error the bare message — so swallow it to debug, matching the
-  // extract path.
+  // Yjs → Lexical (load existing content), skipping our own writes; swallow the benign transient "Invalid access" the base-state apply can throw (discrete flush below rebuilds correctly).
   binding.root.getSharedType().observeDeep((events, tx) => {
     if (tx.origin !== binding) {
       try {
@@ -766,8 +682,7 @@ export function buildOpsUpdate(
     }
   });
 
-  // Lexical → Yjs. Ignore the collaboration/historic echoes from the load above;
-  // only our genuine op edits get written back.
+  // Lexical → Yjs; ignore collaboration/historic echoes from the load so only our op edits get written back.
   editor.registerUpdateListener(
     ({ prevEditorState, editorState, dirtyLeaves, dirtyElements, normalizedNodes, tags }) => {
       if (tags.has("collaboration") || tags.has("historic")) return;
@@ -785,8 +700,7 @@ export function buildOpsUpdate(
   );
 
   if (baseState && baseState.byteLength > 0) Y.applyUpdate(doc, baseState);
-  // Flush the initial Yjs→Lexical sync into the editor state.
-  editor.update(() => {}, { discrete: true });
+  editor.update(() => {}, { discrete: true }); // flush initial Yjs→Lexical sync
 
   const beforeSV = Y.encodeStateVector(doc);
   editor.update(

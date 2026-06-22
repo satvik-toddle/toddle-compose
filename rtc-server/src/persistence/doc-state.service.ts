@@ -49,7 +49,7 @@ export class DocStateService {
   >();
   private readonly chains = new Map<string, Promise<unknown>>();
   private readonly wsToClaims = new WeakMap<object, RtcClaims>();
-  // In-flight cold-load per doc, so applyUpdate can await load before mutating.
+  // In-flight cold-load per doc, so callers can await load before mutating.
   private readonly loading = new Map<string, Promise<void>>();
 
   constructor(
@@ -86,8 +86,7 @@ export class DocStateService {
     if (chain) await chain;
   }
 
-  // y-websocket persistence hook. Tracks the load promise so applyUpdate (and any
-  // out-of-WS caller) can await the cold-load before mutating a freshly-warmed doc.
+  // y-websocket persistence hook; tracks the load promise so callers can await cold-load.
   bindState(docName: string, ydoc: Y.Doc): Promise<void> {
     const p = this.loadState(docName, ydoc);
     this.loading.set(docName, p);
@@ -104,10 +103,8 @@ export class DocStateService {
     return (this.loading.get(docName) ?? Promise.resolve()).catch(() => undefined);
   }
 
-  // Run `fn` against a doc's single in-memory shared Y.Doc whether or not it's
-  // open. Routes through getYDoc so it's race-safe with a client connecting
-  // mid-op: changes persist via the update pipeline and broadcast to live
-  // editors. If we warmed the doc just for this, flush and evict it afterward.
+  // Run `fn` against a doc's shared Y.Doc via getYDoc (race-safe with a client
+  // connecting mid-op); if we warmed the doc just for this, flush and evict after.
   private async withWarmDoc<T>(
     docId: string,
     fn: (ydoc: Y.Doc) => T | Promise<T>
@@ -141,14 +138,8 @@ export class DocStateService {
     });
   }
 
-  // Apply high-level content ops: build a delta off the doc's current state via
-  // the headless Lexical↔Yjs binding, then merge it in (persist + broadcast).
-  //
-  // Additive-safety guard: destructive ops (`clear`) racing with a live editor
-  // can corrupt the doc (the clear's deletions conflict with the client's state
-  // and can resolve to empty). Append ops are CRDT-safe and merge cleanly, so we
-  // only block destructive ops while someone has the doc open — AI edits stay
-  // additive for live users.
+  // Apply high-level content ops as a merged Yjs delta. Block destructive ops
+  // (`clear`) while an editor is live — they race to corrupt/empty the doc; appends are CRDT-safe.
   editDoc(docId: string, ops: ContentOp[]): Promise<number> {
     const destructive = ops.filter((o) => o.op === "clear");
     if (destructive.length > 0) {
@@ -172,9 +163,7 @@ export class DocStateService {
     });
   }
 
-  // Read the doc's current content as extracted Lexical JSON — the source of
-  // truth an agent reads to discover block indices (parentId) and text before
-  // composing concrete in-place edits.
+  // Read the doc's current content as extracted Lexical JSON (block ids + text for in-place edits).
   readContent(docId: string): Promise<string> {
     return this.withWarmDoc(docId, (ydoc) => {
       const { lexicalJson } = extractFromBytesSync(Y.encodeStateAsUpdate(ydoc));

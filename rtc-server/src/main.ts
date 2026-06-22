@@ -13,8 +13,7 @@ let app: INestApplication | null = null;
 async function bootstrap() {
   const nestApp = await NestFactory.create<NestExpressApplication>(AppModule);
   app = nestApp;
-  // Content updates (base64 Yjs deltas, incl. embedded images) can exceed the
-  // 100kB express default; bound to the same ceiling as a WS frame.
+  // base64 Yjs deltas (incl. embedded images) exceed express's 100kB default.
   nestApp.useBodyParser("json", { limit: "8mb" });
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
@@ -45,12 +44,9 @@ async function crash(kind: string, e: unknown): Promise<void> {
   process.exit(1);
 }
 
-// An uncaught *exception* leaves the process in an unknown state — shut down.
 process.on("uncaughtException", (e) => void crash("uncaughtException", e));
-// An unhandled *rejection* (e.g. a transient DB error on a fire-and-forget write
-// path) must NOT take down a live collaborative server and disconnect every
-// editor. Log it loudly and keep serving; the originating path handles its own
-// ret/persistence. (Promote back to crash() if a class of these proves fatal.)
+// Don't crash on unhandled rejections (e.g. transient DB errors on fire-and-forget
+// writes) — that would disconnect every live editor. Log loudly and keep serving.
 process.on("unhandledRejection", (e) => {
   new Logger("rtc").error(
     "unhandledRejection (non-fatal; logged, server continues)",

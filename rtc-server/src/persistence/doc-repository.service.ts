@@ -4,10 +4,7 @@ import { createLogger } from "../logger";
 
 const log = createLogger("db");
 
-// Prisma error codes for transient transaction failures that succeed on retry:
-// P2028 = transaction API error (timed-out / closed interactive tx), P2034 =
-// write conflict / deadlock. Under bursty concurrent writes these are expected
-// and retryable rather than fatal.
+// Retryable Prisma codes: P2028 = closed/timed-out interactive tx, P2034 = write conflict/deadlock.
 const TRANSIENT_TX_CODES = new Set(["P2028", "P2034"]);
 function isTransientTxError(e: unknown): boolean {
   const code = (e as { code?: string })?.code;

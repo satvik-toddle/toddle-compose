@@ -100,10 +100,8 @@ export class YjsServerService
     } catch (e) {
       log.error("shutdown flush error", e);
     }
-    // Force-close any open client sockets first. `wss.close()` alone only stops
-    // accepting new connections and waits for existing ones to drain — with a
-    // browser holding the doc open that never happens, so the underlying HTTP
-    // server can't close and the process hangs on SIGTERM (wedging dev restarts).
+    // Force-close client sockets first: wss.close() only waits for conns to drain,
+    // so a browser holding the doc open would hang the process on SIGTERM.
     if (this.wss) {
       for (const client of this.wss.clients) {
         try {

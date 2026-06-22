@@ -13,11 +13,7 @@ import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
 import type { ContentOp } from "./content-builder";
 
-// Public, RTC-token-authed content writes — the agent mints an RTC token from the
-// backend (which applies the access-token cap/confinement at mint time) and then
-// applies updates here directly, keeping the backend off the per-update hot path.
-// Auth is identical to the WS handshake: an RS256 token verified via JWKS, scoped
-// to a docId + role.
+// RTC-token-authed writes keep the backend off the per-update hot path; auth matches the WS handshake (JWKS-verified RS256, scoped to docId + role).
 @Controller("docs")
 export class ContentController {
   constructor(
@@ -25,7 +21,6 @@ export class ContentController {
     private readonly docState: DocStateService
   ) {}
 
-  // Apply a raw Yjs update (base64). For replaying captured edits.
   @Post(":docId/apply-update")
   async applyUpdate(
     @Param("docId") docId: string,
@@ -44,9 +39,7 @@ export class ContentController {
     return { ok: true, docId, applied };
   }
 
-  // Read the doc's current content as an outline the agent uses to target edits:
-  // each top-level block's index (parentId), node type, and concatenated text
-  // (the offset space in-place ops address). `raw` carries the full Lexical JSON.
+  // Outline for targeting edits: per top-level block, parentId index + type + concatenated text (the offset space in-place ops address); raw carries full Lexical JSON.
   @Get(":docId/content")
   async content(
     @Param("docId") docId: string,
@@ -68,12 +61,11 @@ export class ContentController {
         }
       );
     } catch {
-      /* empty/invalid → no blocks */
+      // empty/invalid → no blocks
     }
     return { docId, blocks, raw: lexicalJson };
   }
 
-  // Apply high-level content ops (paragraphs, headings, tables) built server-side.
   @Post(":docId/edit")
   async edit(
     @Param("docId") docId: string,
@@ -94,8 +86,6 @@ export class ContentController {
     }
   }
 
-  // Verify the RTC token (same JWKS check as the WS handshake) and require an
-  // editor role scoped to this doc.
   private async requireEditor(
     authorization: string | undefined,
     docId: string

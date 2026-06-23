@@ -13,17 +13,17 @@ export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const mismatch = confirm.length > 0 && confirm !== password;
+  const isPasswordMismatched = confirmPassword.length > 0 && confirmPassword !== password;
 
-  const submit = () => {
-    if (mismatch || register.isPending) return;
-    register.mutate({ name, email, password }, { onSuccess: () => navigate('/register/success') });
-  };
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submit();
+    if (isPasswordMismatched || register.isPending) return;
+    register.mutate(
+      { name, email, password },
+      { onSuccess: () => navigate('/register/success') },
+    );
   };
 
   return (
@@ -84,17 +84,19 @@ export function RegisterPage() {
           dsVersion="2.0"
           label="Confirm password"
           leadingIcon={<Icon name="LockOutlined" size={14} muted />}
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          error={mismatch ? ' ' : undefined}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          error={isPasswordMismatched ? ' ' : undefined}
           required
           onTrailingIconClick={(e) => e.preventDefault()}
         />
         
-        {mismatch && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
-        <Button size="large" isFullWidth disabled={register.isPending} onClick={submit}>
+        {isPasswordMismatched && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
+
+        <Button size="large" isFullWidth disabled={register.isPending}>
           {register.isPending ? 'Creating account…' : 'Create account'}
         </Button>
+        
         <p className="auth-fine">By continuing you agree to Toddle's Terms and Privacy Policy.</p>
       </form>
     </AuthShell>

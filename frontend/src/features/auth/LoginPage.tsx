@@ -6,6 +6,13 @@ import { Icon } from '../../components/Icon';
 import { useLogin } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
 
+const styles = {
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-5.5 text-body text-secondary',
+  form: 'flex flex-col gap-4',
+  row: 'flex items-center justify-between text-body-s',
+};
+
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
@@ -29,10 +36,10 @@ export function LoginPage() {
         </span>
       }
     >
-      <h1 className="auth-h">Welcome back</h1>
-      <p className="auth-p">Sign in to reach your workspaces.</p>
+      <h1 className={styles.heading}>Welcome back</h1>
+      <p className={styles.subheading}>Sign in to reach your workspaces.</p>
 
-      <form className="auth-form" onSubmit={onSubmit}>
+      <form className={styles.form} onSubmit={onSubmit}>
         {loginFailed && (
           <Alert
             dsVersion="2.0"
@@ -48,7 +55,7 @@ export function LoginPage() {
           type="text"
           inputMode="email"
           autoComplete="email"
-          placeholder="you@toddle.com"
+          placeholder="you@toddleapp.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           error={loginFailed ? ' ' : undefined}
@@ -67,7 +74,7 @@ export function LoginPage() {
           onTrailingIconClick={(e) => e.preventDefault()}
         />
 
-        <div className="auth-row">
+        <div className={styles.row}>
           <Checkbox
             dsVersion="2.0"
             size="small"

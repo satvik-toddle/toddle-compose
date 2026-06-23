@@ -1,36 +1,25 @@
 /** @type {import('tailwindcss').Config} */
-// App-owned Tailwind build. @toddle-edu/ds-web is itself a Tailwind 3.4.17 build
-// and already ships ~all of its utilities + the full Preflight compiled into
-// dist/assets/main.css. This config exists only so OUR components can author
-// utilities too — it deliberately emits utilities/components ONLY (no base, see
-// corePlugins.preflight below) and mirrors the DS scale so `gap-3`, `rounded-2`,
-// `text-size-400`, etc. render identically to the DS and flip in dark mode.
+// App-owned Tailwind build. ds-web is itself a Tailwind 3.4.17 build that already
+// ships its utilities + Preflight in dist/assets/main.css; this exists only so our
+// components can author utilities too, mirroring the DS scale. Utilities only — no
+// base (preflight is off below).
 export default {
-  // Scope to app source only. Do NOT scan ds-web/dist — those utilities already
-  // ship compiled in main.css; scanning them would just double-emit.
+  // App source only — don't scan ds-web/dist (already compiled in main.css).
   content: ['./index.html', './src/**/*.{ts,tsx}'],
 
-  // Class strategy keyed on the SAME `.dark` selector the DS / ds-theme tokens
-  // use (rbac.css: `.rbac.dark`, `.dark .rbac`). The default 'media' would
-  // desync `dark:` utilities from the DS's class-based token flip. In practice
-  // prefer token-driven colors (which flip automatically); this only governs
-  // explicit `dark:` variants.
+  // Match the DS's class-based dark flip (`.dark`), not the default 'media'.
+  // Governs explicit `dark:` variants only; token colors flip on their own.
   darkMode: ['class', '.dark'],
 
-  // P0 — DO NOT emit Preflight. ds-web main.css already ships the full Tailwind
-  // v3 Preflight (the `--tw-*` base block + the h1..h6 `font-weight:inherit`
-  // reset) and antd.css ships its own reset on top. A second Preflight would
-  // re-break antd 4 controls and undo the app's own h1..h6/body restoration in
-  // src/styles/index.css. We emit components + utilities only.
+  // P0: never emit Preflight. ds-web main.css + antd.css already ship resets; a
+  // second one re-breaks antd and undoes our index.css typography.
   corePlugins: { preflight: false },
 
-  // Match the DS build flags: no prefix, no global important (per-utility `!`
-  // still works). Keeps our class names identical to the DS's.
+  // Match the DS build: no prefix, no global important (per-utility `!` still works).
   prefix: '',
   important: false,
 
-  // No @tailwindcss/forms — its resets are already compiled into DS main.css;
-  // re-adding it would double-emit the same form globals.
+  // No @tailwindcss/forms — already compiled into DS main.css.
   plugins: [],
 
   theme: {
@@ -47,8 +36,7 @@ export default {
         nunito: ['Nunito'],
       },
 
-      // Token-CSS-var driven so they flip with the DS token theme. Keys mirror
-      // the DS @apply usage (text-size-*, leading-*, font-weight-*).
+      // CSS-var driven so they flip with the DS theme; keys mirror DS @apply names.
       fontSize: {
         'size-25': 'var(--font-size-25)',
         'size-50': 'var(--font-size-50)',
@@ -80,10 +68,8 @@ export default {
         'weight-700': 'var(--font-weight-700)',
       },
 
-      // Literal px to match the DS (its spacing utilities emit literal px, not
-      // rem/--space-* tokens; keeping px avoids divergence if root font-size
-      // ever changes). Integer steps coincide with Tailwind defaults; the
-      // fractional and large steps (0.25, 2.25, 120, 140, 170) are DS-specific.
+      // Literal px to match the DS's spacing utilities. Fractional/large steps
+      // (0.25, 2.25, 120, 140, 170) are DS-specific; integers match Tailwind.
       spacing: {
         0: '0px',
         0.25: '1px',
@@ -168,15 +154,9 @@ export default {
         'elevation-4-bottom': 'var(--elevation-4-bottom)',
       },
 
-      // Color note: the DS's semantic, dark-mode-aware color utilities
-      // (text-primary, bg-surface-primary-enabled, border-secondary, icon-hover,
-      // …) are already shipped compiled in ds-web main.css — author them in
-      // className directly; they flip under .dark for free. We intentionally do
-      // NOT re-declare a parallel color palette here (that risks token drift and
-      // hard hex colors that don't flip). If app code needs a specific named
-      // color as a Tailwind token, map THAT one to its DS var so it stays
-      // dark-aware, e.g.:
-      //   colors: { 'surface-primary': 'var(--surface-primary-enabled)' }
+      // No parallel palette: the DS's dark-aware color utilities (text-primary,
+      // bg-surface-*, …) are compiled in main.css — author them directly. To add a
+      // named color, map it to its DS var, e.g. 'surface-primary': 'var(--surface-primary-enabled)'.
       colors: {},
     },
   },

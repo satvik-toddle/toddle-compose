@@ -7,6 +7,14 @@ import { Icon } from '../../components/Icon';
 import { useRegister } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
 
+const styles = {
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-5.5 text-body text-secondary',
+  form: 'flex flex-col gap-4',
+  errorText: 'flex items-center gap-1.5 text-body-s text-semantic-error',
+  disclaimer: 'mt-1 text-center text-body-s text-secondary',
+};
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
@@ -34,10 +42,10 @@ export function RegisterPage() {
         </span>
       }
     >
-      <h1 className="auth-h">Create your account</h1>
-      <p className="auth-p">One identity for every workspace you're invited to.</p>
+      <h1 className={styles.heading}>Create your account</h1>
+      <p className={styles.subheading}>One identity for every workspace you're invited to.</p>
 
-      <form className="auth-form" onSubmit={onSubmit}>
+      <form className={styles.form} onSubmit={onSubmit}>
         {register.isError && (
           <Alert
             dsVersion="2.0"
@@ -91,13 +99,18 @@ export function RegisterPage() {
           onTrailingIconClick={(e) => e.preventDefault()}
         />
         
-        {isPasswordMismatched && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
+        {isPasswordMismatched && (
+          <span className={styles.errorText}>
+            <Icon name="WarningTriangleOutlined" size={14} red />
+            Passwords don't match.
+          </span>
+        )}
 
         <Button size="large" isFullWidth disabled={register.isPending}>
           {register.isPending ? 'Creating account…' : 'Create account'}
         </Button>
         
-        <p className="auth-fine">By continuing you agree to Toddle's Terms and Privacy Policy.</p>
+        <p className={styles.disclaimer}>By continuing you agree to Toddle's Terms and Privacy Policy.</p>
       </form>
     </AuthShell>
   );

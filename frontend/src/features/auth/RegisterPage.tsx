@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
-import { Field } from '../../components/Field';
-import { TextInput } from '../../components/TextInput';
+import { TextInput, PasswordTextInput } from '@toddle-edu/ds-web';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useRegister } from '../../hooks/useAuthMutations';
@@ -47,47 +46,51 @@ export function RegisterPage() {
       )}
 
       <form className="auth-form" onSubmit={onSubmit}>
-        <Field label="Full name">
-          <TextInput
-            icon="UserProfileOutlined"
-            placeholder="Jamie Rivera"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
-          />
-        </Field>
-        <Field label="Work email">
-          <TextInput
-            icon="EmailOutlined"
-            type="email"
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </Field>
-        <Field label="Password">
-          <TextInput
-            type="password"
-            icon="LockOutlined"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-          />
-        </Field>
+        <TextInput
+          dsVersion="2.0"
+          label="Full name"
+          leadingIcon={<Icon name="UserProfileOutlined" size={14} muted />}
+          type="text"
+          placeholder="Jamie Rivera"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          autoFocus
+        />
+        <TextInput
+          dsVersion="2.0"
+          label="Work email"
+          leadingIcon={<Icon name="EmailOutlined" size={14} muted />}
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <PasswordTextInput
+          dsVersion="2.0"
+          label="Password"
+          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={6}
+          onTrailingIconClick={(e) => e.preventDefault()}
+        />
         <PasswordStrength password={password} />
-        <Field label="Confirm password">
-          <TextInput
-            type="password"
-            icon="LockOutlined"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            err={mismatch}
-            required
-          />
-        </Field>
+        <PasswordTextInput
+          dsVersion="2.0"
+          label="Confirm password"
+          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          error={mismatch ? ' ' : undefined}
+          required
+          onTrailingIconClick={(e) => e.preventDefault()}
+        />
+        
         {mismatch && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
         <Button type="submit" variant="primary" size="lg" block disabled={register.isPending} onClick={submit}>
           {register.isPending ? 'Creating account…' : 'Create account'}

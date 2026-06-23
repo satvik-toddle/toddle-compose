@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
-import { TextInput, PasswordTextInput } from '@toddle-edu/ds-web';
+import { TextInput, PasswordTextInput, Alert } from '@toddle-edu/ds-web';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useRegister } from '../../hooks/useAuthMutations';
@@ -38,14 +38,15 @@ export function RegisterPage() {
       <h1 className="auth-h">Create your account</h1>
       <p className="auth-p">One identity for every workspace you're invited to.</p>
 
-      {register.isError && (
-        <div className="auth-banner err">
-          <Icon name="WarningTriangleOutlined" size={14} />
-          {messageOf(register.error, 'Could not create your account. Try again.')}
-        </div>
-      )}
-
       <form className="auth-form" onSubmit={onSubmit}>
+        {register.isError && (
+          <Alert
+            dsVersion="2.0"
+            type="error"
+            message={messageOf(register.error, 'Could not create your account. Try again.')}
+          />
+        )}
+
         <TextInput
           dsVersion="2.0"
           label="Full name"

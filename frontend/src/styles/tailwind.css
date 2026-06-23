@@ -1,0 +1,4 @@
+/* App-owned Tailwind layer: components + utilities only, no @tailwind base —
+   the DS (ds-web main.css, imported first in main.tsx) owns the reset + tokens. */
+@tailwind components;
+@tailwind utilities;

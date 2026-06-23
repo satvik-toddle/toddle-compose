@@ -1,8 +1,15 @@
-/* Token layer first (CSS custom properties + fonts), then component styles,
-   then the icon adaptation overrides. Order matters. */
-@import './colors_and_type.css';
+/* The DS bundle (ds-web main.css, imported in main.tsx) provides the full color /
+   spacing / elevation token set + dark mode. This file adds the app-specific
+   tokens, the shared rbac component styles, base typography, and a few helpers. */
 @import './rbac.css';
-@import './icons.css';
+
+/* App-specific tokens (the DS uses different token names for these) */
+:root {
+  --font-family-base: "AvenirNext", "Nunito Sans", "Avenir Next",
+                      "AvenirNextWorld", Arial, sans-serif, system-ui;
+  --font-family-display: "Nunito", "AvenirNext", sans-serif;
+  --font-weight-medium: 500;
+}
 
 html,
 body,
@@ -11,11 +18,27 @@ body,
 }
 body {
   margin: 0;
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-100);
+  line-height: var(--line-height-100);
+  color: var(--text-primary);
   background: var(--app-bg, #ececed);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 #root {
   height: 100%;
 }
+
+/* Base headings — font-family inherits from body; size/weight are usually set by
+   the page container or a class, so these are just the fallback. */
+h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
+h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
+h3 { font-weight: 700; font-size: var(--font-size-600); line-height: var(--line-height-300); margin: 0; }
+h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-height-400); margin: 0; }
+h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
+h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
 
 /* ---- app-level helpers not in the design CSS ---- */
 .rbac .tc-center {
@@ -24,24 +47,9 @@ body {
   align-items: center;
   justify-content: center;
 }
-.rbac .tc-spinner {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 3px solid var(--surface-tertiary-enabled);
-  border-top-color: var(--interactive-primary);
-  animation: tc-spin 0.7s linear infinite;
-}
-@keyframes tc-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-/* the account-menu popover */
-.rbac .acct-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+/* account-menu popover content (the ds-web Dropdown positions the popup; these
+   styles are unscoped from .rbac so they apply even if antd portals it to body) */
+.acct-menu {
   width: 240px;
   background: var(--panel-bg);
   border: 1px solid var(--line);
@@ -50,21 +58,21 @@ body {
   padding: 6px;
   z-index: 60;
 }
-.rbac .acct-menu .am-head {
+.acct-menu .am-head {
   padding: 10px 10px 8px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
 }
-.rbac .acct-menu .am-head .nm {
+.acct-menu .am-head .nm {
   font-size: 13px;
   font-weight: 700;
 }
-.rbac .acct-menu .am-head .sub {
+.acct-menu .am-head .sub {
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 1px;
 }
-.rbac .acct-menu .am-row {
+.acct-menu .am-row {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -78,40 +86,13 @@ body {
   text-align: left;
   cursor: pointer;
 }
-.rbac .acct-menu .am-row:hover {
+.acct-menu .am-row:hover {
   background: var(--surface-secondary-enabled);
 }
-/* account pill as a button */
+/* account pill as a button (the ds Dropdown trigger) */
 .rbac .appbar .acct,
 .rbac .ws-acct {
   cursor: pointer;
   background: var(--panel-bg);
 }
-.rbac .acct-wrap {
-  position: relative;
-}
 
-/* ---- doc editor (@toddle-edu/ds-doc-editor) ---- */
-.rbac .tc-editor {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-/* NavLink renders <a>; strip the UA underline/blue for rows and tabs. */
-.rbac a.tab,
-.rbac a.qk-row,
-.rbac a.sm-row {
-  text-decoration: none;
-}
-.rbac a.qk-row {
-  color: inherit;
-}
-/* The folder ⋯ button is 22px and only shows on hover; at 22px it + the row's
-   10px padding (32px) exceeded the 30px row and bumped its height. 20px fits the
-   row's content box, so hovering no longer shifts the row. */
-.rbac .tree-row .tw-more {
-  width: 20px;
-  height: 20px;
-}

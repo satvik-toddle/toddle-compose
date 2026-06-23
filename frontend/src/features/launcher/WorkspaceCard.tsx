@@ -3,6 +3,7 @@ import { WSChip } from '../../components/WSChip';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { formatDate } from '../../lib/time';
 import type { Workspace } from '../../types/api';
+import s from './WorkspaceCard.module.scss';
 
 export function WorkspaceCard({
   ws,
@@ -16,7 +17,7 @@ export function WorkspaceCard({
   const vis = workspaceVisual(ws.id);
   return (
     <div
-      className="ws-card"
+      className={s.wsCard}
       role="button"
       tabIndex={0}
       style={{ cursor: 'pointer' }}
@@ -28,7 +29,7 @@ export function WorkspaceCard({
         }
       }}
     >
-      <div className="ws-card-top">
+      <div className={s.wsCardTop}>
         <span
           className="ws-emoji"
           style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
@@ -37,18 +38,18 @@ export function WorkspaceCard({
         </span>
         {overlay ? <WSChip overlay sm /> : <WSChip role={ws.role} sm />}
       </div>
-      <div className="ws-card-nm">{ws.name}</div>
-      <div className="ws-card-meta">
+      <div className={s.wsCardNm}>{ws.name}</div>
+      <div className={s.wsCardMeta}>
         <span>
           <Icon name={ws.visibility === 'PUBLIC' ? 'GlobeOutlined' : 'LockOutlined'} size={14} muted />
           {ws.visibility === 'PUBLIC' ? 'Public' : 'Private'}
         </span>
       </div>
-      <div className="ws-card-foot">
+      <div className={s.wsCardFoot}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           Created {formatDate(ws.createdAt)}
         </span>
-        <span className="enter">
+        <span className={s.enter}>
           Enter
           <Icon name="ChevronRightOutlined" size={14} />
         </span>

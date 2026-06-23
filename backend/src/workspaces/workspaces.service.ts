@@ -9,6 +9,7 @@ import { Prisma, Visibility, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "../realm/active-realm.service";
 import { AuthzService } from "../realm/authz.service";
+import { trace } from "../tracing/trace";
 
 const USER_SELECT = { id: true, email: true, name: true, color: true } as const;
 
@@ -26,10 +27,7 @@ export class WorkspacesService {
     private readonly authz: AuthzService
   ) {}
 
-  /**
-   * Workspaces the caller can see: realm admins (OWNER/MAINTAINER) see all in the
-   * realm; everyone else sees the ones they belong to. Empty array when none.
-   */
+  // Realm admins see all workspaces in the realm; everyone else sees only their memberships.
   async list(userId: string, skip = 0, take = 50) {
     const realmRole = await this.authz.realmRole(userId);
 
@@ -68,9 +66,15 @@ export class WorkspacesService {
   }
 
   async get(userId: string, workspaceId: string) {
-    const role = await this.authz.requireWorkspaceRole(userId, workspaceId, "READ");
-    const ws = await this.authz.getWorkspaceInRealm(workspaceId);
-    return { ...ws, role };
+    return trace("workspaces.get", async () => {
+      const role = await this.authz.requireWorkspaceRole(
+        userId,
+        workspaceId,
+        "READ"
+      );
+      const ws = await this.authz.getWorkspaceInRealm(workspaceId);
+      return { ...ws, role };
+    });
   }
 
   /** Patch name / visibility / defaultRole; requires workspace ADMIN. */
@@ -103,10 +107,7 @@ export class WorkspacesService {
     });
   }
 
-  /**
-   * Add an existing user to the workspace (requires workspace ADMIN). The user is
-   * also ensured to be at least a realm MEMBER — the realm is the tenant boundary.
-   */
+  // Adds an existing user (workspace ADMIN); also ensures realm membership (tenant boundary).
   async addUser(
     actorId: string,
     workspaceId: string,
@@ -136,12 +137,7 @@ export class WorkspacesService {
 
   // ----------------------------------------------------------- join lifecycle
 
-  /**
-   * Discoverable workspaces in the realm the caller isn't already in.
-   * `discoverable` and `visibility` are independent axes: a PRIVATE workspace
-   * can still be listed (metadata only) so a user can REQUEST access to it;
-   * PUBLIC ones can be self-joined. Contents stay hidden until membership.
-   */
+  // Realm workspaces the caller isn't in (metadata only): PRIVATE can be requested, PUBLIC self-joined.
   async discoverable(userId: string, skip = 0, take = 50) {
     // Discovery is realm-internal: outsiders must not see workspace metadata.
     await this.authz.requireRealmRole(userId, "MEMBER");
@@ -159,7 +155,6 @@ export class WorkspacesService {
 
   /** Self-join a PUBLIC workspace as its defaultRole. PRIVATE → must request instead. */
   async join(userId: string, workspaceId: string) {
-    // Only existing realm members may enter workspaces this way.
     await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility !== "PUBLIC") {
@@ -181,7 +176,6 @@ export class WorkspacesService {
 
   /** Request to join a PRIVATE workspace (PENDING until an admin decides). */
   async requestJoin(userId: string, workspaceId: string, requestedRole?: WorkspaceRole) {
-    // Only existing realm members may request access.
     await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility === "PUBLIC") {
@@ -216,11 +210,7 @@ export class WorkspacesService {
     });
   }
 
-  /**
-   * Realm-wide join-request inbox. Realm OWNER/MAINTAINER see every request in the
-   * realm; a plain workspace ADMIN sees requests for the workspaces they administer.
-   * Returns [] for users who administer nothing (no error).
-   */
+  // Realm-wide inbox: realm admins see every request; workspace ADMINs see only theirs ([] if none).
   async listAllRequests(
     userId: string,
     state: "PENDING" | "APPROVED" | "REJECTED" = "PENDING",
@@ -289,14 +279,11 @@ export class WorkspacesService {
   ) {
     await this.authz.requireWorkspaceRole(actorId, workspaceId, "ADMIN");
 
-    // Check + mutate inside one SERIALIZABLE transaction so two concurrent
-    // demotions can't both pass the last-admin check and leave the workspace
-    // admin-less (READ COMMITTED would let both count the same 2 admins).
+    // SERIALIZABLE so concurrent demotions can't both pass the last-admin check.
     return this.prisma.$transaction(
       async (tx) => {
         const member = await this.getMemberOrThrow(workspaceId, targetUserId, tx);
 
-        // Don't strip the workspace of its last direct admin.
         if (member.role === "ADMIN" && role !== "ADMIN") {
           await this.assertNotLastAdmin(workspaceId, tx);
         }

@@ -1,0 +1,62 @@
+name: Deploy Frontend (Netlify)
+
+# Deploy flow: open a PR into staging/frontend (base) from develop, get it
+# reviewed, and merge.
+#   • On the PR → builds the Vite app as a required check (no Netlify deploy).
+#   • On merge  → builds, then deploys dist/ to Netlify.
+#
+# Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
+# NETLIFY_AUTH_TOKEN. Optional repo variables: VITE_API_BASE_URL, VITE_RTC_WS_URL.
+on:
+  pull_request:
+    branches: [staging/frontend] # build-only check on the deploy PR
+  push:
+    branches: [staging/frontend] # merge → build + deploy
+  workflow_dispatch: {} # allow manual re-deploys from the Actions tab
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true # a newer push supersedes an in-flight deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # @toddle-edu/* live on the private GitHub npm registry (see .npmrc),
+      # so install needs a token with read:packages.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      - name: Build frontend
+        run: pnpm --filter frontend build
+        env:
+          # Public deploy targets — set these as repo Variables (Settings → Variables).
+          # Names match frontend/src/lib/env.ts: VITE_API_BASE_URL (code appends /api),
+          # VITE_RTC_WS_URL (code appends /yjs/<docId>).
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_RTC_WS_URL: ${{ vars.VITE_RTC_WS_URL }}
+
+      # Deploy the built dist/ to Netlify via the CLI. Auth comes from the
+      # NETLIFY_AUTH_TOKEN secret (read from env — never pass it as a --auth flag,
+      # which would echo the token into the public Actions log). Site ID is not
+      # sensitive, so it stays inline. --filter selects this package in the pnpm
+      # monorepo (without it the CLI refuses, unsure which package to deploy).
+      # Only deploy on merge/push (or manual run) — PR builds stop after the build above.
+      - name: Deploy to Netlify
+        if: github.event_name != 'pull_request'
+        run: npx --yes netlify-cli@latest deploy --prod --filter=frontend --dir=frontend/dist --site=28189552-7700-4ccc-b48d-99ce67cfa13d --message="Deploy ${{ github.sha }} from ${{ github.ref_name }}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

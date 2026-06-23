@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { RadioButton } from '@toddle-edu/ds-web';
 import { cn } from '../lib/cn';
+import s from './RoleRadios.module.scss';
 
 export interface RoleRadioOption<T extends string> {
   value: T;
@@ -21,11 +22,11 @@ export function RoleRadios<T extends string>({
   cols?: boolean;
 }) {
   return (
-    <div className={cn('role-radios', cols && 'cols')} role="radiogroup">
+    <div className={cn(s.roleRadios, cols && s.cols)} role="radiogroup">
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <label key={o.value} className={cn('role-opt', on && 'on')} onClick={() => onChange(o.value)}>
+          <label key={o.value} className={cn(s.roleOpt, on && s.on)} onClick={() => onChange(o.value)}>
             <RadioButton
               checked={on}
               onChange={() => onChange(o.value)}
@@ -36,12 +37,12 @@ export function RoleRadios<T extends string>({
             {o.chip}
             {o.title ? (
               <div>
-                <div className="ttl">{o.title}</div>
-                {o.desc && <div className="ds">{o.desc}</div>}
+                <div className={s.ttl}>{o.title}</div>
+                {o.desc && <div className={s.ds}>{o.desc}</div>}
               </div>
             ) : (
               o.desc && (
-                <span className="ds" style={{ marginLeft: 2 }}>
+                <span className={s.ds} style={{ marginLeft: 2 }}>
                   {o.desc}
                 </span>
               )

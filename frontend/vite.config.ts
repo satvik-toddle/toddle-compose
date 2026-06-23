@@ -6,6 +6,14 @@ import react from '@vitejs/plugin-react';
 // hard-coded host). For non-proxied deploys set VITE_API_BASE_URL instead.
 export default defineConfig({
   plugins: [react()],
+  css: {
+    modules: {
+      // Export camelCase keys (.ad-subbar → classes.adSubbar) so co-located
+      // *.module.scss files are consumed the same way web-app does
+      // (`import classes from './X.module.scss'; classes.someClass`).
+      localsConvention: 'camelCaseOnly',
+    },
+  },
   server: {
     port: 5173,
     proxy: {

@@ -286,8 +286,11 @@ describe("Documents (e2e)", () => {
     // Root is the topmost ancestor (docId), with both children present.
     expect(res.body.id).toBe(docId);
     expect(res.body.parentId).toBeNull();
+    // Every node carries its kind so a sidebar can render/route without a refetch.
+    expect(res.body.type).toBe("DOC");
     const rootChildIds = res.body.children.map((c: { id: string }) => c.id);
     expect(rootChildIds).toEqual(expect.arrayContaining([subdocId, sibling.body.id]));
+    expect(res.body.children.every((c: { type?: string }) => c.type === "DOC" || c.type === "SHEET")).toBe(true);
 
     // Off-path sibling is collapsed; on-path child is expanded.
     const sib = res.body.children.find((c: { id: string }) => c.id === sibling.body.id);
@@ -405,3 +408,231 @@ describe("Documents (e2e)", () => {
 function decode(jwt: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString());
 }
+
+/**
+ * Sheet support (e2e) — the DOC/SHEET document kind: type round-trips through
+ * create, icon is null unless explicitly set, validation of the `type` field, and
+ * that BOTH kinds nest under a valid parent (DOC↔SHEET in either direction). Boots
+ * the real AppModule against DATABASE_URL.
+ */
+describe("Sheet support (e2e)", () => {
+  let app: INestApplication;
+
+  const stamp = Date.now();
+  let ownerWs = "";
+  let wsId = "";
+
+  beforeAll(async () => {
+    app = await bootApp();
+    const ownerTok = await login(app, "owner@toddle.test");
+    wsId = await createWorkspace(app, ownerTok, `e2e-sheet-${stamp}`);
+    ownerWs = await enterWorkspace(app, ownerTok, wsId);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("creates a SHEET document → type SHEET, no default icon", async () => {
+    const res = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Q3 Numbers", type: "SHEET" })
+      .expect(201);
+    expect(res.body.type).toBe("SHEET");
+    expect(res.body.icon).toBeNull();
+  });
+
+  it("defaults to a DOC (type DOC, no icon) when type is omitted", async () => {
+    const res = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Plain Doc" })
+      .expect(201);
+    expect(res.body.type).toBe("DOC");
+    expect(res.body.icon).toBeNull();
+  });
+
+  it("honours an explicit icon", async () => {
+    const res = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Custom", type: "SHEET", icon: "🧮" })
+      .expect(201);
+    expect(res.body.type).toBe("SHEET");
+    expect(res.body.icon).toBe("🧮");
+  });
+
+  it("rejects an invalid document type → 400", async () => {
+    await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "x", type: "GRAPH" })
+      .expect(400);
+  });
+
+  it("a SHEET nests under a DOC parent (type preserved, parentId set)", async () => {
+    const parent = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Report (doc)", type: "DOC" })
+      .expect(201);
+    const child = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Embedded sheet", type: "SHEET", parentId: parent.body.id })
+      .expect(201);
+    expect(child.body.type).toBe("SHEET");
+    expect(child.body.parentId).toBe(parent.body.id);
+    expect(child.body.folderId).toBeNull();
+  });
+
+  it("a DOC nests under a SHEET parent (both kinds are nestable)", async () => {
+    const parent = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Dataset (sheet)", type: "SHEET" })
+      .expect(201);
+    const child = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Notes on dataset", parentId: parent.body.id })
+      .expect(201);
+    expect(child.body.type).toBe("DOC");
+    expect(child.body.parentId).toBe(parent.body.id);
+
+    // The parent's subdoc listing surfaces the child with its kind intact.
+    const subdocs = await http(app)
+      .get(`/api/documents/${parent.body.id}/subdocs`)
+      .set(auth(ownerWs))
+      .expect(200);
+    expect(subdocs.body.map((d: { id: string }) => d.id)).toContain(child.body.id);
+  });
+
+  it("listings carry the document type", async () => {
+    const list = await http(app).get("/api/documents").set(auth(ownerWs)).expect(200);
+    expect(list.body.every((d: { type: string }) => d.type === "DOC" || d.type === "SHEET")).toBe(
+      true
+    );
+  });
+
+  it("hierarchy nodes carry the kind (a nested SHEET shows type SHEET)", async () => {
+    const parent = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Folder doc" })
+      .expect(201);
+    const sheet = await http(app)
+      .post("/api/documents")
+      .set(auth(ownerWs))
+      .send({ title: "Nested sheet", type: "SHEET", parentId: parent.body.id })
+      .expect(201);
+
+    // Fetch the hierarchy for the sheet (a generic id route — no kind in the URL).
+    const res = await http(app)
+      .get(`/api/documents/${sheet.body.id}/hierarchy`)
+      .set(auth(ownerWs))
+      .expect(200);
+
+    expect(res.body.type).toBe("DOC"); // root ancestor is the parent doc
+    const node = res.body.children.find((c: { id: string }) => c.id === sheet.body.id);
+    expect(node.type).toBe("SHEET"); // kind travels with the node
+  });
+});
+
+describe("Hierarchy cache invalidation (e2e)", () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  const stamp = Date.now();
+  let wsId = "";
+  let ownerWs = "";
+  let root = "";
+
+  const childIds = (body: { children?: { id: string }[] }) =>
+    (body.children ?? []).map((c) => c.id);
+  const hierarchy = (id: string) =>
+    http(app).get(`/api/documents/${id}/hierarchy`).set(auth(ownerWs)).expect(200);
+  const createDoc = (body: Record<string, unknown>) =>
+    http(app).post("/api/documents").set(auth(ownerWs)).send(body).expect(201);
+
+  beforeAll(async () => {
+    app = await bootApp();
+    prisma = app.get(PrismaService);
+    const ownerTok = await login(app, "owner@toddle.test");
+    wsId = await createWorkspace(app, ownerTok, `e2e-hier-cache-${stamp}`);
+    ownerWs = await enterWorkspace(app, ownerTok, wsId);
+    root = (await createDoc({ title: "Root" })).body.id;
+  });
+
+  afterAll(async () => {
+    await prisma.workspace.deleteMany({ where: { id: wsId } });
+    await app.close();
+  });
+
+  it("create under a warmed parent surfaces the new child on the next fetch", async () => {
+    const anchor = (await createDoc({ title: "Anchor", parentId: root })).body.id;
+    await hierarchy(anchor);
+
+    const fresh = (await createDoc({ title: "Fresh", parentId: root })).body.id;
+    const res = await hierarchy(anchor);
+    expect(childIds(res.body)).toEqual(expect.arrayContaining([anchor, fresh]));
+  });
+
+  it("rename surfaces the new title in the parent's collapsed child list", async () => {
+    const onPath = (await createDoc({ title: "OnPath", parentId: root })).body.id;
+    const sibling = (await createDoc({ title: "Before", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app)
+      .patch(`/api/documents/${sibling}`)
+      .set(auth(ownerWs))
+      .send({ title: "After" })
+      .expect(200);
+
+    const res = await hierarchy(onPath);
+    const sib = res.body.children.find((c: { id: string }) => c.id === sibling);
+    expect(sib.title).toBe("After");
+  });
+
+  it("move out of a warmed parent removes the child on the next fetch", async () => {
+    const onPath = (await createDoc({ title: "Stay", parentId: root })).body.id;
+    const mover = (await createDoc({ title: "Mover", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app)
+      .patch(`/api/documents/${mover}/move`)
+      .set(auth(ownerWs))
+      .send({ parentId: onPath })
+      .expect(200);
+
+    const res = await hierarchy(onPath);
+    expect(childIds(res.body)).not.toContain(mover);
+    const onPathNode = res.body.children.find((c: { id: string }) => c.id === onPath);
+    expect(childIds(onPathNode)).toContain(mover);
+  });
+
+  it("delete removes the child from its parent's warmed snapshot", async () => {
+    const onPath = (await createDoc({ title: "Keep", parentId: root })).body.id;
+    const doomed = (await createDoc({ title: "Doomed", parentId: root })).body.id;
+    await hierarchy(onPath);
+
+    await http(app).delete(`/api/documents/${doomed}`).set(auth(ownerWs)).expect(200);
+
+    const res = await hierarchy(onPath);
+    expect(childIds(res.body)).not.toContain(doomed);
+  });
+
+  it("a grandchild create refreshes the parent's childCount on a collapsed sibling", async () => {
+    const onPath = (await createDoc({ title: "Spine", parentId: root })).body.id;
+    const branch = (await createDoc({ title: "Branch", parentId: root })).body.id;
+    let res = await hierarchy(onPath);
+    let branchNode = res.body.children.find((c: { id: string }) => c.id === branch);
+    expect(branchNode.childCount).toBe(0);
+
+    await createDoc({ title: "Leaf", parentId: branch });
+    res = await hierarchy(onPath);
+    branchNode = res.body.children.find((c: { id: string }) => c.id === branch);
+    expect(branchNode.childCount).toBe(1);
+  });
+});

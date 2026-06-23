@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Modal as DsModal } from '@toddle-edu/ds-web';
 import { Icon, type IconName } from './Icon';
+import { IconButton } from './IconButton';
 
 export type ModalTone = 'neutral' | 'brand' | 'danger';
 
@@ -37,9 +38,7 @@ export function ModalHead({
         <h3>{title}</h3>
         {sub && <p>{sub}</p>}
       </div>
-      <button type="button" className="ibtn x" onClick={onClose} aria-label="Close">
-        <Icon name="CloseOutlined" size={18} muted />
-      </button>
+      <IconButton icon="CloseOutlined" iconSize={18} onClick={onClose} aria-label="Close" />
     </div>
   );
 }

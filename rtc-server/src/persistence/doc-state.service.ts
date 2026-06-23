@@ -2,15 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
-import { LexicalExtractService } from "./lexical-extract.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
+import { trace } from "../tracing/trace";
 import type { Env } from "../config/env";
 import type { RtcClaims } from "../tokens/tokens.service";
 
 const log = createLogger("ws");
 const persistLog = createLogger("persist");
-const contentLog = createLogger("content");
 
 type DebounceState = {
   idleTimer: NodeJS.Timeout | null;
@@ -26,11 +25,7 @@ type DebounceState = {
   pendingAppend: PendingAppend | null;
 };
 
-/**
- * Updates buffered for append-coalescing. Only updates sharing the SAME
- * (originDesc, clientSub) are merged into one log row — session history groups
- * rows by author, so a batch must stay attributable to a single client.
- */
+// Coalescing buffer: only same-(originDesc, clientSub) updates merge, so each log row stays attributable to one client.
 type PendingAppend = {
   blobs: Buffer[];
   bytes: number;
@@ -39,34 +34,9 @@ type PendingAppend = {
   timer: NodeJS.Timeout | null;
 };
 
-// Force an append (ending the coalescing window early) past either bound, so a
-// paste-storm can't buffer unbounded bytes in memory.
+// Bounds force an early append so a paste-storm can't buffer unbounded bytes in memory.
 const APPEND_COALESCE_MAX_UPDATES = 200;
 const APPEND_COALESCE_MAX_BYTES = 256 * 1024;
-
-function nodeText(node: unknown): string {
-  const n = node as { text?: string; children?: unknown[] };
-  if (typeof n.text === "string") return n.text;
-  if (Array.isArray(n.children)) return n.children.map(nodeText).join("");
-  return "";
-}
-
-function summarizeBlocks(lexicalJson: string | null): string {
-  if (!lexicalJson) return "(null)";
-  try {
-    const root = (JSON.parse(lexicalJson) as { root?: { children?: unknown[] } })
-      .root;
-    const children = root?.children ?? [];
-    const parts = children.map((c, i) => {
-      const node = c as { type?: string; tag?: string };
-      const kind = node.tag ? `${node.type}(${node.tag})` : node.type;
-      return `#${i} ${kind}:${JSON.stringify(nodeText(c))}`;
-    });
-    return `${children.length} block(s) [ ${parts.join(" | ")} ]`;
-  } catch (e) {
-    return `(parse-failed: ${e instanceof Error ? e.message : e})`;
-  }
-}
 
 @Injectable()
 export class DocStateService {
@@ -79,7 +49,6 @@ export class DocStateService {
 
   constructor(
     private readonly repo: DocRepository,
-    private readonly extract: LexicalExtractService,
     private readonly compaction: CompactionService,
     private readonly config: ConfigService<Env, true>
   ) {}
@@ -106,87 +75,91 @@ export class DocStateService {
   }
 
   private async drain(docId: string): Promise<void> {
-    // Anything still in the coalescing buffer must reach the chain first, or
-    // flush/checkpoint would record a snapshotAtSeq that excludes it.
+    // Buffer must reach the chain first, or flush/checkpoint records a snapshotAtSeq that excludes it.
     this.flushPendingAppend(docId);
     const chain = this.chains.get(docId);
     if (chain) await chain;
   }
 
   async bindState(docName: string, ydoc: Y.Doc): Promise<void> {
-    persistLog.info(`'${docName}' bindState — cold-load`);
-    await this.repo.ensureRtcDoc(docName);
-    const row = await this.repo.getRtcDoc(docName);
-    const snapshotAtSeq = row?.snapshotAtSeq ?? 0;
+    // Cold-load of the document state a connecting client receives: read the
+    // snapshot + replay the tail of updates from the DB. Timed end-to-end; the
+    // individual DB queries also log their own [trace] db ... lines.
+    await trace(`rtc.bindState ${docName}`, async () => {
+      persistLog.info(`'${docName}' bindState — cold-load`);
+      await this.repo.ensureRtcDoc(docName);
+      const row = await this.repo.getRtcDoc(docName);
+      const snapshotAtSeq = row?.snapshotAtSeq ?? 0;
 
-    if (row?.yjsState) {
-      try {
-        Y.applyUpdate(ydoc, new Uint8Array(row.yjsState));
-        persistLog.info(
-          `'${docName}' cold-loaded snapshot ${row.yjsState.byteLength}B at_seq=${snapshotAtSeq}`
-        );
-      } catch (e) {
-        persistLog.error(`'${docName}' apply yjs_state FAILED`, e);
-      }
-    } else {
-      persistLog.info(`'${docName}' no snapshot yet`);
-    }
-
-    const head = await this.repo.getHeadSeq(docName);
-    if (head > snapshotAtSeq) {
-      const tail = await this.repo.getDocUpdateBlobsAfterSeq(
-        docName,
-        snapshotAtSeq
-      );
-      let applied = 0;
-      for (const { blob } of tail) {
+      if (row?.yjsState) {
         try {
-          Y.applyUpdate(ydoc, new Uint8Array(blob));
-          applied += 1;
-        } catch (e) {
-          persistLog.error(`'${docName}' tail-apply FAILED`, e);
-        }
-      }
-      persistLog.info(
-        `'${docName}' replayed ${applied}/${tail.length} tail updates seq=${snapshotAtSeq + 1}..${head}`
-      );
-    }
-
-    if (head === 0) {
-      const baseUpdate = Buffer.from(Y.encodeStateAsUpdate(ydoc));
-      if (baseUpdate.byteLength > 2) {
-        try {
-          const seq = await this.repo.appendDocUpdate(
-            docName,
-            baseUpdate,
-            "cold-load-seed",
-            null
-          );
+          Y.applyUpdate(ydoc, new Uint8Array(row.yjsState));
           persistLog.info(
-            `'${docName}' seeded history seq=${seq} with ${baseUpdate.byteLength}B baseline`
+            `'${docName}' cold-loaded snapshot ${row.yjsState.byteLength}B at_seq=${snapshotAtSeq}`
           );
         } catch (e) {
-          persistLog.error(`'${docName}' seed-on-bindState FAILED`, e);
+          persistLog.error(`'${docName}' apply yjs_state FAILED`, e);
+        }
+      } else {
+        persistLog.info(`'${docName}' no snapshot yet`);
+      }
+
+      const head = await this.repo.getHeadSeq(docName);
+      if (head > snapshotAtSeq) {
+        const tail = await this.repo.getDocUpdateBlobsAfterSeq(
+          docName,
+          snapshotAtSeq
+        );
+        let applied = 0;
+        for (const { blob } of tail) {
+          try {
+            Y.applyUpdate(ydoc, new Uint8Array(blob));
+            applied += 1;
+          } catch (e) {
+            persistLog.error(`'${docName}' tail-apply FAILED`, e);
+          }
+        }
+        persistLog.info(
+          `'${docName}' replayed ${applied}/${tail.length} tail updates seq=${snapshotAtSeq + 1}..${head}`
+        );
+      }
+
+      if (head === 0) {
+        const baseUpdate = Buffer.from(Y.encodeStateAsUpdate(ydoc));
+        if (baseUpdate.byteLength > 2) {
+          try {
+            const seq = await this.repo.appendDocUpdate(
+              docName,
+              baseUpdate,
+              "cold-load-seed",
+              null
+            );
+            persistLog.info(
+              `'${docName}' seeded history seq=${seq} with ${baseUpdate.byteLength}B baseline`
+            );
+          } catch (e) {
+            persistLog.error(`'${docName}' seed-on-bindState FAILED`, e);
+          }
         }
       }
-    }
 
-    const lastSeq = await this.repo.getHeadSeq(docName);
-    this.docState.set(docName, {
-      ydoc,
-      state: {
-        idleTimer: null,
-        maxTimer: null,
-        dirty: false,
-        flushing: null,
-        dirtyAt: null,
-        updates: 0,
-        bytesIn: 0,
-        checkpointTimer: null,
-        snapshotAtSeq,
-        lastAppendedSeq: lastSeq,
-        pendingAppend: null,
-      },
+      const lastSeq = await this.repo.getHeadSeq(docName);
+      this.docState.set(docName, {
+        ydoc,
+        state: {
+          idleTimer: null,
+          maxTimer: null,
+          dirty: false,
+          flushing: null,
+          dirtyAt: null,
+          updates: 0,
+          bytesIn: 0,
+          checkpointTimer: null,
+          snapshotAtSeq,
+          lastAppendedSeq: lastSeq,
+          pendingAppend: null,
+        },
+      });
     });
 
     ydoc.on("update", (update: Uint8Array, origin: unknown) => {
@@ -212,12 +185,7 @@ export class DocStateService {
     });
   }
 
-  /**
-   * Coalesce updates per (doc, author) for RTC_APPEND_COALESCE_MS before
-   * appending them as a single merged log row. Typing emits many tiny updates;
-   * one row per update means one transaction per keystroke, which is what caps
-   * DB write throughput at scale.
-   */
+  // Coalesce updates per (doc, author) for RTC_APPEND_COALESCE_MS into one row, else typing means one tx per keystroke.
   private bufferAppend(
     docName: string,
     blob: Buffer,
@@ -226,7 +194,7 @@ export class DocStateService {
   ): void {
     const entry = this.docState.get(docName);
     if (!entry) {
-      // Doc evicted mid-flight: append directly, nothing to coalesce against.
+      // Doc evicted mid-flight: nothing to coalesce against.
       this.enqueueAppend(docName, blob, originDesc, clientSub);
       return;
     }
@@ -341,28 +309,19 @@ export class DocStateService {
         state.updates = 0;
         state.bytesIn = 0;
         await this.drain(docName);
-        // Capture the last drained seq BEFORE encoding: every update counted in
-        // lastAppendedSeq was applied to the ydoc before it was enqueued, so the
-        // encoded state is guaranteed to contain at least seq 1..flushedSeq.
-        // (snapshotAtSeq may lag the state — replay is idempotent — but must
-        // never exceed it, or compaction could drop unsnapshotted updates.)
+        // Capture seq BEFORE encoding: snapshotAtSeq may lag state but must never exceed it, or compaction drops unsnapshotted updates.
         const flushedSeq = state.lastAppendedSeq;
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
-        const { lexicalJson, plainText } =
-          await this.extract.extractFromBytes(update);
         const version = await this.repo.persistRtcDoc(
           docName,
           yjsState,
-          lexicalJson,
-          plainText,
           flushedSeq
         );
         state.snapshotAtSeq = flushedSeq;
         log.info(
-          `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B json=${lexicalJson?.length ?? 0}B text=${plainText.length}ch in ${Date.now() - t0}ms`
+          `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
-        contentLog.info(`'${docName}' v${version} ${summarizeBlocks(lexicalJson)}`);
       } catch (e) {
         log.error(`'${docName}' flush FAILED`, e);
         state.dirty = true;
@@ -441,10 +400,7 @@ export class DocStateService {
     } catch (e) {
       persistLog.error(`'${docName}' on-disconnect compaction FAILED`, e);
     }
-    // Evict in-memory state so docState/chains don't grow forever. y-websocket
-    // removes the doc from its map synchronously when the last client leaves,
-    // so a quick reconnect runs bindState concurrently and replaces the entry —
-    // only evict if our entry is still the live one.
+    // Only evict if our entry is still live: a quick reconnect can run bindState concurrently and replace it.
     await this.drain(docName);
     if (entry && this.docState.get(docName) === entry) {
       this.clearAllTimers(entry.state);
@@ -475,21 +431,16 @@ export class DocStateService {
     }
   }
 
-  /**
-   * Drop all in-memory state for a doc WITHOUT flushing — used when the doc is
-   * being deleted. Callers must close/tear down any live connections first so
-   * no new updates (or a rebind) arrive while we evict.
-   */
+  // Drop in-memory state WITHOUT flushing (doc being deleted); callers must tear down live connections first.
   async evictDocNoFlush(docName: string): Promise<void> {
     const entry = this.docState.get(docName);
     if (entry) {
       this.clearAllTimers(entry.state);
       entry.state.dirty = false;
-      // Discard (not flush) buffered updates: the doc is being deleted, and an
-      // append landing after the DB delete would re-create rows.
+      // Discard buffered updates: an append after the DB delete would re-create rows.
       entry.state.pendingAppend = null;
     }
-    // Let any in-flight appends settle so they can't land after the DB delete.
+    // Let in-flight appends settle so they can't land after the DB delete.
     await this.drain(docName);
     this.docState.delete(docName);
     this.chains.delete(docName);

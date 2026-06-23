@@ -3,6 +3,8 @@ import { NestFactory } from "@nestjs/core";
 import { Logger, type INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppModule } from "./app.module";
+import { YjsServerService } from "./yjs/yjs-server.service";
+import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 
 let app: INestApplication | null = null;
 
@@ -10,17 +12,16 @@ async function bootstrap() {
   app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
-  const internalPort = config.get<number>("RTC_INTERNAL_PORT") ?? 4002;
-  const wsPort = config.get<number>("RTC_PORT") ?? 4001;
-  await app.listen(internalPort);
-  new Logger("bootstrap").log(
-    `rtc-server: internal HTTP on :${internalPort}, WS on :${wsPort}`
-  );
+  // Per-request HTTP tracing: times each request and logs its DB-query breakdown.
+  setTracingEnabled(config.get<boolean>("TRACE_REQUESTS") ?? false);
+  app.use(traceMiddleware);
+  const port = config.get<number>("RTC_PORT") ?? 4001;
+  await app.listen(port);
+  app.get(YjsServerService).attach(app.getHttpServer());
+  new Logger("bootstrap").log(`rtc-server: HTTP + WS on :${port}`);
 }
 
-// After an uncaught error the process state is unknown: attempt a graceful
-// app.close() (triggers the shutdown flush) bounded by a timeout, then exit
-// non-zero so the supervisor restarts us — never log-and-continue.
+// On uncaught error, attempt a timeout-bounded graceful close, then exit non-zero for the supervisor to restart.
 const CRASH_SHUTDOWN_TIMEOUT_MS = 5000;
 let crashing = false;
 

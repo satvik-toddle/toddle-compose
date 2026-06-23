@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { ActionMenu } from '../../components/ActionMenu';
@@ -9,6 +9,7 @@ import { useUiStore } from '../../stores/uiStore';
 import { wsAtLeast } from '../../lib/roles';
 import { cn } from '../../lib/cn';
 import type { WorkspaceCtx } from './WorkspaceLayout';
+import s from './PagesTree.module.scss';
 
 // Coda-style page tree: every row is a page (document); a page that has child
 // pages can expand. Nesting is by document parentId — no separate folder type.
@@ -23,39 +24,56 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
   const createDoc = useCreateDocument();
   const openModal = useUiStore((s) => s.openModal);
 
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Pages start collapsed; this set tracks the ones that are explicitly expanded.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const canCreate = wsAtLeast(ctx.role, 'EDIT');
 
   const { roots, isEmpty } = buildDocTree(docs);
+  const byId = useMemo(() => new Map(docs.map((d) => [d.id, d])), [docs]);
   const canManage = (ownerId: string) => ctx.isAdmin || me?.id === ownerId;
+
+  // When a page is deep-linked (?doc=…), expand its ancestor spine on load so the
+  // selected page is revealed in the otherwise-collapsed tree. We only ever add to
+  // the expanded set, so manual collapses by the user aren't fought.
+  useEffect(() => {
+    if (!selDoc) return;
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    let cur: string | null | undefined = selDoc;
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      ids.push(cur); // expand the doc itself too, so its sub-pages show
+      cur = byId.get(cur)?.parentId ?? null;
+    }
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      for (const id of ids) n.add(id);
+      return n;
+    });
+  }, [selDoc, byId]);
 
   const selectDoc = (id: string) => navigate(`/w/${ws}?doc=${id}`);
   const toggle = (id: string) =>
-    setCollapsed((s) => {
+    setExpanded((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
   const expand = (id: string) =>
-    setCollapsed((s) => {
-      if (!s.has(id)) return s;
-      const n = new Set(s);
-      n.delete(id);
-      return n;
-    });
+    setExpanded((s) => (s.has(id) ? s : new Set(s).add(id)));
 
   const newRootPage = () =>
     createDoc.mutate({ workspaceId: ws, title: 'Untitled' }, { onSuccess: (d) => selectDoc(d.id) });
 
   const PageNode = ({ node, depth }: { node: TreeDoc; depth: number }) => {
     const hasKids = node.children.length > 0;
-    const open = !collapsed.has(node.doc.id);
+    const open = expanded.has(node.doc.id);
     const manage = canManage(node.doc.owner.id);
     return (
       <>
         <div
-          className={cn('tree-row doc', selDoc === node.doc.id && 'active')}
+          className={cn(s.treeRow, s.doc, selDoc === node.doc.id && s.active)}
           style={{ paddingLeft: 8 + depth * 15 }}
           role="button"
           onClick={() => selectDoc(node.doc.id)}
@@ -69,18 +87,18 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
               toggle(node.doc.id);
             }}
           >
-            <Icon name="ChevronRightOutlined" size={14} muted className={cn('chev', open && 'open')} />
+            <Icon name="ChevronRightOutlined" size={14} muted className={cn(s.chev, open && s.open)} />
           </span>
           <span className="tw-emoji">
             <Icon name="FileOutlined" size={16} muted />
           </span>
-          <span className="tw-lbl">{node.doc.title}</span>
+          <span className={s.twLbl}>{node.doc.title}</span>
           {(canCreate || manage) && (
             <span className="tw-more-wrap" onClick={(e) => e.stopPropagation()}>
               <ActionMenu
                 placement="bottomRight"
                 trigger={
-                  <button className="tw-more">
+                  <button className={s.twMore}>
                     <Icon name="DotsHorizontalOutlined" size={14} muted />
                   </button>
                 }
@@ -126,40 +144,66 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
             </span>
           )}
         </div>
-        {open && hasKids && node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
+        {open && hasKids && (
+          <>
+            {node.children.map((c) => <PageNode key={c.doc.id} node={c} depth={depth + 1} />)}
+            {/* Coda-style "New page" row at the bottom of an expanded parent's children */}
+            {canCreate && (
+              <div
+                className={s.newPageRow}
+                // align the + with the child page-icon column (chevron 14 + 7 gap)
+                style={{ paddingLeft: 8 + (depth + 1) * 15 + 21 }}
+                role="button"
+                onClick={() => {
+                  expand(node.doc.id);
+                  createDoc.mutate(
+                    { workspaceId: ws, parentId: node.doc.id, title: 'Untitled' },
+                    { onSuccess: (d) => selectDoc(d.id) },
+                  );
+                }}
+              >
+                <Icon name="AddOutlined" size={16} muted />
+                New page
+              </div>
+            )}
+          </>
+        )}
       </>
     );
   };
 
   return (
     <>
-      <div className="ws-nav-grp">
-        Pages
-        {canCreate && (
-          <button className="grp-add" title="New page" onClick={newRootPage}>
-            <Icon name="AddOutlined" size={14} muted />
-          </button>
-        )}
-      </div>
-      <div className="ws-tree">
+      <div className={s.wsNavGrp}>Pages</div>
+      <div className={s.wsTree}>
         {isLoading ? (
           <div style={{ padding: '8px 9px', fontSize: 12, color: 'var(--text-secondary)' }}>Loading…</div>
-        ) : isEmpty ? (
-          <div
-            style={{
-              padding: '10px 9px',
-              fontSize: 12,
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-            }}
-          >
-            <Icon name="InformationOutlined" size={14} muted />
-            No pages yet
-          </div>
         ) : (
-          roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)
+          <>
+            {!isEmpty && roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)}
+            {isEmpty && !canCreate && (
+              <div
+                style={{
+                  padding: '10px 9px',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                }}
+              >
+                <Icon name="InformationOutlined" size={14} muted />
+                No pages yet
+              </div>
+            )}
+            {/* Coda-style "New page" row at the bottom of the tree */}
+            {canCreate && (
+              <div className={s.newPageRow} style={{ paddingLeft: 8 + 21 }} role="button" onClick={newRootPage}>
+                <Icon name="AddOutlined" size={16} muted />
+                New page
+              </div>
+            )}
+          </>
         )}
       </div>
     </>

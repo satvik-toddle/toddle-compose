@@ -28,19 +28,14 @@ type UploadedFileLike = {
   buffer: Buffer;
 };
 
-// Read at module load (decorator-time) so the multer interceptor can hard-cap
-// the stream; the handler re-checks for a clean error message.
+// Read at decorator-time so the multer interceptor can hard-cap the stream.
 const MAX_UPLOAD_BYTES =
   (Number(process.env.STORAGE_MAX_UPLOAD_MB) || 25) * 1024 * 1024;
 
-// Client mimetypes a browser could execute as markup/script when served from our
-// origin (HTML, SVG, XML, JS). Stored as octet-stream so no driver ever persists
-// (and later serves) a dangerous ContentType.
+// Browser-executable mimetypes; stored as octet-stream so no driver serves a dangerous ContentType.
 const ACTIVE_CONTENT_RE = /html|svg|xml|javascript|ecmascript/i;
 
-// Content types safe to render inline (no script execution); everything else —
-// including image/svg+xml — is served as a download (attachment) to block
-// stored-XSS via uploaded files.
+// Types safe to render inline; everything else is served as a download to block stored-XSS.
 const INLINE_SAFE_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -86,11 +81,7 @@ export class UploadsController {
     });
   }
 
-  /**
-   * Serve an object by key. Public (no auth) so it can back <img src>/downloads;
-   * keys are unguessable UUIDs. For the s3 driver, prefer the absolute URL from
-   * the upload response (public/CDN or pre-signed) — this route still proxies it.
-   */
+  // Serve an object by key. Public (no auth) so it can back <img src>/downloads; keys are unguessable.
   @Get(":key")
   @Header("Cache-Control", "public, max-age=31536000, immutable")
   @Header("X-Content-Type-Options", "nosniff")
@@ -98,8 +89,7 @@ export class UploadsController {
     if (!isSafeKey(key)) throw new NotFoundException();
     const obj = await this.storage.get(key);
     if (!obj) throw new NotFoundException();
-    // Only a known-passive allowlist renders inline; everything else (SVG, HTML,
-    // unknown types) is forced to download so it can never script our origin.
+    // Only the passive allowlist renders inline; everything else is forced to download.
     const disposition = INLINE_SAFE_TYPES.has(obj.contentType)
       ? "inline"
       : "attachment";

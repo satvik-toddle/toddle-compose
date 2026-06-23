@@ -4,14 +4,14 @@ import { ICONS, type IconName } from './iconMap';
 
 export type IconSize = 12 | 14 | 16 | 18 | 20 | 24;
 
-const SIZE_CLASS: Record<IconSize, string> = {
-  12: 'ic-12',
-  14: 'ic-14',
-  16: 'ic',
-  18: 'ic-18',
-  20: 'ic-20',
-  24: 'ic-24',
-};
+// muted/red/white map to a CSS color; the ds-icons SVG paths use
+// fill: currentColor (the `.fill-current` rule in rbac.css), so setting `color`
+// drives the fill. Default (none set) inherits the surrounding text color.
+const COLOR = {
+  muted: 'var(--text-secondary)',
+  red: 'var(--text-semantic-error)',
+  white: 'var(--neutral-white)',
+} as const;
 
 export interface IconProps {
   name: IconName;
@@ -23,13 +23,20 @@ export interface IconProps {
   style?: CSSProperties;
 }
 
-// Renders a ds-icons SVG. Color comes from `color` (currentColor) — defaults to
-// the surrounding text color; size from our .ic-* classes.
+// Renders a ds-icons SVG, sized + colored inline. The `.ic` marker class is kept
+// only so context styles (e.g. dimmed icons) can target it; size and color are
+// inline so no per-size CSS classes are needed. A caller-supplied `style` wins.
 export function Icon({ name, size = 14, muted, red, white, className, style }: IconProps) {
   const C = ICONS[name];
   if (!C) return null;
-  const cls = cn(SIZE_CLASS[size], muted && 'ic-muted', red && 'ic-red', white && 'ic-white', className);
-  return <C className={cls} style={style} aria-hidden />;
+  const color = muted ? COLOR.muted : red ? COLOR.red : white ? COLOR.white : undefined;
+  return (
+    <C
+      className={cn('ic', className)}
+      style={{ width: size, height: size, flex: 'none', display: 'block', color, ...style }}
+      aria-hidden
+    />
+  );
 }
 
 export type { IconName };

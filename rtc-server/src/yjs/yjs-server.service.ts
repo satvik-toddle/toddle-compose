@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { IncomingMessage } from "http";
+import type { IncomingMessage, Server as HttpServer } from "http";
 import * as decoding from "lib0/decoding";
 import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
@@ -15,19 +15,12 @@ import type { Env } from "../config/env";
 
 const log = createLogger("ws");
 
-// Per-connection token bucket for message rate limiting.
-const RATE_LIMIT_CAPACITY = 500;
-const RATE_LIMIT_REFILL_PER_SEC = 100;
-
-// Awareness (presence/cursor) frames per connection: above this rate only the
-// latest frame is kept, delivered on a trailing timer. y-websocket's protocol
-// message types: 0 = sync, 1 = awareness.
+// y-websocket protocol message types: 0 = sync, 1 = awareness.
 const MESSAGE_AWARENESS = 1;
 const AWARENESS_MAX_PER_SEC = 15;
 const AWARENESS_BURST = 30;
 const AWARENESS_TRAILING_MS = 100;
 
-/** Outer protocol message type, decoded the same way y-websocket decodes it. */
 function frameMessageType(buf: Buffer): number | null {
   try {
     return decoding.readVarUint(decoding.createDecoder(new Uint8Array(buf)));
@@ -36,10 +29,7 @@ function frameMessageType(buf: Buffer): number | null {
   }
 }
 
-// Decode with the SAME varuint decoder y-websocket uses (lib0). Inspecting raw
-// bytes is bypassable: lib0's readVarUint accepts non-canonical multi-byte
-// encodings (e.g. 0x80 0x00 decodes to 0), so a byte-level check can be snuck
-// past while the consumer still sees a sync write.
+// Use lib0's varuint decoder (not raw bytes): readVarUint accepts non-canonical encodings, so byte-level checks are bypassable.
 function shouldDropForViewer(buf: Buffer): boolean {
   try {
     const decoder = decoding.createDecoder(new Uint8Array(buf));
@@ -52,11 +42,7 @@ function shouldDropForViewer(buf: Buffer): boolean {
   }
 }
 
-// The token is accepted either as `?token=` (existing clients) or — when the
-// query param is absent — as a WS subprotocol entry of the form
-// `bearer.<token>` (lets browser clients avoid putting tokens in URLs).
-// Clients using bearer-protocol auth must also offer the `yjs` protocol, since
-// handleProtocols only ever selects "yjs" (never echoes the bearer entry back).
+// Token accepted via `?token=` or, if absent, a `bearer.<token>` WS subprotocol entry; bearer clients must also offer `yjs` since handleProtocols only selects "yjs".
 function parseUrl(
   url: string,
   protocolHeader?: string
@@ -102,9 +88,10 @@ export class YjsServerService
         await this.docState.writeState(docName);
       },
     } as never);
+  }
 
-    const port = this.config.get("RTC_PORT", { infer: true });
-    this.wss = this.startWss(port);
+  attach(server: HttpServer): void {
+    this.wss = this.startWss(server);
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -116,13 +103,19 @@ export class YjsServerService
     this.wss?.close();
   }
 
-  private startWss(port: number): WebSocketServer {
+  private startWss(server: HttpServer): WebSocketServer {
+    // Per-connection token bucket for inbound WS messages (env-tunable).
+    const rateLimitCapacity = this.config.get("RTC_RATE_LIMIT_CAPACITY", {
+      infer: true,
+    });
+    const rateLimitRefillPerSec = this.config.get(
+      "RTC_RATE_LIMIT_REFILL_PER_SEC",
+      { infer: true }
+    );
     const wss = new WebSocketServer({
-      port,
+      server,
       maxPayload: this.config.get("RTC_WS_MAX_PAYLOAD_BYTES", { infer: true }),
-      // Only invoked when the client offers subprotocols (bearer-token auth
-      // clients): always select "yjs" if offered, otherwise refuse. Query-param
-      // clients offer no protocols, so this is never called for them.
+      // Only invoked when the client offers subprotocols (bearer-token clients): select "yjs" if offered, else refuse.
       handleProtocols: (protocols) => (protocols.has("yjs") ? "yjs" : false),
       verifyClient: async ({ req }, cb) => {
         const parsed = parseUrl(
@@ -164,7 +157,7 @@ export class YjsServerService
       const claims = (req as IncomingMessage & { rtcClaims?: RtcClaims })
         .rtcClaims;
       if (!claims) {
-        // Fail closed: never default a connection without verified claims.
+        // Fail closed: never allow a connection without verified claims.
         ws.close(1008, "unauthorized");
         return;
       }
@@ -175,8 +168,7 @@ export class YjsServerService
       this.docState.registerClaims(ws, claims);
       clog.info(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
 
-      // The JWT is verified once at connect; close the socket when it expires
-      // so a revoked/expired token can't hold a connection open indefinitely.
+      // JWT is verified once at connect; close the socket at expiry so a stale token can't hold it open.
       let expiryTimer: NodeJS.Timeout | null = null;
       if (typeof claims.exp === "number") {
         const ttlMs = Math.max(0, claims.exp * 1000 - Date.now());
@@ -187,8 +179,7 @@ export class YjsServerService
         expiryTimer.unref();
       }
 
-      // Awareness coalescing state (see wrapper below): declared before the
-      // close handler so the trailing-edge timer is cleaned up on disconnect.
+      // Awareness coalescing state; declared before the close handler so the trailing timer is cleaned up on disconnect.
       let awarenessTimer: NodeJS.Timeout | null = null;
       let latestAwareness: Buffer | ArrayBuffer | Buffer[] | null = null;
 
@@ -206,17 +197,15 @@ export class YjsServerService
       });
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 
-      // Single message wrapper for every connection: (a) awareness coalescing,
-      // (b) token-bucket rate limiting, and (c) for viewers, drop sync writes
-      // before y-websocket applies them.
-      let bucketTokens = RATE_LIMIT_CAPACITY;
+      // Message wrapper: awareness coalescing, token-bucket rate limiting, and dropping viewer sync writes.
+      let bucketTokens = rateLimitCapacity;
       let bucketRefilledAt = Date.now();
       const takeToken = (): boolean => {
         const now = Date.now();
         bucketTokens = Math.min(
-          RATE_LIMIT_CAPACITY,
+          rateLimitCapacity,
           bucketTokens +
-            ((now - bucketRefilledAt) / 1000) * RATE_LIMIT_REFILL_PER_SEC
+            ((now - bucketRefilledAt) / 1000) * rateLimitRefillPerSec
         );
         bucketRefilledAt = now;
         if (bucketTokens < 1) return false;
@@ -253,11 +242,7 @@ export class YjsServerService
           else if (data instanceof ArrayBuffer) buf = Buffer.from(data);
           else buf = Buffer.concat(data as Buffer[]);
 
-          // Awareness frames (cursor moves) carry the sender's FULL presence
-          // state, so intermediate ones are droppable: beyond the per-second
-          // budget, keep only the latest and deliver it on a trailing timer.
-          // This bounds the N² broadcast chatter in crowded docs — and these
-          // frames never count against the disconnecting rate limit below.
+          // Awareness frames carry full presence state, so beyond the budget keep only the latest on a trailing timer; bounds N² chatter and bypasses the rate limit below.
           if (frameMessageType(buf) === MESSAGE_AWARENESS) {
             if (!takeAwarenessToken()) {
               latestAwareness = data;
@@ -296,8 +281,8 @@ export class YjsServerService
       setupWSConnection(ws, req, { docName: parsed.docId, gc: true });
     });
 
-    wss.on("listening", () => log.info(`WSS listening on :${port}`));
     wss.on("error", (err) => log.error("WSS error", err));
+    log.info("WS server attached to the HTTP server (shared port)");
     return wss;
   }
 }

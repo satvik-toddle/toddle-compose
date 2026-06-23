@@ -6,6 +6,7 @@ import { useRtcToken } from '../../hooks/usePages';
 import { useAuthStore } from '../../stores/authStore';
 import { PageSpinner } from '../../components/Spinner';
 import { RTC_WS_URL } from '../../lib/env';
+import s from './DocEditor.module.scss';
 
 // Hide the editor's built-in top toolbar — formatting comes from the floating
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
@@ -50,21 +51,21 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
 
   if (isError) {
     return (
-      <div className="tc-editor tc-center" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+      <div className={`${s.tcEditor} tc-center`} style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
         Couldn't open this document for editing.
       </div>
     );
   }
   if (isLoading || !rtc || !collab) {
     return (
-      <div className="tc-editor">
+      <div className={s.tcEditor}>
         <PageSpinner />
       </div>
     );
   }
 
   return (
-    <div className="tc-editor">
+    <div className={s.tcEditor}>
       <DsDocEditor
         collab={collab}
         viewOnly={rtc.role !== 'editor'}

@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
 import { useWorkspaceCtx } from './WorkspaceLayout';
+import s from './MembersPanel.module.scss';
 import type { WorkspaceRole } from '../../types/roles';
 
 const ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));
@@ -80,7 +81,7 @@ export function MembersPanel() {
         {isLoading ? (
           <PageSpinner />
         ) : (
-          <div className="tbl ws-mem-tbl">
+          <div className={`tbl ${s.wsMemTbl}`}>
             <div className="thead">
               <div>Person</div>
               <div>Workspace role</div>
@@ -113,9 +114,9 @@ export function MembersPanel() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     {soleAdmin ? (
-                      <span className="blocked-wrap">
+                      <span className={s.blockedWrap}>
                         <IconButton icon="DeleteOutlined" red disabled style={{ opacity: 0.4 }} />
-                        <span className="blocked-tip">
+                        <span className={s.blockedTip}>
                           <Icon name="InformationOutlined" size={12} white />
                           Can't remove the last admin
                         </span>

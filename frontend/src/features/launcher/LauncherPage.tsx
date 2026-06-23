@@ -7,6 +7,8 @@ import { RealmChip } from '../../components/RealmChip';
 import { Avatar } from '../../components/Avatar';
 import { PageSpinner } from '../../components/Spinner';
 import { WorkspaceCard } from './WorkspaceCard';
+import s from './LauncherPage.module.scss';
+import card from './WorkspaceCard.module.scss';
 import { useRealm, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -17,7 +19,7 @@ import type { User } from '../../types/api';
 
 function RoleNote({ roleLabel }: { roleLabel: string }) {
   return (
-    <div className="lc-note">
+    <div className={s.lcNote}>
       <Icon name="InformationOutlined" size={14} muted />
       As a realm {roleLabel.toLowerCase()}, you can enter <b>any</b> workspace and act as its Admin.
     </div>
@@ -43,7 +45,7 @@ function EmptyMember({ me, onFind }: { me: User; onFind: () => void }) {
             </>
           }
           footer={
-            <div className="lc-waitcard">
+            <div className={s.lcWaitcard}>
               <Avatar person={{ name: me.name, color: me.color }} size={30} />
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{me.name}</div>
@@ -113,7 +115,7 @@ export function LauncherPage() {
     body = (
       <div className="page">
         <div className="page-wrap">
-          <div className="lc-greet">
+          <div className={s.lcGreet}>
             <div>
               <h1>
                 {greet()}, {firstName(me.name)}
@@ -123,7 +125,7 @@ export function LauncherPage() {
                 {realmName} · signed in as {me.email}
               </div>
             </div>
-            <div className="lc-greet-actions">
+            <div className={s.lcGreetActions}>
               {admin && (
                 <Button icon="DashboardOutlined" onClick={() => navigate('/admin')}>
                   Admin console
@@ -143,17 +145,17 @@ export function LauncherPage() {
 
           {admin && realm && <RoleNote roleLabel={REALM_ROLE_META[realm.role].label} />}
 
-          <div className="lc-grid">
+          <div className={s.lcGrid}>
             {list.map((w) => (
               <WorkspaceCard key={w.id} ws={w} overlay={admin} onEnter={() => enter.mutate(w.id)} />
             ))}
             {admin && (
-              <button className="ws-card add" onClick={() => openModal({ type: 'createWorkspace' })}>
-                <span className="add-glyph">
+              <button className={`${card.wsCard} ${card.add}`} onClick={() => openModal({ type: 'createWorkspace' })}>
+                <span className={card.addGlyph}>
                   <Icon name="AddOutlined" size={20} muted />
                 </span>
-                <span className="add-nm">New workspace</span>
-                <span className="add-ds">Create a space and invite your team</span>
+                <span className={card.addNm}>New workspace</span>
+                <span className={card.addDs}>Create a space and invite your team</span>
               </button>
             )}
           </div>

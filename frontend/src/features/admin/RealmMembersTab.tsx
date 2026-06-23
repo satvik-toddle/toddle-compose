@@ -5,6 +5,7 @@ import { Avatar } from '../../components/Avatar';
 import { RealmChip } from '../../components/RealmChip';
 import { RoleSelect } from '../../components/RoleSelect';
 import { PageSpinner } from '../../components/Spinner';
+import s from './RealmMembersTab.module.scss';
 import { useRealm, useRealmMembers } from '../../hooks/queries';
 import { useSetRealmRole } from '../../hooks/useRealmMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -47,7 +48,7 @@ export function RealmMembersTab() {
           </Button>
         </div>
 
-        <div className="tbl ad-mem-tbl">
+        <div className={`tbl ${s.adMemTbl}`}>
           <div className="thead">
             <div>Person</div>
             <div>Realm role</div>

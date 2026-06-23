@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { useRealm, useRealmJoinRequests, useRealmMembers, useWorkspaces } from '../../hooks/queries';
 import { useAuthStore } from '../../stores/authStore';
+import s from './AdminConsolePage.module.scss';
 
 function Count({ n, alert }: { n?: number; alert?: boolean }) {
   if (n == null) return null;
@@ -51,12 +52,12 @@ export function AdminConsolePage() {
   return (
     <div className="rbac">
       <AppBar realm={realm?.name ?? 'Toddle'} sub="Realm" me={me} realmRole={realm?.role} />
-      <div className="ad-subbar">
-        <div className="ad-title">
+      <div className={s.adSubbar}>
+        <div className={s.adTitle}>
           <Icon name="DashboardOutlined" size={18} muted />
           Admin console
         </div>
-        <div className="ad-crumb">{realm?.name ?? 'Toddle'} realm</div>
+        <div className={s.adCrumb}>{realm?.name ?? 'Toddle'} realm</div>
         <Button
           size="sm"
           variant="ghost"

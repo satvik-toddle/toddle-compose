@@ -15,6 +15,8 @@ export class CompactionScheduler
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private timer: NodeJS.Timeout | null = null;
+  // Guards against overlapping passes racing on the same doc's seq range (replaceSeqRangeWithMerged).
+  private running = false;
 
   constructor(
     private readonly compaction: CompactionService,
@@ -29,9 +31,17 @@ export class CompactionScheduler
     }
     log.info(`compaction scheduler armed: interval=${interval}ms`);
     this.timer = setInterval(() => {
-      this.compaction.runCompactionPass().catch((e) =>
-        log.error("compaction pass FAILED", e)
-      );
+      if (this.running) {
+        log.warn("previous compaction pass still running — skipping this tick");
+        return;
+      }
+      this.running = true;
+      this.compaction
+        .runCompactionPass()
+        .catch((e) => log.error("compaction pass FAILED", e))
+        .finally(() => {
+          this.running = false;
+        });
     }, interval);
     this.timer.unref?.();
   }

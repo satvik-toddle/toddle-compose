@@ -1,8 +1,7 @@
 import { Type } from "class-transformer";
 import { IsEmail, IsIn, IsInt, IsOptional, Max, Min } from "class-validator";
 
-// OWNER is intentionally excluded: the realm owner is the seeded static user and
-// is never assignable/changeable through the API.
+// OWNER excluded: the seeded realm owner is never assignable via the API.
 const ASSIGNABLE_REALM_ROLES = ["MAINTAINER", "MEMBER"] as const;
 type AssignableRealmRole = (typeof ASSIGNABLE_REALM_ROLES)[number];
 

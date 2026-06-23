@@ -6,6 +6,7 @@ import { WSChip } from '../../components/WSChip';
 import { RoleSelect } from '../../components/RoleSelect';
 import { EmptyState } from '../../components/EmptyState';
 import { PageSpinner } from '../../components/Spinner';
+import s from './JoinRequestsTab.module.scss';
 import { useRealmJoinRequests } from '../../hooks/queries';
 import { useApproveRequest, useRejectRequest } from '../../hooks/useJoinRequestMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
@@ -47,7 +48,7 @@ export function JoinRequestsTab() {
             When someone asks to join a private workspace, it'll show up here.
           </EmptyState>
         ) : (
-          <div className="tbl ad-req-tbl">
+          <div className={`tbl ${s.adReqTbl}`}>
             <div className="thead">
               <div>Person</div>
               <div>Workspace</div>
@@ -68,7 +69,7 @@ export function JoinRequestsTab() {
                     </div>
                   </div>
                   <div>
-                    <span className="ws-pill">
+                    <span className={s.wsPill}>
                       <span
                         className="ws-emoji sm"
                         style={{

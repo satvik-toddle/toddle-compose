@@ -10,6 +10,7 @@ import { workspaceVisual } from '../../lib/workspaceVisual';
 import { performLogout } from '../../lib/session';
 import { useAuthStore } from '../../stores/authStore';
 import { cn } from '../../lib/cn';
+import s from './RequestAccessPage.module.scss';
 
 export function RequestAccessPage() {
   const me = useAuthStore((s) => s.user);
@@ -49,14 +50,14 @@ export function RequestAccessPage() {
         </p>
 
         <TextInput
-          wrapClassName="ra-search"
+          wrapClassName={s.raSearch}
           icon="SearchOutlined"
           placeholder="Search workspaces in Toddle…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
 
-        <div className="ra-list">
+        <div className={s.raList}>
           {isLoading && <p className="auth-fine">Loading workspaces…</p>}
           {!isLoading && filtered.length === 0 && (
             <p className="auth-fine">No discoverable workspaces right now.</p>
@@ -66,18 +67,18 @@ export function RequestAccessPage() {
             const pub = w.visibility === 'PUBLIC';
             const isRequested = requested.has(w.id);
             return (
-              <div key={w.id} className="ra-row">
+              <div key={w.id} className={s.raRow}>
                 <span
                   className="ws-emoji sm"
                   style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
                 >
                   <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
                 </span>
-                <div className="ra-info">
+                <div className={s.raInfo}>
                   <div className="nm">{w.name}</div>
                   <div className="sub">{pub ? 'Anyone in the realm can join' : 'Approval required'}</div>
                 </div>
-                <span className={cn('ra-vis', pub ? 'pub' : 'priv')}>
+                <span className={cn(s.raVis, pub ? s.pub : s.priv)}>
                   <Icon name={pub ? 'GlobeOutlined' : 'LockOutlined'} size={12} />
                   {pub ? 'Public' : 'Private'}
                 </span>

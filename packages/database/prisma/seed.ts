@@ -1,11 +1,7 @@
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
-/**
- * Demo users only — LOCAL/dev convenience (shared password). The realm + OWNER are
- * created by `db:init` (prod-safe); the usual local flow is `db:init && db:seed`.
- * Do NOT run this in production.
- */
+// Demo users only — LOCAL/dev convenience (shared password). Do NOT run in production.
 const prisma = new PrismaClient();
 
 const PASSWORD = "password123";

@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from 'react';
 import { SelectDropdown } from '@toddle-edu/ds-web';
 import { Icon } from './Icon';
 import { cn } from '../lib/cn';
+import s from './RoleSelect.module.scss';
 
 // The version-switching selector's union type drops some react-select props
 // (value/onChange/formatOptionLabel); use it untyped.
@@ -34,7 +35,7 @@ export function RoleSelect<T extends string>({
 }: RoleSelectProps<T>) {
   if (locked || disabled) {
     return (
-      <span className={cn('role-dd', 'locked')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span className={cn(s.roleDd, s.locked)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         {renderValue(value)}
         <Icon name="LockOutlined" size={14} />
       </span>

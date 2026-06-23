@@ -1,0 +1,112 @@
+/* Workspace sidebar nav rail. Co-located, auto-scoped CSS Module.
+   The tree group/rows live in PagesTree.module.scss; this owns the rail, search,
+   quick links, and footer. Icon colors come from the global .ic class. */
+
+.ws-nav {
+  width: 266px;
+  flex: none;
+  background: var(--surface-secondary-enabled);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow: auto;
+  transition: margin-left 0.2s ease;
+
+  /* Collapsible sidebar (Coda-style): slide it out; the page pane fills the space. */
+  &.collapsed {
+    margin-left: -266px;
+  }
+
+  :global(.dark) & {
+    background: #1a1a1a;
+  }
+}
+
+.ws-nav-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+
+  input {
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.ws-nav-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* qk-row renders as both <div> and NavLink <a>; reset the anchor underline here
+   (replaces the old global `a.qk-row` rule now that the class is hashed). */
+.qk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  color: inherit;
+
+  &:hover {
+    background: var(--surface-tertiary-hover, rgba(0, 0, 0, 0.05));
+  }
+
+  &.active {
+    background: var(--surface-primary-selected);
+    color: var(--blue-200); /* the icon inherits this via currentColor */
+    font-weight: 700;
+  }
+
+  :global(.dark) &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  :global(.dark) &.active {
+    background: rgba(0, 176, 194, 0.16);
+    color: var(--blue-600);
+  }
+}
+
+.qk-ct {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 700;
+
+  &.alert {
+    background: var(--red-500);
+    color: #fff;
+    border-radius: 999px;
+    min-width: 18px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    padding: 0 5px;
+  }
+}
+
+.ws-nav-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}

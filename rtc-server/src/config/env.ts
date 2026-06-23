@@ -1,16 +1,18 @@
 import { z } from "zod";
 
 export const envSchema = z.object({
-  // The rtc-server talks ONLY to the separate, write-heavy RTC database.
+  // Separate, write-heavy RTC database only.
   RTC_DATABASE_URL: z.string(),
-  // In production the internal token must be explicitly provisioned and
-  // non-trivial; the weak default exists only for local development.
+  // Default is dev-only; production requires an explicit non-trivial token.
   INTERNAL_TOKEN:
     process.env.NODE_ENV === "production"
       ? z.string().min(32)
       : z.string().default("dev-internal-secret-change-me"),
   RTC_PORT: z.coerce.number().default(4001),
   RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
+  // Per-connection token bucket for inbound WS messages: bucket size (burst) and steady refill rate per second.
+  RTC_RATE_LIMIT_CAPACITY: z.coerce.number().int().positive().default(500),
+  RTC_RATE_LIMIT_REFILL_PER_SEC: z.coerce.number().int().positive().default(100),
   RTC_INTERNAL_PORT: z.coerce.number().default(4002),
   JWKS_URL: z
     .string()
@@ -19,9 +21,7 @@ export const envSchema = z.object({
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
   RTC_DEBOUNCE_IDLE_MS: z.coerce.number().default(2000),
   RTC_DEBOUNCE_MAX_MS: z.coerce.number().default(10000),
-  // Yjs updates are coalesced per (doc, author) for this window before being
-  // appended as ONE log row — cuts DB write load by ~an order of magnitude
-  // while typing. Crash exposure is bounded by this window.
+  // Coalesce Yjs updates per (doc, author) into one log row; crash exposure is bounded by this window.
   RTC_APPEND_COALESCE_MS: z.coerce.number().default(250),
   // Headless-Lexical extraction worker threads (CPU-bound; keep small).
   RTC_EXTRACT_WORKERS: z.coerce.number().int().min(1).max(8).default(2),
@@ -30,6 +30,14 @@ export const envSchema = z.object({
   RTC_TIER1_AGE_MS: z.coerce.number().default(7 * 24 * 60 * 60 * 1000),
   RTC_TIER2_AGE_MS: z.coerce.number().default(30 * 24 * 60 * 60 * 1000),
   RTC_SESSION_GAP_MS: z.coerce.number().default(30 * 1000),
+
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

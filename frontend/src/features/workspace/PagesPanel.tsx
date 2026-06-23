@@ -7,11 +7,13 @@ import { EmptyState } from '../../components/EmptyState';
 import { PageSpinner } from '../../components/Spinner';
 import { useCreateDocument, useDocuments, useRenameDocument } from '../../hooks/usePages';
 import { buildDocTree } from './pagesModel';
+import s from './PagesPanel.module.scss';
 
 // The editor bundle is large — load it only when a page is opened.
 const DocEditor = lazy(() => import('./DocEditor').then((m) => ({ default: m.DocEditor })));
 import { wsAtLeast } from '../../lib/roles';
 import { relativeTime } from '../../lib/time';
+import { cn } from '../../lib/cn';
 import { useWorkspaceCtx } from './WorkspaceLayout';
 
 // Coda-style page title shown above the editor body. Editable inline (commits a
@@ -28,24 +30,35 @@ function PageTitle({
   canEdit: boolean;
 }) {
   const rename = useRenameDocument();
-  const [val, setVal] = useState(title);
-  useEffect(() => setVal(title), [title, docId]);
+  // The default "Untitled" is treated as *unnamed* (Coda-style): the field shows
+  // the grey "Untitled" placeholder, not literal title text, until the user names it.
+  const named = (t: string) => (t && t !== 'Untitled' ? t : '');
+  const [val, setVal] = useState(() => named(title));
+  useEffect(() => setVal(named(title)), [title, docId]);
 
   if (!canEdit) {
-    return <h1 className="ws-doc-title-field">{title || 'Untitled'}</h1>;
+    return (
+      <h1 className={cn(s.wsDocTitleField, !named(title) && s.untitled)}>{title || 'Untitled'}</h1>
+    );
   }
 
   const commit = () => {
     const t = val.trim();
-    if (!t) return setVal(title); // don't allow an empty title
+    if (!t) {
+      // unnamed → keep the default "Untitled" stored (tree/list still show it);
+      // the field falls back to the grey placeholder
+      if (title && title !== 'Untitled') rename.mutate({ workspaceId, id: docId, title: 'Untitled' });
+      setVal('');
+      return;
+    }
     if (t !== title) rename.mutate({ workspaceId, id: docId, title: t });
   };
 
   return (
     <input
-      className="ws-doc-title-field"
+      className={s.wsDocTitleField}
       value={val}
-      placeholder="Untitled"
+      placeholder="Add a page title"
       aria-label="Page title"
       onChange={(e) => setVal(e.target.value)}
       onBlur={commit}
@@ -99,7 +112,7 @@ export function PagesPanel() {
     const canEdit = wsAtLeast(ctx.role, 'EDIT');
     return (
       <main className="ws-main">
-        <div className="ws-doc-titlewrap">
+        <div className={s.wsDocTitlewrap}>
           <PageTitle workspaceId={ws} docId={doc.id} title={doc.title} canEdit={canEdit} />
         </div>
         <Suspense fallback={<PageSpinner />}>
@@ -148,7 +161,7 @@ export function PagesPanel() {
             {canCreate ? 'Create the first one.' : 'You have read access — an editor can add pages.'}
           </EmptyState>
         ) : (
-          <div className="tbl ws-docs-tbl">
+          <div className={`tbl ${s.wsDocsTbl}`}>
             <div className="thead">
               <div>Name</div>
               <div>Owner</div>

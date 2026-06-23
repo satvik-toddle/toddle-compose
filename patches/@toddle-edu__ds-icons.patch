@@ -1,0 +1,15 @@
+diff --git a/dist/utils/withSystemIcon.js b/dist/utils/withSystemIcon.js
+index 0729e19d796d8eb5bdd142614ff061734a289922..92d1f73b4f083fba6ca6d08d50e0097f473883d8 100644
+--- a/dist/utils/withSystemIcon.js
++++ b/dist/utils/withSystemIcon.js
+@@ -20,8 +20,8 @@ function withSystemIcon(WrappedComponent, componentName, BoldIconsModule, ExtraB
+     const componentNameWithBoldSuffix = `${componentNameWithoutSvgPrefix}Bold`;
+     const componentNameWithExtraBoldSuffix = `${componentNameWithoutSvgPrefix}ExtraBold`;
+     // check if the module has the bold variant of the component
+-    const moduleHasBoldComponent = BoldIconsModule === null || BoldIconsModule === void 0 ? void 0 : BoldIconsModule.hasOwnProperty(componentNameWithBoldSuffix);
+-    const moduleHasExtraBoldComponent = ExtraBoldIconsModule === null || ExtraBoldIconsModule === void 0 ? void 0 : ExtraBoldIconsModule.hasOwnProperty(componentNameWithExtraBoldSuffix);
++    const moduleHasBoldComponent = BoldIconsModule === null || BoldIconsModule === void 0 ? void 0 : Object.prototype.hasOwnProperty.call(BoldIconsModule, componentNameWithBoldSuffix);
++    const moduleHasExtraBoldComponent = ExtraBoldIconsModule === null || ExtraBoldIconsModule === void 0 ? void 0 : Object.prototype.hasOwnProperty.call(ExtraBoldIconsModule, componentNameWithExtraBoldSuffix);
+     const WrappedComponentBoldVariant = moduleHasBoldComponent
+         ? BoldIconsModule[componentNameWithBoldSuffix]
+         : null;

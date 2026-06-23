@@ -4,26 +4,6 @@ import { createLogger } from "../logger";
 
 const log = createLogger("db");
 
-export const EMPTY_LEXICAL_JSON = JSON.stringify({
-  root: {
-    children: [
-      {
-        children: [],
-        direction: null,
-        format: "",
-        indent: 0,
-        type: "paragraph",
-        version: 1,
-      },
-    ],
-    direction: null,
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-  },
-});
-
 export type RtcUpdateRow = {
   seq: number;
   byte_len: number;
@@ -49,8 +29,6 @@ export class DocRepository {
       where: { id },
       create: {
         id,
-        lexicalJson: EMPTY_LEXICAL_JSON,
-        plainText: "",
         version: 0,
         updatedAt: BigInt(Date.now()),
         snapshotAtSeq: 0,
@@ -66,8 +44,6 @@ export class DocRepository {
   async persistRtcDoc(
     id: string,
     yjsState: Buffer,
-    lexicalJson: string | null,
-    plainText: string,
     snapshotAtSeq: number
   ): Promise<number> {
     await this.ensureRtcDoc(id);
@@ -75,8 +51,6 @@ export class DocRepository {
       where: { id },
       data: {
         yjsState,
-        lexicalJson,
-        plainText,
         snapshotAtSeq,
         version: { increment: 1 },
         updatedAt: BigInt(Date.now()),
@@ -97,12 +71,7 @@ export class DocRepository {
     });
   }
 
-  // SINGLE-REPLICA ASSUMPTION: the design is single-writer-per-doc. The
-  // in-memory Y.Doc held by this process is authoritative for a warm doc, and
-  // seq is computed via max(seq)+1 inside a transaction — correct only when one
-  // instance appends for a given doc. This service MUST NOT be horizontally
-  // scaled without doc-to-instance affinity (e.g. consistent-hash routing),
-  // otherwise two replicas would race on seq and diverge on in-memory state.
+  // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.
   async appendDocUpdate(
     docId: string,
     blob: Buffer,

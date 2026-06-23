@@ -6,6 +6,7 @@ import { Icon } from '../../components/Icon';
 import { useAuthStore } from '../../stores/authStore';
 import { performLogout } from '../../lib/session';
 import { firstName } from '../../lib/time';
+import s from './RegisterSuccessPage.module.scss';
 
 export function RegisterSuccessPage() {
   const me = useAuthStore((s) => s.user);
@@ -28,8 +29,8 @@ export function RegisterSuccessPage() {
         </span>
       }
     >
-      <div className="auth-success">
-        <div className="suc-glyph">
+      <div className={s.authSuccess}>
+        <div className={s.sucGlyph}>
           <Icon name="TickCircleOutlined" size={24} />
         </div>
         <h1 className="auth-h" style={{ marginTop: 4 }}>
@@ -39,8 +40,8 @@ export function RegisterSuccessPage() {
           Your account is created. An <b>admin needs to add you to a workspace</b> before you can
           start — or find one to join below.
         </p>
-        <div className="suc-wait">
-          <span className="pulse" />
+        <div className={s.sucWait}>
+          <span className={s.pulse} />
           Waiting to be added to a workspace
         </div>
         <Button

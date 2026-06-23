@@ -17,12 +17,9 @@ type CreateFolderInput = {
 };
 type UpdateFolderInput = { name?: string; icon?: string };
 
-/**
- * Folders live inside a workspace. Read access follows workspace READ — so every
- * workspace member, the workspace ADMIN, and (via the AuthzService overlay) the
- * realm OWNER/MAINTAINER all see them. Creating requires EDIT; renaming / moving /
- * deleting requires being the creator or a workspace ADMIN.
- */
+// Bounds parent-chain walks so a corrupt folder.parentId cycle can't loop. Mirrors MAX_DOC_DEPTH.
+const MAX_FOLDER_DEPTH = 256;
+
 @Injectable()
 export class FoldersService {
   constructor(
@@ -31,14 +28,8 @@ export class FoldersService {
     private readonly rtc: RtcInternalClient
   ) {}
 
-  /**
-   * All folders in the (active or given) workspace; flat, for client-side tree assembly.
-   * The default/max `take` of 2000 is deliberately large (see ListFoldersDto): a
-   * truncated flat list would silently drop whole subtrees on the client.
-   * TODO(pagination): currently offset-based (skip/take). For large workspaces switch to
-   * cursor-based pagination (e.g. `cursor` = last folder id + `take`) and return a
-   * `{ items, nextCursor, total }` envelope so the tree can load incrementally.
-   */
+  // Flat list of all workspace folders for client-side tree assembly (large take avoids dropping subtrees).
+  // TODO(pagination): offset-based for now; switch to cursor-based for large workspaces.
   async list(
     user: AuthUser,
     workspaceId: string | undefined,
@@ -84,7 +75,7 @@ export class FoldersService {
     });
   }
 
-  /** Re-parent within the same workspace (null → top level). Rejects cross-workspace moves and cycles. */
+  // Re-parent within the workspace (null → top level); rejects cross-workspace moves and cycles.
   async move(userId: string, id: string, parentId: string | null) {
     const folder = await this.requireWritableFolder(userId, id);
 
@@ -102,11 +93,7 @@ export class FoldersService {
     });
   }
 
-  /**
-   * Soft-delete a folder and its entire (live) subtree: rows are marked deletedAt
-   * and hidden from every read, then hard-purged after ~30 days by the scheduler.
-   * Documents keep their folderId; they simply no longer surface under a hidden folder.
-   */
+  // Soft-delete a folder and its live subtree (marked deletedAt, purged after ~30d); docs keep their folderId.
   async remove(userId: string, id: string) {
     const folder = await this.requireWritableFolder(userId, id);
     const ids = await this.collectLiveSubtreeIds(folder.workspaceId, id);
@@ -117,14 +104,8 @@ export class FoldersService {
     return { ok: true as const, softDeleted: res.count };
   }
 
-  /**
-   * Hard-delete folders soft-deleted longer than `olderThanDays` ago. Called by the
-   * daily purge scheduler; safe to run anytime. Returns the number removed.
-   *
-   * Documents inside purged folders are hard-deleted in the same transaction:
-   * Document.folderId is `onDelete: SetNull`, so without this the docs would
-   * "resurrect" at the workspace root once their folder row disappears.
-   */
+  // Hard-delete folders soft-deleted > olderThanDays ago. Docs inside are deleted in the same tx —
+  // Document.folderId is onDelete: SetNull, so otherwise they'd resurrect at the workspace root.
   async purgeSoftDeleted(olderThanDays = 30): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
     const { purged, docIds } = await this.prisma.$transaction(async (tx) => {
@@ -146,15 +127,13 @@ export class FoldersService {
       return { purged: res.count, docIds: docs.map((d) => d.id) };
     });
 
-    // After commit: drop the deleted documents' RTC rows (separate DB). Best-effort —
-    // an orphaned RTC row is inert, so a transient rtc-server outage is harmless.
     for (const docId of docIds) {
-      await this.rtc.deleteDocBestEffort(docId);
+      void this.rtc.deleteDocBestEffort(docId);
     }
     return purged;
   }
 
-  /** Active workspace from the session token, or an explicit override; 400 if neither. */
+  // Active workspace from the session token, or an explicit override; 400 if neither.
   private resolveWorkspaceId(user: AuthUser, explicit?: string): string {
     const wsId = explicit ?? user.activeWorkspaceId;
     if (!wsId) {
@@ -173,7 +152,7 @@ export class FoldersService {
     return folder;
   }
 
-  /** All live folder ids in `rootId`'s subtree (inclusive), within one workspace. */
+  // All live folder ids in `rootId`'s subtree (inclusive), within one workspace.
   private async collectLiveSubtreeIds(
     workspaceId: string,
     rootId: string
@@ -199,10 +178,7 @@ export class FoldersService {
     return ids;
   }
 
-  /**
-   * Write gate: the creator (owner) or a workspace ADMIN may mutate a folder.
-   * The owner still needs current READ on the workspace (roles are per-request).
-   */
+  // Write gate: the owner (needs current workspace READ) or a workspace ADMIN may mutate a folder.
   private async requireWritableFolder(
     userId: string,
     id: string
@@ -216,7 +192,7 @@ export class FoldersService {
     return folder;
   }
 
-  /** Parent/target folder must exist in the same workspace (no cross-workspace nesting). */
+  // Parent/target folder must exist in the same workspace (no cross-workspace nesting).
   private async requireFolderInWorkspace(folderId: string, workspaceId: string) {
     const folder = await this.prisma.folder.findFirst({
       where: { id: folderId, workspaceId, deletedAt: null },
@@ -228,17 +204,14 @@ export class FoldersService {
     return folder;
   }
 
-  /**
-   * Walk up from the proposed parent to the root; reaching the folder being moved
-   * means the move would create a cycle. Scoped to the workspace.
-   */
+  // Reject moving a folder into its own subtree (walk parent→root looking for movingId).
   private async assertNoCycle(
     workspaceId: string,
     movingId: string,
     parentId: string
   ) {
     let cursor: string | null = parentId;
-    while (cursor !== null) {
+    for (let i = 0; cursor !== null && i < MAX_FOLDER_DEPTH; i++) {
       if (cursor === movingId) {
         throw new BadRequestException("cannot move a folder into its own subtree");
       }

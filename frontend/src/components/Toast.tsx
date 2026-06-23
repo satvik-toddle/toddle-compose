@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUiStore } from '../stores/uiStore';
 import { Icon } from './Icon';
+import s from './Toast.module.scss';
 
 // Global toast host. Wrapped in a full-screen, transparent, click-through .rbac
 // layer so the design's `.rbac .toast` styles apply.
@@ -31,13 +32,13 @@ export function ToastHost() {
       {toasts.slice(-3).map((t, i) => (
         <div
           key={t.id}
-          className="toast"
+          className={s.toast}
           style={{ bottom: 26 + i * 62, pointerEvents: 'auto' }}
         >
           <Icon name={t.kind === 'error' ? 'WarningTriangleOutlined' : 'InformationOutlined'} size={18} />
-          <span className="tx">{t.message}</span>
+          <span className={s.tx}>{t.message}</span>
           <button
-            className="act"
+            className={s.act}
             style={{ border: 0, background: 'transparent', cursor: 'pointer' }}
             onClick={() => dismiss(t.id)}
           >

@@ -11,6 +11,7 @@ import { useApproveRequest, useRejectRequest } from '../../hooks/useJoinRequestM
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
 import { relativeTime } from '../../lib/time';
 import { useWorkspaceCtx } from './WorkspaceLayout';
+import s from './RequestsPanel.module.scss';
 import type { WorkspaceRole } from '../../types/roles';
 
 const ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));
@@ -76,7 +77,7 @@ export function RequestsPanel() {
             When someone asks to join {ctx.name}, it'll show up here.
           </EmptyState>
         ) : (
-          <div className="tbl ws-req-tbl">
+          <div className={`tbl ${s.wsReqTbl}`}>
             <div className="thead">
               <div>Person</div>
               <div>Grant role</div>

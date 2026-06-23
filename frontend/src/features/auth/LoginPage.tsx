@@ -83,7 +83,12 @@ export function LoginPage() {
           >
             Keep me signed in
           </Checkbox>
-          <Button variant="progressive" type="inline" size="small">
+          <Button
+            variant="progressive"
+            type="inline"
+            size="small"
+            onClick={(e) => e.preventDefault()}
+          >
             Forgot password?
           </Button>
         </div>

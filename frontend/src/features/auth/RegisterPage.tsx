@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
-import { TextInput, PasswordTextInput, Alert } from '@toddle-edu/ds-web';
-import { Button } from '../../components/Button';
+import { TextInput, PasswordTextInput, Alert, Button } from '@toddle-edu/ds-web';
 import { Icon } from '../../components/Icon';
 import { useRegister } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
@@ -93,7 +92,7 @@ export function RegisterPage() {
         />
         
         {mismatch && <span className="err-text"><Icon name="WarningTriangleOutlined" size={14} />Passwords don't match.</span>}
-        <Button type="submit" variant="primary" size="lg" block disabled={register.isPending} onClick={submit}>
+        <Button size="large" isFullWidth disabled={register.isPending} onClick={submit}>
           {register.isPending ? 'Creating account…' : 'Create account'}
         </Button>
         <p className="auth-fine">By continuing you agree to Toddle's Terms and Privacy Policy.</p>

@@ -12,6 +12,7 @@ import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../hooks/queri
 import { useLeaveWorkspace } from '../../hooks/useAuthMutations';
 import { cn } from '../../lib/cn';
 import { PagesTree } from './PagesTree';
+import { sidebarRow } from './sidebarRowStyles';
 import type { WorkspaceCtx } from './WorkspaceLayout';
 
 const styles = {
@@ -20,10 +21,6 @@ const styles = {
   sidebarCollapsed: '-ml-[266px]',
   linkGroup: 'flex flex-col gap-0.25',
   footerGroup: 'mt-auto flex flex-col gap-0.25 border-t border-secondary pt-2.5',
-  link: 'flex items-center gap-2.5 rounded-2 px-2.25 py-1.5 text-body-s no-underline',
-  linkDefault: 'text-primary hover:bg-surface-secondary-hover hover:text-primary',
-  linkSelected:
-    'bg-surface-secondary-active font-semibold text-primary hover:bg-surface-secondary-active hover:text-primary',
 };
 
 type WsNavProps = { ctx: WorkspaceCtx; collapsed?: boolean };
@@ -54,13 +51,13 @@ export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
           to={`/w/${workspaceId}`}
           end
           className={({ isActive }) =>
-            cn(styles.link, isActive && !hasOpenDoc ? styles.linkSelected : styles.linkDefault)
+            cn(sidebarRow.base, isActive && !hasOpenDoc ? sidebarRow.selected : sidebarRow.default)
           }
         >
           <HomeOutlined size="xxx-small" />
           Home
         </NavLink>
-        <div className={cn(styles.link, styles.linkDefault)}>
+        <div className={cn(sidebarRow.base, sidebarRow.default)}>
           <StarOutlined size="xxx-small" />
           Starred
         </div>
@@ -73,7 +70,7 @@ export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
           <NavLink
             to={`/w/${workspaceId}/requests`}
             className={({ isActive }) =>
-              cn(styles.link, isActive ? styles.linkSelected : styles.linkDefault)
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
             }
           >
             <BellRingOutlined size="xxx-small" />
@@ -94,7 +91,7 @@ export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
           <NavLink
             to={`/w/${workspaceId}/members`}
             className={({ isActive }) =>
-              cn(styles.link, isActive ? styles.linkSelected : styles.linkDefault)
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
             }
           >
             <MultipleUsersOutlined size="xxx-small" />
@@ -111,13 +108,13 @@ export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
             </span>
           </NavLink>
         )}
-        <div className={cn(styles.link, styles.linkDefault)}>
+        <div className={cn(sidebarRow.base, sidebarRow.default)}>
           <SettingsOutlined size="xxx-small" />
           Workspace settings
         </div>
         <button
           type="button"
-          className={cn(styles.link, styles.linkDefault)}
+          className={cn(sidebarRow.base, sidebarRow.default)}
           onClick={() => leave.mutate()}
         >
           <ChevronLeftOutlined size="xxx-small" />

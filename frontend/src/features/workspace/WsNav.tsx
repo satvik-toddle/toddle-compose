@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { SearchInput } from '@toddle-edu/ds-web';
+import { SearchInput, Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
@@ -62,7 +62,16 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
                   overrideVariantStyles={isActive}
                 />
                 Requests
-                <span className={`${s.qkCt} ${s.alert}`}>{requests?.length ?? 0}</span>
+                <span className="ml-auto">
+                  <Badge
+                    dsVersion="2.0"
+                    type="numeric"
+                    variant="notifications"
+                    size="xxx-small"
+                    value={requests?.length ?? 0}
+                    showZero
+                  />
+                </span>
               </>
             )}
           </NavLink>
@@ -80,7 +89,16 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
                   overrideVariantStyles={isActive}
                 />
                 Members
-                <span className={s.qkCt}>{members?.length ?? 0}</span>
+                <span className="ml-auto">
+                  <Badge
+                    dsVersion="2.0"
+                    type="numeric"
+                    variant="subtle"
+                    size="xxx-small"
+                    value={members?.length ?? 0}
+                    showZero
+                  />
+                </span>
               </>
             )}
           </NavLink>

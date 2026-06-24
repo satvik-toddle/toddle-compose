@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useRealm } from '../hooks/queries';
 import { isRealmAdmin } from '../lib/roles';
-import { PageSpinner } from '../components/Spinner';
+import { PageLoader } from '../components/Loader';
 import { NoAccessPanel } from '../features/errors/NoAccessPanel';
 
 // Gates /admin/* to realm OWNER/MAINTAINER. Renders the 403 panel (keeps the
@@ -11,7 +11,7 @@ export function RequireRealmAdmin() {
   if (isLoading) {
     return (
       <div className="rbac">
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }

@@ -76,8 +76,10 @@ export DATABASE_URL RTC_DATABASE_URL REALM_OWNER_EMAIL REALM_OWNER_PASSWORD
 APP_PUSH_URL="${DATABASE_URL_DIRECT:-$DATABASE_URL}"
 RTC_PUSH_URL="${RTC_DATABASE_URL_DIRECT:-$RTC_DATABASE_URL}"
 
-# Mask the password in any URL before printing.
-mask() { printf '%s' "$1" | sed -E 's#(://[^:/@]+:)[^@]+@#\1****@#'; }
+# Mask the password in any URL before printing. Match up to the LAST '@' before
+# the path ([^/]+ rather than [^@]+) so a password with a literal, un-%40-encoded
+# '@' is masked whole instead of leaking its tail past the first '@'.
+mask() { printf '%s' "$1" | sed -E 's#(://[^:/@]+:)[^/]+@#\1****@#'; }
 
 echo "About to provision:"
 echo "  app DB  (push): $(mask "$APP_PUSH_URL")"
@@ -88,6 +90,11 @@ if printf '%s' "$APP_PUSH_URL" | grep -qiE 'pgbouncer=true|:6543'; then
   echo
   echo "  ⚠ the app push URL looks like a pooler — schema push may fail. Pass" >&2
   echo "    DATABASE_URL_DIRECT with the direct (port 5432) connection instead." >&2
+fi
+if printf '%s' "$RTC_PUSH_URL" | grep -qiE 'pgbouncer=true|:6543'; then
+  echo
+  echo "  ⚠ the rtc push URL looks like a pooler — schema push may fail. Pass" >&2
+  echo "    RTC_DATABASE_URL_DIRECT with the direct (port 5432) connection instead." >&2
 fi
 echo
 

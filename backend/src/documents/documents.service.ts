@@ -610,7 +610,9 @@ export class DocumentsService {
     // Walk the subtree in the DB with a recursive CTE: one round trip returning just the
     // descendants, rather than loading every document in the workspace and walking it in
     // memory (which was O(workspace size) on each delete). The tree is workspace-scoped, so
-    // anchoring the root to workspaceId is enough — descendants follow parent_id from there.
+    // anchoring the root to workspaceId already constrains the normal case; the recursive arm
+    // re-asserts workspace_id as defense-in-depth, so a cross-workspace parent_id (raw DB write
+    // or an unguarded reparent) can never leak a foreign doc into the deleted set.
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       WITH RECURSIVE subtree AS (
         SELECT id
@@ -620,6 +622,7 @@ export class DocumentsService {
         SELECT d.id
         FROM documents d
         JOIN subtree s ON d.parent_id = s.id
+        WHERE d.workspace_id = ${workspaceId}
       )
       SELECT id FROM subtree
     `;

@@ -9,14 +9,14 @@ import { DSProvider } from '@toddle-edu/ds-web/dist/Utils/DSContext';
 import { createQueryClient } from './lib/queryClient';
 import { bootstrapAuth } from './lib/http';
 import { App } from './App';
-// DS base styles must load before our own so app styles can override them.
-// main.css is the DS's *compiled* bundle — it already includes the Tailwind
-// utility classes (text-body, mt-3, flex, …) and tokens that web-app consumes,
-// so those utilities are available app-wide without us running any Tailwind build.
-// (Do NOT import dist/assets/tailwind.css — that's the uncompiled Tailwind source
-// with @import "tailwindcss/base" and fails outside the DS's own build.)
+// Load order matters. ds-web main.css is the DS's *compiled* bundle (utilities +
+// Preflight + tokens); our styles/tailwind.css (utilities only, Preflight off) loads
+// AFTER it so our utilities win at equal specificity, but BEFORE index.css so rbac
+// component rules + index typography stay authoritative. Don't import
+// ds-web/dist/assets/tailwind.css — that's uncompiled source and fails to build.
 import '@toddle-edu/ds-web/dist/assets/antd.css';
 import '@toddle-edu/ds-web/dist/assets/main.css';
+import './styles/tailwind.css';
 import './styles/index.css';
 
 const rootEl = document.getElementById('root');

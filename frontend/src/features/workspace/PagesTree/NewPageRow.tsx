@@ -1,13 +1,18 @@
-import { Icon } from '../../../components/Icon';
-import s from './PagesTree.module.scss';
+import { AddOutlined } from '@toddle-edu/ds-icons';
+import { cn } from '../../../lib/cn';
+import { sidebarRow } from '../sidebarRowStyles';
 
-// Coda-style "+ New page" row shown at the bottom of the tree and beneath each
-// expanded parent. `indent` (px) aligns the + with the page-icon column at depth.
+// `indent` (px) aligns the + with the page-icon column at the row's depth.
 export function NewPageRow({ indent, onClick }: Readonly<{ indent: number; onClick: () => void }>) {
   return (
-    <div className={s.newPageRow} style={{ paddingLeft: indent }} role="button" onClick={onClick}>
-      <Icon name="AddOutlined" size={16} muted />
+    <button
+      type="button"
+      className={cn(sidebarRow.base, sidebarRow.default)}
+      style={{ paddingLeft: indent }}
+      onClick={onClick}
+    >
+      <AddOutlined size="xxx-small" />
       New page
-    </div>
+    </button>
   );
 }

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import {
   ChevronRightOutlined,
   DotsHorizontalOutlined,
@@ -64,13 +64,22 @@ export function PageNode({
     rowStyle: { paddingLeft: BASE_INDENT + depth * INDENT_STEP } as CSSProperties,
   };
 
+  const handleRowKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const isActivationKey = e.key === 'Enter' || e.key === ' ';
+    if (!isActivationKey) return;
+    e.preventDefault();
+    selectDoc(doc.id);
+  };
+
   return (
     <>
       <div
         className={styles.row}
         style={styles.rowStyle}
         role="button"
+        tabIndex={0}
         onClick={() => selectDoc(doc.id)}
+        onKeyDown={handleRowKeyDown}
       >
         <IconButton
           dsVersion="2.0"
@@ -86,7 +95,6 @@ export function PageNode({
         />
 
         <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
-
         <span className={styles.label}>{doc.title}</span>
 
         {menuItems.length > 0 && (

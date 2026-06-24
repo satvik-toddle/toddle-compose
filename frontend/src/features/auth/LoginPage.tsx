@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
-import { Icon } from '../../components/Icon';
+import { EmailOutlined, LockOutlined } from '@toddle-edu/ds-icons';
 import { useLogin } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
 
@@ -51,7 +51,7 @@ export function LoginPage() {
         <TextInput
           dsVersion="2.0"
           label="Email"
-          leadingIcon={<Icon name="EmailOutlined" size={14} muted />}
+          leadingIcon={<EmailOutlined />}
           type="text"
           inputMode="email"
           autoComplete="email"
@@ -66,7 +66,7 @@ export function LoginPage() {
         <PasswordTextInput
           dsVersion="2.0"
           label="Password"
-          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          leadingIcon={<LockOutlined />}
           required
           value={password}
           error={loginFailed ? ' ' : undefined}

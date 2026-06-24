@@ -5,9 +5,9 @@ import { PageNode } from './PageNode';
 import { NewPageRow } from './NewPageRow';
 import s from './PagesTree.module.scss';
 
-// Indent for the root-level "New page" row: base (8) + icon offset (21), so its +
-// aligns with the page-icon column of the root rows.
-const ROOT_NEW_PAGE_INDENT = 29;
+// Indent for the root-level "New page" row: base (8) + chevron button (~20) + gap
+// (10), so its + aligns with the page-icon column of the root rows.
+const ROOT_NEW_PAGE_INDENT = 38;
 
 // Coda-style page tree: every row is a page (document); a page that has child
 // pages can expand. Nesting is by document parentId — no separate folder type.

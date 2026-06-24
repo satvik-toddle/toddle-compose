@@ -1,21 +1,26 @@
-import { Icon } from '../../../components/Icon';
+import type { CSSProperties } from 'react';
+import {
+  ChevronDownOutlined,
+  ChevronRightOutlined,
+  DotsHorizontalOutlined,
+  PageFoldPortraitOutlined,
+} from '@toddle-edu/ds-icons';
+import { IconButton } from '@toddle-edu/ds-web';
 import { ActionMenu } from '../../../components/ActionMenu';
 import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
+import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../pagesModel';
 import { buildPageMenuItems } from './pageMenuItems';
 import { NewPageRow } from './NewPageRow';
 import type { DocTreeController } from './useDocTree';
-import s from './PagesTree.module.scss';
 
-// Row layout constants (px). ICON_OFFSET = chevron (14) + gap (7), so a "New page"
-// row's + lines up with the page-icon column of the children above it.
+// ICON_OFFSET = chevron button (~20) + gap (10), so a "New page" row's + lines up
+// with the page-icon column of the children above it.
 const BASE_INDENT = 8;
 const INDENT_STEP = 15;
-const NEW_PAGE_ICON_OFFSET = 21;
+const NEW_PAGE_ICON_OFFSET = 30;
 
-// A single page row, rendered recursively: an expandable parent renders its
-// children (and a trailing "New page" row) when open.
 export function PageNode({
   node,
   depth,
@@ -32,42 +37,73 @@ export function PageNode({
     canManage: canManage(doc.owner.id),
     onAddSubpage: () => createPage(doc.id),
     onRename: () =>
-      openModal({ type: 'renamePage', kind: 'doc', workspaceId: tree.ws, id: doc.id, name: doc.title }),
+      openModal({
+        type: 'renamePage',
+        kind: 'doc',
+        workspaceId: tree.ws,
+        id: doc.id,
+        name: doc.title,
+      }),
     onDelete: () =>
-      openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId: tree.ws, id: doc.id, name: doc.title }),
+      openModal({
+        type: 'confirmDeletePage',
+        kind: 'doc',
+        workspaceId: tree.ws,
+        id: doc.id,
+        name: doc.title,
+      }),
   });
+
+  const rowClassName = cn(
+    'group',
+    sidebarRow.base,
+    selDoc === doc.id ? sidebarRow.selected : sidebarRow.default,
+  );
+  const rowStyle: CSSProperties = { paddingLeft: BASE_INDENT + depth * INDENT_STEP };
+  // Leaf pages keep the (hidden) chevron so icons stay aligned.
+  const chevronButtonClassName = cn('shrink-0', !hasKids && 'invisible');
+  const ChevronIcon = open ? ChevronDownOutlined : ChevronRightOutlined;
 
   return (
     <>
       <div
-        className={cn(s.treeRow, s.doc, selDoc === doc.id && s.active)}
-        style={{ paddingLeft: BASE_INDENT + depth * INDENT_STEP }}
+        className={rowClassName}
+        style={rowStyle}
         role="button"
         onClick={() => selectDoc(doc.id)}
       >
-        <span
-          className="chev-wrap"
-          // Keep the chevron column for leaf pages too, so icons stay aligned.
-          style={{ display: 'inline-flex', visibility: hasKids ? 'visible' : 'hidden' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggle(doc.id);
-          }}
-        >
-          <Icon name="ChevronRightOutlined" size={14} muted className={cn(s.chev, open && s.open)} />
-        </span>
-        <span className="tw-emoji">
-          <Icon name="FileOutlined" size={16} muted />
-        </span>
-        <span className={s.twLbl}>{doc.title}</span>
+        <IconButton
+          dsVersion="2.0"
+          type="plain"
+          variant="neutral"
+          size="x-small"
+          isCompact
+          shouldStopPropagation
+          className={chevronButtonClassName}
+          aria-label={open ? 'Collapse page' : 'Expand page'}
+          onClick={() => toggle(doc.id)}
+          icon={<ChevronIcon variant="subtle" />}
+        />
+
+        <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
+
+        <span className="flex-1 truncate">{doc.title}</span>
+
         {menuItems.length > 0 && (
-          <span className="tw-more-wrap" onClick={(e) => e.stopPropagation()}>
+          <span className="flex shrink-0" onClick={(e) => e.stopPropagation()}>
             <ActionMenu
               placement="bottomRight"
               trigger={
-                <button className={s.twMore}>
-                  <Icon name="DotsHorizontalOutlined" size={14} muted />
-                </button>
+                <IconButton
+                  dsVersion="2.0"
+                  type="plain"
+                  variant="neutral"
+                  size="x-small"
+                  isCompact
+                  className="hidden group-hover:flex"
+                  aria-label="Page actions"
+                  icon={<DotsHorizontalOutlined variant="subtle" />}
+                />
               }
               items={menuItems}
             />

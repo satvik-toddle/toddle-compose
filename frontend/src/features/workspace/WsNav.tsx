@@ -24,8 +24,10 @@ const styles = {
   // hover:text-* pins the row color through hover so the NavLink <a> rows don't
   // inherit antd's global teal link-hover color.
   linkDefault: 'text-primary hover:bg-surface-secondary-hover hover:text-primary',
-  linkSelected: 'bg-surface-primary-selected text-primary hover:text-primary',
-  linkSubtle: 'text-secondary hover:bg-surface-secondary-hover hover:text-secondary',
+  // Selected row keeps a permanent neutral background (not the transient hover one)
+  // until another row is chosen; font-semibold adds a slight weight bump.
+  linkSelected:
+    'bg-surface-secondary-active font-semibold text-primary hover:bg-surface-secondary-active hover:text-primary',
 };
 
 export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boolean }) {
@@ -57,18 +59,11 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
             cn(styles.link, isActive && !hasOpenDoc ? styles.linkSelected : styles.linkDefault)
           }
         >
-          {({ isActive }) => (
-            <>
-              <HomeOutlined
-                size="xxx-small"
-                variant={isActive && !hasOpenDoc ? 'default' : 'subtle'}
-              />
-              Home
-            </>
-          )}
+          <HomeOutlined size="xxx-small" />
+          Home
         </NavLink>
         <div className={cn(styles.link, styles.linkDefault)}>
-          <StarOutlined variant="subtle" size="xxx-small" />
+          <StarOutlined size="xxx-small" />
           Starred
         </div>
       </div>
@@ -83,22 +78,18 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
               cn(styles.link, isActive ? styles.linkSelected : styles.linkDefault)
             }
           >
-            {({ isActive }) => (
-              <>
-                <BellRingOutlined size="xxx-small" variant={isActive ? 'default' : 'subtle'} />
-                Requests
-                <span className="ml-auto">
-                  <Badge
-                    dsVersion="2.0"
-                    type="numeric"
-                    variant="notifications"
-                    size="xxx-small"
-                    value={requests?.length ?? 0}
-                    showZero
-                  />
-                </span>
-              </>
-            )}
+            <BellRingOutlined size="xxx-small" />
+            Requests
+            <span className="ml-auto">
+              <Badge
+                dsVersion="2.0"
+                type="numeric"
+                variant="notifications"
+                size="xxx-small"
+                value={requests?.length ?? 0}
+                showZero
+              />
+            </span>
           </NavLink>
         )}
         {isAdmin && (
@@ -108,34 +99,30 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
               cn(styles.link, isActive ? styles.linkSelected : styles.linkDefault)
             }
           >
-            {({ isActive }) => (
-              <>
-                <MultipleUsersOutlined size="xxx-small" variant={isActive ? 'default' : 'subtle'} />
-                Members
-                <span className="ml-auto">
-                  <Badge
-                    dsVersion="2.0"
-                    type="numeric"
-                    variant="subtle"
-                    size="xxx-small"
-                    value={members?.length ?? 0}
-                    showZero
-                  />
-                </span>
-              </>
-            )}
+            <MultipleUsersOutlined size="xxx-small" />
+            Members
+            <span className="ml-auto">
+              <Badge
+                dsVersion="2.0"
+                type="numeric"
+                variant="subtle"
+                size="xxx-small"
+                value={members?.length ?? 0}
+                showZero
+              />
+            </span>
           </NavLink>
         )}
         <div className={cn(styles.link, styles.linkDefault)}>
-          <SettingsOutlined variant="subtle" size="xxx-small" />
+          <SettingsOutlined size="xxx-small" />
           Workspace settings
         </div>
         <div
-          className={cn(styles.link, styles.linkSubtle)}
+          className={cn(styles.link, styles.linkDefault)}
           role="button"
           onClick={() => leave.mutate()}
         >
-          <ChevronLeftOutlined variant="subtle" size="xxx-small" />
+          <ChevronLeftOutlined size="xxx-small" />
           {isAdmin ? 'All workspaces' : 'Launcher'}
         </div>
       </div>

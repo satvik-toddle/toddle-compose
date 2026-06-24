@@ -7,7 +7,7 @@ import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
 import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
 import { PageLoader } from '../../components/Loader';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
+import { WorkspaceSidebar } from './sidebar';
 import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';

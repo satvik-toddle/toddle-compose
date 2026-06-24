@@ -1,5 +1,5 @@
 import { AddOutlined } from '@toddle-edu/ds-icons';
-import { cn } from '../../../lib/cn';
+import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 
 // `indent` (px) aligns the + with the page-icon column at the row's depth.

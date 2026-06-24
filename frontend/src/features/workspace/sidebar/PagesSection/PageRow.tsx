@@ -5,10 +5,10 @@ import {
   PageFoldPortraitOutlined,
 } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
-import { useUiStore } from '../../../stores/uiStore';
-import { cn } from '../../../lib/cn';
+import { useUiStore } from '../../../../stores/uiStore';
+import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
-import type { TreeDoc } from '../pagesModel';
+import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
 import { NewPageRow } from './NewPageRow';
 import type { PagesSectionController } from './usePagesSection';

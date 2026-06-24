@@ -1,5 +1,5 @@
 import { InformationOutlined } from '@toddle-edu/ds-icons';
-import type { WorkspaceCtx } from '../WorkspaceLayout';
+import type { WorkspaceCtx } from '../../WorkspaceLayout';
 import { usePagesSection } from './usePagesSection';
 import { PageRow } from './PageRow';
 import { NewPageRow } from './NewPageRow';

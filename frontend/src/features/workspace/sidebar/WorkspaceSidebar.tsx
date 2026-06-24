@@ -8,12 +8,12 @@ import {
   SettingsOutlined,
   ChevronLeftOutlined,
 } from '@toddle-edu/ds-icons';
-import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../hooks/queries';
-import { useLeaveWorkspace } from '../../hooks/useAuthMutations';
-import { cn } from '../../lib/cn';
+import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../../hooks/queries';
+import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
+import { cn } from '../../../lib/cn';
 import { PagesSection } from './PagesSection';
 import { sidebarRow } from './sidebarRowStyles';
-import type { WorkspaceCtx } from './WorkspaceLayout';
+import type { WorkspaceCtx } from '../WorkspaceLayout';
 
 const styles = {
   sidebar:

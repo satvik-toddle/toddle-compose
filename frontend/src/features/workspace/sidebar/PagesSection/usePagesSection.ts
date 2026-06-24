@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCreateDocument, useDocuments } from '../../../hooks/usePages';
-import { useAuthStore } from '../../../stores/authStore';
-import { wsAtLeast } from '../../../lib/roles';
-import type { WorkspaceCtx } from '../WorkspaceLayout';
-import { buildDocTree, getAncestorIds, mapDocsById } from '../pagesModel';
+import { useCreateDocument, useDocuments } from '../../../../hooks/usePages';
+import { useAuthStore } from '../../../../stores/authStore';
+import { wsAtLeast } from '../../../../lib/roles';
+import type { WorkspaceCtx } from '../../WorkspaceLayout';
+import { buildDocTree, getAncestorIds, mapDocsById } from '../../pagesModel';
 
 // Owns the pages section's data + interaction state for a workspace: builds the
 // page hierarchy, tracks which pages are expanded (auto-revealing a deep-linked

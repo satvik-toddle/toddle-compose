@@ -27,8 +27,8 @@ export function PageNode({
   const { expanded, selDoc, canCreate, canManage, toggle, selectDoc, createPage } = tree;
   const openModal = useUiStore((st) => st.openModal);
   const { doc, children } = node;
-  const hasKids = children.length > 0;
-  const open = expanded.has(doc.id);
+  const hasChildren = children.length > 0;
+  const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuItems = buildPageMenuItems({
@@ -56,8 +56,8 @@ export function PageNode({
   const styles = {
     row: cn('group', sidebarRow.base, selDoc === doc.id ? sidebarRow.selected : sidebarRow.default),
     // Leaf pages keep the (hidden) chevron so icons stay aligned.
-    chevronButton: cn('shrink-0', !hasKids && 'invisible'),
-    chevronIcon: cn('transition-transform', open && 'rotate-90'),
+    chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
+    chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
     label: 'flex-1 truncate',
     menuWrap: 'flex shrink-0',
     // Hidden until the row is hovered; stays visible while its menu is open.
@@ -90,7 +90,7 @@ export function PageNode({
           isCompact
           shouldStopPropagation
           className={styles.chevronButton}
-          aria-label={open ? 'Collapse page' : 'Expand page'}
+          aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
           onClick={() => toggle(doc.id)}
           icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
         />
@@ -108,8 +108,8 @@ export function PageNode({
                 <DropdownMenu
                   dsVersion="2.0"
                   options={menuItems}
-                  onClick={(opt: PageMenuOption) =>
-                    menuItems.find((m) => m.key === opt.key)?.onSelect?.()
+                  onClick={(option: PageMenuOption) =>
+                    menuItems.find((item) => item.key === option.key)?.onSelect?.()
                   }
                 />
               }
@@ -132,10 +132,10 @@ export function PageNode({
         )}
       </div>
 
-      {open && hasKids && (
+      {isExpanded && hasChildren && (
         <>
-          {children.map((c) => (
-            <PageNode key={c.doc.id} node={c} depth={depth + 1} tree={tree} />
+          {children.map((child) => (
+            <PageNode key={child.doc.id} node={child} depth={depth + 1} tree={tree} />
           ))}
           {canCreate && (
             <NewPageRow

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Icon } from '../../components/Icon';
+import { SearchInput } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
@@ -24,9 +24,15 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
 
   return (
     <aside className={cn(s.wsNav, collapsed && s.collapsed)}>
-      <div className={s.wsNavSearch}>
-        <Icon name="SearchOutlined" size={14} muted />
-        <input placeholder="Search this workspace…" readOnly />
+      {/* Non-functional stub today (workspace search isn't wired up yet); kept read-only so it reads as a placeholder, not a broken field. */}
+      <div className="mb-2">
+        <SearchInput
+          dsVersion="2.0"
+          size="medium"
+          placeholder="Search this workspace…"
+          aria-label="Search this workspace"
+          readOnly
+        />
       </div>
 
       <div className={s.wsNavQuick}>

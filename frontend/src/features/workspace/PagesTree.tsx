@@ -179,8 +179,8 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
       <div className={s.wsTree}>
         {isLoading ? (
           <div style={{ padding: '8px 9px' }}>
-              <Loader size={20} />
-            </div>
+            <Loader size={28} />
+          </div>
         ) : (
           <>
             {!isEmpty && roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)}

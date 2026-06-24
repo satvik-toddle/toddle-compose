@@ -3,7 +3,7 @@ type LoaderProps = {
   label?: string;
 };
 
-export function Loader({ size = 32, label = 'Loading' }: LoaderProps) {
+export function Loader({ size = 40, label = 'Loading' }: LoaderProps) {
   return (
     <svg
       width={size}

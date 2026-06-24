@@ -1,6 +1,5 @@
 import type { CSSProperties } from 'react';
 import {
-  ChevronDownOutlined,
   ChevronRightOutlined,
   DotsHorizontalOutlined,
   PageFoldPortraitOutlined,
@@ -62,7 +61,7 @@ export function PageNode({
   const rowStyle: CSSProperties = { paddingLeft: BASE_INDENT + depth * INDENT_STEP };
   // Leaf pages keep the (hidden) chevron so icons stay aligned.
   const chevronButtonClassName = cn('shrink-0', !hasKids && 'invisible');
-  const ChevronIcon = open ? ChevronDownOutlined : ChevronRightOutlined;
+  const chevronIconClassName = cn('transition-transform', open && 'rotate-90');
 
   return (
     <>
@@ -82,7 +81,7 @@ export function PageNode({
           className={chevronButtonClassName}
           aria-label={open ? 'Collapse page' : 'Expand page'}
           onClick={() => toggle(doc.id)}
-          icon={<ChevronIcon variant="subtle" />}
+          icon={<ChevronRightOutlined variant="subtle" className={chevronIconClassName} />}
         />
 
         <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />

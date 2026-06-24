@@ -41,6 +41,18 @@ export function useWorkspaceMembers(id: string | undefined, enabled = true) {
   });
 }
 
+// The caller's own join requests. While any are PENDING it polls so an approval
+// (granted by an admin elsewhere) is picked up without a manual refresh.
+export function useMyJoinRequests(enabled = true) {
+  return useQuery({
+    queryKey: qk.myRequests,
+    queryFn: joinApi.myRequests,
+    enabled,
+    refetchInterval: (q) =>
+      (q.state.data ?? []).some((r) => r.state === 'PENDING') ? 4000 : false,
+  });
+}
+
 export function useRealmJoinRequests(enabled = true) {
   return useQuery({
     queryKey: qk.realmRequests('PENDING'),

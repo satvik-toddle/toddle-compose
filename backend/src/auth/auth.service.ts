@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -41,6 +42,8 @@ export class AuthService {
     private readonly config: ConfigService<Env, true>
   ) {}
 
+  // Self-signup is gated on the realm's email-domain allowlist. Realm membership is then
+  // acquired by discovering and joining a workspace (no realm-admin step required).
   async register(
     email: string,
     password: string,
@@ -48,12 +51,27 @@ export class AuthService {
   ): Promise<TokenPair> {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException("email already registered");
+
+    const realmId = this.config.get("REALM_ID", { infer: true });
+    const realm = await this.prisma.realm.findUnique({ where: { id: realmId } });
+    if (!realm) throw new ForbiddenException("registration is not available");
+    this.assertEmailDomainAllowed(email, realm.allowedEmailDomains);
+
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
     const user = await this.prisma.user.create({
       data: { email, name, color, passwordHash },
     });
     return this.issueTokens(user);
+  }
+
+  // Empty allowlist = open registration; otherwise the email's domain must be listed.
+  private assertEmailDomainAllowed(email: string, allowed: string[]): void {
+    if (allowed.length === 0) return;
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (!domain || !allowed.includes(domain)) {
+      throw new ForbiddenException("this email isn't authorised to join this realm");
+    }
   }
 
   async login(email: string, password: string): Promise<TokenPair> {

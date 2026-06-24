@@ -37,6 +37,18 @@ export function useSetRealmRole() {
   });
 }
 
+export function useUpdateRealmSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { allowedEmailDomains: string[] }) => realmApi.updateSettings(b),
+    onSuccess: (realm) => {
+      qc.setQueryData(qk.realm, realm);
+      pushToast({ kind: 'success', message: 'Realm settings saved.' });
+    },
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
 export function useRemoveRealmMember() {
   const qc = useQueryClient();
   return useMutation({

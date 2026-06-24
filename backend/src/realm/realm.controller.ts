@@ -12,7 +12,12 @@ import {
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
 import { RealmService } from "./realm.service";
-import { AddRealmUserDto, PaginationDto, UpdateRealmUserDto } from "./dto";
+import {
+  AddRealmUserDto,
+  PaginationDto,
+  UpdateRealmSettingsDto,
+  UpdateRealmUserDto,
+} from "./dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("realm")
@@ -22,6 +27,14 @@ export class RealmController {
   @Get()
   info(@CurrentUser() user: AuthUser) {
     return this.realm.info(user.id);
+  }
+
+  @Patch()
+  updateSettings(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateRealmSettingsDto
+  ) {
+    return this.realm.updateSettings(user.id, dto.allowedEmailDomains);
   }
 
   @Get("users")

@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { TextInput } from '../../components/TextInput';
-import { useDiscoverableWorkspaces } from '../../hooks/queries';
+import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
-import { performLogout } from '../../lib/session';
+import { performLogout, enterWorkspaceScope } from '../../lib/session';
+import { qk } from '../../lib/queryKeys';
 import { useAuthStore } from '../../stores/authStore';
+import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
+import type { JoinRequestState } from '../../types/roles';
 import s from './RequestAccessPage.module.scss';
 
 export function RequestAccessPage() {
@@ -17,10 +20,38 @@ export function RequestAccessPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: workspaces = [], isLoading } = useDiscoverableWorkspaces();
+  const { data: requests } = useMyJoinRequests();
   const joinPublic = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
   const [query, setQuery] = useState('');
   const [requested, setRequested] = useState<Set<string>>(new Set());
+
+  // Latest request state per workspace (requests arrive newest-first).
+  const stateByWorkspace = useMemo(() => {
+    const m = new Map<string, JoinRequestState>();
+    for (const r of requests ?? []) if (!m.has(r.workspaceId)) m.set(r.workspaceId, r.state);
+    return m;
+  }, [requests]);
+
+  // Enter a workspace when a request we watched go PENDING here is then approved by an
+  // admin. Gating on "seen pending this session" avoids barging in on a stale approval
+  // (e.g. one already granted before the page loaded — that workspace is in the launcher).
+  const seenPending = useRef<Set<string>>(new Set());
+  const handled = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!requests) return;
+    for (const r of requests) if (r.state === 'PENDING') seenPending.current.add(r.id);
+    const granted = requests.find(
+      (r) => r.state === 'APPROVED' && seenPending.current.has(r.id) && !handled.current.has(r.id),
+    );
+    if (!granted) return;
+    handled.current.add(granted.id);
+    pushToast({ kind: 'success', message: `Access granted — opening ${granted.workspace?.name ?? 'workspace'}…` });
+    qc.invalidateQueries({ queryKey: qk.workspaces });
+    enterWorkspaceScope(qc, granted.workspaceId)
+      .then(() => navigate(`/w/${granted.workspaceId}`))
+      .catch(() => navigate('/launcher'));
+  }, [requests, qc, navigate]);
 
   const filtered = useMemo(
     () => workspaces.filter((w) => w.name.toLowerCase().includes(query.toLowerCase())),
@@ -65,7 +96,9 @@ export function RequestAccessPage() {
           {filtered.map((w) => {
             const vis = workspaceVisual(w.id);
             const pub = w.visibility === 'PUBLIC';
-            const isRequested = requested.has(w.id);
+            const reqState = stateByWorkspace.get(w.id);
+            const isPending = requested.has(w.id) || reqState === 'PENDING';
+            const isRejected = reqState === 'REJECTED' && !requested.has(w.id);
             return (
               <div key={w.id} className={s.raRow}>
                 <span
@@ -76,7 +109,13 @@ export function RequestAccessPage() {
                 </span>
                 <div className={s.raInfo}>
                   <div className="nm">{w.name}</div>
-                  <div className="sub">{pub ? 'Anyone in the realm can join' : 'Approval required'}</div>
+                  <div className="sub">
+                    {pub
+                      ? 'Anyone in the realm can join'
+                      : isRejected
+                        ? 'Request declined — you can ask again'
+                        : 'Approval required'}
+                  </div>
                 </div>
                 <span className={cn(s.raVis, pub ? s.pub : s.priv)}>
                   <Icon name={pub ? 'GlobeOutlined' : 'LockOutlined'} size={12} />
@@ -92,9 +131,9 @@ export function RequestAccessPage() {
                   >
                     Open
                   </Button>
-                ) : isRequested ? (
-                  <Button size="sm" disabled className="ra-requested" icon="TickSmallOutlined">
-                    Requested
+                ) : isPending ? (
+                  <Button size="sm" disabled className="ra-requested" icon="BellRingOutlined">
+                    Awaiting approval
                   </Button>
                 ) : (
                   <Button
@@ -108,7 +147,7 @@ export function RequestAccessPage() {
                       )
                     }
                   >
-                    Request access
+                    {isRejected ? 'Request again' : 'Request access'}
                   </Button>
                 )}
               </div>

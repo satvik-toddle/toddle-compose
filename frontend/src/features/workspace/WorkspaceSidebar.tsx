@@ -23,9 +23,9 @@ const styles = {
   footerGroup: 'mt-auto flex flex-col gap-0.25 border-t border-secondary pt-2.5',
 };
 
-type WsNavProps = { ctx: WorkspaceCtx; collapsed?: boolean };
+type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
 
-export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
+export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarProps>) {
   const { workspaceId, isAdmin } = ctx;
   const leave = useLeaveWorkspace();
   const [searchParams] = useSearchParams();

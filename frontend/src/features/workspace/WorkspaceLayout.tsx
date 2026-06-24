@@ -7,7 +7,7 @@ import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
 import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
 import { PageLoader } from '../../components/Loader';
-import { WsNav } from './WsNav';
+import { WorkspaceSidebar } from './WorkspaceSidebar';
 import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';
@@ -267,7 +267,7 @@ export function WorkspaceLayout() {
     <div className="rbac">
       <WsTopbar ctx={ctx} onToggleSidebar={toggleSidebar} />
       <div className={s.wsBody}>
-        <WsNav ctx={ctx} collapsed={sidebarCollapsed} />
+        <WorkspaceSidebar ctx={ctx} collapsed={sidebarCollapsed} />
         <Outlet context={ctx} />
       </div>
     </div>

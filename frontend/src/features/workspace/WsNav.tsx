@@ -21,16 +21,14 @@ const styles = {
   linkGroup: 'flex flex-col gap-0.25',
   footerGroup: 'mt-auto flex flex-col gap-0.25 border-t border-secondary pt-2.5',
   link: 'flex items-center gap-2.5 rounded-2 px-2.25 py-1.5 text-body-s no-underline',
-  // hover:text-* pins the row color through hover so the NavLink <a> rows don't
-  // inherit antd's global teal link-hover color.
   linkDefault: 'text-primary hover:bg-surface-secondary-hover hover:text-primary',
-  // Selected row keeps a permanent neutral background (not the transient hover one)
-  // until another row is chosen; font-semibold adds a slight weight bump.
   linkSelected:
     'bg-surface-secondary-active font-semibold text-primary hover:bg-surface-secondary-active hover:text-primary',
 };
 
-export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boolean }) {
+type WsNavProps = { ctx: WorkspaceCtx; collapsed?: boolean };
+
+export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
   const { workspaceId, isAdmin } = ctx;
   const leave = useLeaveWorkspace();
   const [searchParams] = useSearchParams();
@@ -117,14 +115,14 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
           <SettingsOutlined size="xxx-small" />
           Workspace settings
         </div>
-        <div
+        <button
+          type="button"
           className={cn(styles.link, styles.linkDefault)}
-          role="button"
           onClick={() => leave.mutate()}
         >
           <ChevronLeftOutlined size="xxx-small" />
           {isAdmin ? 'All workspaces' : 'Launcher'}
-        </div>
+        </button>
       </div>
     </aside>
   );

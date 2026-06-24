@@ -7,6 +7,7 @@
     "node": "^20.19 || ^22.12 || >=24.0"
   },
   "scripts": {
+    "preinstall": "node scripts/check-node.mjs",
     "dev": "bash scripts/dev.sh",
     "dev:services": "concurrently -n backend,rtc,frontend -c blue,magenta,green \"pnpm --filter backend dev\" \"pnpm --filter rtc-server dev\" \"pnpm --filter frontend dev\"",
     "dev:backend": "pnpm --filter backend dev",

@@ -22,7 +22,8 @@ const styles = {
   sidebarCollapsed: '-ml-[266px]',
   // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
-  body: 'flex-1 min-h-0 overflow-y-auto pt-1.5',
+  // -mx/px gives the scroll area room for the focus ring without misaligning rows.
+  body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
   sectionHeading: 'flex items-center px-2.25 pt-2 pb-2 text-label-xs uppercase text-secondary',
   footerGroup: 'flex flex-none flex-col gap-0.25 border-t border-secondary pt-2.5',

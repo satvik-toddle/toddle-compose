@@ -60,8 +60,11 @@ export function PageRow({
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
     label: 'flex-1 truncate',
     menuWrap: 'flex shrink-0',
-    // Hidden until the row is hovered; stays visible while its menu is open.
-    menuTrigger: cn('group-hover:flex', isMenuOpen ? 'flex' : 'hidden'),
+    // Transparent (but focusable) until row hover, keyboard focus, or menu open.
+    menuTrigger: cn(
+      'opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100',
+      isMenuOpen && 'opacity-100',
+    ),
     rowStyle: { paddingLeft: BASE_INDENT + depth * INDENT_STEP } as CSSProperties,
   };
 
@@ -99,7 +102,11 @@ export function PageRow({
         <span className={styles.label}>{doc.title}</span>
 
         {menuItems.length > 0 && (
-          <span className={styles.menuWrap} onClick={(e) => e.stopPropagation()}>
+          <span
+            className={styles.menuWrap}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <Dropdown
               placement="bottomRight"
               visible={isMenuOpen}

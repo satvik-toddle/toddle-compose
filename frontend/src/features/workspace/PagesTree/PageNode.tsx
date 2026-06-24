@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import {
   ChevronRightOutlined,
   DotsHorizontalOutlined,
@@ -29,6 +29,7 @@ export function PageNode({
   const { doc, children } = node;
   const hasKids = children.length > 0;
   const open = expanded.has(doc.id);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuItems = buildPageMenuItems({
     canCreate,
@@ -59,7 +60,8 @@ export function PageNode({
     chevronIcon: cn('transition-transform', open && 'rotate-90'),
     label: 'flex-1 truncate',
     menuWrap: 'flex shrink-0',
-    menuTrigger: 'hidden group-hover:flex',
+    // Hidden until the row is hovered; stays visible while its menu is open.
+    menuTrigger: cn('group-hover:flex', isMenuOpen ? 'flex' : 'hidden'),
     rowStyle: { paddingLeft: BASE_INDENT + depth * INDENT_STEP } as CSSProperties,
   };
 
@@ -100,6 +102,8 @@ export function PageNode({
           <span className={styles.menuWrap} onClick={(e) => e.stopPropagation()}>
             <Dropdown
               placement="bottomRight"
+              visible={isMenuOpen}
+              onVisibleChange={setIsMenuOpen}
               overlay={
                 <DropdownMenu
                   dsVersion="2.0"
@@ -110,8 +114,6 @@ export function PageNode({
                 />
               }
             >
-              {/* antd attaches its ref/onClick to the trigger's DOM node — wrap the
-                  ds-web IconButton in a span so it doesn't warn about refs. */}
               <span style={{ display: 'inline-flex' }}>
                 <IconButton
                   dsVersion="2.0"
@@ -119,6 +121,7 @@ export function PageNode({
                   variant="neutral"
                   size="x-small"
                   isCompact
+                  isActivated={isMenuOpen}
                   className={styles.menuTrigger}
                   aria-label="Page actions"
                   icon={<DotsHorizontalOutlined variant="subtle" />}

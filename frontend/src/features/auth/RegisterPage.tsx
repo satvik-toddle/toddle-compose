@@ -3,7 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
 import { TextInput, PasswordTextInput, Alert, Button } from '@toddle-edu/ds-web';
-import { Icon } from '../../components/Icon';
+import {
+  UserProfileOutlined,
+  EmailOutlined,
+  LockOutlined,
+  WarningTriangleOutlined,
+} from '@toddle-edu/ds-icons';
 import { useRegister } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
 
@@ -28,10 +33,7 @@ export function RegisterPage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isPasswordMismatched || register.isPending) return;
-    register.mutate(
-      { name, email, password },
-      { onSuccess: () => navigate('/register/success') },
-    );
+    register.mutate({ name, email, password }, { onSuccess: () => navigate('/register/success') });
   };
 
   return (
@@ -57,7 +59,7 @@ export function RegisterPage() {
         <TextInput
           dsVersion="2.0"
           label="Full name"
-          leadingIcon={<Icon name="UserProfileOutlined" size={14} muted />}
+          leadingIcon={<UserProfileOutlined />}
           type="text"
           placeholder="Jamie Rivera"
           value={name}
@@ -68,7 +70,7 @@ export function RegisterPage() {
         <TextInput
           dsVersion="2.0"
           label="Work email"
-          leadingIcon={<Icon name="EmailOutlined" size={14} muted />}
+          leadingIcon={<EmailOutlined />}
           type="text"
           inputMode="email"
           autoComplete="email"
@@ -80,7 +82,7 @@ export function RegisterPage() {
         <PasswordTextInput
           dsVersion="2.0"
           label="Password"
-          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          leadingIcon={<LockOutlined />}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -91,17 +93,17 @@ export function RegisterPage() {
         <PasswordTextInput
           dsVersion="2.0"
           label="Confirm password"
-          leadingIcon={<Icon name="LockOutlined" size={14} muted />}
+          leadingIcon={<LockOutlined />}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={isPasswordMismatched ? ' ' : undefined}
           required
           onTrailingIconClick={(e) => e.preventDefault()}
         />
-        
+
         {isPasswordMismatched && (
           <span className={styles.errorText}>
-            <Icon name="WarningTriangleOutlined" size={14} red />
+            <WarningTriangleOutlined variant="critical" size="xxx-small" />
             Passwords don't match.
           </span>
         )}
@@ -109,8 +111,10 @@ export function RegisterPage() {
         <Button size="large" isFullWidth disabled={register.isPending}>
           {register.isPending ? 'Creating account…' : 'Create account'}
         </Button>
-        
-        <p className={styles.disclaimer}>By continuing you agree to Toddle's Terms and Privacy Policy.</p>
+
+        <p className={styles.disclaimer}>
+          By continuing you agree to Toddle's Terms and Privacy Policy.
+        </p>
       </form>
     </AuthShell>
   );

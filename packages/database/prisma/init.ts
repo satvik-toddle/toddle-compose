@@ -1,8 +1,12 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
 // Realm bootstrap (the backend refuses to start without a realm matching REALM_ID); prod-safe and idempotent.
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the db:init script.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 const BCRYPT_COST = 12; // matches the auth service
 
 function required(name: string): string {

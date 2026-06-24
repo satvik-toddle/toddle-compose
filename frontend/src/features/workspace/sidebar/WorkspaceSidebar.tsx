@@ -7,11 +7,12 @@ import {
   MultipleUsersOutlined,
   SettingsOutlined,
   ChevronLeftOutlined,
+  AddOutlined,
 } from '@toddle-edu/ds-icons';
 import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { cn } from '../../../lib/cn';
-import { PagesSection } from './PagesSection';
+import { PagesSection, usePagesSection } from './PagesSection';
 import { sidebarRow } from './sidebarRowStyles';
 import type { WorkspaceCtx } from '../WorkspaceLayout';
 
@@ -36,6 +37,7 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   const hasOpenDoc = !!searchParams.get('doc');
   const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
+  const pages = usePagesSection(ctx);
 
   return (
     <aside className={cn(styles.sidebar, collapsed && styles.sidebarCollapsed)}>
@@ -75,10 +77,20 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
       </div>
 
       <div className={styles.body}>
-        <PagesSection ctx={ctx} />
+        <PagesSection pages={pages} />
       </div>
 
       <div className={styles.footerGroup}>
+        {pages.canCreate && (
+          <button
+            type="button"
+            className={cn(sidebarRow.base, sidebarRow.default)}
+            onClick={() => pages.createPage()}
+          >
+            <AddOutlined size="xxx-small" />
+            New page
+          </button>
+        )}
         {isAdmin && (
           <NavLink
             to={`/w/${workspaceId}/requests`}

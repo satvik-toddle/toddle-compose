@@ -10,14 +10,10 @@ import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
-import { NewPageRow } from './NewPageRow';
 import type { PagesSectionController } from './usePagesSection';
 
-// ICON_OFFSET = chevron button (~20) + gap (10), so a "New page" row's + lines up
-// with the page-icon column of the children above it.
 const BASE_INDENT = 8;
 const INDENT_STEP = 15;
-const NEW_PAGE_ICON_OFFSET = 30;
 
 export function PageRow({
   node,
@@ -136,19 +132,10 @@ export function PageRow({
         )}
       </div>
 
-      {isExpanded && hasChildren && (
-        <>
-          {children.map((child) => (
-            <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
-          ))}
-          {canCreate && (
-            <NewPageRow
-              indent={BASE_INDENT + (depth + 1) * INDENT_STEP + NEW_PAGE_ICON_OFFSET}
-              onClick={() => createPage(doc.id)}
-            />
-          )}
-        </>
-      )}
+      {isExpanded &&
+        children.map((child) => (
+          <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
+        ))}
     </>
   );
 }

@@ -11,7 +11,7 @@ import {
 import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../hooks/queries';
 import { useLeaveWorkspace } from '../../hooks/useAuthMutations';
 import { cn } from '../../lib/cn';
-import { PagesTree } from './PagesTree';
+import { PagesSection } from './PagesSection';
 import { sidebarRow } from './sidebarRowStyles';
 import type { WorkspaceCtx } from './WorkspaceLayout';
 
@@ -63,7 +63,7 @@ export function WsNav({ ctx, collapsed }: Readonly<WsNavProps>) {
         </div>
       </div>
 
-      <PagesTree ctx={ctx} />
+      <PagesSection ctx={ctx} />
 
       <div className={styles.footerGroup}>
         {isAdmin && (

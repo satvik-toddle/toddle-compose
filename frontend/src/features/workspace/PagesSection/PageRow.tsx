@@ -11,7 +11,7 @@ import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../pagesModel';
 import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
 import { NewPageRow } from './NewPageRow';
-import type { DocTreeController } from './useDocTree';
+import type { PagesSectionController } from './usePagesSection';
 
 // ICON_OFFSET = chevron button (~20) + gap (10), so a "New page" row's + lines up
 // with the page-icon column of the children above it.
@@ -19,12 +19,12 @@ const BASE_INDENT = 8;
 const INDENT_STEP = 15;
 const NEW_PAGE_ICON_OFFSET = 30;
 
-export function PageNode({
+export function PageRow({
   node,
   depth,
-  tree,
-}: Readonly<{ node: TreeDoc; depth: number; tree: DocTreeController }>) {
-  const { expanded, selDoc, canCreate, canManage, toggle, selectDoc, createPage } = tree;
+  pages,
+}: Readonly<{ node: TreeDoc; depth: number; pages: PagesSectionController }>) {
+  const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const { doc, children } = node;
   const hasChildren = children.length > 0;
@@ -39,7 +39,7 @@ export function PageNode({
       openModal({
         type: 'renamePage',
         kind: 'doc',
-        workspaceId: tree.ws,
+        workspaceId: pages.ws,
         id: doc.id,
         name: doc.title,
       }),
@@ -47,14 +47,18 @@ export function PageNode({
       openModal({
         type: 'confirmDeletePage',
         kind: 'doc',
-        workspaceId: tree.ws,
+        workspaceId: pages.ws,
         id: doc.id,
         name: doc.title,
       }),
   });
 
   const styles = {
-    row: cn('group', sidebarRow.base, selDoc === doc.id ? sidebarRow.selected : sidebarRow.default),
+    row: cn(
+      'group',
+      sidebarRow.base,
+      selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
+    ),
     // Leaf pages keep the (hidden) chevron so icons stay aligned.
     chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
@@ -69,7 +73,7 @@ export function PageNode({
     const isActivationKey = e.key === 'Enter' || e.key === ' ';
     if (!isActivationKey) return;
     e.preventDefault();
-    selectDoc(doc.id);
+    selectPage(doc.id);
   };
 
   return (
@@ -79,7 +83,7 @@ export function PageNode({
         style={styles.rowStyle}
         role="button"
         tabIndex={0}
-        onClick={() => selectDoc(doc.id)}
+        onClick={() => selectPage(doc.id)}
         onKeyDown={handleRowKeyDown}
       >
         <IconButton
@@ -135,7 +139,7 @@ export function PageNode({
       {isExpanded && hasChildren && (
         <>
           {children.map((child) => (
-            <PageNode key={child.doc.id} node={child} depth={depth + 1} tree={tree} />
+            <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
           ))}
           {canCreate && (
             <NewPageRow

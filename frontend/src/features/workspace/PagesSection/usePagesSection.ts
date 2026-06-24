@@ -6,16 +6,17 @@ import { wsAtLeast } from '../../../lib/roles';
 import type { WorkspaceCtx } from '../WorkspaceLayout';
 import { buildDocTree, getAncestorIds, mapDocsById } from '../pagesModel';
 
-// Owns the page tree's data + interaction state for a workspace: builds the tree,
-// tracks which pages are expanded (auto-revealing a deep-linked page's ancestors),
-// and exposes the navigation/create handlers the rows need. The recursive rows
-// receive this whole controller, so they don't each reach into stores/router.
-export function useDocTree(ctx: WorkspaceCtx) {
+// Owns the pages section's data + interaction state for a workspace: builds the
+// page hierarchy, tracks which pages are expanded (auto-revealing a deep-linked
+// page's ancestors), and exposes the navigation/create handlers the rows need. The
+// recursive rows receive this whole controller, so they don't each reach into
+// stores/router.
+export function usePagesSection(ctx: WorkspaceCtx) {
   const ws = ctx.workspaceId;
   const me = useAuthStore((s) => s.user);
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const selDoc = params.get('doc');
+  const selectedPageId = params.get('doc');
 
   const { data: docs = [], isLoading } = useDocuments(ws);
   const createDoc = useCreateDocument();
@@ -30,15 +31,15 @@ export function useDocTree(ctx: WorkspaceCtx) {
   // Reveal a deep-linked page (?doc=…) by expanding its ancestor spine on load.
   // We only ever add to the set, so the user's manual collapses aren't fought.
   useEffect(() => {
-    if (!selDoc) return;
+    if (!selectedPageId) return;
     setExpanded((prev) => {
       const next = new Set(prev);
-      for (const id of getAncestorIds(selDoc, byId)) next.add(id);
+      for (const id of getAncestorIds(selectedPageId, byId)) next.add(id);
       return next;
     });
-  }, [selDoc, byId]);
+  }, [selectedPageId, byId]);
 
-  const selectDoc = (id: string) => navigate(`/w/${ws}?doc=${id}`);
+  const selectPage = (id: string) => navigate(`/w/${ws}?doc=${id}`);
 
   const toggle = (id: string) =>
     setExpanded((s) => {
@@ -54,7 +55,7 @@ export function useDocTree(ctx: WorkspaceCtx) {
     if (parentId) setExpanded((s) => (s.has(parentId) ? s : new Set(s).add(parentId)));
     createDoc.mutate(
       { workspaceId: ws, parentId, title: 'Untitled' },
-      { onSuccess: (d) => selectDoc(d.id) },
+      { onSuccess: (d) => selectPage(d.id) },
     );
   };
 
@@ -65,14 +66,14 @@ export function useDocTree(ctx: WorkspaceCtx) {
     isLoading,
     roots,
     isEmpty,
-    selDoc,
+    selectedPageId,
     expanded,
     canCreate,
     toggle,
-    selectDoc,
+    selectPage,
     createPage,
     canManage,
   };
 }
 
-export type DocTreeController = ReturnType<typeof useDocTree>;
+export type PagesSectionController = ReturnType<typeof usePagesSection>;

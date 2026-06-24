@@ -9,6 +9,7 @@ import { Prisma, Visibility, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "../realm/active-realm.service";
 import { AuthzService } from "../realm/authz.service";
+import { trace } from "../tracing/trace";
 
 const USER_SELECT = { id: true, email: true, name: true, color: true } as const;
 
@@ -65,9 +66,15 @@ export class WorkspacesService {
   }
 
   async get(userId: string, workspaceId: string) {
-    const role = await this.authz.requireWorkspaceRole(userId, workspaceId, "READ");
-    const ws = await this.authz.getWorkspaceInRealm(workspaceId);
-    return { ...ws, role };
+    return trace("workspaces.get", async () => {
+      const role = await this.authz.requireWorkspaceRole(
+        userId,
+        workspaceId,
+        "READ"
+      );
+      const ws = await this.authz.getWorkspaceInRealm(workspaceId);
+      return { ...ws, role };
+    });
   }
 
   /** Patch name / visibility / defaultRole; requires workspace ADMIN. */

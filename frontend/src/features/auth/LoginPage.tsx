@@ -1,28 +1,31 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { Field } from '../../components/Field';
-import { TextInput } from '../../components/TextInput';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
+import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
+import { EmailOutlined, LockOutlined } from '@toddle-edu/ds-icons';
 import { useLogin } from '../../hooks/useAuthMutations';
 import { messageOf } from '../../lib/errors';
+
+const styles = {
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-5.5 text-body text-secondary',
+  form: 'flex flex-col gap-4',
+  row: 'flex items-center justify-between text-body-s',
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const err = login.isError;
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const loginFailed = login.isError;
+  const isLoggingIn = login.isPending;
 
-  const submit = () => {
-    if (login.isPending) return;
-    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
-  };
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submit();
+    if (isLoggingIn) return;
+    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
   };
 
   return (
@@ -33,52 +36,65 @@ export function LoginPage() {
         </span>
       }
     >
-      <h1 className="auth-h">Welcome back</h1>
-      <p className="auth-p">Sign in to reach your workspaces.</p>
+      <h1 className={styles.heading}>Welcome back</h1>
+      <p className={styles.subheading}>Sign in to reach your workspaces.</p>
 
-      {err && (
-        <div className="auth-banner err">
-          <Icon name="WarningTriangleOutlined" size={14} />
-          {messageOf(login.error, "That email and password don't match. Try again.")}
-        </div>
-      )}
+      <form className={styles.form} onSubmit={onSubmit}>
+        {loginFailed && (
+          <Alert
+            dsVersion="2.0"
+            type="error"
+            message={messageOf(login.error, "That email and password don't match. Try again.")}
+          />
+        )}
 
-      <form className="auth-form" onSubmit={onSubmit}>
-        <Field label="Email">
-          <TextInput
-            icon="EmailOutlined"
-            type="email"
-            placeholder="you@toddle.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            err={err}
-            required
-            autoFocus
-          />
-        </Field>
-        <Field label="Password">
-          <TextInput
-            type={showPw ? 'text' : 'password'}
-            icon="LockOutlined"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            err={err}
-            required
-            trailing={<Icon name="EyeOutlined" size={14} muted />}
-            onTrailingClick={() => setShowPw((v) => !v)}
-          />
-        </Field>
-        <div className="auth-row">
-          <label className="auth-check">
-            <span className="cbx on">
-              <Icon name="TickSmallOutlined" size={12} white />
-            </span>
+        <TextInput
+          dsVersion="2.0"
+          label="Email"
+          leadingIcon={<EmailOutlined />}
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@toddleapp.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={loginFailed ? ' ' : undefined}
+          required
+          autoFocus
+        />
+
+        <PasswordTextInput
+          dsVersion="2.0"
+          label="Password"
+          leadingIcon={<LockOutlined />}
+          required
+          value={password}
+          error={loginFailed ? ' ' : undefined}
+          onChange={(e) => setPassword(e.target.value)}
+          onTrailingIconClick={(e) => e.preventDefault()}
+        />
+
+        <div className={styles.row}>
+          <Checkbox
+            dsVersion="2.0"
+            size="small"
+            isChecked={keepSignedIn}
+            onChange={(e) => setKeepSignedIn((e.target as HTMLInputElement).checked)}
+          >
             Keep me signed in
-          </label>
-          <a>Forgot password?</a>
+          </Checkbox>
+          <Button
+            variant="progressive"
+            type="inline"
+            size="small"
+            onClick={(e) => e.preventDefault()}
+          >
+            Forgot password?
+          </Button>
         </div>
-        <Button type="submit" variant="primary" size="lg" block disabled={login.isPending} onClick={submit}>
-          {login.isPending ? 'Signing in…' : 'Sign in'}
+
+        <Button size="large" isFullWidth disabled={isLoggingIn}>
+          {isLoggingIn ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
     </AuthShell>

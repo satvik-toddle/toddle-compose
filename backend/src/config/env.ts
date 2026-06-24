@@ -73,6 +73,15 @@ export const envSchema = z.object({
   // If set, objects link to this public/CDN base URL; otherwise the provider returns pre-signed GET URLs.
   STORAGE_S3_PUBLIC_URL: z.string().optional(),
   STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
+
+  // --- Request tracing --------------------------------------------------------
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

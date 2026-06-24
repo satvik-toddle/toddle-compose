@@ -4,6 +4,14 @@ import { createLogger } from "../logger";
 
 const log = createLogger("db");
 
+// Prisma 7 types Bytes columns as Uint8Array<ArrayBuffer>. Node Buffers are
+// valid Bytes inputs at runtime (a Buffer is a Uint8Array backed by a regular,
+// non-shared ArrayBuffer), but @types/node now widens Buffer's backing store to
+// ArrayBufferLike, which no longer matches structurally. Narrow it back at the
+// Prisma write boundary — zero-copy, no allocation.
+const asBytes = (b: Uint8Array): Uint8Array<ArrayBuffer> =>
+  b as Uint8Array<ArrayBuffer>;
+
 export type RtcUpdateRow = {
   seq: number;
   byte_len: number;
@@ -50,7 +58,7 @@ export class DocRepository {
     const row = await this.prisma.rtcDocument.update({
       where: { id },
       data: {
-        yjsState,
+        yjsState: asBytes(yjsState),
         snapshotAtSeq,
         version: { increment: 1 },
         updatedAt: BigInt(Date.now()),
@@ -67,7 +75,11 @@ export class DocRepository {
     await this.ensureRtcDoc(id);
     await this.prisma.rtcDocument.update({
       where: { id },
-      data: { yjsState, snapshotAtSeq, updatedAt: BigInt(Date.now()) },
+      data: {
+        yjsState: asBytes(yjsState),
+        snapshotAtSeq,
+        updatedAt: BigInt(Date.now()),
+      },
     });
   }
 
@@ -88,7 +100,7 @@ export class DocRepository {
         data: {
           docId,
           seq: next,
-          updateBlob: blob,
+          updateBlob: asBytes(blob),
           byteLen: blob.byteLength,
           origin,
           clientSub,
@@ -248,7 +260,7 @@ export class DocRepository {
         data: {
           docId: args.docId,
           seq: args.mergedSeq,
-          updateBlob: args.mergedBlob,
+          updateBlob: asBytes(args.mergedBlob),
           byteLen: args.mergedBlob.byteLength,
           origin: args.origin,
           clientSub: args.clientSub,

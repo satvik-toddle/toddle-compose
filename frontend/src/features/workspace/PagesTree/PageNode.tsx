@@ -53,21 +53,22 @@ export function PageNode({
       }),
   });
 
-  const rowClassName = cn(
-    'group',
-    sidebarRow.base,
-    selDoc === doc.id ? sidebarRow.selected : sidebarRow.default,
-  );
-  const rowStyle: CSSProperties = { paddingLeft: BASE_INDENT + depth * INDENT_STEP };
-  // Leaf pages keep the (hidden) chevron so icons stay aligned.
-  const chevronButtonClassName = cn('shrink-0', !hasKids && 'invisible');
-  const chevronIconClassName = cn('transition-transform', open && 'rotate-90');
+  const styles = {
+    row: cn('group', sidebarRow.base, selDoc === doc.id ? sidebarRow.selected : sidebarRow.default),
+    // Leaf pages keep the (hidden) chevron so icons stay aligned.
+    chevronButton: cn('shrink-0', !hasKids && 'invisible'),
+    chevronIcon: cn('transition-transform', open && 'rotate-90'),
+    label: 'flex-1 truncate',
+    menuWrap: 'flex shrink-0',
+    menuTrigger: 'hidden group-hover:flex',
+    rowStyle: { paddingLeft: BASE_INDENT + depth * INDENT_STEP } as CSSProperties,
+  };
 
   return (
     <>
       <div
-        className={rowClassName}
-        style={rowStyle}
+        className={styles.row}
+        style={styles.rowStyle}
         role="button"
         onClick={() => selectDoc(doc.id)}
       >
@@ -78,18 +79,18 @@ export function PageNode({
           size="x-small"
           isCompact
           shouldStopPropagation
-          className={chevronButtonClassName}
+          className={styles.chevronButton}
           aria-label={open ? 'Collapse page' : 'Expand page'}
           onClick={() => toggle(doc.id)}
-          icon={<ChevronRightOutlined variant="subtle" className={chevronIconClassName} />}
+          icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
         />
 
         <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
 
-        <span className="flex-1 truncate">{doc.title}</span>
+        <span className={styles.label}>{doc.title}</span>
 
         {menuItems.length > 0 && (
-          <span className="flex shrink-0" onClick={(e) => e.stopPropagation()}>
+          <span className={styles.menuWrap} onClick={(e) => e.stopPropagation()}>
             <ActionMenu
               placement="bottomRight"
               trigger={
@@ -99,7 +100,7 @@ export function PageNode({
                   variant="neutral"
                   size="x-small"
                   isCompact
-                  className="hidden group-hover:flex"
+                  className={styles.menuTrigger}
                   aria-label="Page actions"
                   icon={<DotsHorizontalOutlined variant="subtle" />}
                 />
@@ -109,6 +110,7 @@ export function PageNode({
           </span>
         )}
       </div>
+
       {open && hasKids && (
         <>
           {children.map((c) => (

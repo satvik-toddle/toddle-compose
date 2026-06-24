@@ -4,13 +4,12 @@ import {
   DotsHorizontalOutlined,
   PageFoldPortraitOutlined,
 } from '@toddle-edu/ds-icons';
-import { IconButton } from '@toddle-edu/ds-web';
-import { ActionMenu } from '../../../components/ActionMenu';
+import { Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
 import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../pagesModel';
-import { buildPageMenuItems } from './pageMenuItems';
+import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
 import { NewPageRow } from './NewPageRow';
 import type { DocTreeController } from './useDocTree';
 
@@ -99,9 +98,21 @@ export function PageNode({
 
         {menuItems.length > 0 && (
           <span className={styles.menuWrap} onClick={(e) => e.stopPropagation()}>
-            <ActionMenu
+            <Dropdown
               placement="bottomRight"
-              trigger={
+              overlay={
+                <DropdownMenu
+                  dsVersion="2.0"
+                  options={menuItems}
+                  onClick={(opt: PageMenuOption) =>
+                    menuItems.find((m) => m.key === opt.key)?.onSelect?.()
+                  }
+                />
+              }
+            >
+              {/* antd attaches its ref/onClick to the trigger's DOM node — wrap the
+                  ds-web IconButton in a span so it doesn't warn about refs. */}
+              <span style={{ display: 'inline-flex' }}>
                 <IconButton
                   dsVersion="2.0"
                   type="plain"
@@ -112,9 +123,8 @@ export function PageNode({
                   aria-label="Page actions"
                   icon={<DotsHorizontalOutlined variant="subtle" />}
                 />
-              }
-              items={menuItems}
-            />
+              </span>
+            </Dropdown>
           </span>
         )}
       </div>

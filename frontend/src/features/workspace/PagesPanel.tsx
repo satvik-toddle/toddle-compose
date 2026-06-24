@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { EmptyState } from '../../components/EmptyState';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { useCreateDocument, useDocuments, useRenameDocument } from '../../hooks/usePages';
 import { buildDocTree } from './pagesModel';
 import s from './PagesPanel.module.scss';
@@ -90,7 +90,7 @@ export function PagesPanel() {
   if (isLoading) {
     return (
       <main className="ws-main">
-        <PageSpinner />
+        <PageLoader />
       </main>
     );
   }
@@ -115,7 +115,7 @@ export function PagesPanel() {
         <div className={s.wsDocTitlewrap}>
           <PageTitle workspaceId={ws} docId={doc.id} title={doc.title} canEdit={canEdit} />
         </div>
-        <Suspense fallback={<PageSpinner />}>
+        <Suspense fallback={<PageLoader />}>
           <DocEditor key={doc.id} docId={doc.id} canEdit={canEdit} />
         </Suspense>
       </main>

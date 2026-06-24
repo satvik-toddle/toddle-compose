@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon';
 import { EmptyState } from '../../components/EmptyState';
 import { RealmChip } from '../../components/RealmChip';
 import { Avatar } from '../../components/Avatar';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { WorkspaceCard } from './WorkspaceCard';
 import s from './LauncherPage.module.scss';
 import card from './WorkspaceCard.module.scss';
@@ -104,7 +104,7 @@ export function LauncherPage() {
 
   let body: React.ReactNode;
   if (isLoading) {
-    body = <PageSpinner />;
+    body = <PageLoader />;
   } else if (list.length === 0) {
     body = admin ? (
       <EmptyOwner onCreate={() => openModal({ type: 'createWorkspace' })} />

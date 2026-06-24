@@ -5,7 +5,7 @@ import { Avatar } from '../../components/Avatar';
 import { WSChip } from '../../components/WSChip';
 import { RoleSelect } from '../../components/RoleSelect';
 import { EmptyState } from '../../components/EmptyState';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import s from './JoinRequestsTab.module.scss';
 import { useRealmJoinRequests } from '../../hooks/queries';
 import { useApproveRequest, useRejectRequest } from '../../hooks/useJoinRequestMutations';
@@ -23,7 +23,7 @@ export function JoinRequestsTab() {
   // Per-request grant role (defaults to what they requested).
   const [grant, setGrant] = useState<Record<string, WorkspaceRole>>({});
 
-  if (isLoading) return <div className="page"><div className="page-wrap"><PageSpinner /></div></div>;
+  if (isLoading) return <div className="page"><div className="page-wrap"><PageLoader /></div></div>;
   const list = requests ?? [];
 
   return (

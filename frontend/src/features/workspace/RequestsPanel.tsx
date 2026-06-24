@@ -5,7 +5,7 @@ import { WSChip } from '../../components/WSChip';
 import { Icon } from '../../components/Icon';
 import { RoleSelect } from '../../components/RoleSelect';
 import { EmptyState } from '../../components/EmptyState';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { useWorkspaceJoinRequests } from '../../hooks/queries';
 import { useApproveRequest, useRejectRequest } from '../../hooks/useJoinRequestMutations';
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
@@ -71,7 +71,7 @@ export function RequestsPanel() {
         </div>
 
         {isLoading ? (
-          <PageSpinner />
+          <PageLoader />
         ) : list.length === 0 ? (
           <EmptyState glyph="🎉" glyphStyle={{ background: 'var(--surface-secondary-enabled)' }} title="No pending requests">
             When someone asks to join {ctx.name}, it'll show up here.

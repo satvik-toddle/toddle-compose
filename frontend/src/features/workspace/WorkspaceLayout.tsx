@@ -6,7 +6,7 @@ import { IconButton } from '../../components/IconButton';
 import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
 import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { WsNav } from './WsNav';
 import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
@@ -248,7 +248,7 @@ export function WorkspaceLayout() {
   if (isLoading || !ws || !workspaceId) {
     return (
       <div className="rbac">
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }

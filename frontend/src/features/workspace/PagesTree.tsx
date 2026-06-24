@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
 import { ActionMenu } from '../../components/ActionMenu';
+import { Loader } from '../../components/Loader';
 import { useCreateDocument, useDocuments } from '../../hooks/usePages';
 import { buildDocTree, type TreeDoc } from './pagesModel';
 import { useAuthStore } from '../../stores/authStore';
@@ -177,7 +178,9 @@ export function PagesTree({ ctx }: { ctx: WorkspaceCtx }) {
       <div className={s.wsNavGrp}>Pages</div>
       <div className={s.wsTree}>
         {isLoading ? (
-          <div style={{ padding: '8px 9px', fontSize: 12, color: 'var(--text-secondary)' }}>Loading…</div>
+          <div style={{ padding: '8px 9px' }}>
+              <Loader size={20} />
+            </div>
         ) : (
           <>
             {!isEmpty && roots.map((n) => <PageNode key={n.doc.id} node={n} depth={0} />)}

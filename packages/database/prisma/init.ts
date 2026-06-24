@@ -31,9 +31,10 @@ async function main() {
   const passwordHash = await bcrypt.hash(ownerPassword, BCRYPT_COST);
   const owner = await prisma.user.upsert({
     where: { email: ownerEmail },
-    // Never clobber a rotated password on re-run — only set it on first create.
-    // Backfill emailVerifiedAt so the owner isn't locked out by the verify gate.
-    update: { name: ownerName, emailVerifiedAt: new Date() },
+    // Never clobber a rotated password or re-verify an existing row on re-run.
+    update: { name: ownerName },
+    // A freshly-provisioned owner is created verified (it's the realm admin and
+    // must be able to sign in); legacy/organic rows are never backfilled.
     create: {
       email: ownerEmail,
       name: ownerName,

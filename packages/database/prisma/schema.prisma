@@ -126,6 +126,9 @@ model User {
   color         String         @default("#f04c54")
   // Null until the user clicks the link in their sign-up verification email.
   // Login is refused while this is null (the "user not authenticated" state).
+  // Added as a nullable column with NO backfill: pre-existing/legacy users are
+  // intentionally treated as unverified and must verify (or reset password) to
+  // sign in. See migrations/20260624_add_email_verification.sql.
   emailVerifiedAt DateTime?    @map("email_verified_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   documents     Document[]

@@ -1,5 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/Icon';
+import {
+  HomeOutlined,
+  StarOutlined,
+  BellRingOutlined,
+  MultipleUsersOutlined,
+  SettingsOutlined,
+  ChevronLeftOutlined,
+} from '@toddle-edu/ds-icons';
 import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../hooks/queries';
 import { useLeaveWorkspace } from '../../hooks/useAuthMutations';
 import { cn } from '../../lib/cn';
@@ -23,11 +31,11 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
 
       <div className={s.wsNavQuick}>
         <div className={s.qkRow} role="button" onClick={() => navigate(`/w/${workspaceId}`)}>
-          <Icon name="HomeOutlined" size={16} muted />
+          <HomeOutlined variant="subtle" size="xxx-small" />
           Home
         </div>
         <div className={s.qkRow}>
-          <Icon name="StarOutlined" size={16} muted />
+          <StarOutlined variant="subtle" size="xxx-small" />
           Starred
         </div>
       </div>
@@ -36,10 +44,17 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
 
       <div className={s.wsNavFoot}>
         {isAdmin && (
-          <NavLink to={`/w/${workspaceId}/requests`} className={({ isActive }) => cn(s.qkRow, isActive && s.active)}>
+          <NavLink
+            to={`/w/${workspaceId}/requests`}
+            className={({ isActive }) => cn(s.qkRow, isActive && s.active)}
+          >
             {({ isActive }) => (
               <>
-                <Icon name="BellRingOutlined" size={16} muted={!isActive} />
+                <BellRingOutlined
+                  size="xxx-small"
+                  variant={isActive ? undefined : 'subtle'}
+                  overrideVariantStyles={isActive}
+                />
                 Requests
                 <span className={`${s.qkCt} ${s.alert}`}>{requests?.length ?? 0}</span>
               </>
@@ -47,10 +62,17 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
           </NavLink>
         )}
         {isAdmin && (
-          <NavLink to={`/w/${workspaceId}/members`} className={({ isActive }) => cn(s.qkRow, isActive && s.active)}>
+          <NavLink
+            to={`/w/${workspaceId}/members`}
+            className={({ isActive }) => cn(s.qkRow, isActive && s.active)}
+          >
             {({ isActive }) => (
               <>
-                <Icon name="MultipleUsersOutlined" size={16} muted={!isActive} />
+                <MultipleUsersOutlined
+                  size="xxx-small"
+                  variant={isActive ? undefined : 'subtle'}
+                  overrideVariantStyles={isActive}
+                />
                 Members
                 <span className={s.qkCt}>{members?.length ?? 0}</span>
               </>
@@ -58,7 +80,7 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
           </NavLink>
         )}
         <div className={s.qkRow}>
-          <Icon name="SettingsOutlined" size={16} muted />
+          <SettingsOutlined variant="subtle" size="xxx-small" />
           Workspace settings
         </div>
         <div
@@ -67,7 +89,7 @@ export function WsNav({ ctx, collapsed }: { ctx: WorkspaceCtx; collapsed?: boole
           onClick={() => leave.mutate()}
           style={{ color: 'var(--text-secondary)' }}
         >
-          <Icon name="ChevronLeftOutlined" size={16} muted />
+          <ChevronLeftOutlined variant="subtle" size="xxx-small" />
           {isAdmin ? 'All workspaces' : 'Launcher'}
         </div>
       </div>

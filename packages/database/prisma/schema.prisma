@@ -124,15 +124,52 @@ model User {
   passwordHash  String         @map("password_hash")
   name          String
   color         String         @default("#f04c54")
+  // Null until the user clicks the link in their sign-up verification email.
+  // Login is refused while this is null (the "user not authenticated" state).
+  emailVerifiedAt DateTime?    @map("email_verified_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   documents     Document[]
   folders       Folder[]
   refreshTokens RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
 
   @@map("users")
+}
+
+// Short-lived, single-use tokens emailed on sign-up to verify ownership of the
+// address. Mirrors RefreshToken: only the sha256 hash is stored, never the raw
+// token (which travels in the email link). Consumed on success; GC'd once stale.
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// Short-lived, single-use tokens emailed for "forgot password". Same shape as
+// EmailVerificationToken: only the sha256 hash is stored; consumed on a
+// successful reset and GC'd once stale.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model RefreshToken {

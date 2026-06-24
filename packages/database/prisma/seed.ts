@@ -24,8 +24,15 @@ async function main() {
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, color: u.color },
-      create: { email: u.email, name: u.name, color: u.color, passwordHash },
+      update: { name: u.name, color: u.color, emailVerifiedAt: new Date() },
+      // Demo users are pre-verified so they can log in without the email flow.
+      create: {
+        email: u.email,
+        name: u.name,
+        color: u.color,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      },
     });
   }
   console.log(`Seeded ${USERS.length} demo users. Login password for all: "${PASSWORD}"`);

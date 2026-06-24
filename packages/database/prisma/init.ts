@@ -32,12 +32,14 @@ async function main() {
   const owner = await prisma.user.upsert({
     where: { email: ownerEmail },
     // Never clobber a rotated password on re-run — only set it on first create.
-    update: { name: ownerName },
+    // Backfill emailVerifiedAt so the owner isn't locked out by the verify gate.
+    update: { name: ownerName, emailVerifiedAt: new Date() },
     create: {
       email: ownerEmail,
       name: ownerName,
       color: "#f04c54",
       passwordHash,
+      emailVerifiedAt: new Date(),
     },
   });
 

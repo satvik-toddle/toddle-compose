@@ -17,10 +17,14 @@ import type { WorkspaceCtx } from '../WorkspaceLayout';
 
 const styles = {
   sidebar:
-    'flex w-[266px] flex-none flex-col overflow-auto border-r border-secondary bg-surface-secondary-enabled p-2.5 transition-[margin-left] duration-200 ease-in-out',
+    'flex w-[266px] flex-none flex-col overflow-hidden border-r border-secondary bg-surface-secondary-enabled p-2.5 transition-[margin-left] duration-200 ease-in-out',
   sidebarCollapsed: '-ml-[266px]',
+  // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
+  header: 'flex-none border-b border-secondary',
+  body: 'flex-1 min-h-0 overflow-y-auto pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
-  footerGroup: 'mt-auto flex flex-col gap-0.25 border-t border-secondary pt-2.5',
+  sectionHeading: 'flex items-center px-2.25 pt-2 pb-2 text-label-xs uppercase text-secondary',
+  footerGroup: 'flex flex-none flex-col gap-0.25 border-t border-secondary pt-2.5',
 };
 
 type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
@@ -35,35 +39,44 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
 
   return (
     <aside className={cn(styles.sidebar, collapsed && styles.sidebarCollapsed)}>
-      {/* Read-only stub until workspace search is wired up. */}
-      <div className="mb-2">
-        <SearchInput
-          dsVersion="2.0"
-          size="medium"
-          placeholder="Search this workspace…"
-          aria-label="Search this workspace"
-          readOnly
-        />
-      </div>
-
-      <div className={styles.linkGroup}>
-        <NavLink
-          to={`/w/${workspaceId}`}
-          end
-          className={({ isActive }) =>
-            cn(sidebarRow.base, isActive && !hasOpenDoc ? sidebarRow.selected : sidebarRow.default)
-          }
-        >
-          <HomeOutlined size="xxx-small" />
-          Home
-        </NavLink>
-        <div className={cn(sidebarRow.base, sidebarRow.default)}>
-          <StarOutlined size="xxx-small" />
-          Starred
+      <div className={styles.header}>
+        {/* Read-only stub until workspace search is wired up. */}
+        <div className="mb-2">
+          <SearchInput
+            dsVersion="2.0"
+            size="medium"
+            placeholder="Search this workspace…"
+            aria-label="Search this workspace"
+            readOnly
+          />
         </div>
+
+        <div className={styles.linkGroup}>
+          <NavLink
+            to={`/w/${workspaceId}`}
+            end
+            className={({ isActive }) =>
+              cn(
+                sidebarRow.base,
+                isActive && !hasOpenDoc ? sidebarRow.selected : sidebarRow.default,
+              )
+            }
+          >
+            <HomeOutlined size="xxx-small" />
+            Home
+          </NavLink>
+          <div className={cn(sidebarRow.base, sidebarRow.default)}>
+            <StarOutlined size="xxx-small" />
+            Starred
+          </div>
+        </div>
+
+        <div className={styles.sectionHeading}>Pages</div>
       </div>
 
-      <PagesSection ctx={ctx} />
+      <div className={styles.body}>
+        <PagesSection ctx={ctx} />
+      </div>
 
       <div className={styles.footerGroup}>
         {isAdmin && (

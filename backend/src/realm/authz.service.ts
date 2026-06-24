@@ -58,15 +58,19 @@ export class AuthzService {
     userId: string,
     workspaceId: string
   ): Promise<WorkspaceRole | null> {
-    await this.getWorkspaceInRealm(workspaceId);
+    // These three reads are independent — they share only userId/workspaceId/realm.id and
+    // none consumes another's result. Run them together so the role check costs one DB
+    // round trip instead of three (the dominant fixed cost on every authed request).
+    const [, realmRole, member] = await Promise.all([
+      this.getWorkspaceInRealm(workspaceId), // 404s if the workspace isn't in this realm
+      this.realmRole(userId),
+      this.prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId } },
+      }),
+    ]);
 
-    const realmRole = await this.realmRole(userId);
     const overlay: WorkspaceRole | null =
       realmRole === "OWNER" || realmRole === "MAINTAINER" ? "ADMIN" : null;
-
-    const member = await this.prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId } },
-    });
     const direct = member?.role ?? null;
 
     return this.maxWorkspaceRole(overlay, direct);

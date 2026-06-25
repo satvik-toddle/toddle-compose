@@ -34,6 +34,14 @@ export interface VerificationPending {
   email: string;
   // false when the backend mailer is in dev/console mode (link logged, not sent).
   emailDelivered: boolean;
+  // true when the account is already verified (email service bypassed, no link to wait for).
+  verified: boolean;
+}
+
+// GET /auth/config — public client config flagging email-dependent flows.
+export interface AuthConfig {
+  // false when the backend email service is bypassed (no self-serve password reset).
+  passwordResetEnabled: boolean;
 }
 
 // POST /auth/verify-email — success.

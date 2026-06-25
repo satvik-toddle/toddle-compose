@@ -42,6 +42,8 @@ export type VerificationPending = {
   email: string;
   // false when the mailer is in dev/console mode (link logged, not delivered).
   emailDelivered: boolean;
+  // true when the account is already verified (email service bypassed, no link to wait for).
+  verified: boolean;
 };
 
 // Returned by forgot-password: a fixed generic shape so neither the body nor a
@@ -80,16 +82,21 @@ export class AuthService {
       if (existing.emailVerifiedAt) {
         throw new ConflictException("email already registered");
       }
-      const delivered = await this.issueVerification(existing);
-      return { status: "verification_sent", email, emailDelivered: delivered };
+      const { delivered, verified } = await this.issueVerification(existing);
+      return { status: "verification_sent", email, emailDelivered: delivered, verified };
     }
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
     const user = await this.prisma.user.create({
       data: { email, name, color, passwordHash },
     });
-    const delivered = await this.issueVerification(user);
-    return { status: "verification_sent", email, emailDelivered: delivered };
+    const { delivered, verified } = await this.issueVerification(user);
+    return { status: "verification_sent", email, emailDelivered: delivered, verified };
+  }
+
+  // Public client config: lets the UI hide flows that can't work (e.g. password reset).
+  publicConfig(): { passwordResetEnabled: boolean } {
+    return { passwordResetEnabled: !this.mailer.isBypassed() };
   }
 
   // Empty allowlist = open registration; otherwise the email's domain must be listed.
@@ -161,10 +168,11 @@ export class AuthService {
   async resendVerification(email: string): Promise<VerificationPending> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     let emailDelivered = false;
+    let verified = false;
     if (user && !user.emailVerifiedAt) {
-      emailDelivered = await this.issueVerification(user);
+      ({ delivered: emailDelivered, verified } = await this.issueVerification(user));
     }
-    return { status: "verification_sent", email, emailDelivered };
+    return { status: "verification_sent", email, emailDelivered, verified };
   }
 
   // "Forgot password": email a reset link if the address has an account. Always
@@ -220,7 +228,18 @@ export class AuthService {
 
   // Mint a fresh verification token (invalidating prior unconsumed ones) and
   // email the link. Returns whether the mail was actually delivered.
-  private async issueVerification(user: DbUser): Promise<boolean> {
+  private async issueVerification(
+    user: DbUser
+  ): Promise<{ delivered: boolean; verified: boolean }> {
+    // No email service: flip the account straight to verified, send nothing.
+    if (this.mailer.isBypassed()) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
+      return { delivered: false, verified: true };
+    }
+
     const ttl = this.config.get("EMAIL_VERIFICATION_TTL_SEC", { infer: true });
     const frontendUrl = this.config
       .get("FRONTEND_URL", { infer: true })
@@ -233,7 +252,8 @@ export class AuthService {
       orderBy: { createdAt: "desc" },
       select: { createdAt: true },
     });
-    if (this.isWithinCooldown(last?.createdAt ?? null)) return false;
+    if (this.isWithinCooldown(last?.createdAt ?? null))
+      return { delivered: false, verified: false };
 
     const rawToken = randomBytes(32).toString("base64url");
     await this.prisma.$transaction([
@@ -256,12 +276,15 @@ export class AuthService {
       verifyUrl,
       expiresInMinutes: Math.round(ttl / 60),
     });
-    return delivered;
+    return { delivered, verified: false };
   }
 
   // Mint a fresh reset token (invalidating prior unconsumed ones) and email the
   // link. Returns whether the mail was actually delivered.
   private async issuePasswordReset(user: DbUser): Promise<boolean> {
+    // No email service: a reset link can't be delivered, so don't mint a token.
+    if (this.mailer.isBypassed()) return false;
+
     const ttl = this.config.get("PASSWORD_RESET_TTL_SEC", { infer: true });
     const frontendUrl = this.config
       .get("FRONTEND_URL", { infer: true })

@@ -18,6 +18,12 @@ import { CurrentUser, AuthUser } from "./current-user.decorator";
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  // Public client config: which email-dependent flows are available on this deployment.
+  @Get("config")
+  config() {
+    return this.auth.publicConfig();
+  }
+
   // Unauthenticated entry points rate-limited per client IP to blunt credential stuffing.
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: rateLimit.authRegister, ttl: rateLimit.ttlMs } })

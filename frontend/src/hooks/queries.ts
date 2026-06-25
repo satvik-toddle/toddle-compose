@@ -1,11 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 import { qk } from '../lib/queryKeys';
+import { authApi } from '../api/auth';
 import { realmApi } from '../api/realm';
 import { workspacesApi } from '../api/workspaces';
 import { joinApi } from '../api/joinRequests';
 import { useAuthStore } from '../stores/authStore';
 
 const useAuthed = () => useAuthStore((s) => s.status === 'authed');
+
+// Public deployment config (e.g. whether password reset is available); cached for the session.
+export function useAuthConfig() {
+  return useQuery({
+    queryKey: qk.authConfig,
+    queryFn: authApi.config,
+    staleTime: Infinity,
+  });
+}
 
 export function useRealm() {
   const authed = useAuthed();

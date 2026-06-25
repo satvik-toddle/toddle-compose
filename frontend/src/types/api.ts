@@ -79,6 +79,7 @@ export interface RealmInfo {
   id: string;
   name: string;
   role: RealmRole; // caller's realm role
+  allowedEmailDomains: string[]; // self-signup allowlist; empty = any domain
 }
 
 export interface RealmMember {

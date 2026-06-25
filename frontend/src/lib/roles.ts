@@ -14,6 +14,9 @@ export function wsAtLeast(role: WorkspaceRole | null | undefined, min: Workspace
 export function isRealmAdmin(role: RealmRole | null | undefined): boolean {
   return role === 'OWNER' || role === 'MAINTAINER';
 }
+export function isUserMember(role: RealmRole | null | undefined): boolean {
+  return role === 'MEMBER';
+}
 export function maxWsRole(
   a: WorkspaceRole | null,
   b: WorkspaceRole | null,

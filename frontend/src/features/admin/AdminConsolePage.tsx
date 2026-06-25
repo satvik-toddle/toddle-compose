@@ -41,12 +41,15 @@ export function AdminConsolePage() {
     ? 'members'
     : loc.pathname.includes('/requests')
       ? 'requests'
-      : 'workspaces';
+      : loc.pathname.includes('/settings')
+        ? 'settings'
+        : 'workspaces';
 
   const options = [
     { value: 'workspaces', label: 'Workspaces', suffix: <Count n={workspaces?.length} /> },
     { value: 'members', label: 'Realm members', suffix: <Count n={members?.length} /> },
     { value: 'requests', label: 'Join requests', suffix: <Count n={requests?.length} alert /> },
+    { value: 'settings', label: 'Settings' },
   ];
 
   return (

@@ -1,6 +1,5 @@
 import { Dropdown, DropdownMenu } from '@toddle-edu/ds-web';
-import { ChevronLeftOutlined } from '@toddle-edu/ds-icons';
-import { Icon } from '../../../components/Icon';
+import { ChevronDownOutlined, ChevronLeftOutlined, OutlinedIcons } from '@toddle-edu/ds-icons';
 import { useRealm, useWorkspaces } from '../../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { isRealmAdmin } from '../../../lib/roles';
@@ -10,12 +9,17 @@ import s from '../WorkspaceLayout.module.scss';
 
 const LEAVE_KEY = '__leave';
 
+// The workspace glyph is a dynamic ds-icon name; resolve it from the ds-icons
+// namespace. Brand color is applied via overrideVariantStyles + style.
+const dsIcon = (name: string) => OutlinedIcons[name as keyof typeof OutlinedIcons];
+
 export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   const { data: realm } = useRealm();
   const { data: workspaces = [] } = useWorkspaces();
   const enter = useEnterWorkspace();
   const leave = useLeaveWorkspace();
   const vis = workspaceVisual(ctx.workspaceId);
+  const VisIcon = dsIcon(vis.icon);
 
   // A "Switch workspace" group (tick on the current one) + a "back to launcher" footer.
   const options = [
@@ -25,10 +29,11 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
       isItemGroup: true,
       options: workspaces.map((w) => {
         const wv = workspaceVisual(w.id);
+        const WsIcon = dsIcon(wv.icon);
         return {
           key: w.id,
           label: w.name,
-          icon: <Icon name={wv.icon} size={14} style={{ color: wv.color }} />,
+          icon: <WsIcon size="xxx-small" overrideVariantStyles style={{ color: wv.color }} />,
         };
       }),
     },
@@ -66,10 +71,10 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
             className="ws-emoji sm"
             style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
           >
-            <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+            <VisIcon size="x-small" overrideVariantStyles style={{ color: vis.color }} />
           </span>
           <span className="nm">{ctx.name}</span>
-          <Icon name="ChevronDownOutlined" size={14} muted />
+          <ChevronDownOutlined size="xxx-small" variant="subtle" />
         </button>
       </span>
     </Dropdown>

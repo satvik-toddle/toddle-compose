@@ -1,7 +1,11 @@
-import { Button } from '@toddle-edu/ds-web';
-import { AddOutlined, ShareOutlined } from '@toddle-edu/ds-icons';
-import { IconButton } from '../../../components/IconButton';
-import { ActionMenu } from '../../../components/ActionMenu';
+import { Button, Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
+import {
+  AddOutlined,
+  DeleteOutlined,
+  DotsHorizontalOutlined,
+  PencilOutlined,
+  ShareOutlined,
+} from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto, User } from '../../../types/api';
@@ -36,6 +40,49 @@ export function DocActions({
     );
   }
 
+  const menuOptions = [
+    ...(canCreate
+      ? [
+          {
+            key: 'subpage',
+            label: 'Add sub-page',
+            icon: <AddOutlined size="xxx-small" variant="subtle" />,
+          },
+        ]
+      : []),
+    ...(canManage
+      ? [
+          {
+            key: 'rename',
+            label: 'Rename',
+            icon: <PencilOutlined size="xxx-small" variant="subtle" />,
+          },
+          { key: 'delete__div', isDivider: true },
+          {
+            key: 'delete',
+            label: 'Delete',
+            icon: <DeleteOutlined size="xxx-small" variant="critical" />,
+            isDestructive: true,
+          },
+        ]
+      : []),
+  ];
+
+  const handleMenuSelect = (key: string) => {
+    if (key === 'subpage') addSubPage(doc.id);
+    else if (key === 'rename') {
+      openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
+    } else if (key === 'delete') {
+      openModal({
+        type: 'confirmDeletePage',
+        kind: 'doc',
+        workspaceId: ws,
+        id: doc.id,
+        name: doc.title,
+      });
+    }
+  };
+
   return (
     <>
       <Button
@@ -57,54 +104,28 @@ export function DocActions({
         Share
       </Button>
       {(canCreate || canManage) && (
-        <ActionMenu
+        <Dropdown
+          trigger={['click']}
           placement="bottomRight"
-          trigger={<IconButton icon="DotsHorizontalOutlined" iconSize={18} />}
-          items={[
-            ...(canCreate
-              ? [
-                  {
-                    key: 'subpage',
-                    label: 'Add sub-page',
-                    icon: 'AddOutlined' as const,
-                    onSelect: () => addSubPage(doc.id),
-                  },
-                ]
-              : []),
-            ...(canManage
-              ? [
-                  {
-                    key: 'rename',
-                    label: 'Rename',
-                    icon: 'PencilOutlined' as const,
-                    onSelect: () =>
-                      openModal({
-                        type: 'renamePage',
-                        kind: 'doc',
-                        workspaceId: ws,
-                        id: doc.id,
-                        name: doc.title,
-                      }),
-                  },
-                  {
-                    key: 'delete',
-                    label: 'Delete',
-                    icon: 'DeleteOutlined' as const,
-                    danger: true,
-                    dividerBefore: true,
-                    onSelect: () =>
-                      openModal({
-                        type: 'confirmDeletePage',
-                        kind: 'doc',
-                        workspaceId: ws,
-                        id: doc.id,
-                        name: doc.title,
-                      }),
-                  },
-                ]
-              : []),
-          ]}
-        />
+          overlay={
+            <DropdownMenu
+              dsVersion="2.0"
+              options={menuOptions}
+              onClick={(option: { key: string }) => handleMenuSelect(option.key)}
+            />
+          }
+        >
+          {/* antd attaches its open-on-click handler to this DOM node. */}
+          <span className="inline-flex">
+            <IconButton
+              dsVersion="2.0"
+              variant="neutral"
+              type="plain"
+              icon={<DotsHorizontalOutlined />}
+              aria-label="Page actions"
+            />
+          </span>
+        </Dropdown>
       )}
     </>
   );

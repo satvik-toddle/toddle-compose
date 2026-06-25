@@ -38,7 +38,7 @@ export function WorkspaceTopbar({
         {doc && <DocBreadcrumb title={doc.title} />}
       </div>
       <div className={styles.right}>
-        <DocActions ctx={ctx} doc={doc} me={currentUser} />
+        <DocActions ctx={ctx} doc={doc} user={currentUser} />
         <AccountMenu user={currentUser} realmRole={realm?.role} compact />
       </div>
     </div>

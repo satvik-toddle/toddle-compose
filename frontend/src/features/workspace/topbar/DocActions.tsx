@@ -19,13 +19,13 @@ const DELETE_KEY = 'delete';
 export function DocActions({
   ctx,
   doc,
-  me,
-}: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; me: User }>) {
-  const openModal = useUiStore((s) => s.openModal);
+  user,
+}: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; user: User }>) {
+  const openModal = useUiStore((state) => state.openModal);
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
-  const canManage = !!doc && (isAdmin || doc.owner.id === me.id);
+  const canManage = !!doc && (isAdmin || doc.owner.id === user.id);
 
   if (!doc) {
     return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
@@ -29,6 +29,18 @@ export function LoginPage() {
   const notVerified = isEmailNotVerified(login.error);
   const loginFailed = login.isError && !notVerified;
   const isLoggingIn = login.isPending;
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (isLoggingIn) return 'Signing in…';
+    return 'Sign in';
+  }, [isLoggingIn]);
+
+  const resendButtonLabel = useMemo(() => {
+    if (resend.isPending) return 'Sending…';
+    if (cooldown.active) return `Resend available in ${cooldown.remaining}s`;
+    return 'Resend verification email';
+  }, [resend.isPending, cooldown.active, cooldown.remaining]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,11 +102,7 @@ export function LoginPage() {
                   onResend();
                 }}
               >
-                {resend.isPending
-                  ? 'Sending…'
-                  : cooldown.active
-                    ? `Resend available in ${cooldown.remaining}s`
-                    : 'Resend verification email'}
+                {resendButtonLabel}
               </Button>
             )}
           </div>
@@ -149,7 +157,7 @@ export function LoginPage() {
         </div>
 
         <Button size="large" isFullWidth disabled={isLoggingIn}>
-          {isLoggingIn ? 'Signing in…' : 'Sign in'}
+          {submitButtonLabel}
         </Button>
       </form>
     </AuthShell>

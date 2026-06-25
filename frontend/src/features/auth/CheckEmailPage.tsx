@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { Alert, Button } from '@toddle-edu/ds-web';
@@ -35,6 +35,13 @@ export function CheckEmailPage() {
   useEffect(() => {
     if (email) start();
   }, [email, start]);
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const resendButtonLabel = useMemo(() => {
+    if (resend.isPending) return 'Resending…';
+    if (cooldown.active) return `Resend available in ${cooldown.remaining}s`;
+    return 'Resend verification email';
+  }, [resend.isPending, cooldown.active, cooldown.remaining]);
 
   // Direct hit with no email in state → nothing to show; send them to register.
   if (!email) return <Navigate to="/register" replace />;
@@ -93,11 +100,7 @@ export function CheckEmailPage() {
           disabled={resend.isPending || cooldown.active}
           onClick={onResend}
         >
-          {resend.isPending
-            ? 'Resending…'
-            : cooldown.active
-              ? `Resend available in ${cooldown.remaining}s`
-              : 'Resend verification email'}
+          {resendButtonLabel}
         </Button>
       </div>
 

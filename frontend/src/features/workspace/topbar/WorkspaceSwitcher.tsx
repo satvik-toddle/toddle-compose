@@ -1,11 +1,14 @@
+import { Dropdown, DropdownMenu } from '@toddle-edu/ds-web';
+import { ChevronLeftOutlined } from '@toddle-edu/ds-icons';
 import { Icon } from '../../../components/Icon';
-import { ActionMenu, type MenuItem } from '../../../components/ActionMenu';
 import { useRealm, useWorkspaces } from '../../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { isRealmAdmin } from '../../../lib/roles';
 import { workspaceVisual } from '../../../lib/workspaceVisual';
 import type { WorkspaceCtx } from '../context';
 import s from '../WorkspaceLayout.module.scss';
+
+const LEAVE_KEY = '__leave';
 
 export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   const { data: realm } = useRealm();
@@ -14,37 +17,50 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   const leave = useLeaveWorkspace();
   const vis = workspaceVisual(ctx.workspaceId);
 
-  // Workspace switcher entries: each workspace (tick on the current one) + a
-  // "back to launcher" footer.
-  const switcherItems: MenuItem[] = [
-    ...workspaces.map((w) => {
-      const wv = workspaceVisual(w.id);
-      return {
-        key: w.id,
-        label: w.name,
-        icon: wv.icon,
-        iconColor: wv.color,
-        onSelect: () => {
-          if (w.id !== ctx.workspaceId) enter.mutate(w.id);
-        },
-      };
-    }),
+  // A "Switch workspace" group (tick on the current one) + a "back to launcher" footer.
+  const options = [
     {
-      key: '__leave',
+      key: '__hdr',
+      label: 'Switch workspace',
+      isItemGroup: true,
+      options: workspaces.map((w) => {
+        const wv = workspaceVisual(w.id);
+        return {
+          key: w.id,
+          label: w.name,
+          icon: <Icon name={wv.icon} size={14} style={{ color: wv.color }} />,
+        };
+      }),
+    },
+    {
+      key: LEAVE_KEY,
       label: isRealmAdmin(realm?.role) ? 'Back to all workspaces' : 'Workspace launcher',
-      icon: 'ChevronLeftOutlined',
-      dividerBefore: true,
-      onSelect: () => leave.mutate(),
+      icon: <ChevronLeftOutlined size="xxx-small" variant="subtle" />,
     },
   ];
 
+  const onSelect = (key: string) => {
+    if (key === LEAVE_KEY) leave.mutate();
+    else if (key !== ctx.workspaceId) enter.mutate(key);
+  };
+
   return (
-    <ActionMenu
+    <Dropdown
+      trigger={['click']}
       placement="bottomLeft"
-      header="Switch workspace"
-      selectedKey={ctx.workspaceId}
-      items={switcherItems}
-      trigger={
+      overlay={
+        <DropdownMenu
+          dsVersion="2.0"
+          options={options}
+          value={ctx.workspaceId}
+          showSelection
+          selectionType="tick"
+          onClick={(item: { key: string }) => onSelect(item.key)}
+        />
+      }
+    >
+      {/* antd attaches its ref/onClick to a DOM node — wrap the trigger so it doesn't warn about refs. */}
+      <span className="ds-dd-trigger" style={{ display: 'inline-flex' }}>
         <button className={s.wsSwitch}>
           <span
             className="ws-emoji sm"
@@ -55,7 +71,7 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
           <span className="nm">{ctx.name}</span>
           <Icon name="ChevronDownOutlined" size={14} muted />
         </button>
-      }
-    />
+      </span>
+    </Dropdown>
   );
 }

@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, Dropdown } from '@toddle-edu/ds-web';
-import { ChevronDownOutlined } from '@toddle-edu/ds-icons';
+import { Avatar, Button, Dropdown, Tag } from '@toddle-edu/ds-web';
+import { ChevronDownOutlined, OutlinedIcons } from '@toddle-edu/ds-icons';
 import { performLogout } from '../lib/session';
-import { RealmChip } from './RealmChip';
 import { cn } from '../lib/cn';
 import { dsAvatarColor, dsAvatarSize } from '../lib/dsAvatar';
 import type { User } from '../types/api';
@@ -22,6 +21,12 @@ const styles = {
   menuName: 'text-label',
   menuEmail: 'mt-0.25 text-body-s text-secondary',
   menuRole: 'mt-2',
+};
+
+const REALM_TAG_COLOR: Record<RealmRole, 'red' | 'violet' | 'neutral'> = {
+  OWNER: 'red',
+  MAINTAINER: 'violet',
+  MEMBER: 'neutral',
 };
 
 // Account pill + dropdown (name, email, realm role badge, sign out). `compact`
@@ -46,18 +51,29 @@ export function AcctPill({
   };
 
   const triggerClass = cn(styles.trigger, compact ? styles.triggerCompact : styles.triggerExpanded);
+  const RealmRoleIcon = realmRole
+    ? OutlinedIcons[REALM_ROLE_META[realmRole].icon as keyof typeof OutlinedIcons]
+    : null;
 
   const menu = (
     <div className={styles.menu} role="menu">
       <div className={styles.menuHead}>
         <div className={styles.menuName}>{me.name}</div>
         <div className={styles.menuEmail}>{me.email}</div>
-        {realmRole && (
+        {realmRole && RealmRoleIcon && (
           <div className={styles.menuRole}>
-            <RealmChip role={realmRole} sm />
+            <Tag
+              dsVersion="2.0"
+              size="small"
+              color={REALM_TAG_COLOR[realmRole]}
+              prefix={<RealmRoleIcon />}
+            >
+              {REALM_ROLE_META[realmRole].label}
+            </Tag>
           </div>
         )}
       </div>
+
       <Button dsVersion="2.0" isFullWidth onClick={signOut}>
         Sign out
       </Button>

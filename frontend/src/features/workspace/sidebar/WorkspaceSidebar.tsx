@@ -38,6 +38,7 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   const hasOpenDoc = !!searchParams.get('doc');
   const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
+  const hasPendingRequests = !!requests?.length;
   const pages = usePagesSection(ctx);
 
   return (
@@ -101,16 +102,17 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           >
             <BellRingOutlined size="xxx-small" />
             Requests
-            <span className="ml-auto">
-              <Badge
-                dsVersion="2.0"
-                type="numeric"
-                variant="notifications"
-                size="xxx-small"
-                value={requests?.length ?? 0}
-                showZero
-              />
-            </span>
+            {hasPendingRequests && (
+              <span className="ml-auto">
+                <Badge
+                  dsVersion="2.0"
+                  type="numeric"
+                  variant="notifications"
+                  size="xxx-small"
+                  value={requests.length}
+                />
+              </span>
+            )}
           </NavLink>
         )}
         {isAdmin && (

@@ -3,6 +3,7 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
+import { uploadFile } from '../../api/uploads';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
@@ -17,6 +18,19 @@ const EDITOR_STYLES = {
   anchorElement: { width: '100%', maxWidth: '100%' },
   contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
 };
+
+// The editor calls this for every image/file insert (device upload, paste,
+// drag-drop, and URL-add — which it re-fetches then re-uploads). It hands us
+// either a bare File/Blob or an object `{ file, attachment }`; both must resolve
+// to a fetchable URL it can use as the node src. Returns the stored object URL.
+type UploadArg = File | Blob | { file: File | Blob; attachment?: { name?: string } };
+async function uploadToServer(arg: UploadArg): Promise<string> {
+  const file = arg instanceof Blob ? arg : arg?.file;
+  if (!file) throw new Error('uploadToServer: no file provided');
+  const name = !(arg instanceof Blob) ? arg?.attachment?.name : undefined;
+  const stored = await uploadFile(file, name);
+  return stored.url;
+}
 
 // Real-time collaborative editor. Mints an RTC token, then hands ds-doc-editor a
 // `collab` config whose providerFactory opens a Yjs Websocket to the rtc-server
@@ -68,6 +82,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
     <div className={s.tcEditor}>
       <DsDocEditor
         collab={collab}
+        uploadToServer={uploadToServer}
         viewOnly={rtc.role !== 'editor'}
         placeholder={rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'}
         config={EDITOR_CONFIG}

@@ -1,6 +1,4 @@
 import { useSearchParams } from 'react-router-dom';
-import { IconButton } from '../../../components/IconButton';
-import { WSChip } from '../../../components/WSChip';
 import { AcctPill } from '../../../components/AcctPill';
 import { useRealm } from '../../../hooks/queries';
 import { useDocuments } from '../../../hooks/usePages';
@@ -12,7 +10,10 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { DocBreadcrumb } from './DocBreadcrumb';
 import { DocActions } from './DocActions';
 
-export function WorkspaceTopbar({ ctx, onToggleSidebar }: Readonly<{ ctx: WorkspaceCtx; onToggleSidebar: () => void }>) {
+export function WorkspaceTopbar({
+  ctx,
+  onToggleSidebar,
+}: Readonly<{ ctx: WorkspaceCtx; onToggleSidebar: () => void }>) {
   const me = useAuthStore((s) => s.user);
   const { data: realm } = useRealm();
   const [params] = useSearchParams();
@@ -34,9 +35,6 @@ export function WorkspaceTopbar({ ctx, onToggleSidebar }: Readonly<{ ctx: Worksp
         {doc && <DocBreadcrumb title={doc.title} />}
       </div>
       <div className={s.wsTbRight}>
-        {ctx.overlay ? <WSChip overlay /> : <WSChip role={ctx.role} />}
-        <IconButton icon="SearchOutlined" iconSize={18} />
-        <IconButton icon="BellRingOutlined" iconSize={18} />
         <DocActions ctx={ctx} doc={doc} me={me} />
         <AcctPill me={me} realmRole={realm?.role} compact />
       </div>

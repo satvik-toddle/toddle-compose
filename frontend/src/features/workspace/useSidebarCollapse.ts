@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'tc-sidebar';
 
@@ -11,7 +11,7 @@ export function useSidebarCollapse() {
     }
   });
 
-  const toggle = () =>
+  const toggle = useCallback(() => {
     setCollapsed((c) => {
       const next = !c;
       try {
@@ -21,6 +21,21 @@ export function useSidebarCollapse() {
       }
       return next;
     });
+  }, []);
+
+  // Cmd/Ctrl + \ toggles the sidebar from anywhere in the workspace.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isToggleShortcut = (e.metaKey || e.ctrlKey) && e.key === '\\';
+      const isInitialPress = !e.repeat;
+      if (isToggleShortcut && isInitialPress) {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggle]);
 
   return { collapsed, toggle };
 }

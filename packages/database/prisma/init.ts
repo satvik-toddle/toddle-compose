@@ -1,8 +1,12 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
 // Realm bootstrap (the backend refuses to start without a realm matching REALM_ID); prod-safe and idempotent.
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the db:init script.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 const BCRYPT_COST = 12; // matches the auth service
 
 function required(name: string): string {
@@ -31,13 +35,16 @@ async function main() {
   const passwordHash = await bcrypt.hash(ownerPassword, BCRYPT_COST);
   const owner = await prisma.user.upsert({
     where: { email: ownerEmail },
-    // Never clobber a rotated password on re-run — only set it on first create.
+    // Never clobber a rotated password or re-verify an existing row on re-run.
     update: { name: ownerName },
+    // A freshly-provisioned owner is created verified (it's the realm admin and
+    // must be able to sign in); legacy/organic rows are never backfilled.
     create: {
       email: ownerEmail,
       name: ownerName,
       color: "#f04c54",
       passwordHash,
+      emailVerifiedAt: new Date(),
     },
   });
 

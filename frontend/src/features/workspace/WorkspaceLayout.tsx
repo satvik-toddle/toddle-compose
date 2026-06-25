@@ -6,8 +6,8 @@ import { IconButton } from '../../components/IconButton';
 import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
 import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
-import { PageSpinner } from '../../components/Spinner';
-import { WsNav } from './WsNav';
+import { PageLoader } from '../../components/Loader';
+import { WorkspaceSidebar } from './sidebar';
 import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../hooks/useAuthMutations';
@@ -248,7 +248,7 @@ export function WorkspaceLayout() {
   if (isLoading || !ws || !workspaceId) {
     return (
       <div className="rbac">
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }
@@ -267,7 +267,7 @@ export function WorkspaceLayout() {
     <div className="rbac">
       <WsTopbar ctx={ctx} onToggleSidebar={toggleSidebar} />
       <div className={s.wsBody}>
-        <WsNav ctx={ctx} collapsed={sidebarCollapsed} />
+        <WorkspaceSidebar ctx={ctx} collapsed={sidebarCollapsed} />
         <Outlet context={ctx} />
       </div>
     </div>

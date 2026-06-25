@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { Button } from '../../components/Button';
@@ -19,6 +19,12 @@ export function RenameWorkspaceModal({
 }) {
   const rename = useRenameWorkspace();
   const [name, setName] = useState(initialName);
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (rename.isPending) return 'Saving…';
+    return 'Save changes';
+  }, [rename.isPending]);
 
   const submit = () => {
     if (!name.trim() || rename.isPending) return;
@@ -54,7 +60,7 @@ export function RenameWorkspaceModal({
           Cancel
         </Button>
         <Button variant="primary" disabled={!name.trim() || rename.isPending} onClick={submit}>
-          {rename.isPending ? 'Saving…' : 'Save changes'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

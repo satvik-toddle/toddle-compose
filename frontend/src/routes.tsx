@@ -5,7 +5,10 @@ import { WorkspaceScopeRoute } from './app/WorkspaceScopeRoute';
 import { RootRedirect } from './app/RootRedirect';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
-import { RegisterSuccessPage } from './features/auth/RegisterSuccessPage';
+import { CheckEmailPage } from './features/auth/CheckEmailPage';
+import { VerifyEmailPage } from './features/auth/VerifyEmailPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { RequestAccessPage } from './features/auth/RequestAccessPage';
 import { LauncherPage } from './features/launcher/LauncherPage';
 import { AdminConsolePage } from './features/admin/AdminConsolePage';
@@ -23,7 +26,10 @@ export function AppRoutes() {
       {/* public auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/register/success" element={<RegisterSuccessPage />} />
+      <Route path="/register/check-email" element={<CheckEmailPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>

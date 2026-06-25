@@ -1,8 +1,12 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
 // Demo users only — LOCAL/dev convenience (shared password). Do NOT run in production.
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the db:seed script.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const PASSWORD = "password123";
 
@@ -24,8 +28,18 @@ async function main() {
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { email: u.email },
+      // Only touch profile fields on re-run — never backfill emailVerifiedAt on
+      // an existing row (legacy/organic users stay unverified by design).
       update: { name: u.name, color: u.color },
-      create: { email: u.email, name: u.name, color: u.color, passwordHash },
+      // Freshly-seeded demo users are provisioned as verified so they can log in
+      // without the email flow.
+      create: {
+        email: u.email,
+        name: u.name,
+        color: u.color,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      },
     });
   }
   console.log(`Seeded ${USERS.length} demo users. Login password for all: "${PASSWORD}"`);

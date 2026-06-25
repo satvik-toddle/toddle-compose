@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import bcrypt from "bcrypt";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@app/database";
 import { AppModule } from "../src/app.module";
 import { ActiveRealmService } from "../src/realm/active-realm.service";
@@ -19,7 +20,10 @@ const REALM_ID = process.env.REALM_ID ?? "realm_toddle";
 const OWNER_EMAIL = "owner@toddle.test";
 const PASSWORD = "password123";
 const stamp = Date.now();
-const db = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the test script.
+const db = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 

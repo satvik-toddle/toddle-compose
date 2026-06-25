@@ -1,4 +1,5 @@
-import { Button } from '../../../components/Button';
+import { Button } from '@toddle-edu/ds-web';
+import { AddOutlined, ShareOutlined } from '@toddle-edu/ds-icons';
 import { IconButton } from '../../../components/IconButton';
 import { ActionMenu } from '../../../components/ActionMenu';
 import { useUiStore } from '../../../stores/uiStore';
@@ -7,7 +8,11 @@ import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { usePageActions } from './usePageActions';
 
-export function DocActions({ ctx, doc, me }: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; me: User }>) {
+export function DocActions({
+  ctx,
+  doc,
+  me,
+}: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; me: User }>) {
   const openModal = useUiStore((s) => s.openModal);
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const ws = ctx.workspaceId;
@@ -17,7 +22,14 @@ export function DocActions({ ctx, doc, me }: Readonly<{ ctx: WorkspaceCtx; doc?:
   if (!doc) {
     return (
       canCreate && (
-        <Button variant="primary" icon="AddOutlined" size="sm" onClick={newPage} disabled={isPending}>
+        <Button
+          dsVersion="2.0"
+          variant="primary"
+          type="fill"
+          icon={<AddOutlined />}
+          onClick={newPage}
+          disabled={isPending}
+        >
           New page
         </Button>
       )
@@ -27,8 +39,10 @@ export function DocActions({ ctx, doc, me }: Readonly<{ ctx: WorkspaceCtx; doc?:
   return (
     <>
       <Button
-        icon="ShareOutlined"
-        size="sm"
+        dsVersion="2.0"
+        variant="neutral"
+        type="outlined"
+        icon={<ShareOutlined />}
         onClick={() =>
           openModal({
             type: 'shareDocument',
@@ -48,7 +62,14 @@ export function DocActions({ ctx, doc, me }: Readonly<{ ctx: WorkspaceCtx; doc?:
           trigger={<IconButton icon="DotsHorizontalOutlined" iconSize={18} />}
           items={[
             ...(canCreate
-              ? [{ key: 'subpage', label: 'Add sub-page', icon: 'AddOutlined' as const, onSelect: () => addSubPage(doc.id) }]
+              ? [
+                  {
+                    key: 'subpage',
+                    label: 'Add sub-page',
+                    icon: 'AddOutlined' as const,
+                    onSelect: () => addSubPage(doc.id),
+                  },
+                ]
               : []),
             ...(canManage
               ? [
@@ -57,7 +78,13 @@ export function DocActions({ ctx, doc, me }: Readonly<{ ctx: WorkspaceCtx; doc?:
                     label: 'Rename',
                     icon: 'PencilOutlined' as const,
                     onSelect: () =>
-                      openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title }),
+                      openModal({
+                        type: 'renamePage',
+                        kind: 'doc',
+                        workspaceId: ws,
+                        id: doc.id,
+                        name: doc.title,
+                      }),
                   },
                   {
                     key: 'delete',

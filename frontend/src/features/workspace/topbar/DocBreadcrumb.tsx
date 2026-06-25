@@ -6,10 +6,9 @@ import type { BreadcrumbSegment } from './ancestorTrail';
 
 const styles = {
   // -ml-1 cancels the topbar's gap-1 so the lead matches the inter-segment spacing.
-  crumb:
-    'relative -ml-1 flex items-center min-w-0 overflow-hidden whitespace-nowrap text-heading-6',
+  crumb: 'relative -ml-1 flex items-center min-w-0 overflow-hidden whitespace-nowrap text-body',
   measure: 'invisible pointer-events-none absolute left-0 flex items-center',
-  separator: 'shrink-0 mx-2 text-secondary',
+  separator: 'shrink-0 mx-2 leading-none text-secondary',
   link: 'shrink-0 text-secondary hover:text-primary hover:underline',
   current: 'min-w-0 truncate text-primary',
 };
@@ -59,6 +58,11 @@ export function DocBreadcrumb({
       </Link>
     );
 
+  // Lead divider is a pipe, nested separators are slashes — same style for both.
+  const renderSeparator = (index: number) => (
+    <span className={styles.separator}>{index === 0 ? '|' : '/'}</span>
+  );
+
   const visibleSegments = isCollapsed
     ? [
         { key: trail[0].id, node: renderSegment(trail[0], 0) },
@@ -81,7 +85,7 @@ export function DocBreadcrumb({
       <div ref={measureRef} aria-hidden className={styles.measure}>
         {trail.map((segment, index) => (
           <Fragment key={segment.id}>
-            <span className={styles.separator}>{index === 0 ? '|' : '/'}</span>
+            {renderSeparator(index)}
             <span className="shrink-0">{segment.title}</span>
           </Fragment>
         ))}
@@ -89,7 +93,7 @@ export function DocBreadcrumb({
 
       {visibleSegments.map(({ key, node }, index) => (
         <Fragment key={key}>
-          <span className={styles.separator}>{index === 0 ? '|' : '/'}</span>
+          {renderSeparator(index)}
           {node}
         </Fragment>
       ))}

@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
 import { EmailOutlined, LockOutlined } from '@toddle-edu/ds-icons';
 import { useLogin, useResendVerification } from '../../hooks/useAuthMutations';
+import { useAuthConfig } from '../../hooks/queries';
 import { useCooldown, EMAIL_RESEND_COOLDOWN_SEC } from '../../hooks/useCooldown';
 import { isEmailNotVerified, messageOf } from '../../lib/errors';
 
@@ -17,9 +18,15 @@ const styles = {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set when register redirected here (email service bypassed); account is ready to sign in.
+  const registeredEmail = (location.state as { registered?: string } | null)?.registered;
   const login = useLogin();
   const resend = useResendVerification();
-  const [email, setEmail] = useState('');
+  const { data: authConfig } = useAuthConfig();
+  // Default to enabled until config loads; hide only when the server reports it off.
+  const passwordResetEnabled = authConfig?.passwordResetEnabled !== false;
+  const [email, setEmail] = useState(registeredEmail ?? '');
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [resent, setResent] = useState(false);
@@ -71,6 +78,14 @@ export function LoginPage() {
       <p className={styles.subheading}>Sign in to reach your workspaces.</p>
 
       <form className={styles.form} onSubmit={onSubmit}>
+        {registeredEmail && !login.isError && (
+          <Alert
+            dsVersion="2.0"
+            type="success"
+            message="Your account is ready. Sign in to continue."
+          />
+        )}
+
         {loginFailed && (
           <Alert
             dsVersion="2.0"
@@ -143,17 +158,19 @@ export function LoginPage() {
           >
             Keep me signed in
           </Checkbox>
-          <Button
-            variant="progressive"
-            type="inline"
-            size="small"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate('/forgot-password');
-            }}
-          >
-            Forgot password?
-          </Button>
+          {passwordResetEnabled && (
+            <Button
+              variant="progressive"
+              type="inline"
+              size="small"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/forgot-password');
+              }}
+            >
+              Forgot password?
+            </Button>
+          )}
         </div>
 
         <Button size="large" isFullWidth disabled={isLoggingIn}>

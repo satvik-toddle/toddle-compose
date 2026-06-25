@@ -42,10 +42,16 @@ export function RegisterPage() {
     register.mutate(
       { name, email, password },
       {
-        onSuccess: (res) =>
+        onSuccess: (res) => {
+          // Already verified (email service bypassed): skip check-email, go straight to sign in.
+          if (res.verified) {
+            navigate('/login', { state: { registered: res.email } });
+            return;
+          }
           navigate('/register/check-email', {
             state: { email: res.email, emailDelivered: res.emailDelivered },
-          }),
+          });
+        },
       },
     );
   };

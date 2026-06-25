@@ -1,13 +1,18 @@
+import type { CSSProperties } from 'react';
 import { Icon } from '../../components/Icon';
-import { WSChip } from '../../components/WSChip';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { formatDate } from '../../lib/time';
 import type { Workspace } from '../../types/api';
 import s from './WorkspaceCard.module.scss';
+import {
+  ChatDotsOutlined,
+  EyeOutlined,
+  PencilOutlined,
+  UserProfileOutlined,
+} from '@toddle-edu/ds-icons';
 
 export function WorkspaceCard({
   ws,
-  overlay,
   onEnter,
 }: {
   ws: Workspace;
@@ -34,14 +39,18 @@ export function WorkspaceCard({
           className="ws-emoji"
           style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
         >
-          <Icon name={vis.icon} size={24} style={{ color: vis.color }} />
+          <Icon name={vis.icon} size={20} style={{ color: vis.color }} />
         </span>
-        {overlay ? <WSChip overlay sm /> : <WSChip role={ws.role} sm />}
+        <div className={s.wsCardNm}>{ws.name}</div>
+        <WorkspaceRoleBadge role={ws.role} />
       </div>
-      <div className={s.wsCardNm}>{ws.name}</div>
       <div className={s.wsCardMeta}>
         <span>
-          <Icon name={ws.visibility === 'PUBLIC' ? 'GlobeOutlined' : 'LockOutlined'} size={14} muted />
+          <Icon
+            name={ws.visibility === 'PUBLIC' ? 'GlobeOutlined' : 'LockOutlined'}
+            size={14}
+            muted
+          />
           {ws.visibility === 'PUBLIC' ? 'Public' : 'Private'}
         </span>
       </div>
@@ -55,5 +64,32 @@ export function WorkspaceCard({
         </span>
       </div>
     </div>
+  );
+}
+
+// Bare `r,g,b` triplets — consumed via rgba(var(--bg-color), …) in the stylesheet.
+const ROLE_BG: Record<string, string> = {
+  EDIT: '31,111,226', // red
+  COMMENT: '46,160,67', // green
+  READ: '227,142,18', // yellow
+  ADMIN : '197,67,241'
+};
+
+function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
+  if (['MAINTAINER', 'OWNER'].includes(role)) return null;
+  return (
+    <span
+      className={s.wsCardRole}
+      style={{ '--bg-color': ROLE_BG[role] ?? '0,0,0' } as CSSProperties}
+    >
+      {
+        {
+          EDIT: <PencilOutlined size={'xxx-small'} />,
+          COMMENT: <ChatDotsOutlined size={'xxx-small'} />,
+          READ: <EyeOutlined size={'xxx-small'} />,
+          ADMIN: <UserProfileOutlined size={'xxx-small'} />,
+        }[role]
+      }
+    </span>
   );
 }

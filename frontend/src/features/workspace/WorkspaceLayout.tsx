@@ -4,7 +4,6 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { ActionMenu, type MenuItem } from '../../components/ActionMenu';
-import { WSChip } from '../../components/WSChip';
 import { AcctPill } from '../../components/AcctPill';
 import { PageLoader } from '../../components/Loader';
 import { WorkspaceSidebar } from './sidebar';
@@ -149,7 +148,6 @@ function WsTopbar({ ctx, onToggleSidebar }: { ctx: WorkspaceCtx; onToggleSidebar
         )}
       </div>
       <div className={s.wsTbRight}>
-        {ctx.overlay ? <WSChip overlay /> : <WSChip role={ctx.role} />}
         <IconButton icon="SearchOutlined" iconSize={18} />
         <IconButton icon="BellRingOutlined" iconSize={18} />
         {doc ? (

@@ -29,11 +29,8 @@ const REALM_TAG_COLOR: Record<RealmRole, 'red' | 'violet' | 'neutral'> = {
   MEMBER: 'neutral',
 };
 
-// Account pill + dropdown (name, email, realm role badge, sign out). `compact`
-// renders the workspace-topbar variant (avatar + chevron only). Open state,
-// click-outside, and positioning come from the ds-web Dropdown; the card content
-// is custom (the DS has no account-menu component).
-export function AcctPill({
+// `compact` renders the workspace-topbar variant (avatar + chevron only).
+export function AccountMenu({
   user,
   realmRole,
   compact,

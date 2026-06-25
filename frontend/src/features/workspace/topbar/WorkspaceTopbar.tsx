@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { AcctPill } from '../../../components/AcctPill';
+import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
 import { useDocuments } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
@@ -39,7 +39,7 @@ export function WorkspaceTopbar({
       </div>
       <div className={styles.right}>
         <DocActions ctx={ctx} doc={doc} me={currentUser} />
-        <AcctPill user={currentUser} realmRole={realm?.role} compact />
+        <AccountMenu user={currentUser} realmRole={realm?.role} compact />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AcctPill } from './AcctPill';
+import { AccountMenu } from './AccountMenu';
 import type { User } from '../types/api';
 import type { RealmRole } from '../types/roles';
 
@@ -50,7 +50,7 @@ export function AppBar({
       {left}
       <div className="gap" />
       {right}
-      <AcctPill user={me} realmRole={realmRole} />
+      <AccountMenu user={me} realmRole={realmRole} />
     </div>
   );
 }

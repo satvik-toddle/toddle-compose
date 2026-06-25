@@ -4,6 +4,7 @@ import { AuthShell } from './AuthShell';
 import { TextInput, Alert, Button } from '@toddle-edu/ds-web';
 import { EmailOutlined } from '@toddle-edu/ds-icons';
 import { useForgotPassword } from '../../hooks/useAuthMutations';
+import { useAuthConfig } from '../../hooks/queries';
 import { messageOf } from '../../lib/errors';
 
 const styles = {
@@ -19,6 +20,7 @@ const styles = {
 
 export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
+  const { data: authConfig } = useAuthConfig();
   const [email, setEmail] = useState('');
 
   // Centralised so additional states (e.g. validating, retrying) can be added here later.
@@ -32,6 +34,25 @@ export function ForgotPasswordPage() {
     if (forgot.isPending) return;
     forgot.mutate(email);
   };
+
+  // No email service: route still reachable directly, so explain instead of a dead form.
+  if (authConfig?.passwordResetEnabled === false) {
+    return (
+      <AuthShell
+        foot={
+          <span>
+            Remembered it? <Link to="/login">Sign in</Link>
+          </span>
+        }
+      >
+        <h1 className={styles.heading}>Password reset unavailable</h1>
+        <p className={styles.subheading}>
+          This server doesn't have email set up, so passwords can't be reset by
+          email. Contact your administrator for help signing in.
+        </p>
+      </AuthShell>
+    );
+  }
 
   // The response is intentionally generic (no account-existence leak), so once
   // the request succeeds we always show the same "check your email" screen.

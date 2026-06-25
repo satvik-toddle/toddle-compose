@@ -36,18 +36,17 @@ export const envSchema = z.object({
   // seconds. Enforced server-side (per email, not per IP) so a fresh token +
   // email is issued at most once per window. 0 disables the cooldown.
   EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
-  // Gmail SMTP credentials (account address + app password). When BOTH are set
-  // mail is sent via Gmail; otherwise the mailer logs the message (incl. the
-  // verify link) to the console for local development. REQUIRED in production so
-  // a misconfigured deploy fails closed instead of logging live links in plaintext.
-  GMAIL_SERVICE_EMAIL: isProduction
-    ? z.string().email()
-    : z.string().email().optional(),
-  GMAIL_SERVICE_PASSWORD: isProduction
-    ? z.string().min(1, "GMAIL_SERVICE_PASSWORD is required in production")
-    : z.string().optional(),
+  // Gmail SMTP credentials; when both set, mail goes via Gmail, else logged to console (dev).
+  // Required in production unless BYPASS_EMAIL_SERVICE=true (checked in superRefine below).
+  GMAIL_SERVICE_EMAIL: z.string().email().optional(),
+  GMAIL_SERVICE_PASSWORD: z.string().min(1).optional(),
   // Display name on the From header.
   MAIL_FROM_NAME: z.string().default("Toddle Compose"),
+  // No email service: auto-verifies sign-ups, mints no reset token. Strict enum so it's explicit.
+  BYPASS_EMAIL_SERVICE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 
   // --- Rate limiting (@nestjs/throttler) -------------------------------------
   // Window all limits below are measured over, in milliseconds.
@@ -107,6 +106,20 @@ export const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+}).superRefine((env, ctx) => {
+  // Production must have deliverable mail unless the email service is bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    (!env.GMAIL_SERVICE_EMAIL || !env.GMAIL_SERVICE_PASSWORD)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GMAIL_SERVICE_EMAIL"],
+      message:
+        "GMAIL_SERVICE_EMAIL and GMAIL_SERVICE_PASSWORD are required in production unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

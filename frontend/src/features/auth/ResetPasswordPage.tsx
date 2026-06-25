@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
@@ -33,6 +33,12 @@ export function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const isPasswordMismatched = confirmPassword.length > 0 && confirmPassword !== password;
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const resetButtonLabel = useMemo(() => {
+    if (reset.isPending) return 'Resetting…';
+    return 'Reset password';
+  }, [reset.isPending]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,7 +133,7 @@ export function ResetPasswordPage() {
         )}
 
         <Button size="large" isFullWidth disabled={reset.isPending}>
-          {reset.isPending ? 'Resetting…' : 'Reset password'}
+          {resetButtonLabel}
         </Button>
       </form>
     </AuthShell>

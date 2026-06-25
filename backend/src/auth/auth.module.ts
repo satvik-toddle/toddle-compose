@@ -6,10 +6,12 @@ import { AuthController } from "./auth.controller";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { AuthTokensGcScheduler } from "./auth-tokens-gc.scheduler";
 import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from "./jwt.constants";
+import { MailerModule } from "../mailer/mailer.module";
 import type { Env } from "../config/env";
 
 @Module({
   imports: [
+    MailerModule,
     JwtModule.registerAsync({
       global: true,
       inject: [ConfigService],

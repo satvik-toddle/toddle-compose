@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { TextInput, Alert, Button } from '@toddle-edu/ds-web';
@@ -20,6 +20,12 @@ const styles = {
 export function ForgotPasswordPage() {
   const forgot = useForgotPassword();
   const [email, setEmail] = useState('');
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (forgot.isPending) return 'Sending…';
+    return 'Send reset link';
+  }, [forgot.isPending]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +93,7 @@ export function ForgotPasswordPage() {
         />
 
         <Button size="large" isFullWidth disabled={forgot.isPending}>
-          {forgot.isPending ? 'Sending…' : 'Send reset link'}
+          {submitButtonLabel}
         </Button>
       </form>
     </AuthShell>

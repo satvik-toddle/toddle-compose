@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
 import { PasswordStrength } from './PasswordStrength';
@@ -29,6 +29,12 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const isPasswordMismatched = confirmPassword.length > 0 && confirmPassword !== password;
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (register.isPending) return 'Creating account…';
+    return 'Create account';
+  }, [register.isPending]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +123,7 @@ export function RegisterPage() {
         )}
 
         <Button size="large" isFullWidth disabled={register.isPending}>
-          {register.isPending ? 'Creating account…' : 'Create account'}
+          {submitButtonLabel}
         </Button>
 
         <p className={styles.disclaimer}>

@@ -32,14 +32,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
     return {
       id: docId, // room name; must equal the token's docId
       providerFactory: (id: string, yjsDocMap: Map<string, unknown>) => {
-        // Lexical's CollaborationPlugin uses a module-level *singleton* yjsDocMap
-        // (the editor doesn't wrap <LexicalCollaboration>). A Y.Doc for this room
-        // therefore survives the previous mount. Reusing an already-populated
-        // Y.Doc is fatal: the server's sync produces no *new* Yjs changes, so the
-        // fresh editor never receives any change events and renders blank — this
-        // is exactly the "open doc1 → doc2 → doc1 again loads nothing" bug.
-        // Always start clean: drop and destroy any stale doc, then bind a fresh
-        // one the provider can fully sync into (same path as the first open).
+        // Drop any stale Y.Doc from Lexical's singleton map so reopening a doc re-syncs from scratch instead of rendering blank.
         const stale = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
         if (stale) {
           stale.destroy();

@@ -2,7 +2,6 @@ import { Outlet, useParams } from 'react-router-dom';
 import { PageLoader } from '../../components/Loader';
 import { WorkspaceSidebar } from './sidebar';
 import { WorkspaceTopbar } from './topbar';
-import s from './WorkspaceLayout.module.scss';
 import { useRealm, useWorkspace } from '../../hooks/queries';
 import { useWorkspaceEvents } from '../../hooks/useWorkspaceEvents';
 import { effectiveWorkspaceRole } from '../../lib/roles';
@@ -42,7 +41,7 @@ export function WorkspaceLayout() {
   return (
     <div className="rbac">
       <WorkspaceTopbar ctx={ctx} onToggleSidebar={toggle} />
-      <div className={s.wsBody}>
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <WorkspaceSidebar ctx={ctx} collapsed={collapsed} />
         <Outlet context={ctx} />
       </div>

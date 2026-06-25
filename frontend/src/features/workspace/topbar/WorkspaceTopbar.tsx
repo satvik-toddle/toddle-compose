@@ -4,11 +4,16 @@ import { useRealm } from '../../../hooks/queries';
 import { useDocuments } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
 import type { WorkspaceCtx } from '../context';
-import s from '../WorkspaceLayout.module.scss';
 import { SidebarToggle } from './SidebarToggle';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { DocBreadcrumb } from './DocBreadcrumb';
 import { DocActions } from './DocActions';
+
+const styles = {
+  bar: 'flex flex-none items-center justify-between h-14 pl-3 pr-4 bg-surface-primary-enabled border-b border-secondary',
+  left: 'flex items-center gap-1 min-w-0',
+  right: 'flex items-center gap-2',
+};
 
 export function WorkspaceTopbar({
   ctx,
@@ -28,13 +33,13 @@ export function WorkspaceTopbar({
   const doc = docId ? docs.find((d) => d.id === docId) : undefined;
 
   return (
-    <div className={s.wsTopbar}>
-      <div className={s.wsTbLeft}>
+    <div className={styles.bar}>
+      <div className={styles.left}>
         <SidebarToggle onToggle={onToggleSidebar} />
         <WorkspaceSwitcher ctx={ctx} />
         {doc && <DocBreadcrumb title={doc.title} />}
       </div>
-      <div className={s.wsTbRight}>
+      <div className={styles.right}>
         <DocActions ctx={ctx} doc={doc} me={me} />
         <AcctPill me={me} realmRole={realm?.role} compact />
       </div>

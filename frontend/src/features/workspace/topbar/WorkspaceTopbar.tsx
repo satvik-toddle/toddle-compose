@@ -28,7 +28,7 @@ export function WorkspaceTopbar({
 
   // The currently open page, if any (driven by the ?doc= query param).
   const openDocId = params.get('doc');
-  const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
+  const doc = openDocId ? docs.find((doc) => doc.id === openDocId) : undefined;
 
   return (
     <div className={styles.bar}>

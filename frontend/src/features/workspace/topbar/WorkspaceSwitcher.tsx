@@ -11,29 +11,31 @@ const LEAVE_KEY = '__leave';
 
 // The workspace glyph is a dynamic ds-icon name; resolve it from the ds-icons
 // namespace. Brand color is applied via overrideVariantStyles + style.
-const dsIcon = (name: string) => OutlinedIcons[name as keyof typeof OutlinedIcons];
+const resolveDsIcon = (name: string) => OutlinedIcons[name as keyof typeof OutlinedIcons];
 
 export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   const { data: realm } = useRealm();
   const { data: workspaces = [] } = useWorkspaces();
-  const enter = useEnterWorkspace();
-  const leave = useLeaveWorkspace();
-  const vis = workspaceVisual(ctx.workspaceId);
-  const VisIcon = dsIcon(vis.icon);
+  const enterWorkspace = useEnterWorkspace();
+  const leaveWorkspace = useLeaveWorkspace();
+  const currentWorkspaceVisual = workspaceVisual(ctx.workspaceId);
+  const CurrentWorkspaceIcon = resolveDsIcon(currentWorkspaceVisual.icon);
 
   // A "Switch workspace" group (tick on the current one) + a "back to launcher" footer.
-  const options = [
+  const menuOptions = [
     {
       key: '__hdr',
       label: 'Switch workspace',
       isItemGroup: true,
-      options: workspaces.map((w) => {
-        const wv = workspaceVisual(w.id);
-        const WsIcon = dsIcon(wv.icon);
+      options: workspaces.map((workspace) => {
+        const visual = workspaceVisual(workspace.id);
+        const WorkspaceIcon = resolveDsIcon(visual.icon);
         return {
-          key: w.id,
-          label: w.name,
-          icon: <WsIcon size="xxx-small" overrideVariantStyles style={{ color: wv.color }} />,
+          key: workspace.id,
+          label: workspace.name,
+          icon: (
+            <WorkspaceIcon size="xxx-small" overrideVariantStyles style={{ color: visual.color }} />
+          ),
         };
       }),
     },
@@ -44,9 +46,9 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
     },
   ];
 
-  const onSelect = (key: string) => {
-    if (key === LEAVE_KEY) leave.mutate();
-    else if (key !== ctx.workspaceId) enter.mutate(key);
+  const handleSelect = (key: string) => {
+    if (key === LEAVE_KEY) leaveWorkspace.mutate();
+    else if (key !== ctx.workspaceId) enterWorkspace.mutate(key);
   };
 
   return (
@@ -56,11 +58,11 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
       overlay={
         <DropdownMenu
           dsVersion="2.0"
-          options={options}
+          options={menuOptions}
           value={ctx.workspaceId}
           showSelection
           selectionType="tick"
-          onClick={(item: { key: string }) => onSelect(item.key)}
+          onClick={(option: { key: string }) => handleSelect(option.key)}
         />
       }
     >
@@ -69,9 +71,16 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
         <button className={s.wsSwitch}>
           <span
             className="ws-emoji sm"
-            style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
+            style={{
+              background: currentWorkspaceVisual.color + '22',
+              boxShadow: `inset 0 0 0 1px ${currentWorkspaceVisual.color}44`,
+            }}
           >
-            <VisIcon size="x-small" overrideVariantStyles style={{ color: vis.color }} />
+            <CurrentWorkspaceIcon
+              size="x-small"
+              overrideVariantStyles
+              style={{ color: currentWorkspaceVisual.color }}
+            />
           </span>
           <span className="nm">{ctx.name}</span>
           <ChevronDownOutlined size="xxx-small" variant="subtle" />

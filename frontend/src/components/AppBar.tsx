@@ -50,7 +50,7 @@ export function AppBar({
       {left}
       <div className="gap" />
       {right}
-      <AcctPill me={me} realmRole={realmRole} />
+      <AcctPill user={me} realmRole={realmRole} />
     </div>
   );
 }

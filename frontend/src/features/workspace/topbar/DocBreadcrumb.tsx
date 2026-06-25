@@ -103,6 +103,7 @@ function HiddenAncestorsMenu({
 }: Readonly<{ ancestors: BreadcrumbSegment[]; onSelect: (id: string) => void }>) {
   return (
     <Dropdown
+      getPopupContainer={() => document.body}
       overlay={
         <DropdownMenu
           dsVersion="2.0"

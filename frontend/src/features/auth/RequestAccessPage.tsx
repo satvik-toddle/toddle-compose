@@ -14,6 +14,8 @@ import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import type { JoinRequestState } from '../../types/roles';
 import s from './RequestAccessPage.module.scss';
+import { IconButton } from '@toddle-edu/ds-web';
+import { LeftArrowOutlined } from '@toddle-edu/ds-icons';
 
 export function RequestAccessPage() {
   const me = useAuthStore((s) => s.user);
@@ -66,9 +68,14 @@ export function RequestAccessPage() {
   return (
     <div className="rbac auth-bg">
       <div className="auth-card ra-card">
+        <div className={"pb-2"}>
+          <IconButton icon={<LeftArrowOutlined />} type={"plain"} variant={"neutral"} onClick={()=>navigate("/")} />
+        </div>
         <div className="auth-brand">
           <div className="auth-logo">
-            <img src="/brand/ToddleLogo.svg" alt="" />
+            <a href={"/"} className={"flex"}>
+              <img src="/brand/ToddleLogo.svg" alt="" />
+            </a>
           </div>
           <div className="auth-word">
             Toddle <span>Compose</span>
@@ -76,8 +83,7 @@ export function RequestAccessPage() {
         </div>
         <h1 className="auth-h">Find a workspace to join</h1>
         <p className="auth-p">
-          Open a public workspace right away, or request access to a private one — an admin will
-          approve it.
+          Open a public workspace right away, or request access to a private one
         </p>
 
         <TextInput

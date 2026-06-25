@@ -12,6 +12,10 @@ import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { usePageActions } from './usePageActions';
 
+const SUB_PAGE_KEY = 'subpage';
+const RENAME_KEY = 'rename';
+const DELETE_KEY = 'delete';
+
 export function DocActions({
   ctx,
   doc,
@@ -19,9 +23,9 @@ export function DocActions({
 }: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; me: User }>) {
   const openModal = useUiStore((s) => s.openModal);
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
-  const ws = ctx.workspaceId;
-  const canCreate = wsAtLeast(ctx.role, 'EDIT');
-  const canManage = !!doc && (ctx.isAdmin || doc.owner.id === me.id);
+  const { workspaceId, isAdmin, role } = ctx;
+  const canCreate = wsAtLeast(role, 'EDIT');
+  const canManage = !!doc && (isAdmin || doc.owner.id === me.id);
 
   if (!doc) {
     return (
@@ -40,11 +44,31 @@ export function DocActions({
     );
   }
 
+  const openShareModal = () =>
+    openModal({
+      type: 'shareDocument',
+      workspaceId,
+      docId: doc.id,
+      docTitle: doc.title,
+      canManage,
+      isAdmin,
+    });
+  const openRenameModal = () =>
+    openModal({ type: 'renamePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
+  const openDeleteModal = () =>
+    openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
+
+  const runMenuAction: Record<string, () => void> = {
+    [SUB_PAGE_KEY]: () => addSubPage(doc.id),
+    [RENAME_KEY]: openRenameModal,
+    [DELETE_KEY]: openDeleteModal,
+  };
+
   const menuOptions = [
     ...(canCreate
       ? [
           {
-            key: 'subpage',
+            key: SUB_PAGE_KEY,
             label: 'Add sub-page',
             icon: <AddOutlined size="xxx-small" variant="subtle" />,
           },
@@ -53,13 +77,13 @@ export function DocActions({
     ...(canManage
       ? [
           {
-            key: 'rename',
+            key: RENAME_KEY,
             label: 'Rename',
             icon: <PencilOutlined size="xxx-small" variant="subtle" />,
           },
-          { key: 'delete__div', isDivider: true },
+          { key: `${DELETE_KEY}__divider`, isDivider: true },
           {
-            key: 'delete',
+            key: DELETE_KEY,
             label: 'Delete',
             icon: <DeleteOutlined size="xxx-small" variant="critical" />,
             isDestructive: true,
@@ -68,21 +92,6 @@ export function DocActions({
       : []),
   ];
 
-  const handleMenuSelect = (key: string) => {
-    if (key === 'subpage') addSubPage(doc.id);
-    else if (key === 'rename') {
-      openModal({ type: 'renamePage', kind: 'doc', workspaceId: ws, id: doc.id, name: doc.title });
-    } else if (key === 'delete') {
-      openModal({
-        type: 'confirmDeletePage',
-        kind: 'doc',
-        workspaceId: ws,
-        id: doc.id,
-        name: doc.title,
-      });
-    }
-  };
-
   return (
     <>
       <Button
@@ -90,16 +99,7 @@ export function DocActions({
         variant="neutral"
         type="outlined"
         icon={<ShareOutlined />}
-        onClick={() =>
-          openModal({
-            type: 'shareDocument',
-            workspaceId: ws,
-            docId: doc.id,
-            docTitle: doc.title,
-            canManage,
-            isAdmin: ctx.isAdmin,
-          })
-        }
+        onClick={openShareModal}
       >
         Share
       </Button>
@@ -111,7 +111,7 @@ export function DocActions({
             <DropdownMenu
               dsVersion="2.0"
               options={menuOptions}
-              onClick={(option: { key: string }) => handleMenuSelect(option.key)}
+              onClick={(option: { key: string }) => runMenuAction[option.key]?.()}
             />
           }
         >

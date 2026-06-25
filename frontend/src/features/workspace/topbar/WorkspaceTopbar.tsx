@@ -17,8 +17,13 @@ const styles = {
 
 export function WorkspaceTopbar({
   ctx,
+  sidebarCollapsed,
   onToggleSidebar,
-}: Readonly<{ ctx: WorkspaceCtx; onToggleSidebar: () => void }>) {
+}: Readonly<{
+  ctx: WorkspaceCtx;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}>) {
   const currentUser = useAuthStore((state) => state.user);
   const { data: realm } = useRealm();
   const [params] = useSearchParams();
@@ -33,7 +38,7 @@ export function WorkspaceTopbar({
   return (
     <div className={styles.bar}>
       <div className={styles.left}>
-        <SidebarToggle onToggle={onToggleSidebar} />
+        <SidebarToggle collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
         <WorkspaceSwitcher ctx={ctx} />
         {doc && <DocBreadcrumb title={doc.title} />}
       </div>

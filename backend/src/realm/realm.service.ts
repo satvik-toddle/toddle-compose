@@ -22,7 +22,35 @@ export class RealmService {
 
   async info(userId: string) {
     const role = await this.authz.realmRole(userId);
-    return { id: this.realm.id, name: this.realm.name, role };
+    const realm = await this.prisma.realm.findUnique({
+      where: { id: this.realm.id },
+      select: { allowedEmailDomains: true },
+    });
+    return {
+      id: this.realm.id,
+      name: this.realm.name,
+      role,
+      allowedEmailDomains: realm?.allowedEmailDomains ?? [],
+    };
+  }
+
+  /** Update realm settings; OWNER only. Domains are normalised to bare lowercase hosts. */
+  async updateSettings(actorId: string, allowedEmailDomains: string[]) {
+    await this.authz.requireRealmRole(actorId, "OWNER");
+    const realm = await this.prisma.realm.update({
+      where: { id: this.realm.id },
+      data: { allowedEmailDomains: this.normalizeDomains(allowedEmailDomains) },
+      select: { id: true, name: true, allowedEmailDomains: true },
+    });
+    return { ...realm, role: "OWNER" as RealmRole };
+  }
+
+  // Bare lowercase hosts, "@" / whitespace stripped, blanks dropped, de-duplicated.
+  private normalizeDomains(domains: string[]): string[] {
+    const cleaned = domains
+      .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
+      .filter(Boolean);
+    return [...new Set(cleaned)];
   }
 
   /** List realm members. Requires the caller to be a realm member (any role). */

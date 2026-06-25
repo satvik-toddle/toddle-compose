@@ -1,5 +1,5 @@
 import { Badge, IconButton, Tooltip } from '@toddle-edu/ds-web';
-import { ArrowLeftPaneOutlined } from '@toddle-edu/ds-icons';
+import { ArrowLeftPaneOutlined, ArrowRightPaneOutlined } from '@toddle-edu/ds-icons';
 import { isAppleDevice } from '../../../lib/platform';
 
 const shortcutKeys = isAppleDevice ? ['⌘', '\\'] : ['Ctrl', '\\'];
@@ -33,7 +33,7 @@ export function SidebarToggle({
         dsVersion="2.0"
         variant="neutral"
         type="plain"
-        icon={<ArrowLeftPaneOutlined />}
+        icon={collapsed ? <ArrowRightPaneOutlined /> : <ArrowLeftPaneOutlined />}
         aria-label={label}
         onClick={onToggle}
       />

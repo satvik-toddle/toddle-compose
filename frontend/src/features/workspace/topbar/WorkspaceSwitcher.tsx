@@ -6,6 +6,7 @@ import { isRealmAdmin } from '../../../lib/roles';
 import { workspaceVisual } from '../../../lib/workspaceVisual';
 import type { WorkspaceCtx } from '../context';
 
+const HEADER_KEY = '__hdr';
 const LEAVE_KEY = '__leave';
 
 // The workspace glyph is a dynamic ds-icon name; resolve it from the ds-icons
@@ -23,7 +24,7 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   // A "Switch workspace" group (tick on the current one) + a "back to launcher" footer.
   const menuOptions = [
     {
-      key: '__hdr',
+      key: HEADER_KEY,
       label: 'Switch workspace',
       isItemGroup: true,
       options: workspaces.map((workspace) => {
@@ -46,8 +47,13 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   ];
 
   const handleSelect = (key: string) => {
-    if (key === LEAVE_KEY) leaveWorkspace.mutate();
-    else if (key !== ctx.workspaceId) enterWorkspace.mutate(key);
+    if (key === LEAVE_KEY) {
+      leaveWorkspace.mutate();
+      return;
+    }
+    const isCurrentWorkspace = key === ctx.workspaceId;
+    if (isCurrentWorkspace) return;
+    enterWorkspace.mutate(key);
   };
 
   return (

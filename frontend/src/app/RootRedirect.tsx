@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { PageSpinner } from '../components/Spinner';
+import { PageLoader } from '../components/Loader';
 
 // '/' → launcher (authed) or login (anon). The launcher itself renders the
 // zero-workspaces empty states.
@@ -9,7 +9,7 @@ export function RootRedirect() {
   if (status === 'loading') {
     return (
       <div className="rbac">
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }

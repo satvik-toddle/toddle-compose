@@ -1,7 +1,7 @@
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import s from './WorkspacesTab.module.scss';
 import { useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
@@ -15,7 +15,7 @@ export function WorkspacesTab() {
   const enter = useEnterWorkspace();
   const openModal = useUiStore((s) => s.openModal);
 
-  if (isLoading) return <div className="page"><div className="page-wrap"><PageSpinner /></div></div>;
+  if (isLoading) return <div className="page"><div className="page-wrap"><PageLoader /></div></div>;
   const list = workspaces ?? [];
 
   return (

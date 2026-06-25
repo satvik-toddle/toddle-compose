@@ -4,7 +4,7 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
 import { useAuthStore } from '../../stores/authStore';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
 import s from './DocEditor.module.scss';
 
@@ -59,7 +59,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
   if (isLoading || !rtc || !collab) {
     return (
       <div className={s.tcEditor}>
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }

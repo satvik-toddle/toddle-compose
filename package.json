@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.12.3",
   "engines": {
-    "node": ">=20"
+    "node": "^20.19 || ^22.12 || >=24.0"
   },
   "scripts": {
     "dev": "bash scripts/dev.sh",
@@ -24,6 +24,7 @@
     "db:seed": "set -a && . ./.env && set +a && pnpm --filter @app/database run seed",
     "db:reset": "pnpm --filter @app/database reset",
     "db:push": "set -a && . ./.env && set +a && pnpm --filter @app/database exec prisma db push && pnpm --filter @app/rtc-database exec prisma db push",
+    "db:provision": "bash scripts/provision-db.sh",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "test": "set -a && . ./.env && set +a && pnpm --filter backend test:e2e",

@@ -24,6 +24,31 @@ export const envSchema = z.object({
   // CORS allowlist (comma-separated origins). No wildcard in production.
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
 
+  // --- Email verification -----------------------------------------------------
+  // Public origin of the frontend; used to build the verification link emailed
+  // on sign-up (`${FRONTEND_URL}/verify-email?token=...`).
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  // How long a sign-up verification token stays valid. Short-lived by design.
+  EMAIL_VERIFICATION_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // How long a "forgot password" reset token stays valid. Short-lived by design.
+  PASSWORD_RESET_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // Minimum gap between verification/reset emails to the SAME account, in
+  // seconds. Enforced server-side (per email, not per IP) so a fresh token +
+  // email is issued at most once per window. 0 disables the cooldown.
+  EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
+  // Gmail SMTP credentials (account address + app password). When BOTH are set
+  // mail is sent via Gmail; otherwise the mailer logs the message (incl. the
+  // verify link) to the console for local development. REQUIRED in production so
+  // a misconfigured deploy fails closed instead of logging live links in plaintext.
+  GMAIL_SERVICE_EMAIL: isProduction
+    ? z.string().email()
+    : z.string().email().optional(),
+  GMAIL_SERVICE_PASSWORD: isProduction
+    ? z.string().min(1, "GMAIL_SERVICE_PASSWORD is required in production")
+    : z.string().optional(),
+  // Display name on the From header.
+  MAIL_FROM_NAME: z.string().default("Toddle Compose"),
+
   // --- Rate limiting (@nestjs/throttler) -------------------------------------
   // Window all limits below are measured over, in milliseconds.
   RATE_LIMIT_TTL_MS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.ttlMs),

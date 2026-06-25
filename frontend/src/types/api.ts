@@ -27,6 +27,31 @@ export interface AuthResponse extends AuthTokens {
   user: User;
 }
 
+// POST /auth/register and /auth/resend-verification — no session is issued until
+// the emailed link is verified.
+export interface VerificationPending {
+  status: 'verification_sent';
+  email: string;
+  // false when the backend mailer is in dev/console mode (link logged, not sent).
+  emailDelivered: boolean;
+}
+
+// POST /auth/verify-email — success.
+export interface VerifyEmailResponse {
+  status: 'verified';
+  email: string;
+}
+
+// POST /auth/forgot-password — always generic (no account-existence leak).
+export interface ResetEmailSent {
+  status: 'reset_email_sent';
+}
+
+// POST /auth/reset-password — success.
+export interface ResetPasswordResponse {
+  status: 'reset';
+}
+
 // POST /auth/workspace/enter — re-mints the access token scoped to a workspace.
 export interface EnterWorkspaceResponse {
   accessToken: string;

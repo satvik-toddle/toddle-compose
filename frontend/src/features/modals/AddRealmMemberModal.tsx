@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { TextInput } from '../../components/TextInput';
@@ -17,6 +17,12 @@ export function AddRealmMemberModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AssignableRealmRole>('MEMBER');
   const notFound = isNotFound(add.error);
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (add.isPending) return 'Adding…';
+    return 'Add to realm';
+  }, [add.isPending]);
 
   const submit = () => {
     if (!email.trim() || add.isPending) return;
@@ -96,7 +102,7 @@ export function AddRealmMemberModal({ onClose }: { onClose: () => void }) {
           Cancel
         </Button>
         <Button variant="primary" icon="AddOutlined" disabled={!email.trim() || add.isPending} onClick={submit}>
-          {add.isPending ? 'Adding…' : 'Add to realm'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

@@ -33,7 +33,15 @@ export function RegisterPage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isPasswordMismatched || register.isPending) return;
-    register.mutate({ name, email, password }, { onSuccess: () => navigate('/register/success') });
+    register.mutate(
+      { name, email, password },
+      {
+        onSuccess: (res) =>
+          navigate('/register/check-email', {
+            state: { email: res.email, emailDelivered: res.emailDelivered },
+          }),
+      },
+    );
   };
 
   return (

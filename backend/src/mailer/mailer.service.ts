@@ -15,6 +15,7 @@ import {
 export type SendResult = { delivered: boolean };
 
 // Transport selection is decided once at startup:
+//   - BYPASS_EMAIL_SERVICE=true → no email service at all; every send is a no-op
 //   - GMAIL_SERVICE_EMAIL + GMAIL_SERVICE_PASSWORD set → real Gmail SMTP
 //   - otherwise → a console transport that logs the message (incl. verify link)
 // so local development needs no SMTP credentials.
@@ -24,6 +25,7 @@ export class MailerService implements OnModuleInit {
   private transporter!: Transporter;
   private readonly from: string;
   private gmailConfigured = false;
+  private bypassed = false;
 
   constructor(private readonly config: ConfigService<Env, true>) {
     const fromName = this.config.get("MAIL_FROM_NAME", { infer: true });
@@ -34,6 +36,16 @@ export class MailerService implements OnModuleInit {
   }
 
   onModuleInit(): void {
+    // No email service at all: skip transport setup; send() short-circuits.
+    if (this.config.get("BYPASS_EMAIL_SERVICE", { infer: true })) {
+      this.bypassed = true;
+      this.transporter = nodemailer.createTransport({ jsonTransport: true });
+      this.log.warn(
+        "BYPASS_EMAIL_SERVICE is on — no emails (verification, password reset) will be sent"
+      );
+      return;
+    }
+
     const user = this.config.get("GMAIL_SERVICE_EMAIL", { infer: true });
     const pass = this.config.get("GMAIL_SERVICE_PASSWORD", { infer: true });
 
@@ -52,6 +64,11 @@ export class MailerService implements OnModuleInit {
         "GMAIL_SERVICE_EMAIL/PASSWORD not set — emails will be logged to the console, not delivered"
       );
     }
+  }
+
+  // True when there is no email service, so callers can skip email-dependent steps.
+  isBypassed(): boolean {
+    return this.bypassed;
   }
 
   async sendEmailVerification(
@@ -77,6 +94,8 @@ export class MailerService implements OnModuleInit {
     kind: string,
     devLink: string
   ): Promise<SendResult> {
+    // No email service: nothing is sent and no link is logged.
+    if (this.bypassed) return { delivered: false };
     if (!this.gmailConfigured) {
       this.log.log(`[dev] ${kind} email for ${to} — link: ${devLink}`);
       return { delivered: false };

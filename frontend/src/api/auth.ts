@@ -1,5 +1,6 @@
 import { http } from '../lib/http';
 import type {
+  AuthConfig,
   AuthResponse,
   EnterWorkspaceResponse,
   LeaveWorkspaceResponse,
@@ -12,6 +13,7 @@ import type {
 } from '../types/api';
 
 export const authApi = {
+  config: () => http.get<AuthConfig>('/auth/config', { auth: false }),
   register: (b: { name: string; email: string; password: string }) =>
     http.post<VerificationPending>('/auth/register', b, { auth: false }),
   login: (b: { email: string; password: string }) =>

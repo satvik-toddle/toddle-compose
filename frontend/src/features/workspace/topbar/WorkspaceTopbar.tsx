@@ -19,18 +19,16 @@ export function WorkspaceTopbar({
   ctx,
   onToggleSidebar,
 }: Readonly<{ ctx: WorkspaceCtx; onToggleSidebar: () => void }>) {
-  const me = useAuthStore((s) => s.user);
+  const currentUser = useAuthStore((state) => state.user);
   const { data: realm } = useRealm();
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  if (!me) return null;
+  if (!currentUser) return null;
 
-  // Single toolbar: the workspace switcher + (when a page is open) a breadcrumb on
-  // the left, and the page's contextual actions on the right. There is no second
-  // (per-page) toolbar — this owns the doc title, Share, and the ⋯ page menu.
-  const docId = params.get('doc');
-  const doc = docId ? docs.find((d) => d.id === docId) : undefined;
+  // The currently open page, if any (driven by the ?doc= query param).
+  const openDocId = params.get('doc');
+  const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
 
   return (
     <div className={styles.bar}>
@@ -40,8 +38,8 @@ export function WorkspaceTopbar({
         {doc && <DocBreadcrumb title={doc.title} />}
       </div>
       <div className={styles.right}>
-        <DocActions ctx={ctx} doc={doc} me={me} />
-        <AcctPill me={me} realmRole={realm?.role} compact />
+        <DocActions ctx={ctx} doc={doc} me={currentUser} />
+        <AcctPill me={currentUser} realmRole={realm?.role} compact />
       </div>
     </div>
   );

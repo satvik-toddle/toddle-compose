@@ -47,6 +47,32 @@ confirm() {
 is_macos() { [ "$(uname -s)" = "Darwin" ]; }
 
 # ===========================================================================
+# 0. PRE-FLIGHT: pnpm must be on PATH.
+# ===========================================================================
+# This script (and the nested 'pnpm --filter' calls in dev:services) need pnpm.
+# When launched via 'npm run dev', npm's PATH won't include a globally-installed
+# pnpm, and recent Node (>=25) no longer bundles Corepack — so fail loudly with
+# guidance instead of dying mid-run with a bare 'pnpm: command not found'.
+if ! command -v pnpm >/dev/null 2>&1; then
+  if command -v corepack >/dev/null 2>&1; then
+    note "pnpm not on PATH — enabling it via Corepack…"
+    corepack enable pnpm >/dev/null 2>&1 || corepack enable >/dev/null 2>&1 || true
+    hash -r 2>/dev/null || true
+  fi
+  if ! command -v pnpm >/dev/null 2>&1; then
+    err "pnpm is not on PATH (this repo uses pnpm, not npm)."
+    echo
+    echo "  Install it once, then re-run:"
+    echo "    ${C_DIM}npm install -g pnpm@9.12.3${C_OFF}    # matches packageManager pin"
+    echo "    ${C_DIM}# or:  corepack enable pnpm${C_OFF}   (if your Node ships Corepack)"
+    echo
+    echo "  Then start with ${C_DIM}pnpm dev${C_OFF} (preferred over 'npm run dev')."
+    exit 1
+  fi
+fi
+ok "pnpm found: $(pnpm --version 2>/dev/null || echo 'unknown')"
+
+# ===========================================================================
 # 0. PRE-FLIGHT: Docker must be installed, with Compose, and running.
 # ===========================================================================
 step "Checking Docker"

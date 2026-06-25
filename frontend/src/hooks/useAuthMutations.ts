@@ -15,14 +15,35 @@ export function useLogin() {
   });
 }
 
+// Sign-up no longer creates a session — it triggers a verification email. The
+// caller routes to the "check your email" screen with the returned address.
 export function useRegister() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { name: string; email: string; password: string }) => authApi.register(b),
-    onSuccess: (res) => {
-      qc.clear();
-      authState().setSession(res);
-    },
+  });
+}
+
+export function useVerifyEmail() {
+  return useMutation({
+    mutationFn: (token: string) => authApi.verifyEmail(token),
+  });
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: (email: string) => authApi.resendVerification(email),
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) => authApi.forgotPassword(email),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (b: { token: string; password: string }) => authApi.resetPassword(b),
   });
 }
 

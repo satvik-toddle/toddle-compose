@@ -54,21 +54,25 @@ function PageTitle({
     if (t !== title) rename.mutate({ workspaceId, id: docId, title: t });
   };
 
+  // data-value feeds the CSS auto-grow mirror
   return (
-    <input
-      className={s.wsDocTitleField}
-      value={val}
-      placeholder="Add a page title"
-      aria-label="Page title"
-      onChange={(e) => setVal(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          e.currentTarget.blur();
-        }
-      }}
-    />
+    <div className={s.wsDocTitleGrow} data-value={val}>
+      <textarea
+        className={s.wsDocTitleField}
+        value={val}
+        placeholder="Add a page title"
+        aria-label="Page title"
+        rows={1}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+      />
+    </div>
   );
 }
 

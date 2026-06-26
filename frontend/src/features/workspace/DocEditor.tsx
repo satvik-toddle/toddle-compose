@@ -26,19 +26,19 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
   const me = useAuthStore((s) => s.user);
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 
-  // Read the token via a ref so a token refetch (refetchOnWindowFocus past staleTime) doesn't recreate the collab/providerFactory and tear down the live Y.Doc mid-session.
-  const tokenRef = useRef<string | undefined>(rtc?.token);
-  tokenRef.current = rtc?.token;
-  // True once this mount has bound its own fresh Y.Doc — distinguishes a genuine remount (stale doc from a prior mount → discard) from a same-mount re-invocation (live session → reuse, never destroy).
-  const boundRef = useRef(false);
+  // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
+  const paramsRef = useRef<{ token?: string }>({ token: rtc?.token });
+  paramsRef.current.token = rtc?.token;
+  // docIds this mount has already bound a fresh Y.Doc for. Keyed by id (not a mount-wide boolean) so the stale-doc discard depends on the docId itself, not on the call site remounting via key={docId}.
+  const boundIdsRef = useRef<Set<string>>(new Set());
 
   const collab = useMemo(() => {
     return {
       id: docId, // room name; must equal the token's docId
       providerFactory: (id: string, yjsDocMap: Map<string, unknown>) => {
         let doc = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
-        // Only the first bind of a mount discards a doc: it's the stale one left in Lexical's singleton map by a prior mount, and reusing it renders blank (server sync emits no new changes).
-        if (doc && !boundRef.current) {
+        // First bind of this docId: any doc in Lexical's singleton map is stale from a prior mount/doc and reusing it renders blank (server sync emits no new changes) — discard it.
+        if (doc && !boundIdsRef.current.has(id)) {
           doc.destroy();
           yjsDocMap.delete(id);
           doc = undefined;
@@ -47,10 +47,10 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
           doc = new Y.Doc();
           yjsDocMap.set(id, doc);
         }
-        boundRef.current = true;
+        boundIdsRef.current.add(id);
         // The CollaborationPlugin connects/disconnects the provider.
         return new WebsocketProvider(RTC_WS_URL, id, doc, {
-          params: { token: tokenRef.current },
+          params: paramsRef.current,
           connect: false,
         });
       },

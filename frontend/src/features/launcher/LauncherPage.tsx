@@ -157,7 +157,12 @@ export function LauncherPage() {
 
           <div className={s.lcGrid}>
             {list.map((w) => (
-              <WorkspaceCard key={w.id} ws={w} overlay={admin} onEnter={() => enter.mutate(w.id)} />
+              <WorkspaceCard
+                key={w.id}
+                ws={w}
+                showRoleBadge={realm?.role === 'MEMBER'}
+                onEnter={() => enter.mutate(w.id)}
+              />
             ))}
             {admin && (
               <button className={`${card.wsCard} ${card.add}`} onClick={() => openModal({ type: 'createWorkspace' })}>

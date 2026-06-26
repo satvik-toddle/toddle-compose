@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { Icon } from '../../components/Icon';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { formatDate } from '../../lib/time';
@@ -77,17 +76,19 @@ const ROLE_BG: Record<string, string> = {
 };
 
 function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
+  const rgb = ROLE_BG[role] ?? '0,0,0';
+  const color = `rgb(${rgb})`;
   return (
     <span
-      className={s.wsCardRole}
-      style={{ '--bg-color': ROLE_BG[role] ?? '0,0,0' } as CSSProperties}
+      className="absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase"
+      style={{ background: `rgba(${rgb},0.1)`, color }}
     >
       {
         {
-          EDIT: <PencilOutlined size={'xxx-small'} />,
-          COMMENT: <ChatDotsOutlined size={'xxx-small'} />,
-          READ: <EyeOutlined size={'xxx-small'} />,
-          ADMIN: <UserProfileOutlined size={'xxx-small'} />,
+          EDIT: <PencilOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
+          COMMENT: <ChatDotsOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
+          READ: <EyeOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
+          ADMIN: <UserProfileOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
         }[role]
       }
     </span>

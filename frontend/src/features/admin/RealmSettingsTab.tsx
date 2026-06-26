@@ -38,13 +38,17 @@ export function RealmSettingsTab() {
   const [editedDomains, setEditedDomains] = useState<string[]>([]);
   const [domainInput, setDomainInput] = useState('');
 
-  // Seed local edits once on first load; a later background refetch must not wipe unsaved chips.
-  const hasSeeded = useRef(false);
+  // Sync from the server while the user has no unsaved edits. A background refetch must not
+  // wipe edits, but must still pick up the real allowlist if the first payload was empty/stale.
+  const lastSyncedDomains = useRef<string[] | null>(null);
   useEffect(() => {
-    if (hasSeeded.current || !realm) return;
+    if (!realm) return;
+    const hasLocalEdits =
+      lastSyncedDomains.current !== null && !sameDomainSet(editedDomains, lastSyncedDomains.current);
+    if (hasLocalEdits) return;
     setEditedDomains(savedDomains);
-    hasSeeded.current = true;
-  }, [realm, savedDomains]);
+    lastSyncedDomains.current = savedDomains;
+  }, [realm, savedDomains, editedDomains]);
 
   const hasUnsavedChanges = !sameDomainSet(editedDomains, savedDomains);
 

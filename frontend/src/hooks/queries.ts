@@ -53,21 +53,18 @@ export function useWorkspaceMembers(id: string | undefined, enabled = true) {
 
 // The caller's own join requests. While any are PENDING it polls so an approval
 // (granted by an admin elsewhere) is picked up without a manual refresh. Polling
-// stops once nothing is pending, is bounded so a request an admin never actions
-// can't poll indefinitely, and never runs while the tab is backgrounded.
+// stops once nothing is pending and never runs while the tab is backgrounded.
 const MY_REQUESTS_POLL_MS = 4000;
-const MY_REQUESTS_MAX_POLLS = 75; // ~5 min, then fall back to focus/manual refetch
 export function useMyJoinRequests(enabled = true) {
   return useQuery({
     queryKey: qk.myRequests,
     queryFn: joinApi.myRequests,
     enabled,
     refetchIntervalInBackground: false,
-    refetchInterval: (q) => {
-      const pending = (q.state.data ?? []).some((r) => r.state === 'PENDING');
-      if (!pending || q.state.dataUpdateCount >= MY_REQUESTS_MAX_POLLS) return false;
-      return MY_REQUESTS_POLL_MS;
-    },
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((request) => request.state === 'PENDING')
+        ? MY_REQUESTS_POLL_MS
+        : false,
   });
 }
 

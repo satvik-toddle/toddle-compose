@@ -15,8 +15,9 @@ import { Icon } from '../../components/Icon';
 import { AuthShell } from './AuthShell';
 import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
+import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
-import { performLogout, enterWorkspaceScope } from '../../lib/session';
+import { performLogout } from '../../lib/session';
 import { qk } from '../../lib/queryKeys';
 import { useAuthStore } from '../../stores/authStore';
 import { pushToast } from '../../stores/uiStore';
@@ -24,6 +25,8 @@ import { cn } from '../../lib/cn';
 import type { JoinRequestState } from '../../types/roles';
 
 const styles = {
+  // Wider than the default auth card; `!` overrides AuthShell's `.auth-card` width.
+  card: '!w-[540px]',
   backButton: 'pb-2',
   heading: 'text-heading-3',
   subheading: 'mt-1.5 mb-4 text-body text-secondary',
@@ -64,6 +67,7 @@ export function RequestAccessPage() {
   const { data: myRequests } = useMyJoinRequests();
   const joinPublicWorkspace = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
+  const { mutate: enterWorkspace } = useEnterWorkspace();
   const [searchQuery, setSearchQuery] = useState('');
   // Optimistic "just requested here" flags; bridge the gap until the next poll reflects them.
   const [optimisticRequests, setOptimisticRequests] = useState<Set<string>>(new Set());
@@ -71,8 +75,8 @@ export function RequestAccessPage() {
   // Request state per workspace, sorted newest-first so a stale REJECTED can't shadow a live PENDING.
   const requestStateByWorkspace = useMemo(() => {
     const stateByWorkspace = new Map<string, JoinRequestState>();
-    const newestFirst = [...(myRequests ?? [])].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
+    const newestFirst = [...(myRequests ?? [])].sort(
+      (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
     );
     for (const request of newestFirst) {
       if (!stateByWorkspace.has(request.workspaceId)) {
@@ -110,10 +114,8 @@ export function RequestAccessPage() {
       message: `Access granted — opening ${approvedRequest.workspace?.name ?? 'workspace'}…`,
     });
     queryClient.invalidateQueries({ queryKey: qk.workspaces });
-    enterWorkspaceScope(queryClient, approvedRequest.workspaceId)
-      .then(() => navigate(`/w/${approvedRequest.workspaceId}`))
-      .catch(() => navigate('/launcher'));
-  }, [myRequests, queryClient, navigate]);
+    enterWorkspace(approvedRequest.workspaceId, { onError: () => navigate('/launcher') });
+  }, [myRequests, queryClient, navigate, enterWorkspace]);
 
   const matchingWorkspaces = useMemo(
     () =>
@@ -130,7 +132,7 @@ export function RequestAccessPage() {
 
   return (
     <AuthShell
-      cardClassName="!w-[540px]"
+      cardClassName={styles.card}
       lead={
         <div className={styles.backButton}>
           <IconButton
@@ -149,9 +151,9 @@ export function RequestAccessPage() {
               Signed in as <b className={styles.signedInEmail}>{currentUser.email}</b> ·{' '}
             </>
           )}
-          <a onClick={signOut} role="button">
+          <Button variant="progressive" type="inline" size="small" onClick={signOut}>
             Sign out
-          </a>
+          </Button>
         </>
       }
     >

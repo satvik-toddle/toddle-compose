@@ -60,7 +60,8 @@ export function PageRow({
     // Leaf pages keep the (hidden) chevron so icons stay aligned.
     chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
-    label: 'flex-1 truncate',
+    // min-w-0 lets the flex item shrink below its content so truncate shows the ellipsis.
+    label: 'min-w-0 flex-1 truncate',
     menuWrap: 'flex shrink-0',
     // Transparent (but focusable) until row hover, keyboard focus, or menu open.
     menuTrigger: cn(
@@ -79,72 +80,73 @@ export function PageRow({
 
   return (
     <>
-      <div
-        className={styles.row}
-        style={styles.rowStyle}
-        role="button"
-        tabIndex={0}
-        onClick={() => selectPage(doc.id)}
-        onKeyDown={handleRowKeyDown}
-      >
-        <IconButton
-          dsVersion="2.0"
-          type="plain"
-          variant="neutral"
-          size="x-small"
-          isCompact
-          shouldStopPropagation
-          className={styles.chevronButton}
-          aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
-          onClick={() => toggle(doc.id)}
-          icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
-        />
+      {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
+          but only when the title is actually clipped. */}
+      <Tooltip dsVersion="2.0" placement="right" showArrow tooltip={isTruncated ? doc.title : ''}>
+        <div
+          className={styles.row}
+          style={styles.rowStyle}
+          role="button"
+          tabIndex={0}
+          onClick={() => selectPage(doc.id)}
+          onKeyDown={handleRowKeyDown}
+        >
+          <IconButton
+            dsVersion="2.0"
+            type="plain"
+            variant="neutral"
+            size="x-small"
+            isCompact
+            shouldStopPropagation
+            className={styles.chevronButton}
+            aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
+            onClick={() => toggle(doc.id)}
+            icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
+          />
 
-        <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
-        {/* Tooltip only surfaces when the title is actually clipped. */}
-        <Tooltip dsVersion="2.0" placement="right" tooltip={isTruncated ? doc.title : ''}>
+          <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
           <span ref={labelRef} className={styles.label}>
             {doc.title}
           </span>
-        </Tooltip>
 
-        {menuItems.length > 0 && (
-          <span
-            className={styles.menuWrap}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <Dropdown
-              placement="bottomRight"
-              visible={isMenuOpen}
-              onVisibleChange={setIsMenuOpen}
-              overlay={
-                <DropdownMenu
-                  dsVersion="2.0"
-                  options={menuItems}
-                  onClick={(option: PageMenuOption) =>
-                    menuItems.find((item) => item.key === option.key)?.onSelect?.()
-                  }
-                />
-              }
+          {menuItems.length > 0 && (
+            <span
+              className={styles.menuWrap}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
             >
-              <span style={{ display: 'inline-flex' }}>
-                <IconButton
-                  dsVersion="2.0"
-                  type="plain"
-                  variant="neutral"
-                  size="x-small"
-                  isCompact
-                  isActivated={isMenuOpen}
-                  className={styles.menuTrigger}
-                  aria-label="Page actions"
-                  icon={<DotsHorizontalOutlined variant="subtle" />}
-                />
-              </span>
-            </Dropdown>
-          </span>
-        )}
-      </div>
+              <Dropdown
+                placement="bottomRight"
+                visible={isMenuOpen}
+                onVisibleChange={setIsMenuOpen}
+                overlay={
+                  <DropdownMenu
+                    dsVersion="2.0"
+                    options={menuItems}
+                    onClick={(option: PageMenuOption) =>
+                      menuItems.find((item) => item.key === option.key)?.onSelect?.()
+                    }
+                  />
+                }
+              >
+                <span style={{ display: 'inline-flex' }}>
+                  <IconButton
+                    dsVersion="2.0"
+                    type="plain"
+                    variant="neutral"
+                    size="x-small"
+                    isCompact
+                    isActivated={isMenuOpen}
+                    className={styles.menuTrigger}
+                    aria-label="Page actions"
+                    icon={<DotsHorizontalOutlined variant="subtle" />}
+                  />
+                </span>
+              </Dropdown>
+            </span>
+          )}
+        </div>
+      </Tooltip>
 
       {isExpanded &&
         children.map((child) => (

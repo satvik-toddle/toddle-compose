@@ -61,13 +61,20 @@ export class AuthService {
     private readonly mailer: MailerService
   ) {}
 
-  // Sign-up no longer issues a session: it creates an UNVERIFIED user and emails
-  // a short-lived verification link. The client must verify before logging in.
+  // Self-signup is gated on the realm's email-domain allowlist; realm membership is then
+  // acquired by discovering and joining a workspace (no realm-admin step required).
+  // Sign-up does not issue a session: it creates an UNVERIFIED user and emails a
+  // short-lived verification link. The client must verify before logging in.
   async register(
     email: string,
     password: string,
     name: string
   ): Promise<VerificationPending> {
+    const realmId = this.config.get("REALM_ID", { infer: true });
+    const realm = await this.prisma.realm.findUnique({ where: { id: realmId } });
+    if (!realm) throw new ForbiddenException("registration is not available");
+    this.assertEmailDomainAllowed(email, realm.allowedEmailDomains);
+
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       // A verified account is a genuine conflict; an unverified one most likely
@@ -90,6 +97,15 @@ export class AuthService {
   // Public client config: lets the UI hide flows that can't work (e.g. password reset).
   publicConfig(): { passwordResetEnabled: boolean } {
     return { passwordResetEnabled: !this.mailer.isBypassed() };
+  }
+
+  // Empty allowlist = open registration; otherwise the email's domain must be listed.
+  private assertEmailDomainAllowed(email: string, allowed: string[]): void {
+    if (allowed.length === 0) return;
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (!domain || !allowed.includes(domain)) {
+      throw new ForbiddenException("this email isn't authorised to join this realm");
+    }
   }
 
   async login(email: string, password: string): Promise<TokenPair> {

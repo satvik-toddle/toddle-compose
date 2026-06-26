@@ -13,22 +13,46 @@
   padding: 28px 88px 0;
 }
 
+// shared by the textarea and its measuring mirror; must stay identical
+%doc-title-type {
+  font-family: inherit;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+// auto-grows the title via a hidden mirror sharing the textarea's grid cell
+.ws-doc-title-grow {
+  display: grid;
+
+  > textarea,
+  &::after {
+    grid-area: 1 / 1;
+  }
+
+  &::after {
+    @extend %doc-title-type;
+    content: attr(data-value) ' ';
+    visibility: hidden;
+  }
+}
+
 .ws-doc-title-field {
+  @extend %doc-title-type;
   display: block;
   width: 100%;
   border: 0;
   outline: 0;
   background: transparent;
-  font-family: inherit;
   color: var(--text-primary);
-  /* larger than the doc editor's h1 (32px) so the page title clearly outranks
-     in-document headings */
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
   margin: 0;
   padding: 0;
+  resize: none;
+  overflow: hidden;
 
   &::placeholder {
     color: var(--neutral-600);

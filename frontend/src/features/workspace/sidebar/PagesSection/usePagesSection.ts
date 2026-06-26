@@ -13,7 +13,7 @@ import { buildDocTree, getAncestorIds, mapDocsById } from '../../pagesModel';
 // stores/router.
 export function usePagesSection(ctx: WorkspaceCtx) {
   const ws = ctx.workspaceId;
-  const me = useAuthStore((s) => s.user);
+  const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const selectedPageId = params.get('doc');
@@ -59,7 +59,7 @@ export function usePagesSection(ctx: WorkspaceCtx) {
     );
   };
 
-  const canManage = (ownerId: string) => ctx.isAdmin || me?.id === ownerId;
+  const canManage = (ownerId: string) => ctx.isAdmin || currentUser?.id === ownerId;
 
   return {
     ws,

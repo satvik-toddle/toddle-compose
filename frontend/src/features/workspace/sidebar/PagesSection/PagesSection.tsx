@@ -5,7 +5,7 @@ import type { PagesSectionController } from './usePagesSection';
 
 const styles = {
   pageList: 'flex h-full flex-col gap-px',
-  statusMessage: 'flex items-center gap-1.75 px-2.25 py-2 text-body-s text-secondary',
+  statusMessage: 'flex items-center gap-2 px-2.25 py-2 text-body-s text-secondary',
   loader: 'flex flex-1 items-center justify-center',
 };
 

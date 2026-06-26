@@ -17,9 +17,8 @@ export function WorkspaceCard({
   showRoleBadge = false,
 }: {
   ws: Workspace;
-  overlay?: boolean;
   onEnter: () => void;
-  showRoleBadge: boolean;
+  showRoleBadge?: boolean;
 }) {
   const vis = workspaceVisual(ws.id);
   return (
@@ -71,10 +70,10 @@ export function WorkspaceCard({
 
 // Bare `r,g,b` triplets — consumed via rgba(var(--bg-color), …) in the stylesheet.
 const ROLE_BG: Record<string, string> = {
-  EDIT: '31,111,226', // red
+  EDIT: '31,111,226', // blue
   COMMENT: '46,160,67', // green
-  READ: '227,142,18', // yellow
-  ADMIN: '197,67,241',
+  READ: '227,142,18', // orange
+  ADMIN: '197,67,241', // purple
 };
 
 function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {

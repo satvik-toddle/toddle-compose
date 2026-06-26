@@ -1,6 +1,6 @@
 import { apiUrl } from '../lib/env';
 import { ApiError } from '../lib/errors';
-import { ensureRefreshed } from '../lib/http';
+import { ensureRefreshed, parse, toApiError } from '../lib/http';
 import { authState } from '../stores/authStore';
 
 // Shape returned by POST /api/uploads (backend StoredObject).
@@ -11,9 +11,8 @@ export interface StoredObject {
 }
 
 // Multipart upload of a single file. The JSON `request` helper can't carry a
-// FormData body (it forces Content-Type: application/json), so this posts the
-// multipart form directly while reusing the bearer token + single-flight
-// refresh-and-retry-once behaviour of the rest of the API layer.
+// FormData body, so this posts the form directly, reusing the API layer's bearer
+// auth, single-flight refresh-and-retry-once, and response parsing/error helpers.
 export async function uploadFile(file: Blob, filename?: string, _retry = false): Promise<StoredObject> {
   const form = new FormData();
   // Preserve the original filename so the backend derives the right extension.
@@ -26,27 +25,19 @@ export async function uploadFile(file: Blob, filename?: string, _retry = false):
 
   const res = await fetch(apiUrl('/uploads'), { method: 'POST', headers, body: form });
 
-  if (res.status === 401 && !_retry && authState().refreshToken) {
-    const ok = await ensureRefreshed();
-    if (ok) return uploadFile(file, filename, true);
+  // 401 from an expired access token → single-flight refresh, then retry once.
+  const canRefreshAndRetry = res.status === 401 && !_retry && Boolean(authState().refreshToken);
+  if (canRefreshAndRetry && (await ensureRefreshed())) {
+    return uploadFile(file, filename, true);
   }
 
-  const text = await res.text();
-  const body = text ? safeJson(text) : null;
-  if (!res.ok) {
-    const b = body as { message?: unknown; error?: unknown } | null;
-    const message =
-      b && typeof b.message === 'string' ? b.message : res.statusText || 'Upload failed';
-    const error = b && typeof b.error === 'string' ? b.error : undefined;
-    throw new ApiError(res.status, message, error, body);
-  }
-  return body as StoredObject;
-}
+  const body = await parse(res);
+  if (!res.ok) throw toApiError(res, body);
 
-function safeJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
+  // Defensive: a 2xx with an empty/non-JSON body would null-deref `stored.url` in callers.
+  const stored = body as StoredObject | null;
+  if (!stored || typeof stored.url !== 'string') {
+    throw new ApiError(res.status, 'Upload succeeded but the server returned no file URL', undefined, body);
   }
+  return stored;
 }

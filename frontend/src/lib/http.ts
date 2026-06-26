@@ -11,7 +11,9 @@ interface RequestOptions {
   _retry?: boolean; // internal: set after a refresh so we retry only once
 }
 
-async function parse(res: Response): Promise<unknown> {
+// Read a response body as JSON, falling back to raw text (and null when empty).
+// Exported so non-JSON callers (e.g. multipart uploads) decode bodies the same way.
+export async function parse(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return null;
   try {
@@ -21,7 +23,10 @@ async function parse(res: Response): Promise<unknown> {
   }
 }
 
-function toApiError(res: Response, body: unknown): ApiError {
+// Normalize any failed response into an ApiError. NestJS may return `message` as
+// a string or an array of validation strings; both collapse to one message here.
+// Exported so every API caller surfaces backend errors identically.
+export function toApiError(res: Response, body: unknown): ApiError {
   let message = res.statusText || 'Request failed';
   let error: string | undefined;
   if (body && typeof body === 'object') {

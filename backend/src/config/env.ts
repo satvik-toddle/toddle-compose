@@ -24,6 +24,30 @@ export const envSchema = z.object({
   // CORS allowlist (comma-separated origins). No wildcard in production.
   CORS_ORIGINS: z.string().default("http://localhost:5173"),
 
+  // --- Email verification -----------------------------------------------------
+  // Public origin of the frontend; used to build the verification link emailed
+  // on sign-up (`${FRONTEND_URL}/verify-email?token=...`).
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  // How long a sign-up verification token stays valid. Short-lived by design.
+  EMAIL_VERIFICATION_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // How long a "forgot password" reset token stays valid. Short-lived by design.
+  PASSWORD_RESET_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // Minimum gap between verification/reset emails to the SAME account, in
+  // seconds. Enforced server-side (per email, not per IP) so a fresh token +
+  // email is issued at most once per window. 0 disables the cooldown.
+  EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
+  // Gmail SMTP credentials; when both set, mail goes via Gmail, else logged to console (dev).
+  // Required in production unless BYPASS_EMAIL_SERVICE=true (checked in superRefine below).
+  GMAIL_SERVICE_EMAIL: z.string().email().optional(),
+  GMAIL_SERVICE_PASSWORD: z.string().min(1).optional(),
+  // Display name on the From header.
+  MAIL_FROM_NAME: z.string().default("Toddle Compose"),
+  // No email service: auto-verifies sign-ups, mints no reset token. Strict enum so it's explicit.
+  BYPASS_EMAIL_SERVICE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   // --- Rate limiting (@nestjs/throttler) -------------------------------------
   // Window all limits below are measured over, in milliseconds.
   RATE_LIMIT_TTL_MS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.ttlMs),
@@ -82,6 +106,20 @@ export const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+}).superRefine((env, ctx) => {
+  // Production must have deliverable mail unless the email service is bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    (!env.GMAIL_SERVICE_EMAIL || !env.GMAIL_SERVICE_PASSWORD)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GMAIL_SERVICE_EMAIL"],
+      message:
+        "GMAIL_SERVICE_EMAIL and GMAIL_SERVICE_PASSWORD are required in production unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-doc-editor';
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
@@ -26,23 +26,31 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
   const me = useAuthStore((s) => s.user);
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 
+  // Read the token via a ref so a token refetch (refetchOnWindowFocus past staleTime) doesn't recreate the collab/providerFactory and tear down the live Y.Doc mid-session.
+  const tokenRef = useRef<string | undefined>(rtc?.token);
+  tokenRef.current = rtc?.token;
+  // True once this mount has bound its own fresh Y.Doc — distinguishes a genuine remount (stale doc from a prior mount → discard) from a same-mount re-invocation (live session → reuse, never destroy).
+  const boundRef = useRef(false);
+
   const collab = useMemo(() => {
-    if (!rtc) return null;
-    const token = rtc.token;
     return {
       id: docId, // room name; must equal the token's docId
       providerFactory: (id: string, yjsDocMap: Map<string, unknown>) => {
-        // Drop any stale Y.Doc from Lexical's singleton map so reopening a doc re-syncs from scratch instead of rendering blank.
-        const stale = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
-        if (stale) {
-          stale.destroy();
+        let doc = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
+        // Only the first bind of a mount discards a doc: it's the stale one left in Lexical's singleton map by a prior mount, and reusing it renders blank (server sync emits no new changes).
+        if (doc && !boundRef.current) {
+          doc.destroy();
           yjsDocMap.delete(id);
+          doc = undefined;
         }
-        const doc = new Y.Doc();
-        yjsDocMap.set(id, doc);
+        if (!doc) {
+          doc = new Y.Doc();
+          yjsDocMap.set(id, doc);
+        }
+        boundRef.current = true;
         // The CollaborationPlugin connects/disconnects the provider.
         return new WebsocketProvider(RTC_WS_URL, id, doc, {
-          params: { token },
+          params: { token: tokenRef.current },
           connect: false,
         });
       },
@@ -50,7 +58,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
       cursorColor: me?.color ?? '#5a5ae2',
       shouldBootstrap: true,
     };
-  }, [docId, rtc, me]);
+  }, [docId, me]);
 
   if (isError) {
     return (

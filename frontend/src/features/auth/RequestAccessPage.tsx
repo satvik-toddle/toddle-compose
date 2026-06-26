@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
-import { TextInput } from '../../components/TextInput';
+import { Button, IconButton, TextInput } from '@toddle-edu/ds-web';
+import {
+  OutlinedIcons,
+  LeftArrowOutlined,
+  SearchOutlined,
+  GlobeOutlined,
+  LockOutlined,
+  ChevronRightOutlined,
+  BellRingOutlined,
+  SendOutlined,
+} from '@toddle-edu/ds-icons';
+import type { SystemIconProps } from '@toddle-edu/ds-icons';
 import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
@@ -14,8 +24,10 @@ import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import type { JoinRequestState } from '../../types/roles';
 import s from './RequestAccessPage.module.scss';
-import { IconButton } from '@toddle-edu/ds-web';
-import { LeftArrowOutlined } from '@toddle-edu/ds-icons';
+
+// Workspace identity icons are chosen by name at runtime (see workspaceVisual),
+// so resolve the ds-icon component from the outlined set by that name.
+const wsIcons = OutlinedIcons as Record<string, ComponentType<SystemIconProps>>;
 
 export function RequestAccessPage() {
   const me = useAuthStore((s) => s.user);
@@ -26,6 +38,9 @@ export function RequestAccessPage() {
   const joinPublic = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
   const [query, setQuery] = useState('');
+  // Optimistic "just requested here" set — bridges the gap between a successful
+  // request and the next poll that reflects it. Cleared per-workspace below once
+  // the server reports an authoritative state, so it can never mask a later change.
   const [requested, setRequested] = useState<Set<string>>(new Set());
 
   // Latest request state per workspace (requests arrive newest-first).
@@ -35,25 +50,42 @@ export function RequestAccessPage() {
     return m;
   }, [requests]);
 
-  // Enter a workspace when a request we watched go PENDING here is then approved by an
-  // admin. Gating on "seen pending this session" avoids barging in on a stale approval
-  // (e.g. one already granted before the page loaded — that workspace is in the launcher).
+  // Drop the optimistic flag once the server has a state for that workspace — the
+  // server is now authoritative (e.g. a later REJECTED must show "Request again",
+  // not stay stuck on the optimistic "Awaiting approval").
+  useEffect(() => {
+    setRequested((prev) => {
+      const next = new Set([...prev].filter((id) => !stateByWorkspace.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [stateByWorkspace]);
+
+  // Auto-enter a workspace the moment a request we made *in this session* is approved.
+  // We only act on requests we initiated here — seen PENDING, or still in the optimistic
+  // `requested` set (covers an approval that lands before the first poll observes PENDING)
+  // — so we don't barge into a stale approval that was already granted before the page
+  // loaded; those workspaces already appear in the launcher.
   const seenPending = useRef<Set<string>>(new Set());
-  const handled = useRef<Set<string>>(new Set());
+  const entered = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!requests) return;
     for (const r of requests) if (r.state === 'PENDING') seenPending.current.add(r.id);
-    const granted = requests.find(
-      (r) => r.state === 'APPROVED' && seenPending.current.has(r.id) && !handled.current.has(r.id),
+    const isOurs = (id: string, workspaceId: string) =>
+      seenPending.current.has(id) || requested.has(workspaceId);
+    const approved = requests.find(
+      (r) => r.state === 'APPROVED' && isOurs(r.id, r.workspaceId) && !entered.current.has(r.id),
     );
-    if (!granted) return;
-    handled.current.add(granted.id);
-    pushToast({ kind: 'success', message: `Access granted — opening ${granted.workspace?.name ?? 'workspace'}…` });
+    if (!approved) return;
+    entered.current.add(approved.id);
+    pushToast({
+      kind: 'success',
+      message: `Access granted — opening ${approved.workspace?.name ?? 'workspace'}…`,
+    });
     qc.invalidateQueries({ queryKey: qk.workspaces });
-    enterWorkspaceScope(qc, granted.workspaceId)
-      .then(() => navigate(`/w/${granted.workspaceId}`))
+    enterWorkspaceScope(qc, approved.workspaceId)
+      .then(() => navigate(`/w/${approved.workspaceId}`))
       .catch(() => navigate('/launcher'));
-  }, [requests, qc, navigate]);
+  }, [requests, requested, qc, navigate]);
 
   const filtered = useMemo(
     () => workspaces.filter((w) => w.name.toLowerCase().includes(query.toLowerCase())),
@@ -68,12 +100,17 @@ export function RequestAccessPage() {
   return (
     <div className="rbac auth-bg">
       <div className="auth-card ra-card">
-        <div className={"pb-2"}>
-          <IconButton icon={<LeftArrowOutlined />} type={"plain"} variant={"neutral"} onClick={()=>navigate("/")} />
+        <div className="pb-2">
+          <IconButton
+            type="plain"
+            variant="neutral"
+            icon={<LeftArrowOutlined />}
+            onClick={() => navigate('/')}
+          />
         </div>
         <div className="auth-brand">
           <div className="auth-logo">
-            <a href={"/"} className={"flex"}>
+            <a href="/" className="flex">
               <img src="/brand/ToddleLogo.svg" alt="" />
             </a>
           </div>
@@ -86,13 +123,15 @@ export function RequestAccessPage() {
           Open a public workspace right away, or request access to a private one
         </p>
 
-        <TextInput
-          wrapClassName={s.raSearch}
-          icon="SearchOutlined"
-          placeholder="Search workspaces in Toddle…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className={s.raSearch}>
+          <TextInput
+            dsVersion="2.0"
+            leadingIcon={<SearchOutlined />}
+            placeholder="Search workspaces in Toddle…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
 
         <div className={s.raList}>
           {isLoading && <p className="auth-fine">Loading workspaces…</p>}
@@ -101,17 +140,26 @@ export function RequestAccessPage() {
           )}
           {filtered.map((w) => {
             const vis = workspaceVisual(w.id);
+            const WsIcon = wsIcons[vis.icon];
             const pub = w.visibility === 'PUBLIC';
             const reqState = stateByWorkspace.get(w.id);
-            const isPending = requested.has(w.id) || reqState === 'PENDING';
-            const isRejected = reqState === 'REJECTED' && !requested.has(w.id);
+            // Server state wins once known; `requested` only bridges until the next poll.
+            const isPending = reqState === 'PENDING' || requested.has(w.id);
+            const isRejected = reqState === 'REJECTED';
+            const VisIcon = pub ? GlobeOutlined : LockOutlined;
             return (
               <div key={w.id} className={s.raRow}>
                 <span
                   className="ws-emoji sm"
                   style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
                 >
-                  <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+                  {WsIcon && (
+                    <WsIcon
+                      overrideVariantStyles
+                      className="ic"
+                      style={{ color: vis.color, width: 18, height: 18 }}
+                    />
+                  )}
                 </span>
                 <div className={s.raInfo}>
                   <div className="nm">{w.name}</div>
@@ -124,32 +172,41 @@ export function RequestAccessPage() {
                   </div>
                 </div>
                 <span className={cn(s.raVis, pub ? s.pub : s.priv)}>
-                  <Icon name={pub ? 'GlobeOutlined' : 'LockOutlined'} size={12} />
+                  <VisIcon size="xxxx-small" overrideVariantStyles className="ic" />
                   {pub ? 'Public' : 'Private'}
                 </span>
                 {pub ? (
                   <Button
                     variant="primary"
-                    size="sm"
-                    iconRight="ChevronRightOutlined"
+                    type="fill"
+                    size="small"
+                    rightIcon={<ChevronRightOutlined />}
                     disabled={joinPublic.isPending}
                     onClick={() => joinPublic.mutate(w.id)}
                   >
                     Open
                   </Button>
                 ) : isPending ? (
-                  <Button size="sm" disabled className="ra-requested" icon="BellRingOutlined">
+                  <Button
+                    variant="neutral"
+                    type="outlined"
+                    size="small"
+                    disabled
+                    icon={<BellRingOutlined />}
+                  >
                     Awaiting approval
                   </Button>
                 ) : (
                   <Button
-                    size="sm"
-                    icon="SendOutlined"
+                    variant="neutral"
+                    type="outlined"
+                    size="small"
+                    icon={<SendOutlined />}
                     disabled={requestAccess.isPending}
                     onClick={() =>
                       requestAccess.mutate(
                         { workspaceId: w.id },
-                        { onSuccess: () => setRequested((s) => new Set(s).add(w.id)) },
+                        { onSuccess: () => setRequested((prev) => new Set(prev).add(w.id)) },
                       )
                     }
                   >

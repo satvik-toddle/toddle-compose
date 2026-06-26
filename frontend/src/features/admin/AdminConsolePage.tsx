@@ -37,13 +37,9 @@ export function AdminConsolePage() {
   const loc = useLocation();
   if (!me) return null;
 
-  const active = loc.pathname.includes('/members')
-    ? 'members'
-    : loc.pathname.includes('/requests')
-      ? 'requests'
-      : loc.pathname.includes('/settings')
-        ? 'settings'
-        : 'workspaces';
+  // Active tab = the /admin path segment, defaulting to Workspaces.
+  const TAB_SEGMENTS = ['members', 'requests', 'settings'] as const;
+  const active = TAB_SEGMENTS.find((seg) => loc.pathname.includes(`/${seg}`)) ?? 'workspaces';
 
   const options = [
     { value: 'workspaces', label: 'Workspaces', suffix: <Count n={workspaces?.length} /> },

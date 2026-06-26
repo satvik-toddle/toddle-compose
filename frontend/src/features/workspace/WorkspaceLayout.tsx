@@ -40,8 +40,8 @@ export function WorkspaceLayout() {
 
   return (
     <div className="rbac">
-      <WorkspaceTopbar ctx={ctx} onToggleSidebar={toggle} />
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <WorkspaceTopbar ctx={ctx} sidebarCollapsed={collapsed} onToggleSidebar={toggle} />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <WorkspaceSidebar ctx={ctx} collapsed={collapsed} />
         <Outlet context={ctx} />
       </div>

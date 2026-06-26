@@ -4,7 +4,6 @@ import { EmailOutlined, GlobeOutlined, AddOutlined, TickSmallOutlined } from '@t
 import { useRealm } from '../../hooks/queries';
 import { useUpdateRealmSettings } from '../../hooks/useRealmMutations';
 import { PageLoader } from '../../components/Loader';
-import s from './RealmSettingsTab.module.scss';
 
 // Bare lowercase host, "@"/whitespace stripped (mirrors the backend normaliser).
 function normalizeDomain(raw: string): string {
@@ -77,20 +76,20 @@ export function RealmSettingsTab() {
           </div>
         </div>
 
-        <div className={s.card}>
-          <div className={s.cardHead}>
+        <div className="flex max-w-[640px] flex-col gap-4 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-5 py-[18px]">
+          <div className="flex items-start gap-2.5">
             <EmailOutlined size="xxx-small" variant="subtle" className="ic" />
             <div>
-              <div className={s.cardTitle}>Allowed email domains</div>
-              <div className={s.cardSub}>
+              <div className="text-[14px] font-semibold">Allowed email domains</div>
+              <div className="mt-0.5 text-[12px] text-[var(--text-secondary)]">
                 New sign-ups must use one of these domains. Leave empty to allow any email.
               </div>
             </div>
           </div>
 
           {isOwner && (
-            <div className={s.addRow}>
-              <div className={s.addInput}>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
                 <TextInput
                   dsVersion="2.0"
                   leadingIcon={<GlobeOutlined />}
@@ -112,9 +111,11 @@ export function RealmSettingsTab() {
             </div>
           )}
 
-          <div className={s.chips}>
+          <div className="flex flex-wrap gap-2">
             {domains.length === 0 && (
-              <span className={s.empty}>Any email domain can register.</span>
+              <span className="text-[13px] text-[var(--text-secondary)]">
+                Any email domain can register.
+              </span>
             )}
             {domains.map((d) => (
               <Tag
@@ -131,7 +132,7 @@ export function RealmSettingsTab() {
           </div>
 
           {isOwner && (
-            <div className={s.actions}>
+            <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-3.5">
               <Button
                 variant="neutral"
                 type="plain"

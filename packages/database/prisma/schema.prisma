@@ -52,6 +52,8 @@ enum JoinRequestState {
 model Realm {
   id         String        @id @default(cuid())
   name       String
+  // Self-signup email allowlist (bare domains, e.g. "toddleapp.com"). Empty = any domain may register.
+  allowedEmailDomains String[] @default([]) @map("allowed_email_domains")
   createdAt  DateTime      @default(now()) @map("created_at")
   members    RealmMember[]
   workspaces Workspace[]

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-doc-editor';
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
@@ -23,31 +23,44 @@ const EDITOR_STYLES = {
 // (room = docId). The body lives in Yjs (rtc-database) — multi-user, live, server
 // persistence. Keyed by docId at the call site → remounts per document.
 export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
-  const me = useAuthStore((s) => s.user);
+  // Select primitive slices, not the user object: a token refresh replaces `user` by identity but leaves these values equal, so `collab` below stays stable instead of tearing down the live provider.
+  const name = useAuthStore((s) => s.user?.name);
+  const color = useAuthStore((s) => s.user?.color);
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 
+  // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
+  const paramsRef = useRef<{ token?: string }>({});
+  paramsRef.current.token = rtc?.token;
+  // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
+  const freshDocBoundRef = useRef(false);
+
   const collab = useMemo(() => {
-    if (!rtc) return null;
-    const token = rtc.token;
     return {
       id: docId, // room name; must equal the token's docId
       providerFactory: (id: string, yjsDocMap: Map<string, unknown>) => {
         let doc = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
+        // First bind of this mount: any doc in Lexical's singleton map is stale from a prior mount/doc and reusing it renders blank (server sync emits no new changes) — discard it.
+        if (doc && !freshDocBoundRef.current) {
+          doc.destroy();
+          yjsDocMap.delete(id);
+          doc = undefined;
+        }
         if (!doc) {
           doc = new Y.Doc();
           yjsDocMap.set(id, doc);
         }
+        freshDocBoundRef.current = true;
         // The CollaborationPlugin connects/disconnects the provider.
         return new WebsocketProvider(RTC_WS_URL, id, doc, {
-          params: { token },
+          params: paramsRef.current,
           connect: false,
         });
       },
-      username: me?.name ?? 'User',
-      cursorColor: me?.color ?? '#5a5ae2',
+      username: name ?? 'User',
+      cursorColor: color ?? '#5a5ae2',
       shouldBootstrap: true,
     };
-  }, [docId, rtc, me]);
+  }, [docId, name, color]);
 
   if (isError) {
     return (
@@ -56,7 +69,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
       </div>
     );
   }
-  if (isLoading || !rtc || !collab) {
+  if (isLoading || !rtc) {
     return (
       <div className={s.tcEditor}>
         <PageLoader />

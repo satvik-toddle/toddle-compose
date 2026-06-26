@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, IconButton, TextInput, SpinnerLoader } from '@toddle-edu/ds-web';
-import {
-  EmailOutlined,
-  GlobeOutlined,
-  AddOutlined,
-  CloseOutlined,
-  TickSmallOutlined,
-} from '@toddle-edu/ds-icons';
+import { Button, TextInput, Tag } from '@toddle-edu/ds-web';
+import { EmailOutlined, GlobeOutlined, AddOutlined, TickSmallOutlined } from '@toddle-edu/ds-icons';
 import { useRealm } from '../../hooks/queries';
 import { useUpdateRealmSettings } from '../../hooks/useRealmMutations';
+import { PageLoader } from '../../components/Loader';
 import s from './RealmSettingsTab.module.scss';
 
 // Bare lowercase host, "@"/whitespace stripped (mirrors the backend normaliser).
@@ -63,9 +58,7 @@ export function RealmSettingsTab() {
     return (
       <div className="page">
         <div className="page-wrap">
-          <div className="tc-center">
-            <SpinnerLoader size="small" />
-          </div>
+          <PageLoader />
         </div>
       </div>
     );
@@ -124,19 +117,16 @@ export function RealmSettingsTab() {
               <span className={s.empty}>Any email domain can register.</span>
             )}
             {domains.map((d) => (
-              <span key={d} className={s.chip}>
+              <Tag
+                key={d}
+                color="neutral"
+                size="small"
+                onClose={
+                  isOwner ? () => setDomains((list) => list.filter((x) => x !== d)) : undefined
+                }
+              >
                 @{d}
-                {isOwner && (
-                  <IconButton
-                    type="plain"
-                    variant="neutral"
-                    size="small"
-                    icon={<CloseOutlined />}
-                    title={`Remove ${d}`}
-                    onClick={() => setDomains((list) => list.filter((x) => x !== d))}
-                  />
-                )}
-              </span>
+              </Tag>
             ))}
           </div>
 

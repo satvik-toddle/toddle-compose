@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, IconButton, TextInput } from '@toddle-edu/ds-web';
 import {
-  OutlinedIcons,
   LeftArrowOutlined,
   SearchOutlined,
   GlobeOutlined,
@@ -13,7 +11,7 @@ import {
   BellRingOutlined,
   SendOutlined,
 } from '@toddle-edu/ds-icons';
-import type { SystemIconProps } from '@toddle-edu/ds-icons';
+import { Icon } from '../../components/Icon';
 import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
@@ -24,10 +22,6 @@ import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import type { JoinRequestState } from '../../types/roles';
 import s from './RequestAccessPage.module.scss';
-
-// Workspace identity icons are chosen by name at runtime (see workspaceVisual),
-// so resolve the ds-icon component from the outlined set by that name.
-const wsIcons = OutlinedIcons as Record<string, ComponentType<SystemIconProps>>;
 
 export function RequestAccessPage() {
   const me = useAuthStore((s) => s.user);
@@ -43,10 +37,13 @@ export function RequestAccessPage() {
   // the server reports an authoritative state, so it can never mask a later change.
   const [requested, setRequested] = useState<Set<string>>(new Set());
 
-  // Latest request state per workspace (requests arrive newest-first).
+  // Latest request state per workspace. Sort newest-first ourselves (by createdAt)
+  // rather than trusting the server's order, so a stale REJECTED can't shadow a
+  // newer PENDING and offer a duplicate "Request again".
   const stateByWorkspace = useMemo(() => {
     const m = new Map<string, JoinRequestState>();
-    for (const r of requests ?? []) if (!m.has(r.workspaceId)) m.set(r.workspaceId, r.state);
+    const byNewest = [...(requests ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    for (const r of byNewest) if (!m.has(r.workspaceId)) m.set(r.workspaceId, r.state);
     return m;
   }, [requests]);
 
@@ -61,19 +58,18 @@ export function RequestAccessPage() {
   }, [stateByWorkspace]);
 
   // Auto-enter a workspace the moment a request we made *in this session* is approved.
-  // We only act on requests we initiated here — seen PENDING, or still in the optimistic
-  // `requested` set (covers an approval that lands before the first poll observes PENDING)
-  // — so we don't barge into a stale approval that was already granted before the page
-  // loaded; those workspaces already appear in the launcher.
-  const seenPending = useRef<Set<string>>(new Set());
+  // `requestedThisSession` is populated only when the user clicks Request here and
+  // persists after the optimistic `requested` set is cleared, so we never barge into
+  // an approval for a request made elsewhere/earlier (those already show in the launcher).
+  const requestedThisSession = useRef<Set<string>>(new Set());
   const entered = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!requests) return;
-    for (const r of requests) if (r.state === 'PENDING') seenPending.current.add(r.id);
-    const isOurs = (id: string, workspaceId: string) =>
-      seenPending.current.has(id) || requested.has(workspaceId);
     const approved = requests.find(
-      (r) => r.state === 'APPROVED' && isOurs(r.id, r.workspaceId) && !entered.current.has(r.id),
+      (r) =>
+        r.state === 'APPROVED' &&
+        requestedThisSession.current.has(r.workspaceId) &&
+        !entered.current.has(r.id),
     );
     if (!approved) return;
     entered.current.add(approved.id);
@@ -85,7 +81,7 @@ export function RequestAccessPage() {
     enterWorkspaceScope(qc, approved.workspaceId)
       .then(() => navigate(`/w/${approved.workspaceId}`))
       .catch(() => navigate('/launcher'));
-  }, [requests, requested, qc, navigate]);
+  }, [requests, qc, navigate]);
 
   const filtered = useMemo(
     () => workspaces.filter((w) => w.name.toLowerCase().includes(query.toLowerCase())),
@@ -105,14 +101,13 @@ export function RequestAccessPage() {
             type="plain"
             variant="neutral"
             icon={<LeftArrowOutlined />}
+            title="Back"
             onClick={() => navigate('/')}
           />
         </div>
         <div className="auth-brand">
           <div className="auth-logo">
-            <a href="/" className="flex">
-              <img src="/brand/ToddleLogo.svg" alt="" />
-            </a>
+            <img src="/brand/ToddleLogo.svg" alt="" />
           </div>
           <div className="auth-word">
             Toddle <span>Compose</span>
@@ -140,7 +135,6 @@ export function RequestAccessPage() {
           )}
           {filtered.map((w) => {
             const vis = workspaceVisual(w.id);
-            const WsIcon = wsIcons[vis.icon];
             const pub = w.visibility === 'PUBLIC';
             const reqState = stateByWorkspace.get(w.id);
             // Server state wins once known; `requested` only bridges until the next poll.
@@ -153,13 +147,7 @@ export function RequestAccessPage() {
                   className="ws-emoji sm"
                   style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
                 >
-                  {WsIcon && (
-                    <WsIcon
-                      overrideVariantStyles
-                      className="ic"
-                      style={{ color: vis.color, width: 18, height: 18 }}
-                    />
-                  )}
+                  <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
                 </span>
                 <div className={s.raInfo}>
                   <div className="nm">{w.name}</div>
@@ -206,7 +194,12 @@ export function RequestAccessPage() {
                     onClick={() =>
                       requestAccess.mutate(
                         { workspaceId: w.id },
-                        { onSuccess: () => setRequested((prev) => new Set(prev).add(w.id)) },
+                        {
+                          onSuccess: () => {
+                            requestedThisSession.current.add(w.id);
+                            setRequested((prev) => new Set(prev).add(w.id));
+                          },
+                        },
                       )
                     }
                   >

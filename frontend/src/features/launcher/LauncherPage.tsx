@@ -141,17 +141,15 @@ export function LauncherPage() {
                   New workspace
                 </Button>
               )}
-              {
-                isMember && !admin && (
-                  <Button
-                    variant="primary"
-                    icon="SearchOutlined"
-                    onClick={() => navigate('/access')}
-                  >
-                    Discover
-                  </Button>
-                )
-              }
+              {isMember && (
+                <Button
+                  variant="primary"
+                  icon="SearchOutlined"
+                  onClick={() => navigate('/access')}
+                >
+                  Discover
+                </Button>
+              )}
             </div>
           </div>
 

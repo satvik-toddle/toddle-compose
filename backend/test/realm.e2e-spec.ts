@@ -42,9 +42,15 @@ describe("Realm / Workspace RBAC (e2e)", () => {
 
   async function register(local: string): Promise<Actor> {
     const email = `rbac_${local}_${stamp}@toddle.test`;
-    const res = await request(server)
+    // Sign-up no longer issues a session (email-verification flow). The suite runs
+    // with BYPASS_EMAIL_SERVICE, which auto-verifies the account, so log in for tokens.
+    await request(server)
       .post("/api/auth/register")
       .send({ email, password: PASSWORD, name: local })
+      .expect(201);
+    const res = await request(server)
+      .post("/api/auth/login")
+      .send({ email, password: PASSWORD })
       .expect(201);
     return { token: res.body.accessToken, id: res.body.user.id, email };
   }
@@ -76,12 +82,14 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     });
     const owner = await db.user.upsert({
       where: { email: OWNER_EMAIL },
-      update: {},
+      // emailVerifiedAt: login requires a verified account (email-verification flow).
+      update: { emailVerifiedAt: new Date() },
       create: {
         email: OWNER_EMAIL,
         name: "Realm Owner",
         color: "#f04c54",
         passwordHash: await bcrypt.hash(PASSWORD, 4),
+        emailVerifiedAt: new Date(),
       },
     });
     ownerId = owner.id;
@@ -856,6 +864,37 @@ describe("Realm / Workspace RBAC (e2e)", () => {
         .set(auth(maintainer.token))
         .send({ allowedEmailDomains: ["toddleapp.com"] })
         .expect(403);
+    });
+
+    it("malformed domains are rejected → 400 (not silently stored)", async () => {
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: ["toddleapp,com"] }) // typo'd separator
+        .expect(400);
+    });
+
+    it("non-admins don't get the allowlist in /api/realm", async () => {
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: ["toddle.test"] })
+        .expect(200);
+
+      const outsider = await register("noinfo"); // role null, not a realm member
+      const info = await request(server)
+        .get("/api/realm")
+        .set(auth(outsider.token))
+        .expect(200);
+      expect(info.body.role).toBeNull();
+      expect(info.body.allowedEmailDomains).toBeUndefined();
+
+      // Reopen so later registrations aren't gated.
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: [] })
+        .expect(200);
     });
   });
 });

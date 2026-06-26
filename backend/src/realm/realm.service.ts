@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -12,6 +13,11 @@ import { AuthzService } from "./authz.service";
 // Never expose passwordHash.
 const USER_SELECT = { id: true, email: true, name: true, color: true } as const;
 
+// Bare host like "toddle.test": dot-separated labels, no scheme/@/path. Matches what
+// register compares against (email.split("@")[1]); rejects typos that would silently
+// lock out every legitimate sign-up.
+const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/;
+
 @Injectable()
 export class RealmService {
   constructor(
@@ -22,16 +28,14 @@ export class RealmService {
 
   async info(userId: string) {
     const role = await this.authz.realmRole(userId);
+    const base = { id: this.realm.id, name: this.realm.name, role };
+    // The allowlist is admin-only config; don't disclose it to members/non-members.
+    if (role !== "OWNER" && role !== "MAINTAINER") return base;
     const realm = await this.prisma.realm.findUnique({
       where: { id: this.realm.id },
       select: { allowedEmailDomains: true },
     });
-    return {
-      id: this.realm.id,
-      name: this.realm.name,
-      role,
-      allowedEmailDomains: realm?.allowedEmailDomains ?? [],
-    };
+    return { ...base, allowedEmailDomains: realm?.allowedEmailDomains ?? [] };
   }
 
   /** Update realm settings; OWNER only. Domains are normalised to bare lowercase hosts. */
@@ -46,10 +50,15 @@ export class RealmService {
   }
 
   // Bare lowercase hosts, "@" / whitespace stripped, blanks dropped, de-duplicated.
+  // Rejects entries that aren't valid domains so a typo can't silently gate out everyone.
   private normalizeDomains(domains: string[]): string[] {
     const cleaned = domains
       .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
       .filter(Boolean);
+    const invalid = cleaned.filter((d) => !DOMAIN_RE.test(d));
+    if (invalid.length > 0) {
+      throw new BadRequestException(`invalid email domain(s): ${invalid.join(", ")}`);
+    }
     return [...new Set(cleaned)];
   }
 
@@ -107,7 +116,9 @@ export class RealmService {
     });
   }
 
-  /** Remove a realm member. Cannot remove the owner. */
+  // Remove a realm member (cannot remove the owner). Note: this is not a ban —
+  // open discovery lets the user re-acquire membership by self-joining any PUBLIC
+  // workspace. To keep someone out, make the workspaces PRIVATE (join needs approval).
   async removeUser(actorId: string, targetUserId: string) {
     const existing = await this.getMemberOrThrow(targetUserId);
     if (existing.role === "OWNER") {

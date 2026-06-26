@@ -1,9 +1,23 @@
 import type { ReactNode } from 'react';
+import { cn } from '../../lib/cn';
 
-export function AuthShell({ children, foot }: { children: ReactNode; foot?: ReactNode }) {
+export function AuthShell({
+  children,
+  foot,
+  lead,
+  cardClassName,
+}: {
+  children: ReactNode;
+  foot?: ReactNode;
+  // Rendered above the brand (e.g. a back button).
+  lead?: ReactNode;
+  // Extra classes on the card (e.g. a wider layout).
+  cardClassName?: string;
+}) {
   return (
     <div className="rbac auth-bg">
-      <div className="auth-card">
+      <div className={cn('auth-card', cardClassName)}>
+        {lead}
         <div className="auth-brand">
           <div className="auth-logo">
             <img src="/brand/ToddleLogo.svg" alt="" />

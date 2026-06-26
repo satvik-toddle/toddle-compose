@@ -12,6 +12,7 @@ import {
   SendOutlined,
 } from '@toddle-edu/ds-icons';
 import { Icon } from '../../components/Icon';
+import { AuthShell } from './AuthShell';
 import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
@@ -21,82 +22,117 @@ import { useAuthStore } from '../../stores/authStore';
 import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
 import type { JoinRequestState } from '../../types/roles';
-import s from './RequestAccessPage.module.scss';
+
+const styles = {
+  backButton: 'pb-2',
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-4 text-body text-secondary',
+  search: 'mb-4 mt-0.5',
+  list: 'flex max-h-[400px] flex-col gap-2 overflow-auto pt-2.5',
+  hint: 'text-body-s text-secondary',
+  footerNote: 'mt-1 text-center text-body-s text-secondary',
+  row: 'grid grid-cols-[36px_1fr_auto_auto] items-center gap-3 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-3 py-[11px] hover:border-[var(--border-hover)]',
+  icon: 'flex h-9 w-9 min-w-[36px] items-center justify-center rounded-2.5',
+  info: 'min-w-0',
+  workspaceName: 'text-[14px] font-bold',
+  workspaceMeta: 'mt-px text-[12px] text-secondary',
+  visibilityBadge:
+    'inline-flex h-[22px] items-center gap-[5px] whitespace-nowrap rounded-full px-[9px] text-[11px] font-semibold',
+  visibilityBadgePublic:
+    'bg-[var(--decorative-background-teal)] text-[var(--decorative-foreground-teal)] dark:bg-[rgba(0,172,138,0.18)] dark:text-[var(--teal-700)]',
+  visibilityBadgePrivate: 'bg-[var(--surface-tertiary-enabled)] text-secondary [&_.ic]:opacity-60',
+  signedInEmail: 'text-primary font-semibold',
+};
+
+// Per-row labels live as pure helpers (a row can't hold its own useMemo).
+function workspaceStatusText(isPublicWorkspace: boolean, isRequestRejected: boolean): string {
+  if (isPublicWorkspace) return 'Anyone in the realm can join';
+  if (isRequestRejected) return 'Request declined — you can ask again';
+  return 'Approval required';
+}
+
+function requestButtonLabel(isRequestRejected: boolean): string {
+  if (isRequestRejected) return 'Request again';
+  return 'Request access';
+}
 
 export function RequestAccessPage() {
-  const me = useAuthStore((s) => s.user);
+  const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const { data: workspaces = [], isLoading } = useDiscoverableWorkspaces();
-  const { data: requests } = useMyJoinRequests();
-  const joinPublic = useJoinPublicWorkspace();
+  const queryClient = useQueryClient();
+  const { data: discoverableWorkspaces = [], isLoading } = useDiscoverableWorkspaces();
+  const { data: myRequests } = useMyJoinRequests();
+  const joinPublicWorkspace = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
-  const [query, setQuery] = useState('');
-  // Optimistic "just requested here" set — bridges the gap between a successful
-  // request and the next poll that reflects it. Cleared per-workspace below once
-  // the server reports an authoritative state, so it can never mask a later change.
-  const [requested, setRequested] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  // Optimistic "just requested here" flags; bridge the gap until the next poll reflects them.
+  const [optimisticRequests, setOptimisticRequests] = useState<Set<string>>(new Set());
 
-  // Latest request state per workspace. Sort newest-first ourselves (by createdAt)
-  // rather than trusting the server's order, so a stale REJECTED can't shadow a
-  // newer PENDING and offer a duplicate "Request again".
-  const stateByWorkspace = useMemo(() => {
-    const m = new Map<string, JoinRequestState>();
-    const byNewest = [...(requests ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    for (const r of byNewest) if (!m.has(r.workspaceId)) m.set(r.workspaceId, r.state);
-    return m;
-  }, [requests]);
-
-  // Drop the optimistic flag once the server has a state for that workspace — the
-  // server is now authoritative (e.g. a later REJECTED must show "Request again",
-  // not stay stuck on the optimistic "Awaiting approval").
-  useEffect(() => {
-    setRequested((prev) => {
-      const next = new Set([...prev].filter((id) => !stateByWorkspace.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [stateByWorkspace]);
-
-  // Auto-enter a workspace the moment a request we made *in this session* is approved.
-  // `requestedThisSession` is populated only when the user clicks Request here and
-  // persists after the optimistic `requested` set is cleared, so we never barge into
-  // an approval for a request made elsewhere/earlier (those already show in the launcher).
-  const requestedThisSession = useRef<Set<string>>(new Set());
-  const entered = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    if (!requests) return;
-    const approved = requests.find(
-      (r) =>
-        r.state === 'APPROVED' &&
-        requestedThisSession.current.has(r.workspaceId) &&
-        !entered.current.has(r.id),
+  // Request state per workspace, sorted newest-first so a stale REJECTED can't shadow a live PENDING.
+  const requestStateByWorkspace = useMemo(() => {
+    const stateByWorkspace = new Map<string, JoinRequestState>();
+    const newestFirst = [...(myRequests ?? [])].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
     );
-    if (!approved) return;
-    entered.current.add(approved.id);
+    for (const request of newestFirst) {
+      if (!stateByWorkspace.has(request.workspaceId)) {
+        stateByWorkspace.set(request.workspaceId, request.state);
+      }
+    }
+    return stateByWorkspace;
+  }, [myRequests]);
+
+  // Once the server reports a state, it's authoritative — drop the optimistic flag.
+  useEffect(() => {
+    setOptimisticRequests((previous) => {
+      const stillOptimistic = new Set(
+        [...previous].filter((workspaceId) => !requestStateByWorkspace.has(workspaceId)),
+      );
+      return stillOptimistic.size === previous.size ? previous : stillOptimistic;
+    });
+  }, [requestStateByWorkspace]);
+
+  // Auto-enter only workspaces requested in this session (tracked separately so it survives the optimistic flag clearing).
+  const requestedThisSession = useRef<Set<string>>(new Set());
+  const enteredWorkspaces = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!myRequests) return;
+    const approvedRequest = myRequests.find(
+      (request) =>
+        request.state === 'APPROVED' &&
+        requestedThisSession.current.has(request.workspaceId) &&
+        !enteredWorkspaces.current.has(request.id),
+    );
+    if (!approvedRequest) return;
+    enteredWorkspaces.current.add(approvedRequest.id);
     pushToast({
       kind: 'success',
-      message: `Access granted — opening ${approved.workspace?.name ?? 'workspace'}…`,
+      message: `Access granted — opening ${approvedRequest.workspace?.name ?? 'workspace'}…`,
     });
-    qc.invalidateQueries({ queryKey: qk.workspaces });
-    enterWorkspaceScope(qc, approved.workspaceId)
-      .then(() => navigate(`/w/${approved.workspaceId}`))
+    queryClient.invalidateQueries({ queryKey: qk.workspaces });
+    enterWorkspaceScope(queryClient, approvedRequest.workspaceId)
+      .then(() => navigate(`/w/${approvedRequest.workspaceId}`))
       .catch(() => navigate('/launcher'));
-  }, [requests, qc, navigate]);
+  }, [myRequests, queryClient, navigate]);
 
-  const filtered = useMemo(
-    () => workspaces.filter((w) => w.name.toLowerCase().includes(query.toLowerCase())),
-    [workspaces, query],
+  const matchingWorkspaces = useMemo(
+    () =>
+      discoverableWorkspaces.filter((workspace) =>
+        workspace.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [discoverableWorkspaces, searchQuery],
   );
 
   const signOut = async () => {
-    await performLogout(qc);
+    await performLogout(queryClient);
     navigate('/login');
   };
 
   return (
-    <div className="rbac auth-bg">
-      <div className="auth-card ra-card">
-        <div className="pb-2">
+    <AuthShell
+      cardClassName="!w-[540px]"
+      lead={
+        <div className={styles.backButton}>
           <IconButton
             type="plain"
             variant="neutral"
@@ -105,126 +141,127 @@ export function RequestAccessPage() {
             onClick={() => navigate('/')}
           />
         </div>
-        <div className="auth-brand">
-          <div className="auth-logo">
-            <img src="/brand/ToddleLogo.svg" alt="" />
-          </div>
-          <div className="auth-word">
-            Toddle <span>Compose</span>
-          </div>
-        </div>
-        <h1 className="auth-h">Find a workspace to join</h1>
-        <p className="auth-p">
-          Open a public workspace right away, or request access to a private one
-        </p>
-
-        <div className={s.raSearch}>
-          <TextInput
-            dsVersion="2.0"
-            leadingIcon={<SearchOutlined />}
-            placeholder="Search workspaces in Toddle…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-
-        <div className={s.raList}>
-          {isLoading && <p className="auth-fine">Loading workspaces…</p>}
-          {!isLoading && filtered.length === 0 && (
-            <p className="auth-fine">No discoverable workspaces right now.</p>
+      }
+      foot={
+        <>
+          {currentUser && (
+            <>
+              Signed in as <b className={styles.signedInEmail}>{currentUser.email}</b> ·{' '}
+            </>
           )}
-          {filtered.map((w) => {
-            const vis = workspaceVisual(w.id);
-            const pub = w.visibility === 'PUBLIC';
-            const reqState = stateByWorkspace.get(w.id);
-            // Server state wins once known; `requested` only bridges until the next poll.
-            const isPending = reqState === 'PENDING' || requested.has(w.id);
-            const isRejected = reqState === 'REJECTED';
-            const VisIcon = pub ? GlobeOutlined : LockOutlined;
-            return (
-              <div key={w.id} className={s.raRow}>
-                <span
-                  className="ws-emoji sm"
-                  style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-                >
-                  <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
-                </span>
-                <div className={s.raInfo}>
-                  <div className="nm">{w.name}</div>
-                  <div className="sub">
-                    {pub
-                      ? 'Anyone in the realm can join'
-                      : isRejected
-                        ? 'Request declined — you can ask again'
-                        : 'Approval required'}
-                  </div>
-                </div>
-                <span className={cn(s.raVis, pub ? s.pub : s.priv)}>
-                  <VisIcon size="xxxx-small" overrideVariantStyles className="ic" />
-                  {pub ? 'Public' : 'Private'}
-                </span>
-                {pub ? (
-                  <Button
-                    variant="primary"
-                    type="fill"
-                    size="small"
-                    rightIcon={<ChevronRightOutlined />}
-                    disabled={joinPublic.isPending}
-                    onClick={() => joinPublic.mutate(w.id)}
-                  >
-                    Open
-                  </Button>
-                ) : isPending ? (
-                  <Button
-                    variant="neutral"
-                    type="outlined"
-                    size="small"
-                    disabled
-                    icon={<BellRingOutlined />}
-                  >
-                    Awaiting approval
-                  </Button>
-                ) : (
-                  <Button
-                    variant="neutral"
-                    type="outlined"
-                    size="small"
-                    icon={<SendOutlined />}
-                    disabled={requestAccess.isPending}
-                    onClick={() =>
-                      requestAccess.mutate(
-                        { workspaceId: w.id },
-                        {
-                          onSuccess: () => {
-                            requestedThisSession.current.add(w.id);
-                            setRequested((prev) => new Set(prev).add(w.id));
-                          },
-                        },
-                      )
-                    }
-                  >
-                    {isRejected ? 'Request again' : 'Request access'}
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+          <a onClick={signOut} role="button">
+            Sign out
+          </a>
+        </>
+      }
+    >
+      <h1 className={styles.heading}>Find a workspace to join</h1>
+      <p className={styles.subheading}>
+        Open a public workspace right away, or request access to a private one
+      </p>
 
-        <p className="auth-fine">
-          Don't see your team's workspace? Ask a realm admin to add you directly.
-        </p>
+      <div className={styles.search}>
+        <TextInput
+          dsVersion="2.0"
+          leadingIcon={<SearchOutlined />}
+          placeholder="Search workspaces in Toddle…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
-      <div className="auth-foot">
-        {me && (
-          <>
-            Signed in as <b style={{ color: 'var(--text-primary)' }}>{me.email}</b> ·{' '}
-          </>
+
+      <div className={styles.list}>
+        {isLoading && <p className={styles.hint}>Loading workspaces…</p>}
+        {!isLoading && matchingWorkspaces.length === 0 && (
+          <p className={styles.hint}>No discoverable workspaces right now.</p>
         )}
-        <a onClick={signOut} role="button">
-          Sign out
-        </a>
+        {matchingWorkspaces.map((workspace) => {
+          const appearance = workspaceVisual(workspace.id);
+          const isPublicWorkspace = workspace.visibility === 'PUBLIC';
+          const requestState = requestStateByWorkspace.get(workspace.id);
+          const isRequestPending =
+            requestState === 'PENDING' || optimisticRequests.has(workspace.id);
+          const isRequestRejected = requestState === 'REJECTED';
+          const VisibilityIcon = isPublicWorkspace ? GlobeOutlined : LockOutlined;
+          return (
+            <div key={workspace.id} className={styles.row}>
+              <span
+                className={styles.icon}
+                style={{
+                  background: appearance.color + '22',
+                  boxShadow: `inset 0 0 0 1px ${appearance.color}44`,
+                }}
+              >
+                <Icon name={appearance.icon} size={18} style={{ color: appearance.color }} />
+              </span>
+              <div className={styles.info}>
+                <div className={styles.workspaceName}>{workspace.name}</div>
+                <div className={styles.workspaceMeta}>
+                  {workspaceStatusText(isPublicWorkspace, isRequestRejected)}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  styles.visibilityBadge,
+                  isPublicWorkspace ? styles.visibilityBadgePublic : styles.visibilityBadgePrivate,
+                )}
+              >
+                <VisibilityIcon size="xxxx-small" overrideVariantStyles className="ic" />
+                {isPublicWorkspace ? 'Public' : 'Private'}
+              </span>
+              {isPublicWorkspace ? (
+                <Button
+                  variant="primary"
+                  type="fill"
+                  size="small"
+                  rightIcon={<ChevronRightOutlined />}
+                  disabled={joinPublicWorkspace.isPending}
+                  onClick={() => joinPublicWorkspace.mutate(workspace.id)}
+                >
+                  Open
+                </Button>
+              ) : isRequestPending ? (
+                <Button
+                  variant="neutral"
+                  type="outlined"
+                  size="small"
+                  disabled
+                  icon={<BellRingOutlined />}
+                >
+                  Awaiting approval
+                </Button>
+              ) : (
+                <Button
+                  variant="neutral"
+                  type="outlined"
+                  size="small"
+                  icon={<SendOutlined />}
+                  disabled={requestAccess.isPending}
+                  onClick={() =>
+                    requestAccess.mutate(
+                      { workspaceId: workspace.id },
+                      {
+                        onSuccess: () => {
+                          requestedThisSession.current.add(workspace.id);
+                          setOptimisticRequests((previous) =>
+                            new Set(previous).add(workspace.id),
+                          );
+                        },
+                      },
+                    )
+                  }
+                >
+                  {requestButtonLabel(isRequestRejected)}
+                </Button>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      <p className={styles.footerNote}>
+        Don't see your team's workspace? Ask a realm admin to add you directly.
+      </p>
+    </AuthShell>
   );
 }

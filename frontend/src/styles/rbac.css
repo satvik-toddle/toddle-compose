@@ -546,13 +546,7 @@
 /* .pw-strength/.bar/.pw-label → PasswordStrength.module.scss
    .auth-success/.suc-glyph/.suc-wait/.pulse (+ @keyframes rbacpulse) → RegisterSuccessPage.module.scss */
 
-/* request-access / discover workspaces */
-.rbac .auth-card.ra-card {
-  width: 540px;
-}
-/* .ra-search/.ra-list/.ra-row/.ra-info/.ra-vis → RequestAccessPage.module.scss
-   (.ra-card width kept global — it modifies the global .auth-card.
-   .btn.ra-requested was removed with the dead .btn rules.) */
+/* request-access / discover workspaces → fully Tailwind in RequestAccessPage.tsx */
 
 /* ============================================================
    LAUNCHER

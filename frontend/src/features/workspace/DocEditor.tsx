@@ -27,7 +27,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 
   // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
-  const paramsRef = useRef<{ token?: string }>({ token: rtc?.token });
+  const paramsRef = useRef<{ token?: string }>({});
   paramsRef.current.token = rtc?.token;
   // docIds this mount has already bound a fresh Y.Doc for. Keyed by id (not a mount-wide boolean) so the stale-doc discard depends on the docId itself, not on the call site remounting via key={docId}.
   const boundIdsRef = useRef<Set<string>>(new Set());
@@ -67,7 +67,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
       </div>
     );
   }
-  if (isLoading || !rtc || !collab) {
+  if (isLoading || !rtc) {
     return (
       <div className={s.tcEditor}>
         <PageLoader />

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
@@ -7,6 +8,7 @@ import type { WorkspaceCtx } from '../context';
 import { SidebarToggle } from './SidebarToggle';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { DocBreadcrumb } from './DocBreadcrumb';
+import { buildBreadcrumbTrail } from './ancestorTrail';
 import { DocActions } from './DocActions';
 
 const styles = {
@@ -33,14 +35,15 @@ export function WorkspaceTopbar({
 
   // The currently open page, if any (driven by the ?doc= query param).
   const openDocId = params.get('doc');
-  const doc = openDocId ? docs.find((doc) => doc.id === openDocId) : undefined;
+  const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
+  const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
 
   return (
     <div className={styles.bar}>
       <div className={styles.left}>
         <SidebarToggle collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
         <WorkspaceSwitcher ctx={ctx} />
-        {doc && <DocBreadcrumb title={doc.title} />}
+        {doc && <DocBreadcrumb trail={trail} workspaceId={ctx.workspaceId} />}
       </div>
       <div className={styles.right}>
         <DocActions ctx={ctx} doc={doc} user={currentUser} />

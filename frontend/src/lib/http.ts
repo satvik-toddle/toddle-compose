@@ -12,8 +12,7 @@ interface RequestOptions {
 }
 
 // Read a response body as JSON, falling back to raw text (and null when empty).
-// Exported so non-JSON callers (e.g. multipart uploads) decode bodies the same way.
-export async function parse(res: Response): Promise<unknown> {
+async function parse(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return null;
   try {
@@ -25,8 +24,7 @@ export async function parse(res: Response): Promise<unknown> {
 
 // Normalize any failed response into an ApiError. NestJS may return `message` as
 // a string or an array of validation strings; both collapse to one message here.
-// Exported so every API caller surfaces backend errors identically.
-export function toApiError(res: Response, body: unknown): ApiError {
+function toApiError(res: Response, body: unknown): ApiError {
   let message = res.statusText || 'Request failed';
   let error: string | undefined;
   if (body && typeof body === 'object') {
@@ -43,7 +41,9 @@ export function toApiError(res: Response, body: unknown): ApiError {
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = true, signal, _retry = false } = opts;
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // FormData sets its own multipart Content-Type (with boundary); only JSON needs it set.
+  const isForm = body instanceof FormData;
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   if (auth) {
     const token = authState().accessToken;
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -52,7 +52,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
   const res = await fetch(apiUrl(path), {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     signal,
   });
 

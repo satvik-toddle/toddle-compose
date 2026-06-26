@@ -1,7 +1,5 @@
-import { apiUrl } from '../lib/env';
 import { ApiError } from '../lib/errors';
-import { ensureRefreshed, parse, toApiError } from '../lib/http';
-import { authState } from '../stores/authStore';
+import { http } from '../lib/http';
 
 // Shape returned by POST /api/uploads (backend StoredObject).
 export interface StoredObject {
@@ -10,34 +8,17 @@ export interface StoredObject {
   size?: number;
 }
 
-// Multipart upload of a single file. The JSON `request` helper can't carry a
-// FormData body, so this posts the form directly, reusing the API layer's bearer
-// auth, single-flight refresh-and-retry-once, and response parsing/error helpers.
-export async function uploadFile(file: Blob, filename?: string, _retry = false): Promise<StoredObject> {
+// Multipart upload of a single file via the shared `request` layer (bearer auth + refresh-retry; FormData sets its own boundary).
+export async function uploadFile(file: Blob, filename?: string): Promise<StoredObject> {
   const form = new FormData();
   // Preserve the original filename so the backend derives the right extension.
   const name = filename ?? (file instanceof File ? file.name : 'upload');
   form.append('file', file, name);
 
-  const headers: Record<string, string> = {};
-  const token = authState().accessToken;
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(apiUrl('/uploads'), { method: 'POST', headers, body: form });
-
-  // 401 from an expired access token → single-flight refresh, then retry once.
-  const canRefreshAndRetry = res.status === 401 && !_retry && Boolean(authState().refreshToken);
-  if (canRefreshAndRetry && (await ensureRefreshed())) {
-    return uploadFile(file, filename, true);
-  }
-
-  const body = await parse(res);
-  if (!res.ok) throw toApiError(res, body);
-
+  const stored = await http.post<StoredObject | null>('/uploads', form);
   // Defensive: a 2xx with an empty/non-JSON body would null-deref `stored.url` in callers.
-  const stored = body as StoredObject | null;
   if (!stored || typeof stored.url !== 'string') {
-    throw new ApiError(res.status, 'Upload succeeded but the server returned no file URL', undefined, body);
+    throw new ApiError(0, 'Upload succeeded but the server returned no file URL', undefined, stored);
   }
   return stored;
 }

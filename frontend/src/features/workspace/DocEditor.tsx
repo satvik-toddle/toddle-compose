@@ -4,6 +4,8 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
 import { uploadFile } from '../../api/uploads';
+import { messageOf } from '../../lib/errors';
+import { pushToast } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
@@ -23,13 +25,29 @@ const EDITOR_STYLES = {
 // drag-drop, and URL-add — which it re-fetches then re-uploads). It hands us
 // either a bare File/Blob or an object `{ file, attachment }`; both must resolve
 // to a fetchable URL it can use as the node src. Returns the stored object URL.
-type UploadArg = File | Blob | { file: File | Blob; attachment?: { name?: string } };
+type UploadAttachment = { name?: string; mimeType?: string; metadata?: { fileExtension?: string } };
+type UploadArg = File | Blob | { file: File | Blob; attachment?: UploadAttachment };
+
+// Build a filename with an extension so the backend keys off the right type (URL-add gives an extension-less Blob + a mimeType).
+function uploadName(file: File | Blob, attachment?: UploadAttachment): string | undefined {
+  if (attachment?.name) return attachment.name;
+  if (file instanceof File && file.name) return file.name;
+  const ext = attachment?.metadata?.fileExtension ?? attachment?.mimeType?.split('/')[1] ?? file.type?.split('/')[1];
+  return ext ? `upload.${ext}` : undefined;
+}
+
 async function uploadToServer(arg: UploadArg): Promise<string> {
   const file = arg instanceof Blob ? arg : arg?.file;
   if (!file) throw new Error('uploadToServer: no file provided');
-  const name = !(arg instanceof Blob) ? arg?.attachment?.name : undefined;
-  const stored = await uploadFile(file, name);
-  return stored.url;
+  const attachment = arg instanceof Blob ? undefined : arg?.attachment;
+  try {
+    const stored = await uploadFile(file, uploadName(file, attachment));
+    return stored.url;
+  } catch (e) {
+    // The editor swallows upload rejections silently, so surface the failure before rethrowing.
+    pushToast({ kind: 'error', message: `Image upload failed: ${messageOf(e)}` });
+    throw e;
+  }
 }
 
 // Real-time collaborative editor. Mints an RTC token, then hands ds-doc-editor a

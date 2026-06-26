@@ -6,6 +6,11 @@ import { useUpdateRealmSettings } from '../../hooks/useRealmMutations';
 import { PageLoader } from '../../components/Loader';
 
 const styles = {
+  page: 'flex-1 overflow-auto px-[30px] pt-[26px] pb-10',
+  pageWrap: 'mx-auto max-w-[1040px]',
+  pageHead: 'mb-5 flex items-end justify-between gap-[18px]',
+  pageTitle: 'm-0 text-[25px] font-extrabold tracking-[-0.01em]',
+  pageSubtitle: 'mt-1 text-[13px] text-secondary',
   card: 'flex max-w-[640px] flex-col gap-4 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-5 py-[18px]',
   cardHeader: 'flex items-start gap-2.5',
   cardTitle: 'text-[14px] font-semibold',
@@ -77,20 +82,20 @@ export function RealmSettingsTab() {
 
   if (isLoading)
     return (
-      <div className="page">
-        <div className="page-wrap">
+      <div className={styles.page}>
+        <div className={styles.pageWrap}>
           <PageLoader />
         </div>
       </div>
     );
 
   return (
-    <div className="page">
-      <div className="page-wrap">
-        <div className="page-head">
+    <div className={styles.page}>
+      <div className={styles.pageWrap}>
+        <div className={styles.pageHead}>
           <div>
-            <h1>Realm settings</h1>
-            <div className="sub">
+            <h1 className={styles.pageTitle}>Realm settings</h1>
+            <div className={styles.pageSubtitle}>
               {isOwner
                 ? 'Restrict who can sign up by allowing only specific email domains.'
                 : 'Only the realm owner can change these settings.'}

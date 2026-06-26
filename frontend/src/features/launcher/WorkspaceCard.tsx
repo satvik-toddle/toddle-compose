@@ -14,10 +14,12 @@ import {
 export function WorkspaceCard({
   ws,
   onEnter,
+  showRoleBadge = false,
 }: {
   ws: Workspace;
   overlay?: boolean;
   onEnter: () => void;
+  showRoleBadge: boolean;
 }) {
   const vis = workspaceVisual(ws.id);
   return (
@@ -42,7 +44,7 @@ export function WorkspaceCard({
           <Icon name={vis.icon} size={20} style={{ color: vis.color }} />
         </span>
         <div className={s.wsCardNm}>{ws.name}</div>
-        <WorkspaceRoleBadge role={ws.role} />
+        {showRoleBadge && <WorkspaceRoleBadge role={ws.role} />}
       </div>
       <div className={s.wsCardMeta}>
         <span>
@@ -72,11 +74,10 @@ const ROLE_BG: Record<string, string> = {
   EDIT: '31,111,226', // red
   COMMENT: '46,160,67', // green
   READ: '227,142,18', // yellow
-  ADMIN : '197,67,241'
+  ADMIN: '197,67,241',
 };
 
 function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
-  if (['MAINTAINER', 'OWNER'].includes(role)) return null;
   return (
     <span
       className={s.wsCardRole}

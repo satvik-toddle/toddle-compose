@@ -13,7 +13,7 @@ import { useRealm, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { isRealmAdmin, REALM_ROLE_META } from '../../lib/roles';
+import { isRealmAdmin, isUserMember, REALM_ROLE_META } from '../../lib/roles';
 import { greet, firstName } from '../../lib/time';
 import type { User } from '../../types/api';
 
@@ -99,6 +99,7 @@ export function LauncherPage() {
 
   if (!me) return null;
   const admin = isRealmAdmin(realm?.role);
+  const isMember = isUserMember(realm?.role);
   const list = workspaces ?? [];
   const realmName = realm?.name ?? 'Toddle';
 
@@ -138,6 +139,15 @@ export function LauncherPage() {
                   onClick={() => openModal({ type: 'createWorkspace' })}
                 >
                   New workspace
+                </Button>
+              )}
+              {isMember && (
+                <Button
+                  variant="primary"
+                  icon="SearchOutlined"
+                  onClick={() => navigate('/access')}
+                >
+                  Discover
                 </Button>
               )}
             </div>

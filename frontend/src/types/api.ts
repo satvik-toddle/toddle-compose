@@ -79,6 +79,8 @@ export interface RealmInfo {
   id: string;
   name: string;
   role: RealmRole; // caller's realm role
+  // Self-signup allowlist; empty = any domain. Only returned to OWNER/MAINTAINER.
+  allowedEmailDomains?: string[];
 }
 
 export interface RealmMember {

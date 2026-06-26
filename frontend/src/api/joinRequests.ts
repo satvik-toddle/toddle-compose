@@ -12,6 +12,8 @@ export const joinApi = {
       `/workspaces/${workspaceId}/requests`,
       requestedRole ? { requestedRole } : {},
     ),
+  // The caller's own join requests (any state) — polled on the access page.
+  myRequests: () => http.get<JoinRequest[]>('/workspaces/my-requests'),
   // Realm-wide pending requests (owner/maintainer + workspace admins).
   realmRequests: (state: JoinRequestState = 'PENDING') =>
     http.get<JoinRequest[]>(`/workspaces/join-requests?state=${state}`),

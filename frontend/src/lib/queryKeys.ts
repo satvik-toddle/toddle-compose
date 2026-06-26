@@ -8,6 +8,7 @@ export const qk = {
   realmMembers: ['realm', 'users'] as const,
   workspaces: ['workspaces'] as const,
   discoverable: ['workspaces', 'discoverable'] as const,
+  myRequests: ['joinRequests', 'mine'] as const,
   workspace: (id: string) => ['workspaces', id] as const,
   workspaceMembers: (id: string) => ['workspaces', id, 'users'] as const,
   realmRequests: (state: JoinRequestState = 'PENDING') =>

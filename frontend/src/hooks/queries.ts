@@ -51,6 +51,23 @@ export function useWorkspaceMembers(id: string | undefined, enabled = true) {
   });
 }
 
+// The caller's own join requests. While any are PENDING it polls so an approval
+// (granted by an admin elsewhere) is picked up without a manual refresh. Polling
+// stops once nothing is pending and never runs while the tab is backgrounded.
+const MY_REQUESTS_POLL_MS = 4000;
+export function useMyJoinRequests(enabled = true) {
+  return useQuery({
+    queryKey: qk.myRequests,
+    queryFn: joinApi.myRequests,
+    enabled,
+    refetchIntervalInBackground: false,
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((request) => request.state === 'PENDING')
+        ? MY_REQUESTS_POLL_MS
+        : false,
+  });
+}
+
 export function useRealmJoinRequests(enabled = true) {
   return useQuery({
     queryKey: qk.realmRequests('PENDING'),

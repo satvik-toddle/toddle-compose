@@ -31,6 +31,7 @@ export function useRequestAccess() {
       joinApi.request(v.workspaceId, v.requestedRole),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.discoverable });
+      qc.invalidateQueries({ queryKey: qk.myRequests });
       pushToast({ kind: 'success', message: 'Request sent — an admin will review it.' });
     },
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),

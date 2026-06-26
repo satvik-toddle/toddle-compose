@@ -422,43 +422,7 @@
     radial-gradient(700px 600px at 60% 116%, rgba(0, 172, 138, 0.16), transparent 60%),
     var(--app-bg);
 }
-.rbac .auth-card {
-  width: 412px;
-  max-width: calc(100% - 48px);
-  background: var(--panel-bg);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: var(--elevation-3-bottom);
-  padding: 34px 36px 30px;
-}
-.rbac .auth-brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 22px;
-}
-.rbac .auth-logo {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--red-950);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.rbac .auth-logo img {
-  width: 24px;
-  height: 24px;
-}
-.rbac .auth-word {
-  font-family: var(--font-family-display);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-.rbac .auth-word span {
-  color: var(--red-500);
-}
+/* auth card/brand/logo/word → Tailwind in AuthShell.tsx */
 .rbac .auth-h {
   font-size: 24px;
   font-weight: 800;
@@ -483,8 +447,7 @@
 }
 .rbac .auth-row a,
 .rbac .auth-foot a,
-.rbac .auth-fine a,
-.rbac .auth-card a {
+.rbac .auth-fine a {
   color: var(--blue-400);
   font-weight: 600;
   text-decoration: none;
@@ -546,13 +509,7 @@
 /* .pw-strength/.bar/.pw-label → PasswordStrength.module.scss
    .auth-success/.suc-glyph/.suc-wait/.pulse (+ @keyframes rbacpulse) → RegisterSuccessPage.module.scss */
 
-/* request-access / discover workspaces */
-.rbac .auth-card.ra-card {
-  width: 540px;
-}
-/* .ra-search/.ra-list/.ra-row/.ra-info/.ra-vis → RequestAccessPage.module.scss
-   (.ra-card width kept global — it modifies the global .auth-card.
-   .btn.ra-requested was removed with the dead .btn rules.) */
+/* request-access / discover workspaces → fully Tailwind in RequestAccessPage.tsx */
 
 /* ============================================================
    LAUNCHER

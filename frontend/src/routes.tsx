@@ -15,6 +15,7 @@ import { AdminConsolePage } from './features/admin/AdminConsolePage';
 import { WorkspacesTab } from './features/admin/WorkspacesTab';
 import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
+import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { PagesPanel } from './features/workspace/PagesPanel';
 import { MembersPanel } from './features/workspace/MembersPanel';
@@ -43,6 +44,7 @@ export function AppRoutes() {
             <Route path="workspaces" element={<WorkspacesTab />} />
             <Route path="members" element={<RealmMembersTab />} />
             <Route path="requests" element={<JoinRequestsTab />} />
+            <Route path="settings" element={<RealmSettingsTab />} />
           </Route>
         </Route>
 

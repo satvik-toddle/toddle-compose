@@ -3,6 +3,9 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
+import { uploadFile } from '../../api/uploads';
+import { messageOf } from '../../lib/errors';
+import { pushToast } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
@@ -17,6 +20,35 @@ const EDITOR_STYLES = {
   anchorElement: { width: '100%', maxWidth: '100%' },
   contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
 };
+
+// The editor calls this for every image/file insert (device upload, paste,
+// drag-drop, and URL-add — which it re-fetches then re-uploads). It hands us
+// either a bare File/Blob or an object `{ file, attachment }`; both must resolve
+// to a fetchable URL it can use as the node src. Returns the stored object URL.
+type UploadAttachment = { name?: string; mimeType?: string; metadata?: { fileExtension?: string } };
+type UploadArg = File | Blob | { file: File | Blob; attachment?: UploadAttachment };
+
+// Build a filename with an extension so the backend keys off the right type (URL-add gives an extension-less Blob + a mimeType).
+function uploadName(file: File | Blob, attachment?: UploadAttachment): string | undefined {
+  if (attachment?.name) return attachment.name;
+  if (file instanceof File && file.name) return file.name;
+  const ext = attachment?.metadata?.fileExtension ?? attachment?.mimeType?.split('/')[1] ?? file.type?.split('/')[1];
+  return ext ? `upload.${ext}` : undefined;
+}
+
+async function uploadToServer(arg: UploadArg): Promise<string> {
+  const file = arg instanceof Blob ? arg : arg?.file;
+  if (!file) throw new Error('uploadToServer: no file provided');
+  const attachment = arg instanceof Blob ? undefined : arg?.attachment;
+  try {
+    const stored = await uploadFile(file, uploadName(file, attachment));
+    return stored.url;
+  } catch (e) {
+    // The editor swallows upload rejections silently, so surface the failure before rethrowing.
+    pushToast({ kind: 'error', message: `Image upload failed: ${messageOf(e)}` });
+    throw e;
+  }
+}
 
 // Real-time collaborative editor. Mints an RTC token, then hands ds-doc-editor a
 // `collab` config whose providerFactory opens a Yjs Websocket to the rtc-server
@@ -81,6 +113,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
     <div className={s.tcEditor}>
       <DsDocEditor
         collab={collab}
+        uploadToServer={uploadToServer}
         viewOnly={rtc.role !== 'editor'}
         placeholder={rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'}
         config={EDITOR_CONFIG}

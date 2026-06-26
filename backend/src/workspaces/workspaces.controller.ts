@@ -50,6 +50,12 @@ export class WorkspacesController {
     return this.workspaces.listAllRequests(user.id, q.state, q.workspaceId);
   }
 
+  /** The caller's own join requests (any state) — polled by the /access page. */
+  @Get("my-requests")
+  myRequests(@CurrentUser() user: AuthUser) {
+    return this.workspaces.myRequests(user.id);
+  }
+
   @Get(":id")
   get(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.workspaces.get(user.id, id);

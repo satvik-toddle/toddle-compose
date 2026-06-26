@@ -67,6 +67,10 @@ export function WorkspaceCard({
   );
 }
 
+const styles = {
+  roleBadge: 'absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase',
+};
+
 // Bare `r,g,b` triplets — consumed via rgba(var(--bg-color), …) in the stylesheet.
 const ROLE_BG: Record<string, string> = {
   EDIT: '31,111,226', // blue
@@ -80,7 +84,7 @@ function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
   const color = `rgb(${rgb})`;
   return (
     <span
-      className="absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase"
+      className={styles.roleBadge}
       style={{ background: `rgba(${rgb},0.1)`, color }}
     >
       {

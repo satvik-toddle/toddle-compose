@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -19,6 +20,12 @@ export function ConfirmDeletePageModal({
   const deleteDoc = useDeleteDocument();
   const deleteFolder = useDeleteFolder();
   const pending = deleteDoc.isPending || deleteFolder.isPending;
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (pending) return 'Deleting…';
+    return 'Delete';
+  }, [pending]);
 
   const submit = () => {
     if (pending) return;
@@ -54,7 +61,7 @@ export function ConfirmDeletePageModal({
           Cancel
         </Button>
         <Button variant="danger" icon="DeleteOutlined" disabled={pending} onClick={submit}>
-          {pending ? 'Deleting…' : 'Delete'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

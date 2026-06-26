@@ -12,16 +12,29 @@ export class AuthTokensGcScheduler {
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async purge(): Promise<void> {
+    const now = new Date();
     const revokedCutoff = new Date(
-      Date.now() - AuthTokensGcScheduler.REVOKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      now.getTime() - AuthTokensGcScheduler.REVOKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
     );
-    const res = await this.prisma.refreshToken.deleteMany({
-      where: {
-        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { lt: revokedCutoff } }],
-      },
-    });
-    if (res.count > 0) {
-      this.log.log(`purged ${res.count} expired/long-revoked refresh token(s)`);
+    // Refresh tokens: drop expired ones and revoked ones past the retention
+    // window. Verification + reset tokens are short-lived and single-use, so
+    // expired-or-consumed rows can go immediately.
+    const staleSingleUse = {
+      OR: [{ expiresAt: { lt: now } }, { consumedAt: { not: null } }],
+    };
+    const [refresh, verif, resets] = await Promise.all([
+      this.prisma.refreshToken.deleteMany({
+        where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }] },
+      }),
+      this.prisma.emailVerificationToken.deleteMany({ where: staleSingleUse }),
+      this.prisma.passwordResetToken.deleteMany({ where: staleSingleUse }),
+    ]);
+
+    const total = refresh.count + verif.count + resets.count;
+    if (total > 0) {
+      this.log.log(
+        `purged ${total} stale token(s) (refresh=${refresh.count} verify=${verif.count} reset=${resets.count})`
+      );
     }
   }
 }

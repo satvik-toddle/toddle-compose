@@ -28,8 +28,18 @@ async function main() {
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { email: u.email },
+      // Only touch profile fields on re-run — never backfill emailVerifiedAt on
+      // an existing row (legacy/organic users stay unverified by design).
       update: { name: u.name, color: u.color },
-      create: { email: u.email, name: u.name, color: u.color, passwordHash },
+      // Freshly-seeded demo users are provisioned as verified so they can log in
+      // without the email flow.
+      create: {
+        email: u.email,
+        name: u.name,
+        color: u.color,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      },
     });
   }
   console.log(`Seeded ${USERS.length} demo users. Login password for all: "${PASSWORD}"`);

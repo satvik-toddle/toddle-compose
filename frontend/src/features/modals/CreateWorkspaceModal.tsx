@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { Button } from '../../components/Button';
@@ -12,6 +12,12 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
   const create = useCreateWorkspace();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState<IconName>(WORKSPACE_ICONS[0]);
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (create.isPending) return 'Creating…';
+    return 'Create workspace';
+  }, [create.isPending]);
 
   const submit = () => {
     if (!name.trim() || create.isPending) return;
@@ -71,7 +77,7 @@ export function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
           Cancel
         </Button>
         <Button variant="primary" icon="AddOutlined" disabled={!name.trim() || create.isPending} onClick={submit}>
-          {create.isPending ? 'Creating…' : 'Create workspace'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

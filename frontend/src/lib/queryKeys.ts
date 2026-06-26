@@ -3,6 +3,7 @@ import type { JoinRequestState } from '../types/roles';
 // Central query-key factory. Keep all keys here so invalidations stay precise.
 export const qk = {
   me: ['me'] as const,
+  authConfig: ['authConfig'] as const,
   realm: ['realm'] as const,
   realmMembers: ['realm', 'users'] as const,
   workspaces: ['workspaces'] as const,

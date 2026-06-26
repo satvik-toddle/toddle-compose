@@ -4,8 +4,9 @@ import {
   DotsHorizontalOutlined,
   PageFoldPortraitOutlined,
 } from '@toddle-edu/ds-icons';
-import { Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
+import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { useUiStore } from '../../../../stores/uiStore';
+import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../../pagesModel';
@@ -26,6 +27,7 @@ export function PageRow({
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
 
   const menuItems = buildPageMenuItems({
     canCreate,
@@ -99,7 +101,12 @@ export function PageRow({
         />
 
         <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
-        <span className={styles.label}>{doc.title}</span>
+        {/* Tooltip only surfaces when the title is actually clipped. */}
+        <Tooltip dsVersion="2.0" placement="right" tooltip={isTruncated ? doc.title : ''}>
+          <span ref={labelRef} className={styles.label}>
+            {doc.title}
+          </span>
+        </Tooltip>
 
         {menuItems.length > 0 && (
           <span

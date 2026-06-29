@@ -5,11 +5,11 @@ import titleStyles from './PageTitle.module.scss';
 
 const styles = {
   field:
-    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-[var(--neutral-600)] placeholder:font-weight-600',
+    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
   heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
   named: 'text-primary',
-  // grey placeholder colour for an unnamed page
-  unnamed: 'text-[var(--neutral-600)]',
+  // grey colour for an unnamed page (flips with the theme, unlike a raw neutral)
+  unnamed: 'text-placeholder',
 };
 
 // A page is "named" once it has a non-empty title other than the default; an

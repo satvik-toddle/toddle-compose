@@ -9,7 +9,7 @@ import {
 import { EmptyState } from '../../../components/EmptyState';
 import { useCreateDocument } from '../../../hooks/usePages';
 import { dsAvatarColor } from '../../../lib/dsAvatar';
-import { relativeTime } from '../../../lib/time';
+import { firstName, relativeTime } from '../../../lib/time';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
@@ -22,7 +22,7 @@ const styles = {
   body: 'flex-1 min-h-0 flex flex-col pt-6 px-7.5 pb-10',
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon:
-    'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-[var(--surface-tertiary-enabled)]',
+    'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-surface-tertiary-enabled',
   headerTitle: 'm-0 text-heading-3 text-primary',
   // Outer border + the bounded scroll area for the table (showBorder would add
   // vertical column lines); the table's own header stays fixed while rows scroll.
@@ -66,7 +66,7 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
       },
       {
         key: 'owner',
-        value: doc.owner.name.split(' ')[0],
+        value: firstName(doc.owner.name),
         prefix: (
           <Avatar
             dsVersion="2.0"

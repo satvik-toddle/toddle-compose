@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useRenameDocument } from '../../../hooks/usePages';
-import { cn } from '../../../lib/cn';
 import { DEFAULT_PAGE_TITLE } from '../constants';
-import s from './content.module.scss';
+import titleStyles from './PageTitle.module.scss';
+
+const styles = {
+  field:
+    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-[var(--neutral-600)] placeholder:font-weight-600',
+  heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
+  named: 'text-primary',
+  // grey placeholder colour for an unnamed page
+  unnamed: 'text-[var(--neutral-600)]',
+};
 
 // A page is "named" once it has a non-empty title other than the default; an
 // unnamed page shows a blank field so the grey placeholder shows through.
@@ -23,11 +31,8 @@ export function PageTitle({ workspaceId, docId, title, canEdit }: Readonly<PageT
   useEffect(() => setDraft(isNamed(title) ? title : ''), [title, docId]);
 
   if (!canEdit) {
-    return (
-      <h1 className={cn(s.wsDocTitleField, !isNamed(title) && s.untitled)}>
-        {title || DEFAULT_PAGE_TITLE}
-      </h1>
-    );
+    const titleColor = isNamed(title) ? styles.named : styles.unnamed;
+    return <h1 className={`${styles.heading} ${titleColor}`}>{title || DEFAULT_PAGE_TITLE}</h1>;
   }
 
   const commit = () => {
@@ -42,11 +47,12 @@ export function PageTitle({ workspaceId, docId, title, canEdit }: Readonly<PageT
     if (trimmed !== title) rename.mutate({ workspaceId, id: docId, title: trimmed });
   };
 
-  // data-value feeds the CSS auto-grow mirror
+  // data-value feeds the CSS auto-grow mirror; text-heading-1 sits here too so
+  // the mirror inherits the same type as the textarea.
   return (
-    <div className={s.wsDocTitleGrow} data-value={draft}>
+    <div className={`${titleStyles.autoGrow} text-heading-1`} data-value={draft}>
       <textarea
-        className={s.wsDocTitleField}
+        className={styles.field}
         value={draft}
         placeholder="Add a page title"
         aria-label="Page title"

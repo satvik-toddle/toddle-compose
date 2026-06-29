@@ -17,7 +17,7 @@ import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
 import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
-import { PagesPanel } from './features/workspace/PagesPanel';
+import { WorkspaceContent } from './features/workspace/content';
 import { MembersPanel } from './features/workspace/MembersPanel';
 import { RequestsPanel } from './features/workspace/RequestsPanel';
 
@@ -51,7 +51,7 @@ export function AppRoutes() {
         {/* inside a workspace (scope is entered before render) */}
         <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
           <Route element={<WorkspaceLayout />}>
-            <Route index element={<PagesPanel />} />
+            <Route index element={<WorkspaceContent />} />
             <Route path="members" element={<MembersPanel />} />
             <Route path="requests" element={<RequestsPanel />} />
           </Route>

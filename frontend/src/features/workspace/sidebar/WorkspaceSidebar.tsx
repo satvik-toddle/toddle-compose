@@ -61,14 +61,13 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
       <div className={styles.header}>
-        {/* Read-only stub until workspace search is wired up. */}
         <div className="mb-2">
           <SearchInput
             dsVersion="2.0"
             size="medium"
             placeholder="Search this workspace…"
             aria-label="Search this workspace"
-            readOnly
+            onChange={pages.setQuery}
           />
         </div>
 

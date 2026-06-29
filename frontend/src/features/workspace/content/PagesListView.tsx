@@ -12,9 +12,10 @@ const styles = {
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon: 'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-surface-tertiary-enabled',
   headerTitle: 'm-0 text-heading-3 text-primary',
-  // Outer border + the bounded scroll area for the table (showBorder would add
-  // vertical column lines); the table's own header stays fixed while rows scroll.
-  tableWrap: 'flex-1 min-h-0 overflow-auto border border-secondary rounded-2',
+  // Outer border + scroll area for the table (showBorder would add vertical column
+  // lines). Hugs its rows when short; min-h-0 lets it shrink and scroll (header
+  // stays fixed) instead of stretching to fill the panel when rows are few.
+  tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2',
   // Fill the space under the header and center the empty illustration in it.
   emptyWrap: 'flex-1 min-h-0 flex items-center justify-center',
 };

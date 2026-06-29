@@ -18,14 +18,15 @@ import { buildDocTree } from '../pagesModel';
 
 const styles = {
   contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
-  scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
+  // Fills the panel height; the table inside scrolls, not the whole page.
+  body: 'flex-1 min-h-0 flex flex-col pt-6 px-7.5 pb-10',
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon:
     'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-[var(--surface-tertiary-enabled)]',
   headerTitle: 'm-0 text-heading-3 text-primary',
-  headerSub: 'mt-0.75 text-body-s text-secondary',
-  // Outer table border only — DS Table's showBorder would add vertical column lines too.
-  tableWrap: 'border border-secondary rounded-2 overflow-hidden',
+  // Outer border + the bounded scroll area for the table (showBorder would add
+  // vertical column lines); the table's own header stays fixed while rows scroll.
+  tableWrap: 'flex-1 min-h-0 overflow-auto border border-secondary rounded-2',
 };
 
 const TABLE_HEADERS = [
@@ -34,8 +35,6 @@ const TABLE_HEADERS = [
   { key: 'edited', value: 'Edited' },
   { key: 'sharing', value: 'Sharing' },
 ];
-
-const subPageLabel = (count: number) => `${count} sub-page${count === 1 ? '' : 's'}`;
 
 type AllPagesViewProps = {
   ctx: WorkspaceCtx;
@@ -57,14 +56,13 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
       { onSuccess: (created) => openDoc(created.id) },
     );
 
-  const rows = roots.map(({ doc, children }) => ({
+  const rows = roots.map(({ doc }) => ({
     id: doc.id,
     rowData: [
       {
         key: 'name',
         value: doc.title,
         prefix: <PageFoldPortraitOutlined size="xx-small" variant="subtle" />,
-        subText: children.length > 0 ? subPageLabel(children.length) : undefined,
       },
       {
         key: 'owner',
@@ -79,7 +77,7 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
           />
         ),
       },
-      { key: 'edited', value: relativeTime(doc.updatedAt) },
+      { key: 'edited', value: <span className="tabular-nums">{relativeTime(doc.updatedAt)}</span> },
       {
         key: 'sharing',
         value: doc.visibility === 'PUBLIC' ? 'Public' : 'Private',
@@ -95,17 +93,12 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      <div className={styles.scrollBody}>
+      <div className={styles.body}>
         <div className={styles.header}>
           <span className={styles.headerIcon}>
             <PageFoldPortraitOutlined size="x-small" variant="subtle" />
           </span>
-          <div>
-            <h1 className={styles.headerTitle}>All pages</h1>
-            <div className={styles.headerSub}>
-              {roots.length} {roots.length === 1 ? 'page' : 'pages'} · in {ctx.name}
-            </div>
-          </div>
+          <h1 className={styles.headerTitle}>All pages</h1>
         </div>
 
         {roots.length === 0 ? (
@@ -132,7 +125,13 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
           </EmptyState>
         ) : (
           <div className={styles.tableWrap}>
-            <Table dsVersion="2.0" headers={TABLE_HEADERS} data={rows} onRowClick={openDoc} />
+            <Table
+              dsVersion="2.0"
+              headers={TABLE_HEADERS}
+              data={rows}
+              onRowClick={openDoc}
+              isHeaderFixed
+            />
           </div>
         )}
       </div>

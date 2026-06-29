@@ -68,6 +68,24 @@ describe("Auth / Users (e2e)", () => {
     await app.close();
   });
 
+  /** Register, force-verify (independent of the email-bypass mode), then log in → a real token pair. */
+  async function registerVerifiedAndLogin(
+    email: string,
+    name: string,
+    password = "password123"
+  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+    await request(app.getHttpServer())
+      .post("/api/auth/register")
+      .send({ email, password, name })
+      .expect(201);
+    await prisma.user.update({ where: { email }, data: { emailVerifiedAt: new Date() } });
+    const res = await request(app.getHttpServer())
+      .post("/api/auth/login")
+      .send({ email, password })
+      .expect(201);
+    return res.body;
+  }
+
   // ---- infra ----
 
   it("GET /health → 200 ok (no /api prefix)", async () => {
@@ -89,18 +107,28 @@ describe("Auth / Users (e2e)", () => {
 
   // ---- register ----
 
-  it("POST /api/auth/register → 201 access + refresh + sanitized user", async () => {
+  it("POST /api/auth/register → 201 verification pending (no session issued)", async () => {
     const res = await request(app.getHttpServer())
       .post("/api/auth/register")
       .send(user)
       .expect(201);
-    expect(typeof res.body.accessToken).toBe("string");
-    expect(typeof res.body.refreshToken).toBe("string");
-    expect(res.body.expiresIn).toBeGreaterThan(0);
-    expect(res.body.user.email).toBe(user.email);
-    expect(res.body.user).not.toHaveProperty("passwordHash");
-    accessToken = res.body.accessToken;
-    accessExpiresIn = res.body.expiresIn;
+    // Registration starts email verification instead of auto-logging-in.
+    expect(res.body.status).toBe("verification_sent");
+    expect(res.body.email).toBe(user.email);
+    expect(res.body).not.toHaveProperty("accessToken");
+    expect(res.body).not.toHaveProperty("refreshToken");
+
+    // Verify (bypass-independent), then capture a real session from login for the tests below.
+    await prisma.user.update({ where: { email: user.email }, data: { emailVerifiedAt: new Date() } });
+    const login = await request(app.getHttpServer())
+      .post("/api/auth/login")
+      .send({ email: user.email, password: user.password })
+      .expect(201);
+    expect(login.body.expiresIn).toBeGreaterThan(0);
+    expect(login.body.user.email).toBe(user.email);
+    expect(login.body.user).not.toHaveProperty("passwordHash");
+    accessToken = login.body.accessToken;
+    accessExpiresIn = login.body.expiresIn;
   });
 
   it("access token is type=access and lives exactly ACCESS_TOKEN_TTL_SEC", () => {
@@ -160,12 +188,14 @@ describe("Auth / Users (e2e)", () => {
 
   it("POST /api/auth/register strips unknown fields (whitelist)", async () => {
     const email = `extra+${stamp}@toddle.test`;
-    const res = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post("/api/auth/register")
       .send({ email, password: "password123", name: "Extra", role: "admin", id: "spoofed-id" })
       .expect(201);
-    expect(res.body.user.id).not.toBe("spoofed-id");
-    expect(res.body.user).not.toHaveProperty("role");
+    // The whitelist pipe drops unknown fields, so the spoofed id never reaches the DB.
+    const created = await prisma.user.findUnique({ where: { email } });
+    expect(created).not.toBeNull();
+    expect(created!.id).not.toBe("spoofed-id");
   });
 
   // ---- login ----
@@ -200,14 +230,28 @@ describe("Auth / Users (e2e)", () => {
       .expect(400);
   });
 
+  it("POST /api/auth/login unverified account → 403 EMAIL_NOT_VERIFIED", async () => {
+    const email = `unverified+${stamp}@toddle.test`;
+    await request(app.getHttpServer())
+      .post("/api/auth/register")
+      .send({ email, password: "password123", name: "Unv" })
+      .expect(201);
+    // Force the unverified state regardless of the email-bypass mode.
+    await prisma.user.update({ where: { email }, data: { emailVerifiedAt: null } });
+    const res = await request(app.getHttpServer())
+      .post("/api/auth/login")
+      .send({ email, password: "password123" })
+      .expect(403);
+    expect(res.body.code).toBe("EMAIL_NOT_VERIFIED");
+  });
+
   // ---- refresh / logout ----
 
   it("POST /api/auth/refresh rotates the pair; reuse of old token → 401", async () => {
-    const reg = await request(app.getHttpServer())
-      .post("/api/auth/register")
-      .send({ email: `rot+${stamp}@toddle.test`, password: "password123", name: "Rot" })
-      .expect(201);
-    const r1 = reg.body.refreshToken as string;
+    const { refreshToken: r1 } = await registerVerifiedAndLogin(
+      `rot+${stamp}@toddle.test`,
+      "Rot"
+    );
 
     const rotated = await request(app.getHttpServer())
       .post("/api/auth/refresh")
@@ -245,11 +289,10 @@ describe("Auth / Users (e2e)", () => {
   });
 
   it("POST /api/auth/logout invalidates the refresh token", async () => {
-    const reg = await request(app.getHttpServer())
-      .post("/api/auth/register")
-      .send({ email: `out+${stamp}@toddle.test`, password: "password123", name: "Out" })
-      .expect(201);
-    const r = reg.body.refreshToken as string;
+    const { refreshToken: r } = await registerVerifiedAndLogin(
+      `out+${stamp}@toddle.test`,
+      "Out"
+    );
 
     await request(app.getHttpServer())
       .post("/api/auth/logout")

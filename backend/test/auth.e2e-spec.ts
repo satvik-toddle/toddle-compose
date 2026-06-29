@@ -186,13 +186,13 @@ describe("Auth / Users (e2e)", () => {
       .expect(400);
   });
 
-  it("POST /api/auth/register strips unknown fields (whitelist)", async () => {
+  it("POST /api/auth/register ignores unexpected fields (no over-posting)", async () => {
     const email = `extra+${stamp}@toddle.test`;
     await request(app.getHttpServer())
       .post("/api/auth/register")
       .send({ email, password: "password123", name: "Extra", role: "admin", id: "spoofed-id" })
       .expect(201);
-    // The whitelist pipe drops unknown fields, so the spoofed id never reaches the DB.
+    // Over-posting guard: the account gets a server-generated id, never the client-supplied one.
     const created = await prisma.user.findUnique({ where: { email } });
     expect(created).not.toBeNull();
     expect(created!.id).not.toBe("spoofed-id");

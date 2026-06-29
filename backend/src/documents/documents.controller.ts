@@ -18,6 +18,7 @@ import { RtcTokenService } from "../rtc/rtc-token.service";
 import {
   CreateDocumentDto,
   ListDocumentsDto,
+  ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
   SetVisibilityDto,
@@ -52,6 +53,22 @@ export class DocumentsController {
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateDocumentDto) {
     return this.documents.create(user, dto);
+  }
+
+  // The current user's starred documents in a workspace.
+  // Declared before `:id` so "starred" isn't matched as a document id.
+  @Get("starred")
+  listStarred(
+    @CurrentUser() user: AuthUser,
+    @Query() q: ListStarredDocumentsDto,
+    @Query() page: PaginationDto
+  ) {
+    return this.documents.listStarred(
+      user,
+      { workspaceId: q.workspaceId },
+      page.skip,
+      page.take
+    );
   }
 
   @Get(":id")
@@ -132,6 +149,17 @@ export class DocumentsController {
   @Delete(":id")
   remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.remove(user.id, id);
+  }
+
+  // Star / unstar this document for the current user; both are idempotent.
+  @Post(":id/star")
+  star(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.documents.star(user.id, id);
+  }
+
+  @Delete(":id/star")
+  unstar(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.documents.unstar(user.id, id);
   }
 }
 

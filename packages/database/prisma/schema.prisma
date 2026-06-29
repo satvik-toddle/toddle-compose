@@ -143,6 +143,7 @@ model User {
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
+  documentStars        DocumentStar[]
 
   @@map("users")
 }
@@ -239,6 +240,8 @@ model Document {
   parentId    String?      @map("parent_id")
   parent      Document?    @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
   children    Document[]   @relation("DocumentTree")
+  // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
+  stars       DocumentStar[]
   // PUBLIC additionally exposes the doc to any realm member, across workspaces.
   visibility  Visibility   @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -254,4 +257,23 @@ model Document {
   // Backs the documents list (filtered by workspace, ordered by updatedAt desc).
   @@index([workspaceId, updatedAt])
   @@map("documents")
+}
+
+// A user's star ("favorite") on a document. Join table: one row = this user has
+// starred this document. The composite primary key [userId, documentId] makes
+// starring idempotent — a user can star a given doc at most once. Cascades on
+// both sides, so deleting the user or the document drops the star automatically.
+// Mirrors the WorkspaceMember/RealmMember join-table shape used elsewhere.
+model DocumentStar {
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String   @map("document_id")
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // PK indexes userId-first, so "this user's stars" (the starred list) is covered;
+  // the extra index backs lookups/cascades by document.
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_stars")
 }

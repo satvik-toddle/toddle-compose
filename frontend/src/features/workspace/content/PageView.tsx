@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
+import { EmptyState } from '@toddle-edu/ds-web';
+import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { cn } from '../../../lib/cn';
-import { EmptyState } from '../../../components/EmptyState';
 import { PageLoader } from '../../../components/Loader';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto } from '../../../types/api';
@@ -32,9 +33,12 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
     return (
       <main className={styles.contentShell}>
         <div className={cn(styles.scrollBody, 'flex items-center justify-center')}>
-          <EmptyState glyph="🔍" title="Page not found">
-            It may have been moved or deleted.
-          </EmptyState>
+          <EmptyState
+            dsVersion="2.0"
+            illustration={EmptyStateIllustrations.Error404Illustration}
+            title="Page not found"
+            subtitle="It may have been moved or deleted."
+          />
         </div>
       </main>
     );

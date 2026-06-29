@@ -41,6 +41,15 @@ export function mapDocsById(docs: DocumentDto[]): Map<string, DocumentDto> {
   return new Map(docs.map((d) => [d.id, d]));
 }
 
+// Case-insensitive title search; powers the sidebar's flat result list.
+export function filterDocuments(docs: DocumentDto[], query: string): DocumentDto[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return [];
+  return docs
+    .filter((doc) => doc.title.toLowerCase().includes(normalizedQuery))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
 // Walk a page's parent spine (the page itself up to its root), returning the ids.
 // Used to reveal a deep-linked page by expanding its ancestors.
 export function getAncestorIds(docId: string, byId: Map<string, DocumentDto>): string[] {

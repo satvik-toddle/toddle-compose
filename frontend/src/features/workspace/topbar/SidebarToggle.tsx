@@ -18,6 +18,7 @@ export function SidebarToggle({
   return (
     <Tooltip
       dsVersion="2.0"
+      showArrow
       tooltip={
         <span className={styles.tooltip}>
           {label}

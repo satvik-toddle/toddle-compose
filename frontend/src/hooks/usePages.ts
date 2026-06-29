@@ -23,6 +23,14 @@ export function useDocuments(workspaceId: string | undefined, enabled = true) {
   });
 }
 
+export function useStarredDocuments(workspaceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: workspaceId ? qk.starredDocuments(workspaceId) : ['documents', '_none', 'starred'],
+    queryFn: () => documentsApi.listStarred(workspaceId as string),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
 // Mint an RTC token for real-time collaboration on a document (Yjs/rtc-server).
 export function useRtcToken(docId: string | undefined) {
   return useQuery({
@@ -53,6 +61,19 @@ export function useCreateDocument() {
       folderId?: string | null;
       title?: string;
     }) => documentsApi.create(v),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+// Star when currently unstarred, unstar otherwise; docs invalidation refreshes the starred list.
+export function useToggleStar() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: async (v: { workspaceId: string; id: string; isStarred: boolean }) => {
+      if (v.isStarred) await documentsApi.unstar(v.id);
+      else await documentsApi.star(v.id);
+    },
     onSuccess: (_d, v) => docs(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });

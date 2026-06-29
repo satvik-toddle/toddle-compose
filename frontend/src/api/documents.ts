@@ -7,6 +7,9 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
+  // The current user's starred pages in a workspace — flat, any depth.
+  listStarred: (workspaceId: string) =>
+    http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`),
   create: (b: {
     workspaceId: string;
     parentId?: string | null;
@@ -33,4 +36,6 @@ export const documentsApi = {
   setVisibility: (id: string, visibility: Visibility) =>
     http.patch<DocumentDto>(`/documents/${id}/visibility`, { visibility }),
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
+  star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
+  unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
 };

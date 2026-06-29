@@ -142,6 +142,8 @@ export interface DocumentDto {
   createdAt: string;
   updatedAt: string;
   owner: { id: string; name: string; color: string };
+  // Whether the current user has starred this page (always true in the starred list).
+  isStarred?: boolean;
 }
 
 export interface FolderDto {

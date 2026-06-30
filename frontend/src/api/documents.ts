@@ -7,9 +7,8 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
-  // The current user's starred pages in a workspace — flat, any depth.
   listStarred: (workspaceId: string) =>
-    http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`),
+    http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
   create: (b: {
     workspaceId: string;
     parentId?: string | null;

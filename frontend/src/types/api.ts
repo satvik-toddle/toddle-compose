@@ -32,16 +32,13 @@ export interface AuthResponse extends AuthTokens {
 export interface VerificationPending {
   status: 'verification_sent';
   email: string;
-  // false when the backend mailer is in dev/console mode (link logged, not sent).
-  emailDelivered: boolean;
-  // true when the account is already verified (email service bypassed, no link to wait for).
-  verified: boolean;
+  emailDelivered: boolean; // false when the backend mailer is in dev/console mode (link logged, not sent)
+  verified: boolean; // true when the account is already verified (email service bypassed, no link to wait for)
 }
 
 // GET /auth/config — public client config flagging email-dependent flows.
 export interface AuthConfig {
-  // false when the backend email service is bypassed (no self-serve password reset).
-  passwordResetEnabled: boolean;
+  passwordResetEnabled: boolean; // false when the backend email service is bypassed (no self-serve password reset)
 }
 
 // POST /auth/verify-email — success.
@@ -79,8 +76,7 @@ export interface RealmInfo {
   id: string;
   name: string;
   role: RealmRole; // caller's realm role
-  // Self-signup allowlist; empty = any domain. Only returned to OWNER/MAINTAINER.
-  allowedEmailDomains?: string[];
+  allowedEmailDomains?: string[]; // self-signup allowlist; empty = any domain, only returned to OWNER/MAINTAINER
 }
 
 export interface RealmMember {
@@ -127,8 +123,7 @@ export interface JoinRequest {
   createdAt: string;
   decidedAt: string | null;
   user: PublicUser;
-  // Present on the realm-wide listing (so a row can name its workspace).
-  workspace?: { id: string; name: string; visibility: Visibility };
+  workspace?: { id: string; name: string; visibility: Visibility }; // present on the realm-wide listing (so a row can name its workspace)
 }
 
 export interface DocumentDto {
@@ -142,8 +137,7 @@ export interface DocumentDto {
   createdAt: string;
   updatedAt: string;
   owner: { id: string; name: string; color: string };
-  // Whether the current user has starred this page (always true in the starred list).
-  isStarred?: boolean;
+  isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
 }
 
 export interface FolderDto {

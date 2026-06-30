@@ -5,6 +5,7 @@ import { foldersApi } from '../api/folders';
 import { messageOf } from '../lib/errors';
 import { pushToast } from '../stores/uiStore';
 import type { Visibility } from '../types/roles';
+import type { DocumentType } from '../types/api';
 
 // ---- queries ----
 export function useFolders(workspaceId: string | undefined, enabled = true) {
@@ -60,6 +61,7 @@ export function useCreateDocument() {
       parentId?: string | null;
       folderId?: string | null;
       title?: string;
+      type?: DocumentType;
     }) => documentsApi.create(v),
     onSuccess: (_d, v) => docs(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),

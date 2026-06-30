@@ -11,7 +11,7 @@ import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 import type { TreeDoc } from '../../pagesModel';
-import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
+import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
 import type { PagesSectionController } from './usePagesSection';
 
 const BASE_INDENT = 8;
@@ -37,8 +37,8 @@ export function PageRow({
     canCreate,
     canManage: canManage(doc.owner.id),
     isStarred,
-    onAddSubpage: () => createPage(doc.id),
-    onAddPage: () => createPage(doc.parentId ?? undefined),
+    onAddSubpage: (type) => createPage(doc.id, type),
+    onAddPage: (type) => createPage(doc.parentId ?? undefined, type),
     onToggleStar: () => toggleStar.mutate({ workspaceId: pages.ws, id: doc.id, isStarred }),
     onCopyLink: async () => {
       await navigator.clipboard.writeText(docUrl);
@@ -136,7 +136,7 @@ export function PageRow({
                     dsVersion="2.0"
                     options={menuItems}
                     onClick={(option: PageMenuOption) =>
-                      menuItems.find((item) => item.key === option.key)?.onSelect?.()
+                      findPageMenuOption(menuItems, option.key)?.onSelect?.()
                     }
                   />
                 }

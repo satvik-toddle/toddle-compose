@@ -4,10 +4,11 @@ import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { AddOutlined, PageFoldPortraitOutlined } from '@toddle-edu/ds-icons';
 import { useCreateDocument } from '../../../hooks/usePages';
 import { wsAtLeast } from '../../../lib/roles';
-import type { DocumentDto } from '../../../types/api';
+import type { DocumentDto, DocumentType } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { DEFAULT_PAGE_TITLE } from '../constants';
 import { buildDocTree } from '../pagesModel';
+import { CreatePageDropdown } from '../CreatePageDropdown';
 import { PagesListView } from './PagesListView';
 
 type AllPagesViewProps = {
@@ -24,9 +25,9 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
 
   const { roots } = buildDocTree(docs);
   const openDoc = (id: string | number) => navigate(`/w/${workspaceId}?doc=${id}`);
-  const newPage = () =>
+  const newPage = (type?: DocumentType) =>
     createDoc.mutate(
-      { workspaceId, title: DEFAULT_PAGE_TITLE },
+      { workspaceId, title: DEFAULT_PAGE_TITLE, type },
       { onSuccess: (created) => openDoc(created.id) },
     );
 
@@ -46,9 +47,13 @@ export function AllPagesView({ ctx, docs }: Readonly<AllPagesViewProps>) {
           }
           primaryButton={
             canCreate ? (
-              <Button variant="primary" type="fill" icon={<AddOutlined />} onClick={newPage}>
-                New page
-              </Button>
+              <CreatePageDropdown onCreate={newPage}>
+                <span className="inline-flex">
+                  <Button variant="primary" type="fill" icon={<AddOutlined />}>
+                    New page
+                  </Button>
+                </span>
+              </CreatePageDropdown>
             ) : undefined
           }
         />

@@ -8,8 +8,10 @@ import {
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
-import type { DocumentDto, User } from '../../../types/api';
+import type { DocumentDto, DocumentType, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
+import { CreatePageDropdown } from '../CreatePageDropdown';
+import { PAGE_TYPES } from '../pageTypes';
 import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
@@ -30,16 +32,19 @@ export function DocActions({
   if (!doc) {
     return (
       canCreate && (
-        <Button
-          dsVersion="2.0"
-          variant="primary"
-          type="fill"
-          icon={<AddOutlined />}
-          onClick={newPage}
-          disabled={isPending}
-        >
-          New page
-        </Button>
+        <CreatePageDropdown placement="bottomRight" onCreate={newPage} disabled={isPending}>
+          <span className="inline-flex">
+            <Button
+              dsVersion="2.0"
+              variant="primary"
+              type="fill"
+              icon={<AddOutlined />}
+              disabled={isPending}
+            >
+              New page
+            </Button>
+          </span>
+        </CreatePageDropdown>
       )
     );
   }
@@ -59,9 +64,17 @@ export function DocActions({
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
   const runMenuAction: Record<string, () => void> = {
-    [SUB_PAGE_KEY]: () => addSubPage(doc.id),
     [RENAME_KEY]: openRenameModal,
     [DELETE_KEY]: openDeleteModal,
+  };
+
+  // Sub-page leaves carry a `subpage:<type>` key; everything else routes by key.
+  const onMenuClick = (key: string) => {
+    if (key.startsWith(`${SUB_PAGE_KEY}:`)) {
+      addSubPage(doc.id, key.slice(SUB_PAGE_KEY.length + 1) as DocumentType);
+      return;
+    }
+    runMenuAction[key]?.();
   };
 
   const menuOptions = [
@@ -71,6 +84,13 @@ export function DocActions({
             key: SUB_PAGE_KEY,
             label: 'Add sub-page',
             icon: <AddOutlined size="xxx-small" variant="subtle" />,
+            isSubMenu: true,
+            options: PAGE_TYPES.map((p) => ({
+              key: `${SUB_PAGE_KEY}:${p.type}`,
+              label: p.label,
+              subText: p.description,
+              icon: <p.Icon size="small" variant="subtle" />,
+            })),
           },
         ]
       : []),
@@ -111,7 +131,7 @@ export function DocActions({
             <DropdownMenu
               dsVersion="2.0"
               options={menuOptions}
-              onClick={(option: { key: string }) => runMenuAction[option.key]?.()}
+              onClick={(option: { key: string }) => onMenuClick(option.key)}
             />
           }
         >

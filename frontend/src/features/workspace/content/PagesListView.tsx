@@ -7,17 +7,12 @@ import type { DocumentDto } from '../../../types/api';
 
 const styles = {
   contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
-  // Fills the panel height; the table inside scrolls, not the whole page.
-  body: 'flex-1 min-h-0 flex flex-col pt-6 px-7.5 pb-10',
+  body: 'flex-1 min-h-0 flex flex-col pt-6 px-7.5 pb-10', // Fills the panel; the table inside scrolls, not the whole page.
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon: 'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-surface-tertiary-enabled',
   headerTitle: 'm-0 text-heading-3 text-primary',
-  // Outer border + scroll area for the table (showBorder would add vertical column
-  // lines). Hugs its rows when short; min-h-0 lets it shrink and scroll (header
-  // stays fixed) instead of stretching to fill the panel when rows are few.
-  tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2',
-  // Fill the space under the header and center the empty illustration in it.
-  emptyWrap: 'flex-1 min-h-0 flex items-center justify-center',
+  tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2', // Bordered scroll area; min-h-0 lets it hug rows and scroll under the fixed header.
+  emptyWrap: 'flex-1 min-h-0 flex items-center justify-center', // Fills the space under the header and centers the empty illustration.
 };
 
 const TABLE_HEADERS = [

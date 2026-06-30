@@ -85,10 +85,15 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
             <HomeOutlined size="xxx-small" />
             Home
           </NavLink>
-          <div className={cn(sidebarRow.base, sidebarRow.default)}>
+          <NavLink
+            to={`/w/${workspaceId}/starred`}
+            className={({ isActive }) =>
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
+            }
+          >
             <StarOutlined size="xxx-small" />
             Starred
-          </div>
+          </NavLink>
         </div>
 
         <div className={styles.sectionHeading}>Pages</div>

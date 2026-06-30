@@ -17,6 +17,7 @@ export const qk = {
     ['workspaces', id, 'requests', state] as const,
   documents: (workspaceId: string, folderId?: string | null) =>
     ['documents', workspaceId, folderId ?? null] as const,
+  starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
 };
 

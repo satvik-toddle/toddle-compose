@@ -68,6 +68,8 @@ type HierarchyNode = {
   type: DocumentType;
   parentId: string | null;
   childCount: number;
+  // Per-user: false in the shared cache; the real value is overlaid per request (see hierarchy()).
+  isStarred: boolean;
   children: HierarchyNode[] | null;
 };
 
@@ -140,26 +142,48 @@ export class DocumentsService {
       const parentScope =
         input.parentId === undefined ? {} : { parentId: input.parentId };
 
-      return this.prisma.document.findMany({
+      const docs = await this.prisma.document.findMany({
         where: { workspaceId: wsId, ...folderScope, ...parentScope },
         select: this.summarySelect(),
         orderBy: { updatedAt: "desc" },
         skip,
         take,
       });
+      return this.attachStarred(user.id, docs);
     });
   }
 
   // Direct subdocs of a document; workspace READ on the parent gates the whole list.
   async listSubdocs(userId: string, parentId: string, skip = 0, take = 100) {
     const parent = await this.requireDocRead(userId, parentId);
-    return this.prisma.document.findMany({
+    const docs = await this.prisma.document.findMany({
       where: { parentId: parent.id },
       select: this.summarySelect(),
       orderBy: { updatedAt: "desc" },
       skip,
       take,
     });
+    return this.attachStarred(userId, docs);
+  }
+
+  // The current user's starred docs in a workspace, most-recently-starred first.
+  // Filters via the relation so only this workspace's stars are returned.
+  async listStarred(
+    user: AuthUser,
+    input: { workspaceId?: string } = {},
+    skip = 0,
+    take = 100
+  ) {
+    const wsId = this.resolveWorkspaceId(user, input.workspaceId);
+    await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
+    const stars = await this.prisma.documentStar.findMany({
+      where: { userId: user.id, document: { workspaceId: wsId } },
+      select: { document: { select: this.summarySelect() } },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+    });
+    return stars.map((s) => ({ ...s.document, isStarred: true as const }));
   }
 
   // Sidebar hierarchy: root ancestor expanded down the spine, each on-path node listing its children.
@@ -191,7 +215,13 @@ export class DocumentsService {
       );
       built = this.makeNode(metaById.get(pid)!, siblings);
     }
-    return built;
+
+    // Overlay this user's stars. withStarred clones every node, so the shared
+    // child-set cache (which holds isStarred: false placeholders) is never mutated.
+    const nodeIds: string[] = [];
+    this.collectNodeIds(built, nodeIds);
+    const starred = await this.starredIdSet(userId, nodeIds);
+    return this.withStarred(built, starred);
   }
 
   async create(user: AuthUser, input: CreateDocumentInput) {
@@ -253,7 +283,8 @@ export class DocumentsService {
   async get(userId: string, id: string) {
     const doc = await this.requireDocRead(userId, id);
     const breadcrumbs = await this.buildBreadcrumbs(doc.id);
-    return { ...doc, breadcrumbs };
+    const isStarred = await this.isStarred(userId, doc.id);
+    return { ...doc, isStarred, breadcrumbs };
   }
 
   // Read gate shared by `get`/`listSubdocs`; 404 (not 403) so a hidden doc's existence isn't revealed.
@@ -436,6 +467,28 @@ export class DocumentsService {
     return row;
   }
 
+  // Star this document for the current user — anyone with read access can star.
+  // Idempotent: upsert means re-starting an already-starred doc is a no-op, not an error.
+  // Stars live outside the doc cache, so no cache work is needed here.
+  async star(userId: string, id: string) {
+    const doc = await this.requireDocRead(userId, id);
+    await this.prisma.documentStar.upsert({
+      where: { userId_documentId: { userId, documentId: id } },
+      create: { userId, documentId: id },
+      update: {},
+    });
+    return { ...doc, isStarred: true as const };
+  }
+
+  // Unstar — idempotent: deleteMany removes the row if present, no-ops otherwise.
+  async unstar(userId: string, id: string) {
+    await this.requireDocRead(userId, id);
+    await this.prisma.documentStar.deleteMany({
+      where: { userId, documentId: id },
+    });
+    return { ok: true as const };
+  }
+
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
   async remove(userId: string, id: string) {
     return trace("documents.remove", async () => {
@@ -565,6 +618,7 @@ export class DocumentsService {
       type: r.type,
       parentId: r.parentId,
       childCount: r._count.children,
+      isStarred: false, // placeholder; overlaid per-user in hierarchy()
       children: null,
     }));
     this.cache.setChildren(parentId, children);
@@ -598,7 +652,67 @@ export class DocumentsService {
       type: meta.type,
       parentId: meta.parentId,
       childCount: children.length,
+      isStarred: false, // placeholder; overlaid per-user in hierarchy()
       children,
+    };
+  }
+
+  // --- Stars (per-user; deliberately kept out of the shared document cache) ---
+
+  // Whether `userId` has starred this single document.
+  private async isStarred(userId: string, documentId: string): Promise<boolean> {
+    const star = await this.prisma.documentStar.findUnique({
+      where: { userId_documentId: { userId, documentId } },
+      select: { documentId: true },
+    });
+    return star !== null;
+  }
+
+  // Which of `documentIds` this user has starred — one query for a whole list/tree.
+  private async starredIdSet(
+    userId: string,
+    documentIds: string[]
+  ): Promise<Set<string>> {
+    if (documentIds.length === 0) return new Set();
+    const stars = await this.prisma.documentStar.findMany({
+      where: { userId, documentId: { in: documentIds } },
+      select: { documentId: true },
+    });
+    return new Set(stars.map((s) => s.documentId));
+  }
+
+  // Tag a batch of doc summaries with this user's isStarred flag (one query for all).
+  private async attachStarred<T extends { id: string }>(
+    userId: string,
+    docs: T[]
+  ): Promise<Array<T & { isStarred: boolean }>> {
+    const starred = await this.starredIdSet(
+      userId,
+      docs.map((d) => d.id)
+    );
+    return docs.map((d) => ({ ...d, isStarred: starred.has(d.id) }));
+  }
+
+  // Collect every node id in a hierarchy subtree (for a single batched star lookup).
+  private collectNodeIds(node: HierarchyNode, acc: string[]): void {
+    acc.push(node.id);
+    if (node.children) {
+      for (const child of node.children) this.collectNodeIds(child, acc);
+    }
+  }
+
+  // Immutably rebuild the tree with each node's real isStarred — never mutates the
+  // cached child nodes shared across users.
+  private withStarred(
+    node: HierarchyNode,
+    starred: Set<string>
+  ): HierarchyNode {
+    return {
+      ...node,
+      isStarred: starred.has(node.id),
+      children: node.children
+        ? node.children.map((child) => this.withStarred(child, starred))
+        : null,
     };
   }
 

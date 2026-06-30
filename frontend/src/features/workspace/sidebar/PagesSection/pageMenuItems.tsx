@@ -1,5 +1,14 @@
 import type { ReactElement } from 'react';
-import { AddOutlined, DeleteOutlined, PencilOutlined } from '@toddle-edu/ds-icons';
+import {
+  AddOutlined,
+  ArrowOutOutlined,
+  DeleteOutlined,
+  LinkOutlined,
+  PageAPlusOutlined,
+  PencilOutlined,
+  StarFilled,
+  StarOutlined,
+} from '@toddle-edu/ds-icons';
 
 // One entry in the per-page (⋯) actions menu, shaped for ds-web DropdownMenu options.
 export interface PageMenuOption {
@@ -11,24 +20,61 @@ export interface PageMenuOption {
   onSelect?: () => void;
 }
 
-// Builds the per-page row menu from the caller's permissions + handlers, as a pure
-// mapping of permissions → ds-web DropdownMenu options.
+// Builds the per-page (⋯) menu from permissions + handlers: create actions, then
+// personal actions plus rename, with destructive delete last.
 export function buildPageMenuItems(opts: {
   canCreate: boolean;
   canManage: boolean;
+  isStarred: boolean;
   onAddSubpage: () => void;
+  onAddPage: () => void;
+  onToggleStar: () => void;
+  onCopyLink: () => void;
+  onOpenInNewTab: () => void;
   onRename: () => void;
   onDelete: () => void;
 }): PageMenuOption[] {
   const items: PageMenuOption[] = [];
+
   if (opts.canCreate) {
-    items.push({
-      key: 'subpage',
-      label: 'Add sub-page',
-      icon: <AddOutlined size="xx-small" />,
-      onSelect: opts.onAddSubpage,
-    });
+    items.push(
+      {
+        key: 'subpage',
+        label: 'Add sub-page',
+        icon: <AddOutlined size="xx-small" />,
+        onSelect: opts.onAddSubpage,
+      },
+      {
+        key: 'add-page',
+        label: 'Add page',
+        icon: <PageAPlusOutlined size="xx-small" />,
+        onSelect: opts.onAddPage,
+      },
+      { key: 'create-divider', isDivider: true },
+    );
   }
+
+  items.push(
+    {
+      key: 'star',
+      label: opts.isStarred ? 'Remove from starred' : 'Add to starred',
+      icon: opts.isStarred ? <StarFilled size="xx-small" /> : <StarOutlined size="xx-small" />,
+      onSelect: opts.onToggleStar,
+    },
+    {
+      key: 'copy-link',
+      label: 'Copy link',
+      icon: <LinkOutlined size="xx-small" />,
+      onSelect: opts.onCopyLink,
+    },
+    {
+      key: 'open-new-tab',
+      label: 'Open in new tab',
+      icon: <ArrowOutOutlined size="xx-small" />,
+      onSelect: opts.onOpenInNewTab,
+    },
+  );
+
   if (opts.canManage) {
     items.push(
       {
@@ -47,5 +93,6 @@ export function buildPageMenuItems(opts: {
       },
     );
   }
+
   return items;
 }

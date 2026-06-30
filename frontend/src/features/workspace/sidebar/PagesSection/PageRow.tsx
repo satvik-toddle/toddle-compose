@@ -5,7 +5,8 @@ import {
   PageFoldPortraitOutlined,
 } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
-import { useUiStore } from '../../../../stores/uiStore';
+import { pushToast, useUiStore } from '../../../../stores/uiStore';
+import { useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
@@ -23,7 +24,10 @@ export function PageRow({
 }: Readonly<{ node: TreeDoc; depth: number; pages: PagesSectionController }>) {
   const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
+  const toggleStar = useToggleStar();
   const { doc, children } = node;
+  const isStarred = !!doc.isStarred;
+  const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -32,7 +36,15 @@ export function PageRow({
   const menuItems = buildPageMenuItems({
     canCreate,
     canManage: canManage(doc.owner.id),
+    isStarred,
     onAddSubpage: () => createPage(doc.id),
+    onAddPage: () => createPage(doc.parentId ?? undefined),
+    onToggleStar: () => toggleStar.mutate({ workspaceId: pages.ws, id: doc.id, isStarred }),
+    onCopyLink: async () => {
+      await navigator.clipboard.writeText(docUrl);
+      pushToast({ kind: 'success', message: 'Link copied' });
+    },
+    onOpenInNewTab: () => window.open(docUrl, '_blank', 'noopener,noreferrer'),
     onRename: () =>
       openModal({
         type: 'renamePage',

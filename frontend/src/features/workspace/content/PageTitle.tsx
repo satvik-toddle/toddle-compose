@@ -1,62 +1,68 @@
 import { useEffect, useState } from 'react';
 import { useRenameDocument } from '../../../hooks/usePages';
-import { cn } from '../../../lib/cn';
-import s from './content.module.scss';
+import { DEFAULT_PAGE_TITLE } from '../constants';
+import titleStyles from './PageTitle.module.scss';
 
-// Coda-style page title shown above the editor body. Editable inline (commits a
-// rename on blur / Enter) for editors; a static heading for viewers.
-export function PageTitle({
-  workspaceId,
-  docId,
-  title,
-  canEdit,
-}: {
+const styles = {
+  field:
+    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
+  heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
+  named: 'text-primary',
+  // grey colour for an unnamed page (flips with the theme, unlike a raw neutral)
+  unnamed: 'text-placeholder',
+};
+
+// A page is "named" once it has a non-empty title other than the default; an
+// unnamed page shows a blank field so the grey placeholder shows through.
+const isNamed = (title: string) => !!title && title !== DEFAULT_PAGE_TITLE;
+
+type PageTitleProps = {
   workspaceId: string;
   docId: string;
   title: string;
   canEdit: boolean;
-}) {
+};
+
+// Coda-style page title shown above the editor body. Editable inline (commits a
+// rename on blur / Enter) for editors; a static heading for viewers.
+export function PageTitle({ workspaceId, docId, title, canEdit }: Readonly<PageTitleProps>) {
   const rename = useRenameDocument();
-  // The default "Untitled" is treated as *unnamed* (Coda-style): the field shows
-  // the grey "Untitled" placeholder, not literal title text, until the user names it.
-  const named = (t: string) => (t && t !== 'Untitled' ? t : '');
-  const [val, setVal] = useState(() => named(title));
-  useEffect(() => setVal(named(title)), [title, docId]);
+  const [draft, setDraft] = useState(() => (isNamed(title) ? title : ''));
+  useEffect(() => setDraft(isNamed(title) ? title : ''), [title, docId]);
 
   if (!canEdit) {
-    return (
-      <h1 className={cn(s.wsDocTitleField, !named(title) && s.untitled)}>{title || 'Untitled'}</h1>
-    );
+    const titleColor = isNamed(title) ? styles.named : styles.unnamed;
+    return <h1 className={`${styles.heading} ${titleColor}`}>{title || DEFAULT_PAGE_TITLE}</h1>;
   }
 
   const commit = () => {
-    const t = val.trim();
-    if (!t) {
-      // unnamed → keep the default "Untitled" stored (tree/list still show it);
-      // the field falls back to the grey placeholder
-      if (title && title !== 'Untitled')
-        rename.mutate({ workspaceId, id: docId, title: 'Untitled' });
-      setVal('');
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      // unnamed → keep the default stored (tree/list still show it); the field
+      // falls back to the grey placeholder
+      if (isNamed(title)) rename.mutate({ workspaceId, id: docId, title: DEFAULT_PAGE_TITLE });
+      setDraft('');
       return;
     }
-    if (t !== title) rename.mutate({ workspaceId, id: docId, title: t });
+    if (trimmed !== title) rename.mutate({ workspaceId, id: docId, title: trimmed });
   };
 
-  // data-value feeds the CSS auto-grow mirror
+  // data-value feeds the CSS auto-grow mirror; text-heading-1 sits here too so
+  // the mirror inherits the same type as the textarea.
   return (
-    <div className={s.wsDocTitleGrow} data-value={val}>
+    <div className={`${titleStyles.autoGrow} text-heading-1`} data-value={draft}>
       <textarea
-        className={s.wsDocTitleField}
-        value={val}
+        className={styles.field}
+        value={draft}
         placeholder="Add a page title"
         aria-label="Page title"
         rows={1}
-        onChange={(e) => setVal(e.target.value)}
+        onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            e.currentTarget.blur();
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
           }
         }}
       />

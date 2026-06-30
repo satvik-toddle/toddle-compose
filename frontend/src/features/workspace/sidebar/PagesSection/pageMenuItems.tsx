@@ -38,6 +38,20 @@ export function findPageMenuOption(
   return undefined;
 }
 
+// Doc/Sheet leaves for a create submenu; `keyPrefix` keeps each leaf's key unique.
+function pageTypeSubmenu(
+  keyPrefix: string,
+  onPick: (type: DocumentType) => void,
+): PageMenuOption[] {
+  return PAGE_TYPES.map((p) => ({
+    key: `${keyPrefix}:${p.type}`,
+    label: p.label,
+    subText: p.description,
+    icon: <p.Icon size="small" />,
+    onSelect: () => onPick(p.type),
+  }));
+}
+
 // Builds the per-page (⋯) menu from permissions + handlers: create actions, then
 // personal actions plus rename, with destructive delete last.
 export function buildPageMenuItems(opts: {
@@ -61,26 +75,14 @@ export function buildPageMenuItems(opts: {
         label: 'Add sub-page',
         icon: <AddOutlined size="xx-small" />,
         isSubMenu: true,
-        options: PAGE_TYPES.map((p) => ({
-          key: `subpage:${p.type}`,
-          label: p.label,
-          subText: p.description,
-          icon: <p.Icon size="small" />,
-          onSelect: () => opts.onAddSubpage(p.type),
-        })),
+        options: pageTypeSubmenu('subpage', opts.onAddSubpage),
       },
       {
         key: 'add-page',
         label: 'Add page',
         icon: <PageAPlusOutlined size="xx-small" />,
         isSubMenu: true,
-        options: PAGE_TYPES.map((p) => ({
-          key: `add-page:${p.type}`,
-          label: p.label,
-          subText: p.description,
-          icon: <p.Icon size="small" />,
-          onSelect: () => opts.onAddPage(p.type),
-        })),
+        options: pageTypeSubmenu('add-page', opts.onAddPage),
       },
       { key: 'create-divider', isDivider: true },
     );

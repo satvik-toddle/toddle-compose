@@ -8,14 +8,19 @@ import type { DocumentDto } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { PageTitle } from './PageTitle';
 
-// The editor bundle is large — load it only when a page is opened.
+// The editor bundles are large — load them only when a page is opened.
 const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.DocEditor })));
+const SheetEditor = lazy(() =>
+  import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
+);
 
 const styles = {
   contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
-  // Title aligned to the editor's content column (760px + 88px text inset).
-  titleColumn: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
+  // Doc: title centered over the editor's readable column (760px + 88px text inset).
+  docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
+  // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
+  sheetTitle: 'flex-none w-full pt-7 px-6',
 };
 
 type PageViewProps = {
@@ -46,10 +51,11 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   const { id: openDocId, title: pageTitle } = openDoc;
   const canEdit = wsAtLeast(ctx.role, 'EDIT');
+  const isSheet = openDoc.type === 'SHEET';
 
   return (
     <main className={styles.contentShell}>
-      <div className={styles.titleColumn}>
+      <div className={isSheet ? styles.sheetTitle : styles.docTitle}>
         <PageTitle
           workspaceId={ctx.workspaceId}
           docId={openDocId}
@@ -58,7 +64,11 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
         />
       </div>
       <Suspense fallback={<PageLoader />}>
-        <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
+        {isSheet ? (
+          <SheetEditor key={openDocId} docId={openDocId} />
+        ) : (
+          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
+        )}
       </Suspense>
     </main>
   );

@@ -5,6 +5,7 @@
    constraining the text to a centered, readable column — Coda-style. */
 
 .tc-editor {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -35,4 +36,15 @@
   :global(.ds-de-contentEditable) {
     padding-top: 12px !important;
   }
+}
+
+/* Covers the empty editor until the body syncs. */
+.loadingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel-bg);
 }

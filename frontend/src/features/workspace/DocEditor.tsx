@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-doc-editor';
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
@@ -65,6 +65,9 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
+  // Overlay until the Yjs content syncs (see provider `sync` below).
+  const [contentLoading, setContentLoading] = useState(true);
+  const syncedRef = useRef(false);
 
   const collab = useMemo(() => {
     return {
@@ -83,10 +86,18 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
         }
         freshDocBoundRef.current = true;
         // The CollaborationPlugin connects/disconnects the provider.
-        return new WebsocketProvider(RTC_WS_URL, id, doc, {
+        const provider = new WebsocketProvider(RTC_WS_URL, id, doc, {
           params: paramsRef.current,
           connect: false,
         });
+        // Fires true once the server's full doc state has synced into the Y.Doc.
+        provider.on('sync', (isSynced: boolean) => {
+          if (isSynced && !syncedRef.current) {
+            syncedRef.current = true;
+            setContentLoading(false);
+          }
+        });
+        return provider;
       },
       username: name ?? 'User',
       cursorColor: color ?? '#5a5ae2',
@@ -120,6 +131,11 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
         minHeight={0}
         styles={EDITOR_STYLES}
       />
+      {contentLoading && (
+        <div className={s.loadingOverlay}>
+          <PageLoader />
+        </div>
+      )}
     </div>
   );
 }

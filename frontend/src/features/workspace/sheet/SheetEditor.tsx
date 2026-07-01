@@ -6,6 +6,7 @@ import { DataGrid } from '@toddle-edu/ds-data-grid';
 import '@toddle-edu/ds-data-grid/dist/main.css';
 import type { DataGridCellEdit, DataGridRef, DataGridRow } from '@toddle-edu/ds-data-grid';
 import { AddOutlined } from '@toddle-edu/ds-icons';
+import { Tooltip } from '@toddle-edu/ds-web';
 import { useRtcToken } from '../../../hooks/usePages';
 import { PageLoader } from '../../../components/Loader';
 import { RTC_WS_URL } from '../../../lib/env';
@@ -160,25 +161,29 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
           />
         </div>
         {canEdit && (
-          <button
-            type="button"
-            aria-label="Add column"
-            className={cn(styles.addBar, styles.addColBar)}
-            onClick={onAddColumn}
-          >
-            <AddOutlined variant="subtle" />
-          </button>
+          <Tooltip dsVersion="2.0" placement="left" showArrow tooltip="Add column">
+            <button
+              type="button"
+              aria-label="Add column"
+              className={cn(styles.addBar, styles.addColBar)}
+              onClick={onAddColumn}
+            >
+              <AddOutlined variant="subtle" />
+            </button>
+          </Tooltip>
         )}
       </div>
       {canEdit && (
-        <button
-          type="button"
-          aria-label="Add row"
-          className={cn(styles.addBar, styles.addRowBar)}
-          onClick={onAddRow}
-        >
-          <AddOutlined variant="subtle" />
-        </button>
+        <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Add row">
+          <button
+            type="button"
+            aria-label="Add row"
+            className={cn(styles.addBar, styles.addRowBar)}
+            onClick={onAddRow}
+          >
+            <AddOutlined variant="subtle" />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

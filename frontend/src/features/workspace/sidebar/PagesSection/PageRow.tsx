@@ -1,15 +1,12 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react';
-import {
-  ChevronRightOutlined,
-  DotsHorizontalOutlined,
-  PageFoldPortraitOutlined,
-} from '@toddle-edu/ds-icons';
+import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
 import { useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
+import { PAGE_TYPE_ICON } from '../../pageTypes';
 import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
 import type { PagesSectionController } from './usePagesSection';
@@ -32,6 +29,7 @@ export function PageRow({
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
+  const PageIcon = PAGE_TYPE_ICON[doc.type];
 
   const menuItems = buildPageMenuItems({
     canCreate,
@@ -116,7 +114,7 @@ export function PageRow({
             icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
           />
 
-          <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
+          <PageIcon variant="subtle" size="xxx-small" />
           <span ref={labelRef} className={styles.label}>
             {doc.title}
           </span>

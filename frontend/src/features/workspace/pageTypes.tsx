@@ -23,3 +23,9 @@ export const PAGE_TYPES = [
   description: string;
   Icon: typeof PageFoldPortraitOutlined;
 }>;
+
+// Page-type → icon, so lists (e.g. the sidebar) show the same glyph as the
+// create-page dropdown and readers can tell a Doc from a Sheet at a glance.
+export const PAGE_TYPE_ICON = Object.fromEntries(
+  PAGE_TYPES.map((p) => [p.type, p.Icon]),
+) as Record<DocumentType, (typeof PAGE_TYPES)[number]['Icon']>;

@@ -1,5 +1,5 @@
 declare module '@toddle-edu/ds-data-grid' {
-  import type { ComponentType } from 'react';
+  import type { ForwardRefExoticComponent, RefAttributes } from 'react';
 
   // The cell renderers ds-data-grid ships (see Storybook "Data Grid > Cells").
   export type DataGridCellType =
@@ -52,6 +52,38 @@ declare module '@toddle-edu/ds-data-grid' {
     changeType?: 'paste' | 'undo' | 'redo';
   }
 
+  // A rectangular selection: top-left anchor (x=colId, y=rowId) plus a span.
+  export interface DataGridRange {
+    x: string | number;
+    y: string;
+    width: number;
+    height: number;
+  }
+
+  // The imperative handle exposed via ref — see Storybook "Data Grid > Ref API".
+  export interface DataGridRef {
+    selection: {
+      clear(): void;
+      rows(rowIds: string[]): void;
+      columns(colIds: Array<string | number>): void;
+      cells(args: {
+        cell?: [colId: string | number, rowId: string];
+        range?: DataGridRange;
+        rangeStack?: DataGridRange[];
+      }): void;
+    };
+    scrollTo(args: {
+      colId: string | number;
+      rowId: string;
+      direction?: 'horizontal' | 'vertical' | 'both';
+      align?: {
+        vAlign: 'start' | 'center' | 'end';
+        hAlign: 'start' | 'center' | 'end';
+      };
+    }): void;
+    toggleAllRowsCollapse(): void;
+  }
+
   export interface DataGridProps {
     headers: DataGridHeader[];
     data: DataGridRow[];
@@ -65,5 +97,7 @@ declare module '@toddle-edu/ds-data-grid' {
     [key: string]: unknown;
   }
 
-  export const DataGrid: ComponentType<DataGridProps>;
+  export const DataGrid: ForwardRefExoticComponent<
+    DataGridProps & RefAttributes<DataGridRef>
+  >;
 }

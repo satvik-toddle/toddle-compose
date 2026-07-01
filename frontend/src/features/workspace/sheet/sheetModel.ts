@@ -78,8 +78,11 @@ export function applySheetEdits(ydoc: Y.Doc, yRows: SheetRows, edits: DataGridCe
 }
 
 // Append one empty row — used when the user edits a cell in the last row.
-export function appendSheetRow(ydoc: Y.Doc, yRows: SheetRows): void {
+// Returns the new row's id so the caller can move the selection into it.
+export function appendSheetRow(ydoc: Y.Doc, yRows: SheetRows): string {
   const row = new Y.Map<unknown>();
-  row.set(ID_KEY, makeRowId());
+  const rowId = makeRowId();
+  row.set(ID_KEY, rowId);
   ydoc.transact(() => yRows.push([row]));
+  return rowId;
 }

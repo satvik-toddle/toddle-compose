@@ -24,6 +24,9 @@ export const SHEET_COLUMNS: DataGridHeader[] = COLUMN_IDS.map((id) => ({
   id,
   title: id,
   width: COLUMN_WIDTH,
+  styles: {
+    align: 'center',
+  },
 }));
 
 export type SheetRows = Y.Array<Y.Map<unknown>>;

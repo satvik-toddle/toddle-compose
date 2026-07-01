@@ -2,19 +2,24 @@ import { useState } from 'react';
 import { SearchInput } from '@toddle-edu/ds-web';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
-import { Avatar } from '../../components/Avatar';
-import { WSChip } from '../../components/WSChip';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
+import { WSChip } from '../../components/WSChip';
 import { RoleSelect } from '../../components/RoleSelect';
 import { PageLoader } from '../../components/Loader';
+import { PersonCell } from '../../components/PersonCell';
+import { WorkspaceBadge } from '../../components/WorkspaceBadge';
+import { RequestsTable } from '../../components/RequestsTable';
+import { tableStyles as t } from '../../components/tableStyles';
+import { AddWorkspaceMemberModal } from './AddWorkspaceMemberModal';
+import { ConfirmRemoveMemberModal } from './ConfirmRemoveMemberModal';
+import { RenameWorkspaceModal } from './RenameWorkspaceModal';
 import { useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../../hooks/queries';
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
-import { useApproveRequest, useRejectRequest } from '../../hooks/useJoinRequestMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
-import { formatDate, relativeTime } from '../../lib/time';
+import { formatDate } from '../../lib/time';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { cn } from '../../lib/cn';
 import type { WorkspaceRole } from '../../types/roles';
@@ -23,10 +28,14 @@ const ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].lab
 
 type SettingsTab = 'general' | 'members' | 'requests' | 'danger';
 type NavIcon = 'SettingsOutlined' | 'MultipleUsersOutlined' | 'BellRingOutlined';
+type RemoveTarget = { userId: string; name: string; email: string; role: WorkspaceRole };
+// Child dialogs rendered locally (stacked over this modal) so settings survives.
+type Child = 'addMember' | 'rename' | { kind: 'removeMember'; member: RemoveTarget };
+
+const MEM_GRID = 'grid-cols-[2fr_220px_120px]';
 
 const styles = {
   wsHead: 'flex items-center gap-2.75 px-[18px] pb-4 pt-[18px]',
-  wsEmoji: 'flex h-[38px] w-[38px] flex-none items-center justify-center rounded-2.5',
   wsName: 'truncate text-body-s font-bold leading-tight',
   wsSub: 'mt-0.5 text-label-xs text-secondary',
   sectionLabel: 'px-5 pb-1.5 pt-1 text-label-xs uppercase text-secondary',
@@ -45,37 +54,18 @@ const styles = {
   barTitle: 'text-[16px] font-bold leading-tight',
   barDesc: 'mt-1 text-body-s text-secondary',
   scroll: 'min-h-0 flex-1 overflow-auto px-5.5 py-5',
-  group: 'flex max-w-[560px] flex-col gap-[18px]',
+  group: 'flex flex-col gap-[18px]',
   idCard: 'flex items-center gap-3 rounded-3 border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
-  idEmoji: 'flex h-11 w-11 flex-none items-center justify-center rounded-3',
   idName: 'truncate text-body font-semibold',
   idSub: 'text-body-s text-secondary',
   statRow: 'flex gap-3',
   statCard: 'flex-1 rounded-[11px] border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
   statKey: 'text-label-xs font-semibold text-secondary',
   statVal: 'mt-1 font-bold tracking-tight',
-  table: 'overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--panel-bg)]',
-  thead: 'grid items-center border-b border-[var(--line)] bg-surface-secondary-enabled',
-  th: 'px-4 py-[11px] text-[11px] font-bold uppercase tracking-[0.04em] text-secondary',
-  trow: 'grid items-center border-b border-[var(--line)] last:border-b-0 hover:bg-surface-secondary-enabled',
-  td: 'px-4 py-[13px] text-[13px]',
-  tdMuted: 'px-4 py-[13px] text-[12px] text-secondary',
-  tdActions: 'flex justify-end gap-[7px] px-4 py-[13px]',
-  cellRight: 'text-right',
-  cellMain: 'flex items-center gap-2.75',
-  nm: 'text-[13px] font-semibold',
-  rowSub: 'mt-px text-[12px] text-secondary',
-  youTag:
-    'ml-1.5 rounded-[5px] bg-[var(--surface-primary-selected)] px-1.5 py-px align-middle text-[10px] font-bold text-[var(--blue-400)]',
-  memGrid: 'grid-cols-[2fr_220px_120px]',
-  reqGrid: 'grid-cols-[2fr_160px_120px_210px]',
-  memSearch: 'mb-3.5 max-w-[320px]',
+  memToolbar: 'mb-3.5 flex items-center gap-2',
   blockedWrap: 'group relative inline-flex',
   blockedTip:
     'pointer-events-none absolute right-0 top-[-34px] hidden items-center gap-1.5 whitespace-nowrap rounded-[7px] bg-[var(--neutral-100)] px-2.25 py-1.5 text-label-xs font-semibold text-[var(--neutral-950)] shadow-elevation-2-bottom group-hover:flex',
-  emptyWrap: 'text-center',
-  emptyTitle: 'text-[15px] font-semibold',
-  emptyText: 'mt-1 text-[13px] text-secondary',
   dangerCard:
     'flex items-center gap-4 rounded-3 border border-[var(--red-500)] bg-[var(--surface-semantic-error)] px-[18px] py-4',
   dangerTitle: 'text-body-s font-bold text-semantic-error',
@@ -96,12 +86,13 @@ export function WorkspaceSettingsModal({
   isAdmin,
 }: Readonly<WorkspaceSettingsModalProps>) {
   const [tab, setTab] = useState<SettingsTab>('general');
+  const [child, setChild] = useState<Child | null>(null);
   const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
-  const visual = workspaceVisual(workspaceId);
 
   const memberCount = members?.length ?? 0;
   const requestCount = requests?.length ?? 0;
+  const closeChild = () => setChild(null);
 
   const nav: { id: SettingsTab; icon: NavIcon; label: string; count?: number; alert?: boolean }[] = [
     { id: 'general', icon: 'SettingsOutlined', label: 'General' },
@@ -126,27 +117,10 @@ export function WorkspaceSettingsModal({
     danger: { h: 'Danger zone', d: 'Irreversible actions for this workspace.' },
   };
 
-  const action =
-    tab === 'members' && isAdmin ? (
-      <Button
-        variant="primary"
-        size="sm"
-        icon="AddOutlined"
-        onClick={() => useUiStore.getState().openModal({ type: 'addWorkspaceMember', workspaceId, workspaceName })}
-      >
-        Add member
-      </Button>
-    ) : null;
-
   const sidebar = (
     <>
       <div className={styles.wsHead}>
-        <span
-          className={styles.wsEmoji}
-          style={{ background: visual.color + '22', boxShadow: `inset 0 0 0 1px ${visual.color}44` }}
-        >
-          <Icon name={visual.icon} size={18} style={{ color: visual.color }} />
-        </span>
+        <WorkspaceBadge id={workspaceId} size={38} iconSize={18} />
         <div className="min-w-0">
           <div className={styles.wsName}>{workspaceName}</div>
           <div className={styles.wsSub}>Workspace settings</div>
@@ -185,33 +159,70 @@ export function WorkspaceSettingsModal({
   );
 
   return (
-    <ModalWithSideBar onClose={onClose} sidebar={sidebar}>
-      <div className={styles.bar}>
-        <div className="min-w-0 flex-1">
-          <h3 className={styles.barTitle}>{HEAD[tab].h}</h3>
-          <div className={styles.barDesc}>{HEAD[tab].d}</div>
+    <>
+      <ModalWithSideBar onClose={onClose} sidebar={sidebar}>
+        <div className={styles.bar}>
+          <div className="min-w-0 flex-1">
+            <h3 className={styles.barTitle}>{HEAD[tab].h}</h3>
+            <div className={styles.barDesc}>{HEAD[tab].d}</div>
+          </div>
+          <IconButton icon="CloseOutlined" iconSize={18} onClick={onClose} aria-label="Close" />
         </div>
-        {action}
-        <IconButton icon="CloseOutlined" iconSize={18} onClick={onClose} aria-label="Close" />
-      </div>
 
-      <div className={styles.scroll}>
-        {tab === 'general' && (
-          <GeneralPanel
-            workspaceId={workspaceId}
-            workspaceName={workspaceName}
-            isAdmin={isAdmin}
-            memberCount={memberCount}
-            requestCount={requestCount}
-          />
-        )}
-        {tab === 'members' && isAdmin && <MembersTab workspaceId={workspaceId} workspaceName={workspaceName} />}
-        {tab === 'requests' && isAdmin && <RequestsTab workspaceId={workspaceId} workspaceName={workspaceName} />}
-        {tab === 'danger' && isAdmin && (
-          <DangerPanel workspaceId={workspaceId} workspaceName={workspaceName} memberCount={memberCount} />
-        )}
-      </div>
-    </ModalWithSideBar>
+        <div className={styles.scroll}>
+          {tab === 'general' && (
+            <GeneralPanel
+              workspaceId={workspaceId}
+              workspaceName={workspaceName}
+              isAdmin={isAdmin}
+              memberCount={memberCount}
+              requestCount={requestCount}
+              onRename={() => setChild('rename')}
+            />
+          )}
+          {tab === 'members' && isAdmin && (
+            <MembersTab
+              workspaceId={workspaceId}
+              onAdd={() => setChild('addMember')}
+              onRemove={(member) => setChild({ kind: 'removeMember', member })}
+            />
+          )}
+          {tab === 'requests' && isAdmin && (
+            <RequestsTable
+              requests={requests ?? []}
+              emptyText={`When someone asks to join ${workspaceName}, it'll show up here.`}
+            />
+          )}
+          {tab === 'danger' && isAdmin && (
+            <DangerPanel workspaceId={workspaceId} workspaceName={workspaceName} memberCount={memberCount} />
+          )}
+        </div>
+      </ModalWithSideBar>
+
+      {child === 'addMember' && (
+        <AddWorkspaceMemberModal onClose={closeChild} workspaceId={workspaceId} workspaceName={workspaceName} />
+      )}
+      {child === 'rename' && (
+        <RenameWorkspaceModal
+          onClose={closeChild}
+          workspaceId={workspaceId}
+          name={workspaceName}
+          icon={workspaceVisual(workspaceId).icon}
+        />
+      )}
+      {typeof child === 'object' && child?.kind === 'removeMember' && (
+        <ConfirmRemoveMemberModal
+          onClose={closeChild}
+          scope="workspace"
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          userId={child.member.userId}
+          name={child.member.name}
+          email={child.member.email}
+          role={child.member.role}
+        />
+      )}
+    </>
   );
 }
 
@@ -251,26 +262,21 @@ function GeneralPanel({
   isAdmin,
   memberCount,
   requestCount,
+  onRename,
 }: {
   workspaceId: string;
   workspaceName: string;
   isAdmin: boolean;
   memberCount: number;
   requestCount: number;
+  onRename: () => void;
 }) {
   const { data: ws } = useWorkspace(workspaceId);
-  const visual = workspaceVisual(workspaceId);
-  const openModal = useUiStore((s) => s.openModal);
 
   return (
     <div className={styles.group}>
       <div className={styles.idCard}>
-        <span
-          className={styles.idEmoji}
-          style={{ background: visual.color + '22', boxShadow: `inset 0 0 0 1px ${visual.color}44` }}
-        >
-          <Icon name={visual.icon} size={24} style={{ color: visual.color }} />
-        </span>
+        <WorkspaceBadge id={workspaceId} size={44} iconSize={24} />
         <div className="min-w-0 flex-1">
           <div className={styles.idName}>{workspaceName}</div>
           {isAdmin && (
@@ -280,11 +286,7 @@ function GeneralPanel({
           )}
         </div>
         {isAdmin && (
-          <Button
-            size="sm"
-            icon="PencilOutlined"
-            onClick={() => openModal({ type: 'renameWorkspace', workspaceId, name: workspaceName, icon: visual.icon })}
-          >
+          <Button size="sm" icon="PencilOutlined" onClick={onRename}>
             Rename
           </Button>
         )}
@@ -308,11 +310,18 @@ function Stat({ k, v, small }: { k: string; v: string; small?: boolean }) {
   );
 }
 
-function MembersTab({ workspaceId, workspaceName }: { workspaceId: string; workspaceName: string }) {
+function MembersTab({
+  workspaceId,
+  onAdd,
+  onRemove,
+}: {
+  workspaceId: string;
+  onAdd: () => void;
+  onRemove: (member: RemoveTarget) => void;
+}) {
   const me = useAuthStore((s) => s.user);
   const { data: members, isLoading } = useWorkspaceMembers(workspaceId, true);
   const setRole = useSetWorkspaceMemberRole();
-  const openModal = useUiStore((s) => s.openModal);
   const [query, setQuery] = useState('');
 
   const list = members ?? [];
@@ -326,36 +335,33 @@ function MembersTab({ workspaceId, workspaceName }: { workspaceId: string; works
 
   return (
     <>
-      <div className={styles.memSearch}>
-        <SearchInput
-          dsVersion="2.0"
-          size="small"
-          placeholder="Search members…"
-          aria-label="Search members"
-          onChange={setQuery}
-        />
+      <div className={styles.memToolbar}>
+        <div className="min-w-0 flex-1">
+          <SearchInput
+            dsVersion="2.0"
+            size="small"
+            placeholder="Search members…"
+            aria-label="Search members"
+            onChange={setQuery}
+          />
+        </div>
+        <IconButton icon="AddOutlined" iconSize={16} muted={false} title="Add member" onClick={onAdd} />
       </div>
-      <div className={styles.table}>
-        <div className={cn(styles.thead, styles.memGrid)}>
-          <div className={styles.th}>Person</div>
-          <div className={styles.th}>Workspace role</div>
-          <div className={cn(styles.th, styles.cellRight)}>Remove</div>
+      <div className={t.table}>
+        <div className={cn(t.thead, MEM_GRID)}>
+          <div className={t.th}>Person</div>
+          <div className={t.th}>Workspace role</div>
+          <div className={cn(t.th, t.cellRight)}>Remove</div>
         </div>
         {filtered.map((m) => {
           const isYou = m.userId === me?.id;
           const soleAdmin = m.role === 'ADMIN' && adminCount <= 1;
           return (
-            <div key={m.userId} className={cn(styles.trow, styles.memGrid)}>
-              <div className={cn(styles.td, styles.cellMain)}>
-                <Avatar person={{ name: m.user.name, color: m.user.color }} size={32} />
-                <div>
-                  <div className={styles.nm}>
-                    {m.user.name} {isYou && <span className={styles.youTag}>You</span>}
-                  </div>
-                  <div className={styles.rowSub}>{m.user.email}</div>
-                </div>
+            <div key={m.userId} className={cn(t.trow, MEM_GRID)}>
+              <div className={t.td}>
+                <PersonCell name={m.user.name} email={m.user.email} color={m.user.color} youTag={isYou} />
               </div>
-              <div className={styles.td}>
+              <div className={t.td}>
                 <RoleSelect<WorkspaceRole>
                   value={m.role}
                   options={ROLE_OPTIONS}
@@ -364,10 +370,12 @@ function MembersTab({ workspaceId, workspaceName }: { workspaceId: string; works
                   renderValue={(r) => <WSChip role={r} />}
                 />
               </div>
-              <div className={cn(styles.td, styles.cellRight)}>
+              <div className={cn(t.td, t.cellRight)}>
                 {soleAdmin ? (
                   <span className={styles.blockedWrap}>
-                    <IconButton icon="DeleteOutlined" red disabled style={{ opacity: 0.4 }} />
+                    <span className="opacity-40">
+                      <IconButton icon="DeleteOutlined" red disabled />
+                    </span>
                     <span className={styles.blockedTip}>
                       <Icon name="InformationOutlined" size={12} white />
                       Can't remove the last admin
@@ -379,16 +387,7 @@ function MembersTab({ workspaceId, workspaceName }: { workspaceId: string; works
                     red
                     title="Remove from workspace"
                     onClick={() =>
-                      openModal({
-                        type: 'confirmRemoveMember',
-                        scope: 'workspace',
-                        workspaceId,
-                        workspaceName,
-                        userId: m.userId,
-                        name: m.user.name,
-                        email: m.user.email,
-                        role: m.role,
-                      })
+                      onRemove({ userId: m.userId, name: m.user.name, email: m.user.email, role: m.role })
                     }
                   />
                 )}
@@ -401,73 +400,6 @@ function MembersTab({ workspaceId, workspaceName }: { workspaceId: string; works
   );
 }
 
-function RequestsTab({ workspaceId, workspaceName }: { workspaceId: string; workspaceName: string }) {
-  const { data: requests, isLoading } = useWorkspaceJoinRequests(workspaceId, true);
-  const approve = useApproveRequest();
-  const reject = useRejectRequest();
-  const [grant, setGrant] = useState<Record<string, WorkspaceRole>>({});
-
-  const list = requests ?? [];
-
-  if (isLoading) return <PageLoader />;
-  if (list.length === 0) {
-    return (
-      <div className={styles.emptyWrap}>
-        <div className={styles.emptyTitle}>No pending requests</div>
-        <div className={styles.emptyText}>When someone asks to join {workspaceName}, it'll show up here.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.table}>
-      <div className={cn(styles.thead, styles.reqGrid)}>
-        <div className={styles.th}>Person</div>
-        <div className={styles.th}>Grant role</div>
-        <div className={styles.th}>Requested</div>
-        <div className={cn(styles.th, styles.cellRight)}>Decision</div>
-      </div>
-      {list.map((r) => {
-        const role = grant[r.id] ?? r.requestedRole;
-        return (
-          <div key={r.id} className={cn(styles.trow, styles.reqGrid)}>
-            <div className={cn(styles.td, styles.cellMain)}>
-              <Avatar person={{ name: r.user.name, color: r.user.color }} size={32} />
-              <div>
-                <div className={styles.nm}>{r.user.name}</div>
-                <div className={styles.rowSub}>{r.user.email}</div>
-              </div>
-            </div>
-            <div className={styles.td}>
-              <RoleSelect<WorkspaceRole>
-                value={role}
-                options={ROLE_OPTIONS}
-                onChange={(v) => setGrant((g) => ({ ...g, [r.id]: v }))}
-                renderValue={(v) => <WSChip role={v} />}
-              />
-            </div>
-            <div className={styles.tdMuted}>{relativeTime(r.createdAt)}</div>
-            <div className={styles.tdActions}>
-              <Button
-                variant="primary"
-                size="sm"
-                icon="TickSmallOutlined"
-                disabled={approve.isPending}
-                onClick={() => approve.mutate({ workspaceId, requestId: r.id, role })}
-              >
-                Approve
-              </Button>
-              <Button size="sm" disabled={reject.isPending} onClick={() => reject.mutate({ workspaceId, requestId: r.id })}>
-                Decline
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function DangerPanel({
   workspaceId,
   workspaceName,
@@ -477,6 +409,8 @@ function DangerPanel({
   workspaceName: string;
   memberCount: number;
 }) {
+  // Delete legitimately ends the session on this workspace, so it navigates away
+  // via the global modal store rather than stacking over settings.
   const openModal = useUiStore((s) => s.openModal);
   return (
     <div className={styles.dangerCard}>

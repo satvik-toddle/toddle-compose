@@ -17,20 +17,44 @@ const COLUMN_COUNT = 26; // A–Z, Google-Sheets style
 const COLUMN_WIDTH = 160;
 export const SHEET_ROW_COUNT = 100;
 
-// Column ids (A…Z) double as header titles. Phase 1 is a fixed all-text grid, so the
-// columns are a static client constant rather than persisted in the doc.
-const COLUMN_IDS = Array.from({ length: COLUMN_COUNT }, (_, i) => String.fromCodePoint(65 + i));
-export const SHEET_COLUMNS: DataGridHeader[] = COLUMN_IDS.map((id) => ({
-  id,
-  title: id,
-  width: COLUMN_WIDTH,
-  styles: {
-    align: 'center',
-  },
-}));
-
 export type SheetRows = Y.Array<Y.Map<unknown>>;
 export type SheetColTypes = Y.Map<unknown>;
+
+const ALPHABET_SIZE = 26;
+const LETTER_A_CODE = 'A'.codePointAt(0)!;
+
+// A column's position ↔ its spreadsheet label (0↔"A", 25↔"Z", 26↔"AA"). Bijective
+// base-26 (digits 1..26 = A..Z, no zero), hence the 1-based ±1.
+export function indexToColumnId(index: number): string {
+  let label = '';
+  for (let position = index + 1; position > 0; position = Math.floor((position - 1) / ALPHABET_SIZE)) {
+    label = String.fromCodePoint(LETTER_A_CODE + ((position - 1) % ALPHABET_SIZE)) + label;
+  }
+  return label;
+}
+
+function columnIdToIndex(label: string): number {
+  let position = 0;
+  for (const letter of label) {
+    position = position * ALPHABET_SIZE + (letter.codePointAt(0)! - LETTER_A_CODE + 1);
+  }
+  return position - 1;
+}
+
+// Column ids in display order, read from the persisted colTypes map (Y.Map is unordered).
+export function readColumnIds(yColTypes: SheetColTypes): string[] {
+  return [...yColTypes.keys()].sort((a, b) => columnIdToIndex(a) - columnIdToIndex(b));
+}
+
+// Header configs for the grid, one per column id (ids double as titles).
+export function buildSheetColumns(columnIds: string[]): DataGridHeader[] {
+  return columnIds.map((id) => ({
+    id,
+    title: id,
+    width: COLUMN_WIDTH,
+    styles: { align: 'center' },
+  }));
+}
 
 const makeRowId = (): string => crypto.randomUUID();
 
@@ -38,11 +62,15 @@ const findRowMap = (yRows: SheetRows, rowId: string): Y.Map<unknown> | undefined
   yRows.toArray().find((row) => row.get(ID_KEY) === rowId);
 
 // Map the Yjs rows into ds-data-grid rows — one all-text row per Y.Map; a cell whose
-// column key is absent reads as an empty string.
-export function readSheetRows(yRows: SheetRows, isEditable: boolean): DataGridRow[] {
+// column key is absent reads as an empty string. Cells follow `columnIds` order.
+export function readSheetRows(
+  yRows: SheetRows,
+  columnIds: string[],
+  isEditable: boolean,
+): DataGridRow[] {
   return yRows.toArray().map((row) => ({
     rowId: row.get(ID_KEY) as string,
-    columns: COLUMN_IDS.map(
+    columns: columnIds.map(
       (id): DataGridCell => ({
         cellType: 'text',
         value: (row.get(id) as string | undefined) ?? '',
@@ -56,7 +84,7 @@ export function readSheetRows(yRows: SheetRows, isEditable: boolean): DataGridRo
 // guards on "synced && empty" so an existing doc's rows are never duplicated.
 export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColTypes): void {
   ydoc.transact(() => {
-    for (const id of COLUMN_IDS) yColTypes.set(id, 'text');
+    for (let i = 0; i < COLUMN_COUNT; i++) yColTypes.set(indexToColumnId(i), 'text');
     const rows = Array.from({ length: SHEET_ROW_COUNT }, () => {
       const row = new Y.Map<unknown>();
       row.set(ID_KEY, makeRowId());
@@ -85,4 +113,13 @@ export function appendSheetRow(ydoc: Y.Doc, yRows: SheetRows): string {
   row.set(ID_KEY, rowId);
   ydoc.transact(() => yRows.push([row]));
   return rowId;
+}
+
+// Append one text column after the current last column. Returns its id.
+export function appendSheetColumn(ydoc: Y.Doc, yColTypes: SheetColTypes): string {
+  const columnIds = readColumnIds(yColTypes);
+  const nextIndex = columnIds.length;
+  const id = indexToColumnId(nextIndex);
+  ydoc.transact(() => yColTypes.set(id, 'text'));
+  return id;
 }

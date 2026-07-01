@@ -6,7 +6,7 @@ import { useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
-import { PAGE_TYPE_ICON } from '../../pageTypes';
+import { pageTypeIcon } from '../../pageTypes';
 import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
 import type { PagesSectionController } from './usePagesSection';
@@ -29,7 +29,7 @@ export function PageRow({
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
-  const PageIcon = PAGE_TYPE_ICON[doc.type];
+  const PageIcon = pageTypeIcon(doc.type);
 
   const menuItems = buildPageMenuItems({
     canCreate,

@@ -8,10 +8,14 @@ import {
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
-import type { DocumentDto, DocumentType, User } from '../../../types/api';
+import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { CreatePageDropdown } from '../CreatePageDropdown';
-import { PAGE_TYPES } from '../pageTypes';
+import {
+  findPageMenuOption,
+  pageTypeSubmenu,
+  type PageMenuOption,
+} from '../sidebar/PagesSection/pageMenuItems';
 import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
@@ -63,21 +67,9 @@ export function DocActions({
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
-  const runMenuAction: Record<string, () => void> = {
-    [RENAME_KEY]: openRenameModal,
-    [DELETE_KEY]: openDeleteModal,
-  };
-
-  // Sub-page leaves carry a `subpage:<type>` key; everything else routes by key.
-  const onMenuClick = (key: string) => {
-    if (key.startsWith(`${SUB_PAGE_KEY}:`)) {
-      addSubPage(doc.id, key.slice(SUB_PAGE_KEY.length + 1) as DocumentType);
-      return;
-    }
-    runMenuAction[key]?.();
-  };
-
-  const menuOptions = [
+  // Same option shape + click dispatch as the sidebar's page menu: each leaf carries its
+  // own onSelect, and the create action reuses the shared Doc/Sheet submenu builder.
+  const menuOptions: PageMenuOption[] = [
     ...(canCreate
       ? [
           {
@@ -85,12 +77,7 @@ export function DocActions({
             label: 'Add sub-page',
             icon: <AddOutlined size="xxx-small" variant="subtle" />,
             isSubMenu: true,
-            options: PAGE_TYPES.map((p) => ({
-              key: `${SUB_PAGE_KEY}:${p.type}`,
-              label: p.label,
-              subText: p.description,
-              icon: <p.Icon size="small" variant="subtle" />,
-            })),
+            options: pageTypeSubmenu(SUB_PAGE_KEY, (type) => addSubPage(doc.id, type)),
           },
         ]
       : []),
@@ -100,6 +87,7 @@ export function DocActions({
             key: RENAME_KEY,
             label: 'Rename',
             icon: <PencilOutlined size="xxx-small" variant="subtle" />,
+            onSelect: openRenameModal,
           },
           { key: `${DELETE_KEY}__divider`, isDivider: true },
           {
@@ -107,6 +95,7 @@ export function DocActions({
             label: 'Delete',
             icon: <DeleteOutlined size="xxx-small" variant="critical" />,
             isDestructive: true,
+            onSelect: openDeleteModal,
           },
         ]
       : []),
@@ -131,7 +120,9 @@ export function DocActions({
             <DropdownMenu
               dsVersion="2.0"
               options={menuOptions}
-              onClick={(option: { key: string }) => onMenuClick(option.key)}
+              onClick={(option: { key: string }) =>
+                findPageMenuOption(menuOptions, option.key)?.onSelect?.()
+              }
             />
           }
         >

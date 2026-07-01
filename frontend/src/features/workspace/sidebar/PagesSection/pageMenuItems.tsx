@@ -39,7 +39,7 @@ export function findPageMenuOption(
 }
 
 // Doc/Sheet leaves for a create submenu; `keyPrefix` keeps each leaf's key unique.
-function pageTypeSubmenu(
+export function pageTypeSubmenu(
   keyPrefix: string,
   onPick: (type: DocumentType) => void,
 ): PageMenuOption[] {

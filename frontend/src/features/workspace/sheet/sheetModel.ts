@@ -8,7 +8,10 @@ import type {
 
 // Yjs roots — these names MUST match the rtc-server's extractSheet
 // (rtc-server/src/history/versions.service.ts): 'rows' is a Y.Array of per-row
-// Y.Map keyed by '__id'; 'colTypes' is a Y.Map of column id -> cell type.
+// Y.Map keyed by '__id'; 'colTypes' is a Y.Map of column id -> { type, order }.
+// The column id is an opaque uuid (not the letter label), so two clients adding a
+// column concurrently can't collide on the same map key; the letter label is derived
+// from `order` at render. The server records each value opaquely, so this stays safe.
 export const ROWS_KEY = 'rows';
 export const COL_TYPE_KEY = 'colTypes';
 const ID_KEY = '__id';
@@ -16,9 +19,12 @@ const ID_KEY = '__id';
 const COLUMN_COUNT = 26; // A–Z, Google-Sheets style
 const COLUMN_WIDTH = 160;
 export const SHEET_ROW_COUNT = 100;
+const CELL_TYPE = 'text';
 
 export type SheetRows = Y.Array<Y.Map<unknown>>;
 export type SheetColTypes = Y.Map<unknown>;
+// One column's persisted metadata: its cell type and its position in the grid.
+type SheetColMeta = { type: string; order: number };
 
 const ALPHABET_SIZE = 26;
 const LETTER_A_CODE = 'A'.codePointAt(0)!;
@@ -33,30 +39,30 @@ export function indexToColumnId(index: number): string {
   return label;
 }
 
-function columnIdToIndex(label: string): number {
-  let position = 0;
-  for (const letter of label) {
-    position = position * ALPHABET_SIZE + (letter.codePointAt(0)! - LETTER_A_CODE + 1);
-  }
-  return position - 1;
-}
+const readColMeta = (yColTypes: SheetColTypes, id: string): SheetColMeta | undefined =>
+  yColTypes.get(id) as SheetColMeta | undefined;
 
-// Column ids in display order, read from the persisted colTypes map (Y.Map is unordered).
+// Column ids in display order. colTypes is an unordered Y.Map, so sort by each column's
+// `order`. Concurrent adds can share an order; the unique id breaks the tie so every
+// client resolves the same left-to-right order.
 export function readColumnIds(yColTypes: SheetColTypes): string[] {
-  return [...yColTypes.keys()].sort((a, b) => columnIdToIndex(a) - columnIdToIndex(b));
+  const orderOf = (id: string) => readColMeta(yColTypes, id)?.order ?? 0;
+  return [...yColTypes.keys()].sort((a, b) => orderOf(a) - orderOf(b) || a.localeCompare(b));
 }
 
-// Header configs for the grid, one per column id (ids double as titles).
+// Header configs for the grid, one per column id. Ids are opaque uuids; the visible
+// title is the spreadsheet letter for the column's position (A, B, … AA).
 export function buildSheetColumns(columnIds: string[]): DataGridHeader[] {
-  return columnIds.map((id) => ({
+  return columnIds.map((id, index) => ({
     id,
-    title: id,
+    title: indexToColumnId(index),
     width: COLUMN_WIDTH,
     styles: { align: 'center' },
   }));
 }
 
 const makeRowId = (): string => crypto.randomUUID();
+const makeColumnId = (): string => crypto.randomUUID();
 
 const findRowMap = (yRows: SheetRows, rowId: string): Y.Map<unknown> | undefined =>
   yRows.toArray().find((row) => row.get(ID_KEY) === rowId);
@@ -84,7 +90,7 @@ export function readSheetRows(
 // guards on "synced && empty" so an existing doc's rows are never duplicated.
 export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColTypes): void {
   ydoc.transact(() => {
-    for (let i = 0; i < COLUMN_COUNT; i++) yColTypes.set(indexToColumnId(i), 'text');
+    for (let i = 0; i < COLUMN_COUNT; i++) yColTypes.set(makeColumnId(), { type: CELL_TYPE, order: i });
     const rows = Array.from({ length: SHEET_ROW_COUNT }, () => {
       const row = new Y.Map<unknown>();
       row.set(ID_KEY, makeRowId());
@@ -115,11 +121,21 @@ export function appendSheetRow(ydoc: Y.Doc, yRows: SheetRows): string {
   return rowId;
 }
 
-// Append one text column after the current last column. Returns its id.
+// The next column's order: one past the current highest. Two clients adding at once may
+// compute the same value — that's fine, readColumnIds tie-breaks on the unique id.
+function nextColumnOrder(yColTypes: SheetColTypes): number {
+  let maxOrder = -1;
+  for (const id of yColTypes.keys()) {
+    maxOrder = Math.max(maxOrder, readColMeta(yColTypes, id)?.order ?? 0);
+  }
+  return maxOrder + 1;
+}
+
+// Append one text column after the current last column. Returns its uuid id, which is
+// unique per call, so two clients adding a column at once both survive the merge.
 export function appendSheetColumn(ydoc: Y.Doc, yColTypes: SheetColTypes): string {
-  const columnIds = readColumnIds(yColTypes);
-  const nextIndex = columnIds.length;
-  const id = indexToColumnId(nextIndex);
-  ydoc.transact(() => yColTypes.set(id, 'text'));
+  const id = makeColumnId();
+  const order = nextColumnOrder(yColTypes);
+  ydoc.transact(() => yColTypes.set(id, { type: CELL_TYPE, order }));
   return id;
 }

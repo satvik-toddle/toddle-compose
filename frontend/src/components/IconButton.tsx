@@ -1,5 +1,5 @@
-import type { ButtonHTMLAttributes } from 'react';
-import { Button as DsButton } from '@toddle-edu/ds-web';
+import type { ButtonHTMLAttributes, ReactElement } from 'react';
+import { IconButton as DsIconButton } from '@toddle-edu/ds-web';
 import { Icon, type IconName, type IconSize } from './Icon';
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
@@ -10,17 +10,15 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   sm?: boolean;
 }
 
-// Icon-only ds-web Button (plain style).
+// Icon-only ds-web IconButton (plain style), keyed by our IconName map.
 export function IconButton({ icon, iconSize = 14, muted = true, red, sm, ...rest }: IconButtonProps) {
   return (
-    <DsButton
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      variant={(red ? 'destructive' : 'neutral') as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      type={'plain' as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      size={'small' as any}
-      icon={<Icon name={icon} size={iconSize} red={red} muted={muted && !red} />}
+    <DsIconButton
+      dsVersion="2.0"
+      variant={red ? 'destructive' : 'neutral'}
+      type="plain"
+      size={sm ? 'x-small' : 'small'}
+      icon={(<Icon name={icon} size={iconSize} red={red} muted={muted && !red} />) as ReactElement}
       {...rest}
     />
   );

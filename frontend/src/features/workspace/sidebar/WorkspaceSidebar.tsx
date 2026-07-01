@@ -14,6 +14,7 @@ import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../../hooks/qu
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
+import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './constants';
 import { useSidebarWidth } from './useSidebarWidth';
@@ -105,14 +106,15 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
 
       <div className={styles.footerGroup}>
         {pages.canCreate && (
-          <button
-            type="button"
-            className={cn(sidebarRow.base, sidebarRow.default)}
-            onClick={() => pages.createPage()}
+          <CreatePageDropdown
+            placement="topLeft"
+            onCreate={(type) => pages.createPage(undefined, type)}
           >
-            <AddOutlined size="xxx-small" />
-            New page
-          </button>
+            <button type="button" className={cn(sidebarRow.base, sidebarRow.default, 'w-full')}>
+              <AddOutlined size="xxx-small" />
+              New page
+            </button>
+          </CreatePageDropdown>
         )}
         {isAdmin && (
           <NavLink

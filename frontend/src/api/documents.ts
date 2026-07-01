@@ -1,5 +1,5 @@
 import { http } from '../lib/http';
-import type { DocumentDto } from '../types/api';
+import type { DocumentDto, DocumentType } from '../types/api';
 import type { Visibility } from '../types/roles';
 
 export const documentsApi = {
@@ -15,6 +15,7 @@ export const documentsApi = {
     folderId?: string | null;
     title?: string;
     icon?: string;
+    type?: DocumentType;
   }) =>
     http.post<DocumentDto>('/documents', {
       workspaceId: b.workspaceId,
@@ -23,6 +24,8 @@ export const documentsApi = {
       ...(b.parentId ? { parentId: b.parentId } : b.folderId ? { folderId: b.folderId } : {}),
       ...(b.title ? { title: b.title } : {}),
       ...(b.icon ? { icon: b.icon } : {}),
+      // Omit for DOC — the backend defaults to it; only SHEET needs sending.
+      ...(b.type ? { type: b.type } : {}),
     }),
   rename: (id: string, title: string) => http.patch<DocumentDto>(`/documents/${id}`, { title }),
   // Short-lived RTC token for real-time collaboration (editor|viewer role).

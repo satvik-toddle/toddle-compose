@@ -5,6 +5,7 @@ import { useAuthStore } from '../../../../stores/authStore';
 import { wsAtLeast } from '../../../../lib/roles';
 import type { WorkspaceCtx } from '../../WorkspaceLayout';
 import { buildDocTree, filterDocuments, getAncestorIds, mapDocsById } from '../../pagesModel';
+import type { DocumentType } from '../../../../types/api';
 
 // Owns the pages section's data + interaction state for a workspace: builds the
 // page hierarchy, tracks which pages are expanded (auto-revealing a deep-linked
@@ -56,10 +57,10 @@ export function usePagesSection(ctx: WorkspaceCtx) {
 
   // Create a page (optionally under a parent), expand that parent so the new page
   // is visible, and open the page once it's created.
-  const createPage = (parentId?: string) => {
+  const createPage = (parentId?: string, type?: DocumentType) => {
     if (parentId) setExpanded((s) => (s.has(parentId) ? s : new Set(s).add(parentId)));
     createDoc.mutate(
-      { workspaceId: ws, parentId, title: 'Untitled' },
+      { workspaceId: ws, parentId, title: 'Untitled', type },
       { onSuccess: (d) => selectPage(d.id) },
     );
   };

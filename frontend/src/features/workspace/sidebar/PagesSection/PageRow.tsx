@@ -1,17 +1,14 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react';
-import {
-  ChevronRightOutlined,
-  DotsHorizontalOutlined,
-  PageFoldPortraitOutlined,
-} from '@toddle-edu/ds-icons';
+import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
 import { useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
+import { pageTypeIcon } from '../../pageTypes';
 import type { TreeDoc } from '../../pagesModel';
-import { buildPageMenuItems, type PageMenuOption } from './pageMenuItems';
+import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
 import type { PagesSectionController } from './usePagesSection';
 
 const BASE_INDENT = 8;
@@ -32,13 +29,14 @@ export function PageRow({
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
+  const PageIcon = pageTypeIcon(doc.type);
 
   const menuItems = buildPageMenuItems({
     canCreate,
     canManage: canManage(doc.owner.id),
     isStarred,
-    onAddSubpage: () => createPage(doc.id),
-    onAddPage: () => createPage(doc.parentId ?? undefined),
+    onAddSubpage: (type) => createPage(doc.id, type),
+    onAddPage: (type) => createPage(doc.parentId ?? undefined, type),
     onToggleStar: () => toggleStar.mutate({ workspaceId: pages.ws, id: doc.id, isStarred }),
     onCopyLink: async () => {
       await navigator.clipboard.writeText(docUrl);
@@ -116,7 +114,7 @@ export function PageRow({
             icon={<ChevronRightOutlined variant="subtle" className={styles.chevronIcon} />}
           />
 
-          <PageFoldPortraitOutlined variant="subtle" size="xxx-small" />
+          <PageIcon variant="subtle" size="xxx-small" />
           <span ref={labelRef} className={styles.label}>
             {doc.title}
           </span>
@@ -136,7 +134,7 @@ export function PageRow({
                     dsVersion="2.0"
                     options={menuItems}
                     onClick={(option: PageMenuOption) =>
-                      menuItems.find((item) => item.key === option.key)?.onSelect?.()
+                      findPageMenuOption(menuItems, option.key)?.onSelect?.()
                     }
                   />
                 }

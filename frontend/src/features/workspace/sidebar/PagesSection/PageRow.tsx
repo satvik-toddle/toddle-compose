@@ -1,8 +1,8 @@
-import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
-import { useToggleStar } from '../../../../hooks/usePages';
+import { useRenameDocument, useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
@@ -22,12 +22,14 @@ export function PageRow({
   const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
+  const renameDoc = useRenameDocument();
   const { doc, children } = node;
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
@@ -43,14 +45,12 @@ export function PageRow({
       pushToast({ kind: 'success', message: 'Link copied' });
     },
     onOpenInNewTab: () => window.open(docUrl, '_blank', 'noopener,noreferrer'),
-    onRename: () =>
-      openModal({
-        type: 'renamePage',
-        kind: 'doc',
-        workspaceId: pages.ws,
-        id: doc.id,
-        name: doc.title,
-      }),
+    // Close the menu explicitly: entering rename unmounts the Dropdown, which
+    // would otherwise remount later with a stale visible=true.
+    onRename: () => {
+      setIsMenuOpen(false);
+      setIsRenaming(true);
+    },
     onDelete: () =>
       openModal({
         type: 'confirmDeletePage',
@@ -88,11 +88,23 @@ export function PageRow({
     selectPage(doc.id);
   };
 
+  const commitRename = (value: string) => {
+    setIsRenaming(false);
+    const title = value.trim();
+    if (!title || title === doc.title) return;
+    renameDoc.mutate({ workspaceId: pages.ws, id: doc.id, title });
+  };
+
   return (
     <>
       {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
           but only when the title is actually clipped. */}
-      <Tooltip dsVersion="2.0" placement="right" showArrow tooltip={isTruncated ? doc.title : ''}>
+      <Tooltip
+        dsVersion="2.0"
+        placement="right"
+        showArrow
+        tooltip={isTruncated && !isRenaming ? doc.title : ''}
+      >
         <div
           className={styles.row}
           style={styles.rowStyle}
@@ -115,11 +127,19 @@ export function PageRow({
           />
 
           <PageIcon variant="subtle" size="xxx-small" />
-          <span ref={labelRef} className={styles.label}>
-            {doc.title}
-          </span>
+          {isRenaming ? (
+            <RenameInput
+              initial={doc.title}
+              onCommit={commitRename}
+              onCancel={() => setIsRenaming(false)}
+            />
+          ) : (
+            <span ref={labelRef} className={styles.label}>
+              {doc.title}
+            </span>
+          )}
 
-          {menuItems.length > 0 && (
+          {!isRenaming && menuItems.length > 0 && (
             <span
               className={styles.menuWrap}
               onClick={(e) => e.stopPropagation()}
@@ -163,5 +183,50 @@ export function PageRow({
           <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
         ))}
     </>
+  );
+}
+
+// Inline title editor: commits on Enter/blur, cancels on Escape.
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: Readonly<{ initial: string; onCommit: (value: string) => void; onCancel: () => void }>) {
+  const [value, setValue] = useState(initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Guards the blur that follows Enter/Escape from finishing twice.
+  const doneRef = useRef(false);
+
+  // rAF so focus lands after the actions dropdown restores focus to its trigger on close.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const finish = (commit: boolean) => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    if (commit) onCommit(value);
+    else onCancel();
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      value={value}
+      aria-label="Page name"
+      className="min-w-0 flex-1 rounded-1 bg-surface-primary-enabled px-1 py-0 text-body-s text-primary [outline:1px_solid_var(--border-focus)]"
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(true)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(true);
+        if (e.key === 'Escape') finish(false);
+      }}
+    />
   );
 }

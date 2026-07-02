@@ -31,8 +31,6 @@ function EmptyMember({ me, onFind }: { me: User; onFind: () => void }) {
     <div className="page" style={{ display: 'flex', alignItems: 'center' }}>
       <div className="page-wrap">
         <EmptyState
-          glyph="🪪"
-          glyphStyle={{ background: 'var(--surface-secondary-enabled)' }}
           title="You're not in any workspaces yet"
           actions={
             <>
@@ -72,8 +70,6 @@ function EmptyOwner({ onCreate }: { onCreate: () => void }) {
     <div className="page" style={{ display: 'flex', alignItems: 'center' }}>
       <div className="page-wrap">
         <EmptyState
-          glyph="🚀"
-          glyphStyle={{ background: 'var(--red-950)' }}
           title="Create your first workspace"
           actions={
             <Button variant="primary" size="lg" icon="AddOutlined" onClick={onCreate}>

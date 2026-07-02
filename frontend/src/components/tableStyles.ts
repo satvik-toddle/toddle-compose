@@ -13,7 +13,4 @@ export const tableStyles = {
   rowSub: 'mt-px text-[12px] text-secondary',
   youTag:
     'ml-1.5 rounded-[5px] bg-[var(--surface-primary-selected)] px-1.5 py-px align-middle text-[10px] font-bold text-[var(--blue-400)]',
-  emptyWrap: 'text-center',
-  emptyTitle: 'text-[15px] font-semibold',
-  emptyText: 'mt-1 text-[13px] text-secondary',
 } as const;

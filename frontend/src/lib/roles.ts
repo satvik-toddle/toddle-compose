@@ -55,3 +55,5 @@ export const WS_ROLE_META: Record<
 
 export const REALM_ROLES: RealmRole[] = ['OWNER', 'MAINTAINER', 'MEMBER'];
 export const WS_ROLES: WorkspaceRole[] = ['READ', 'COMMENT', 'EDIT', 'ADMIN'];
+
+export const WS_ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));

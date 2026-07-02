@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SearchInput } from '@toddle-edu/ds-web';
+import { Alert, Badge, SearchInput, Tooltip } from '@toddle-edu/ds-web';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -18,13 +18,12 @@ import { useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
+import { WS_ROLE_OPTIONS } from '../../lib/roles';
 import { formatDate } from '../../lib/time';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { cn } from '../../lib/cn';
+import type { WorkspaceMember } from '../../types/api';
 import type { WorkspaceRole } from '../../types/roles';
-
-const ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));
 
 type SettingsTab = 'general' | 'members' | 'requests' | 'danger';
 type NavIcon = 'SettingsOutlined' | 'MultipleUsersOutlined' | 'BellRingOutlined';
@@ -45,9 +44,6 @@ const styles = {
   navItemActive: 'bg-surface-primary-enabled border border-secondary font-semibold',
   navItemIdle: 'border border-transparent hover:bg-surface-tertiary-enabled',
   navLabel: 'flex-1 text-left',
-  navCount: 'min-w-[19px] rounded-full px-1.5 text-center text-label-xs font-bold leading-[18px]',
-  navCountAlert: 'bg-[var(--red-500)] text-white',
-  navCountMuted: 'bg-surface-tertiary-enabled text-secondary',
   dangerZone: 'mt-auto px-2.5 pb-3 pt-3',
   dangerNav: 'flex h-9 w-full items-center gap-2.5 rounded-2 px-2.5 text-body-s text-semantic-error',
   bar: 'flex items-center gap-3 border-b border-secondary px-5.5 py-4',
@@ -63,13 +59,6 @@ const styles = {
   statKey: 'text-label-xs font-semibold text-secondary',
   statVal: 'mt-1 font-bold tracking-tight',
   memToolbar: 'mb-3.5 flex items-center gap-2',
-  blockedWrap: 'group relative inline-flex',
-  blockedTip:
-    'pointer-events-none absolute right-0 top-[-34px] hidden items-center gap-1.5 whitespace-nowrap rounded-[7px] bg-[var(--neutral-100)] px-2.25 py-1.5 text-label-xs font-semibold text-[var(--neutral-950)] shadow-elevation-2-bottom group-hover:flex',
-  dangerCard:
-    'flex items-center gap-4 rounded-3 border border-[var(--red-500)] bg-[var(--surface-semantic-error)] px-[18px] py-4',
-  dangerTitle: 'text-body-s font-bold text-semantic-error',
-  dangerText: 'mt-1 text-body-s text-secondary',
 };
 
 export interface WorkspaceSettingsModalProps {
@@ -87,9 +76,12 @@ export function WorkspaceSettingsModal({
 }: Readonly<WorkspaceSettingsModalProps>) {
   const [tab, setTab] = useState<SettingsTab>('general');
   const [child, setChild] = useState<Child | null>(null);
-  const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
-  const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
+  const { data: ws } = useWorkspace(workspaceId);
+  const { data: members, isLoading: membersLoading } = useWorkspaceMembers(workspaceId, isAdmin);
+  const { data: requests, isLoading: requestsLoading } = useWorkspaceJoinRequests(workspaceId, isAdmin);
 
+  // Prefer the live query over the prop frozen at open time, so an in-modal rename shows immediately.
+  const name = ws?.name ?? workspaceName;
   const memberCount = members?.length ?? 0;
   const requestCount = requests?.length ?? 0;
   const closeChild = () => setChild(null);
@@ -122,7 +114,7 @@ export function WorkspaceSettingsModal({
       <div className={styles.wsHead}>
         <WorkspaceBadge id={workspaceId} size={38} iconSize={18} />
         <div className="min-w-0">
-          <div className={styles.wsName}>{workspaceName}</div>
+          <div className={styles.wsName}>{name}</div>
           <div className={styles.wsSub}>Workspace settings</div>
         </div>
       </div>
@@ -173,7 +165,7 @@ export function WorkspaceSettingsModal({
           {tab === 'general' && (
             <GeneralPanel
               workspaceId={workspaceId}
-              workspaceName={workspaceName}
+              workspaceName={name}
               isAdmin={isAdmin}
               memberCount={memberCount}
               requestCount={requestCount}
@@ -183,6 +175,8 @@ export function WorkspaceSettingsModal({
           {tab === 'members' && isAdmin && (
             <MembersTab
               workspaceId={workspaceId}
+              members={members}
+              isLoading={membersLoading}
               onAdd={() => setChild('addMember')}
               onRemove={(member) => setChild({ kind: 'removeMember', member })}
             />
@@ -190,23 +184,24 @@ export function WorkspaceSettingsModal({
           {tab === 'requests' && isAdmin && (
             <RequestsTable
               requests={requests ?? []}
-              emptyText={`When someone asks to join ${workspaceName}, it'll show up here.`}
+              isLoading={requestsLoading}
+              emptyText={`When someone asks to join ${name}, it'll show up here.`}
             />
           )}
           {tab === 'danger' && isAdmin && (
-            <DangerPanel workspaceId={workspaceId} workspaceName={workspaceName} memberCount={memberCount} />
+            <DangerPanel workspaceId={workspaceId} workspaceName={name} memberCount={memberCount} />
           )}
         </div>
       </ModalWithSideBar>
 
       {child === 'addMember' && (
-        <AddWorkspaceMemberModal onClose={closeChild} workspaceId={workspaceId} workspaceName={workspaceName} />
+        <AddWorkspaceMemberModal onClose={closeChild} workspaceId={workspaceId} workspaceName={name} />
       )}
       {child === 'rename' && (
         <RenameWorkspaceModal
           onClose={closeChild}
           workspaceId={workspaceId}
-          name={workspaceName}
+          name={name}
           icon={workspaceVisual(workspaceId).icon}
         />
       )}
@@ -215,7 +210,7 @@ export function WorkspaceSettingsModal({
           onClose={closeChild}
           scope="workspace"
           workspaceId={workspaceId}
-          workspaceName={workspaceName}
+          workspaceName={name}
           userId={child.member.userId}
           name={child.member.name}
           email={child.member.email}
@@ -250,7 +245,14 @@ function NavItem({
       <Icon name={icon} size={16} muted={!active} />
       <span className={styles.navLabel}>{label}</span>
       {count != null && (
-        <span className={cn(styles.navCount, alert ? styles.navCountAlert : styles.navCountMuted)}>{count}</span>
+        <Badge
+          dsVersion="2.0"
+          type="numeric"
+          variant={alert ? 'notifications' : 'subtle'}
+          size="xxx-small"
+          value={count}
+          showZero
+        />
       )}
     </button>
   );
@@ -312,15 +314,18 @@ function Stat({ k, v, small }: { k: string; v: string; small?: boolean }) {
 
 function MembersTab({
   workspaceId,
+  members,
+  isLoading,
   onAdd,
   onRemove,
 }: {
   workspaceId: string;
+  members: WorkspaceMember[] | undefined;
+  isLoading: boolean;
   onAdd: () => void;
   onRemove: (member: RemoveTarget) => void;
 }) {
   const me = useAuthStore((s) => s.user);
-  const { data: members, isLoading } = useWorkspaceMembers(workspaceId, true);
   const setRole = useSetWorkspaceMemberRole();
   const [query, setQuery] = useState('');
 
@@ -345,7 +350,7 @@ function MembersTab({
             onChange={setQuery}
           />
         </div>
-        <IconButton variant="primary" type={"fill"} icon="AddOutlined" iconSize={16} muted={false} title="Add member" onClick={onAdd} />
+        <IconButton variant="primary" type="fill" icon="AddOutlined" iconSize={16} title="Add member" onClick={onAdd} />
       </div>
       <div className={t.table}>
         <div className={cn(t.thead, MEM_GRID)}>
@@ -364,7 +369,7 @@ function MembersTab({
               <div className={t.td}>
                 <RoleSelect<WorkspaceRole>
                   value={m.role}
-                  options={ROLE_OPTIONS}
+                  options={WS_ROLE_OPTIONS}
                   locked={soleAdmin}
                   onChange={(role) => setRole.mutate({ workspaceId, userId: m.userId, role })}
                   renderValue={(r) => <WSChip role={r} />}
@@ -372,15 +377,11 @@ function MembersTab({
               </div>
               <div className={cn(t.td, t.cellRight)}>
                 {soleAdmin ? (
-                  <span className={styles.blockedWrap}>
-                    <span className="opacity-40">
+                  <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Can't remove the last admin">
+                    <span className="inline-flex opacity-40">
                       <IconButton icon="DeleteOutlined" red disabled />
                     </span>
-                    <span className={styles.blockedTip}>
-                      <Icon name="InformationOutlined" size={12} white />
-                      Can't remove the last admin
-                    </span>
-                  </span>
+                  </Tooltip>
                 ) : (
                   <IconButton
                     icon="DeleteOutlined"
@@ -413,22 +414,24 @@ function DangerPanel({
   // via the global modal store rather than stacking over settings.
   const openModal = useUiStore((s) => s.openModal);
   return (
-    <div className={styles.dangerCard}>
-      <div className="min-w-0 flex-1">
-        <div className={styles.dangerTitle}>Delete this workspace</div>
-        <div className={styles.dangerText}>
-          Permanently removes {workspaceName} and every doc inside it. {memberCount}{' '}
-          {memberCount === 1 ? 'member loses' : 'members lose'} access immediately. This can't be undone.
-        </div>
-      </div>
-      <Button
-        variant="danger"
-        size="sm"
-        icon="DeleteOutlined"
-        onClick={() => openModal({ type: 'confirmDeleteWorkspace', workspaceId, name: workspaceName })}
-      >
-        Delete workspace
-      </Button>
-    </div>
+    <Alert
+      dsVersion="2.0"
+      type="error"
+      title="Delete this workspace"
+      message={`Permanently removes ${workspaceName} and every doc inside it. ${memberCount} ${
+        memberCount === 1 ? 'member loses' : 'members lose'
+      } access immediately. This can't be undone.`}
+      actionElementPosition="right"
+      actionElement={
+        <Button
+          variant="danger"
+          size="sm"
+          icon="DeleteOutlined"
+          onClick={() => openModal({ type: 'confirmDeleteWorkspace', workspaceId, name: workspaceName })}
+        >
+          Delete
+        </Button>
+      }
+    />
   );
 }

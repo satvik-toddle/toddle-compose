@@ -5,15 +5,14 @@ import { RoleSelect } from './RoleSelect';
 import { PageLoader } from './Loader';
 import { PersonCell } from './PersonCell';
 import { WorkspaceBadge } from './WorkspaceBadge';
+import { EmptyState } from './EmptyState';
 import { useApproveRequest, useRejectRequest } from '../hooks/useJoinRequestMutations';
-import { WS_ROLES, WS_ROLE_META } from '../lib/roles';
+import { WS_ROLE_OPTIONS } from '../lib/roles';
 import { relativeTime } from '../lib/time';
 import { cn } from '../lib/cn';
 import { tableStyles as t } from './tableStyles';
 import type { JoinRequest } from '../types/api';
 import type { WorkspaceRole } from '../types/roles';
-
-const ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));
 
 // Pending join-requests table shared by the workspace-settings modal (single
 // workspace) and the admin console (realm-wide, with a Workspace column).
@@ -35,10 +34,9 @@ export function RequestsTable({
   if (isLoading) return <PageLoader />;
   if (requests.length === 0) {
     return (
-      <div className={t.emptyWrap}>
-        <div className={t.emptyTitle}>No pending requests</div>
-        <div className={t.emptyText}>{emptyText}</div>
-      </div>
+      <EmptyState title="No pending requests">
+        {emptyText}
+      </EmptyState>
     );
   }
 
@@ -77,7 +75,7 @@ export function RequestsTable({
             <div className={t.td}>
               <RoleSelect<WorkspaceRole>
                 value={role}
-                options={ROLE_OPTIONS}
+                options={WS_ROLE_OPTIONS}
                 onChange={(v) => setGrant((g) => ({ ...g, [r.id]: v }))}
                 renderValue={(v) => <WSChip role={v} />}
               />

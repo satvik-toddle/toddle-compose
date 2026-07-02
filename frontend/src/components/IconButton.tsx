@@ -14,14 +14,15 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 
 // Icon-only ds-web IconButton (plain style), keyed by our IconName map.
 export function IconButton({ icon, iconSize = 14, muted = true, red, sm, variant, type = 'plain', ...rest }: IconButtonProps) {
+  // An explicit variant/type opts into ds-web's icon-color classes; our inline color would beat them.
+  const dsColors = Boolean(variant) || type !== 'plain';
   return (
     <DsIconButton
       dsVersion="2.0"
       variant={variant ?? (red ? 'destructive' : 'neutral')}
       type={type}
       size={sm ? 'x-small' : 'small'}
-      // With an explicit variant, skip our inline icon color so the ds variant classes drive it.
-      icon={(<Icon name={icon} size={iconSize} red={red} muted={!variant && muted && !red} />) as ReactElement}
+      icon={(<Icon name={icon} size={iconSize} red={!dsColors && red} muted={!dsColors && muted && !red} />) as ReactElement}
       {...rest}
     />
   );

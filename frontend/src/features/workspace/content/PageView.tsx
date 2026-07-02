@@ -15,7 +15,7 @@ const SheetEditor = lazy(() =>
 );
 
 const styles = {
-  contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
+  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
   // Doc: title centered over the editor's readable column (760px + 88px text inset).
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',

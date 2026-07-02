@@ -80,4 +80,14 @@ tests without driving a browser.
   reject, persistence to the separate rtc DB via the internal `versions` API.
 - Run (with backend :4000 + rtc-server :4001/4002 running): `node tests/rtc-multiuser.cjs`.
 
-Status: backend 86/86 e2e green; rtc-multiuser 6/6 green.
+**Content ops (AI authoring) — in-process, no servers**:
+- `tests/content-ops.cjs` — every ContentOp end-to-end through the real headless
+  binding + extractor: Part A targets each op (blocks, lists, tables, columns,
+  media, in-place insert/format/delete, clear, guards, error 400s); Part B applies
+  1100 unique seeded-random ops in 20-op batches to one live Y.Doc and verifies
+  block structure + per-block text against a model after every batch.
+- Run (after `pnpm --filter rtc-server build`): `node tests/content-ops.cjs`
+  (`SEED=n` for a different stress sequence).
+
+Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 32/32 green
+(seeds 1, 7, 42, 123, 999, 31337).

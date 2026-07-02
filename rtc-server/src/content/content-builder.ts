@@ -695,6 +695,23 @@ export function buildOpsUpdate(
 
   if (baseState && baseState.byteLength > 0) Y.applyUpdate(doc, baseState);
   editor.update(() => {}, { discrete: true }); // flush initial Yjs→Lexical sync
+  // A cleared base queues @lexical/yjs's empty-root paragraph restore as a separate update
+  // (headless editors never auto-flush it); left queued it merges into the ops cycle below,
+  // tagging it 'collaboration' so the L→Y listener skips our writes and the delta comes out empty.
+  editor.update(() => {}, { discrete: true });
+  // That restore paragraph lives only in Lexical (its tagged cycle never syncs to Yjs). Drop it in
+  // a tagged cycle of our own — so the removal doesn't try to sync either — keeping block indices
+  // during ops aligned with the doc the client read via GET /content.
+  editor.update(
+    () => {
+      const root = $getRoot();
+      if (binding.root.isEmpty() && root.getChildrenSize() === 1) {
+        const only = root.getFirstChild();
+        if (only && $isElementNode(only) && only.getTextContent() === "") only.remove();
+      }
+    },
+    { discrete: true, tag: "collaboration" }
+  );
 
   const beforeSV = Y.encodeStateVector(doc);
   editor.update(

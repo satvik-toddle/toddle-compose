@@ -237,6 +237,8 @@ export class YjsServerService
       };
 
       const originalOn = ws.on.bind(ws);
+      // Set when y-websocket subscribes to 'message' through the wrapper below; asserted after setupWSConnection.
+      let messageWrapInstalled = false;
       (ws as unknown as { on: typeof ws.on }).on = ((
         event: string,
         listener: (...args: unknown[]) => void
@@ -284,10 +286,20 @@ export class YjsServerService
           }
           deliver(data);
         };
+        messageWrapInstalled = true;
         return originalOn("message" as never, wrapped as never);
       }) as typeof ws.on;
 
       setupWSConnection(ws, req, { docName: parsed.docId, gc: true });
+
+      // Fail closed: if a y-websocket upgrade stops subscribing via ws.on('message'), the wrapper's rate limit + viewer write-block silently vanish — refuse the connection instead.
+      if (!messageWrapInstalled) {
+        clog.error(
+          `y-websocket did not subscribe via ws.on('message') — enforcement wrapper not installed, closing sub=${sub} doc='${parsed.docId}'`
+        );
+        ws.close(1011, "server misconfiguration");
+        return;
+      }
     });
 
     wss.on("error", (err) => log.error("WSS error", err));

@@ -90,5 +90,7 @@ tests without driving a browser.
 - Run (after `pnpm --filter rtc-server build`): `node tests/content-ops.cjs`
   (`SEED=n` other sequence, `OPS=n` op count, `BATCH=n` ops per delta).
 
-Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 37/37 green
-across seeds 1-50 (55k+ ops), a 5000-op deep run, and BATCH=1/BATCH=50 runs.
+Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 48/48 green
+(incl. table row/col add/delete, cell edits + backgrounds, table/layout resize,
+image links/captions, alignment, h1-h6) across seeds 1-50 (55k+ ops), a 5000-op
+deep run, and BATCH=1 per-op-delta runs.

@@ -39,7 +39,13 @@ import {
   $createTableCellNode,
   $createTableNode,
   $createTableRowNode,
+  $isTableCellNode,
+  $isTableNode,
+  $isTableRowNode,
   TableCellHeaderStates,
+  type TableCellNode,
+  type TableNode,
+  type TableRowNode,
 } from "@lexical/table";
 import { $createListNode, $createListItemNode } from "@lexical/list";
 import { $createLinkNode } from "@lexical/link";
@@ -82,7 +88,7 @@ export type ContentOp =
     }
   | {
       op: "heading";
-      level?: 1 | 2 | 3;
+      level?: 1 | 2 | 3 | 4 | 5 | 6;
       text?: string;
       format?: TextFormatType[];
       runs?: TextRun[];
@@ -106,6 +112,8 @@ export type ContentOp =
       // Multi-column layout (layout-container/layout-item); each `columns` entry is block ops for that column.
       op: "columns";
       columns: ContentOp[][];
+      // Relative column widths (like CSS fr units), e.g. [1, 2] = second column twice as wide; defaults to equal.
+      weights?: number[];
     }
   | {
       op: "image";
@@ -115,6 +123,7 @@ export type ContentOp =
       height?: number;
       maxWidth?: number; // px cap; defaults to page width
       caption?: string;
+      href?: string; // wrap the image in a link
     }
   | {
       // embed-media node; `mimeType` e.g. "video/mp4"/"application/pdf"/"text/html". A file is an embed with a file mimeType.
@@ -132,6 +141,46 @@ export type ContentOp =
       mimeType?: string;
       fileName?: string;
     }
+  // In-place structure edits addressed by top-level block index (same indices GET /content reports).
+  | {
+      // Re-weight an existing column layout, e.g. weights [1, 2] = second column twice as wide.
+      op: "resizeColumns";
+      columns: number; // block index of the layout-container
+      weights: number[]; // one per column
+    }
+  | {
+      op: "tableAddRow";
+      table: number; // block index of the table
+      cells?: string[]; // cell texts; missing → empty
+      at?: number; // row index to insert BEFORE; omitted → append
+    }
+  | {
+      op: "tableAddColumn";
+      table: number;
+      cells?: string[]; // one per row, top to bottom; missing → empty
+      at?: number; // column index to insert BEFORE; omitted → append
+      width?: number; // px
+    }
+  | { op: "tableDeleteRow"; table: number; row: number }
+  | { op: "tableDeleteColumn"; table: number; col: number }
+  | {
+      // Replace one cell's content (and optionally its background color).
+      op: "tableSetCell";
+      table: number;
+      row: number;
+      col: number;
+      text?: string;
+      runs?: TextRun[];
+      background?: string; // cell background-color
+    }
+  | {
+      // Resize an existing table's columns (same width semantics as the `table` op).
+      op: "tableSetWidths";
+      table: number;
+      columnWidths?: number[];
+      tableWidth?: number;
+    }
+  | { op: "align"; block: number; align: "left" | "center" | "right" | "justify" }
   // In-place edits build a real RangeSelection (anchor→focus) and run the editor's own formatText/insertText,
   // so the Yjs op matches a real user edit — minimal and CRDT-safe. Point = {parentId: block index, offset: char offset}.
   | {
@@ -414,8 +463,42 @@ function layoutKlass(type: "layout-container" | "layout-item"): {
   return nodeKlass(type) as { importJSON: (json: Record<string, unknown>) => ElementNode };
 }
 
-function gridTemplate(n: number): string {
-  return Array.from({ length: n }, () => "1fr").join(" ");
+// Mirrors the editor's layout model: weights are scaled onto a fixed 20-unit grid; the container
+// stores the fr template and each layout-item gets a "start / end" gridColumn span.
+const TOTAL_GRID_UNITS = 20;
+function gridSpans(weights: number[]): { template: string; ranges: string[] } {
+  const total = weights.reduce((a, b) => a + b, 0) || weights.length;
+  const scaled = weights.map((w) => Math.max(1, Math.round((w / total) * TOTAL_GRID_UNITS)));
+  const diff = scaled.reduce((a, b) => a + b, 0) - TOTAL_GRID_UNITS;
+  if (diff !== 0 && scaled.length) {
+    scaled[scaled.length - 1] = Math.max(1, scaled[scaled.length - 1] - diff);
+  }
+  const ranges: string[] = [];
+  let cursor = 1;
+  for (const span of scaled) {
+    ranges.push(`${cursor} / ${cursor + span}`);
+    cursor += span;
+  }
+  return { template: scaled.map((s) => `${s}fr`).join(" "), ranges };
+}
+
+function tableAt(index: number): TableNode {
+  const b = blockAt(index);
+  if (!b || !$isTableNode(b)) throw new Error(`no table at block index ${index}`);
+  return b;
+}
+function tableRows(table: TableNode): TableRowNode[] {
+  return table.getChildren().filter($isTableRowNode);
+}
+function rowCells(row: TableRowNode): TableCellNode[] {
+  return row.getChildren().filter($isTableCellNode);
+}
+function makeCell(text: string, headerState: number, width?: number): TableCellNode {
+  const cell = $createTableCellNode(headerState, 1, width);
+  const p = $createParagraphNode();
+  appendText(p, text);
+  cell.append(p);
+  return cell;
 }
 
 function applyOp(op: ContentOp, parent: ElementNode): void {
@@ -463,21 +546,43 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       break;
     }
     case "columns": {
+      const weights =
+        op.weights && op.weights.length === op.columns.length
+          ? op.weights
+          : op.columns.map(() => 1);
+      const { template, ranges } = gridSpans(weights);
       const container = layoutKlass("layout-container").importJSON({
         type: "layout-container",
-        templateColumns: gridTemplate(op.columns.length),
+        templateColumns: template,
         version: 1,
       });
-      op.columns.forEach((colOps) => {
+      op.columns.forEach((colOps, i) => {
         const item = layoutKlass("layout-item").importJSON({
           type: "layout-item",
           version: 1,
+          dataGridColumn: ranges[i], // editor renders a fixed 20-unit grid; items position via this span
         });
         for (const subOp of colOps) applyOp(subOp, item);
         if (item.getChildrenSize() === 0) item.append($createParagraphNode()); // layout-item needs >=1 block
         container.append(item);
       });
       parent.append(container);
+      break;
+    }
+    case "resizeColumns": {
+      const block = blockAt(op.columns);
+      if (!block || block.getType() !== "layout-container") {
+        throw new Error(`resizeColumns: no column layout at block index ${op.columns}`);
+      }
+      const items = block.getChildren().filter($isElementNode);
+      if (op.weights.length !== items.length) {
+        throw new Error(`resizeColumns: ${op.weights.length} weight(s) for ${items.length} column(s)`);
+      }
+      const { template, ranges } = gridSpans(op.weights);
+      (block as unknown as { setTemplateColumns(t: string): void }).setTemplateColumns(template);
+      items.forEach((item, i) =>
+        (item as unknown as { setDataGridColumn(v: string): void }).setDataGridColumn(ranges[i])
+      );
       break;
     }
     case "image": {
@@ -491,15 +596,17 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         maxWidth: op.maxWidth ?? DEFAULT_TABLE_WIDTH,
         showCaption: op.caption ? true : false,
       });
-      // The vendor node's importJSON drops caption/showCaption; its setters are the supported path.
+      // The vendor node's importJSON drops caption/showCaption/link; its setters are the supported path.
+      const rich = img as unknown as {
+        setCaption?: (c: string) => void;
+        setShowCaption?: (b: boolean) => void;
+        setLink?: (l: string) => void;
+      };
       if (op.caption) {
-        const captioned = img as unknown as {
-          setCaption?: (c: string) => void;
-          setShowCaption?: (b: boolean) => void;
-        };
-        captioned.setCaption?.(op.caption);
-        captioned.setShowCaption?.(true);
+        rich.setCaption?.(op.caption);
+        rich.setShowCaption?.(true);
       }
+      if (op.href) rich.setLink?.(op.href);
       parent.append(img);
       break;
     }
@@ -544,6 +651,101 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         table.append(tr);
       });
       parent.append(table);
+      break;
+    }
+    case "tableAddRow": {
+      const table = tableAt(op.table);
+      const rows = tableRows(table);
+      const numCols = rows[0] ? rowCells(rows[0]).length : (op.cells?.length ?? 1);
+      const widths = table.getColWidths() ?? [];
+      const tr = $createTableRowNode();
+      for (let c = 0; c < numCols; c++) {
+        tr.append(makeCell(op.cells?.[c] ?? "", TableCellHeaderStates.NO_STATUS, widths[c]));
+      }
+      if (op.at !== undefined && rows[op.at]) rows[op.at].insertBefore(tr);
+      else table.append(tr);
+      break;
+    }
+    case "tableAddColumn": {
+      const table = tableAt(op.table);
+      const rows = tableRows(table);
+      if (rows.length === 0) throw new Error(`tableAddColumn: table at ${op.table} has no rows`);
+      rows.forEach((row, r) => {
+        const cells = rowCells(row);
+        // New cell adopts the row's header state so a header row stays uniform.
+        const state = cells[0]?.getHeaderStyles() ?? TableCellHeaderStates.NO_STATUS;
+        const cell = makeCell(op.cells?.[r] ?? "", state, op.width);
+        const ref = op.at !== undefined ? cells[op.at] : undefined;
+        if (ref) ref.insertBefore(cell);
+        else row.append(cell);
+      });
+      const widths = table.getColWidths();
+      if (widths) {
+        const w = [...widths];
+        const insertAt = op.at !== undefined && op.at <= w.length ? op.at : w.length;
+        w.splice(insertAt, 0, op.width ?? Math.round(DEFAULT_TABLE_WIDTH / (w.length + 1)));
+        table.setColWidths(w);
+      }
+      break;
+    }
+    case "tableDeleteRow": {
+      const table = tableAt(op.table);
+      const row = tableRows(table)[op.row];
+      if (!row) throw new Error(`tableDeleteRow: no row ${op.row} in table at ${op.table}`);
+      row.remove();
+      break;
+    }
+    case "tableDeleteColumn": {
+      const table = tableAt(op.table);
+      const rows = tableRows(table);
+      if (!rows.some((r) => rowCells(r)[op.col])) {
+        throw new Error(`tableDeleteColumn: no column ${op.col} in table at ${op.table}`);
+      }
+      for (const row of rows) rowCells(row)[op.col]?.remove();
+      const widths = table.getColWidths();
+      if (widths && op.col < widths.length) {
+        const w = [...widths];
+        w.splice(op.col, 1);
+        table.setColWidths(w);
+      }
+      break;
+    }
+    case "tableSetCell": {
+      const table = tableAt(op.table);
+      const row = tableRows(table)[op.row];
+      const cell = row ? rowCells(row)[op.col] : undefined;
+      if (!cell) throw new Error(`tableSetCell: no cell ${op.row},${op.col} in table at ${op.table}`);
+      if (op.text !== undefined || op.runs) {
+        cell.clear();
+        const p = $createParagraphNode();
+        fillBlock(p, { text: op.text, runs: op.runs });
+        cell.append(p);
+      }
+      if (op.background !== undefined) {
+        // custom-table-cell stores background as a plain prop; no setter exposed, so write it directly.
+        (cell.getWritable() as unknown as { __backgroundColor: string | null }).__backgroundColor =
+          op.background || null;
+      }
+      break;
+    }
+    case "tableSetWidths": {
+      const table = tableAt(op.table);
+      const rows = tableRows(table);
+      const numCols = rows.reduce((m, r) => Math.max(m, rowCells(r).length), 0);
+      if (numCols === 0) throw new Error(`tableSetWidths: table at ${op.table} has no cells`);
+      const widths = resolveColumnWidths(
+        numCols,
+        op.tableWidth ?? DEFAULT_TABLE_WIDTH,
+        op.columnWidths
+      );
+      table.setColWidths(widths);
+      for (const row of rows) rowCells(row).forEach((cell, c) => cell.setWidth(widths[c]));
+      break;
+    }
+    case "align": {
+      const block = blockAt(op.block);
+      if (!block) throw new Error(`align: no block at index ${op.block}`);
+      block.setFormat(op.align);
       break;
     }
     case "format": {

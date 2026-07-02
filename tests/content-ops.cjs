@@ -373,6 +373,119 @@ t("styles: fontSize accepts CSS strings", () => {
   assert(findAll(root, "text")[0].style.includes("font-size: 2em;"), "2em");
 });
 
+// -- in-place structure edits: tables, layouts, alignment --
+
+const tableBase = () =>
+  buildOpsUpdate(null, [
+    { op: "table", rows: [["a", "b"], ["c", "d"]], header: true, tableWidth: 400 },
+    { op: "paragraph", text: "after" },
+  ]);
+
+t("tableAddRow: append and insert-at", () => {
+  const b = tableBase();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "tableAddRow", table: 0, cells: ["e", "f"] },
+    { op: "tableAddRow", table: 0, cells: ["mid1", "mid2"], at: 1 },
+  ]));
+  const rows = root.children[0].children;
+  assert(rows.length === 4, "4 rows");
+  assert(rows.map((r) => textOf(r)).join("|") === "ab|mid1mid2|cd|ef", rows.map((r) => textOf(r)).join("|"));
+  assert(rows[1].children.every((c) => !c.headerState), "inserted row is not a header");
+});
+
+t("tableAddColumn: header state adopted, widths updated", () => {
+  const b = tableBase();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "tableAddColumn", table: 0, cells: ["h3", "x"], width: 80 },
+  ]));
+  const table = root.children[0];
+  const row0 = table.children[0].children;
+  assert(row0.length === 3 && textOf(row0[2]) === "h3", "new cell appended");
+  assert(row0[2].headerState === 1, "adopts header row state");
+  assert(table.children[1].children[2].headerState === 0, "body row cell plain");
+  assert(table.colWidths[2] === 80, "width appended: " + JSON.stringify(table.colWidths));
+});
+
+t("tableSetCell: replaces content, sets background, leaves neighbors", () => {
+  const b = tableBase();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "tableSetCell", table: 0, row: 1, col: 0, text: "EDIT", background: "yellow" },
+    { op: "tableSetCell", table: 0, row: 0, col: 1, runs: [{ text: "bold", format: ["bold"] }] },
+  ]));
+  const table = root.children[0];
+  const cell = table.children[1].children[0];
+  assert(textOf(cell) === "EDIT" && cell.backgroundColor === "yellow", "cell 1,0");
+  const runCell = table.children[0].children[1];
+  assert((findAll(runCell, "text")[0].format & 1) === 1, "runs with bold in cell 0,1");
+  assert(textOf(table.children[1].children[1]) === "d", "neighbor untouched");
+});
+
+t("tableSetWidths: resizes existing table (colWidths + per-cell widths)", () => {
+  const b = tableBase();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "tableSetWidths", table: 0, columnWidths: [50], tableWidth: 300 },
+  ]));
+  const table = root.children[0];
+  assert(JSON.stringify(table.colWidths) === "[50,250]", "explicit + auto: " + JSON.stringify(table.colWidths));
+  assert(table.children[0].children[0].width === 50 && table.children[0].children[1].width === 250, "cell widths follow");
+});
+
+t("tableDeleteRow / tableDeleteColumn", () => {
+  const b = tableBase();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "tableDeleteRow", table: 0, row: 0 },
+    { op: "tableDeleteColumn", table: 0, col: 0 },
+  ]));
+  const table = root.children[0];
+  assert(table.children.length === 1 && table.children[0].children.length === 1, "1x1 left");
+  assert(textOf(table.children[0].children[0]) === "d", "kept the right cell: " + textOf(table.children[0].children[0]));
+  assert(table.colWidths.length === 1, "colWidths shrank");
+});
+
+t("columns: weights set the grid template and item spans", () => {
+  const root = rootOf(buildOpsUpdate(null, [
+    { op: "columns", columns: [[{ op: "paragraph", text: "L" }], [{ op: "paragraph", text: "R" }]], weights: [1, 3] },
+  ]));
+  const c = root.children[0];
+  assert(c.templateColumns === "5fr 15fr", "template: " + c.templateColumns);
+  assert(c.children[0].dataGridColumn === "1 / 6" && c.children[1].dataGridColumn === "6 / 21", "spans: " + c.children.map((x) => x.dataGridColumn).join(" | "));
+});
+
+t("resizeColumns: re-weights an existing layout", () => {
+  const b = buildOpsUpdate(null, [
+    { op: "columns", columns: [[{ op: "paragraph", text: "L" }], [{ op: "paragraph", text: "R" }]] },
+  ]);
+  const root = rootOf(b, buildOpsUpdate(b, [{ op: "resizeColumns", columns: 0, weights: [3, 1] }]));
+  const c = root.children[0];
+  assert(c.templateColumns === "15fr 5fr", "template: " + c.templateColumns);
+  assert(c.children[0].dataGridColumn === "1 / 16" && c.children[1].dataGridColumn === "16 / 21", "spans");
+});
+
+t("align: sets block alignment", () => {
+  const b = base();
+  const root = rootOf(b, buildOpsUpdate(b, [{ op: "align", block: 0, align: "center" }]));
+  assert(root.children[0].format === "center", "format: " + root.children[0].format);
+});
+
+t("image: href wraps the image in a link", () => {
+  const root = rootOf(buildOpsUpdate(null, [{ op: "image", src: "https://i.test/x.png", href: "https://l.test" }]));
+  assert(root.children[0].link === "https://l.test", "link: " + root.children[0].link);
+});
+
+t("heading: levels 4-6", () => {
+  const root = rootOf(buildOpsUpdate(null, [
+    { op: "heading", level: 4, text: "f" }, { op: "heading", level: 5, text: "g" }, { op: "heading", level: 6, text: "h" },
+  ]));
+  assert(root.children.map((c) => c.tag).join() === "h4,h5,h6", "tags");
+});
+
+t("error: table ops on missing tables/cells throw", () => {
+  throws(() => buildOpsUpdate(tableBase(), [{ op: "tableAddRow", table: 1, cells: ["x"] }]), /no table at block index 1/);
+  throws(() => buildOpsUpdate(tableBase(), [{ op: "tableSetCell", table: 0, row: 9, col: 0, text: "x" }]), /no cell 9,0/);
+  throws(() => buildOpsUpdate(tableBase(), [{ op: "tableDeleteColumn", table: 0, col: 7 }]), /no column 7/);
+  throws(() => buildOpsUpdate(tableBase(), [{ op: "resizeColumns", columns: 0, weights: [1, 1] }]), /no column layout/);
+});
+
 t("clear: wipes the document", () => {
   const b = base();
   const root = rootOf(b, buildOpsUpdate(b, [{ op: "clear" }]));
@@ -472,17 +585,26 @@ function genOp(model) {
     .filter((i) => i + 1 < model.length
       && SIMPLE.has(model[i].type) && model[i].text.length > 0
       && SIMPLE.has(model[i + 1].type) && model[i + 1].text.length > 0);
+  const tables = model.map((b, i) => i).filter((i) => model[i].type === "table" && model[i].rows);
+  const layouts = model.map((b, i) => i).filter((i) => model[i].type === "layout-container" && model[i].cols);
+  const alignable = model.map((b, i) => i).filter((i) => model[i].type !== "image" && model[i].type !== "embed-media");
   const kinds = [
     "paragraph", "paragraph", "paragraph", "heading", "quote", "code", "list",
     "table", "columns", "image", "embed", "file",
     "insertText", "insertText", "insertText", "insertBlock", "insertBlock",
     "format", "format", "delete", "delete", "deleteCross", "clear",
+    "tableAddRow", "tableAddColumn", "tableSetCell", "tableSetCell",
+    "tableDeleteRow", "tableDeleteColumn", "tableSetWidths",
+    "resizeColumns", "align",
   ];
   let kind = pick(kinds);
   // clear is rare; in-place edits need an editable target
   if (kind === "clear" && rand() > 0.08) kind = "paragraph";
   if ((kind === "insertText" || kind === "format" || kind === "delete") && editable.length === 0) kind = "paragraph";
   if (kind === "deleteCross" && crossPairs.length === 0) kind = "paragraph";
+  if (kind.startsWith("table") && kind !== "table" && tables.length === 0) kind = "table";
+  if (kind === "resizeColumns" && layouts.length === 0) kind = "columns";
+  if (kind === "align" && alignable.length === 0) kind = "paragraph";
 
   switch (kind) {
     case "paragraph": {
@@ -517,18 +639,85 @@ function genOp(model) {
       };
     }
     case "table": {
-      const rows = Array.from({ length: 1 + randInt(2) }, () => Array.from({ length: 1 + randInt(3) }, () => uid("t")));
-      const numCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
-      // ragged rows: missing cells never render, so the model only counts cells that exist
-      model.push({ type: "table", text: rows.flat().join("") });
+      // rectangular so add/delete row/column mutations stay well-defined
+      const numCols = 1 + randInt(3);
+      const rows = Array.from({ length: 1 + randInt(2) }, () => Array.from({ length: numCols }, () => uid("t")));
+      model.push({ type: "table", rows: rows.map((r) => [...r]), text: rows.flat().join("") });
       return { op: "table", rows, header: rand() < 0.5, ...(rand() < 0.3 ? { columnWidths: [100] } : {}), tableWidth: 60 * numCols + 400 };
+    }
+    case "tableAddRow": {
+      const i = pick(tables);
+      const m = model[i];
+      const cells = m.rows[0].map(() => uid("tr"));
+      const at = rand() < 0.5 ? randInt(m.rows.length + 1) : undefined;
+      // copy: the op keeps `cells`; later column ops splice the model row and must not mutate the op
+      if (at !== undefined && at < m.rows.length) m.rows.splice(at, 0, [...cells]);
+      else m.rows.push([...cells]);
+      m.text = m.rows.flat().join("");
+      return { op: "tableAddRow", table: i, cells, ...(at !== undefined ? { at } : {}) };
+    }
+    case "tableAddColumn": {
+      const i = pick(tables);
+      const m = model[i];
+      const cols = m.rows[0].length;
+      const at = rand() < 0.5 ? randInt(cols + 1) : undefined;
+      const cells = m.rows.map(() => uid("tc"));
+      m.rows.forEach((r, ri) => {
+        if (at !== undefined && at < cols) r.splice(at, 0, cells[ri]);
+        else r.push(cells[ri]);
+      });
+      m.text = m.rows.flat().join("");
+      return { op: "tableAddColumn", table: i, cells, ...(at !== undefined ? { at } : {}), ...(rand() < 0.5 ? { width: 60 + randInt(100) } : {}) };
+    }
+    case "tableSetCell": {
+      const i = pick(tables);
+      const m = model[i];
+      const r = randInt(m.rows.length);
+      const c = randInt(m.rows[0].length);
+      const text = uid("cell");
+      m.rows[r][c] = text;
+      m.text = m.rows.flat().join("");
+      return { op: "tableSetCell", table: i, row: r, col: c, text, ...(rand() < 0.3 ? { background: pick(COLORS) } : {}) };
+    }
+    case "tableDeleteRow": {
+      const i = pick(tables);
+      const m = model[i];
+      if (m.rows.length < 2) return genOp(model); // keep tables non-degenerate
+      const r = randInt(m.rows.length);
+      m.rows.splice(r, 1);
+      m.text = m.rows.flat().join("");
+      return { op: "tableDeleteRow", table: i, row: r };
+    }
+    case "tableDeleteColumn": {
+      const i = pick(tables);
+      const m = model[i];
+      if (m.rows[0].length < 2) return genOp(model);
+      const c = randInt(m.rows[0].length);
+      m.rows.forEach((r) => r.splice(c, 1));
+      m.text = m.rows.flat().join("");
+      return { op: "tableDeleteColumn", table: i, col: c };
+    }
+    case "tableSetWidths": {
+      const i = pick(tables);
+      return { op: "tableSetWidths", table: i, columnWidths: [50 + randInt(100)], tableWidth: 300 + randInt(400) };
     }
     case "columns": {
       const cols = Array.from({ length: 2 + randInt(2) }, () =>
         Array.from({ length: 1 + randInt(2) }, () => ({ op: "paragraph", text: uid("col") }))
       );
-      model.push({ type: "layout-container", text: cols.flat().map((p) => p.text).join("") });
-      return { op: "columns", columns: cols };
+      model.push({ type: "layout-container", cols: cols.length, text: cols.flat().map((p) => p.text).join("") });
+      return {
+        op: "columns", columns: cols,
+        ...(rand() < 0.4 ? { weights: cols.map(() => 1 + randInt(3)) } : {}),
+      };
+    }
+    case "resizeColumns": {
+      const i = pick(layouts);
+      return { op: "resizeColumns", columns: i, weights: Array.from({ length: model[i].cols }, () => 1 + randInt(4)) };
+    }
+    case "align": {
+      const i = pick(alignable);
+      return { op: "align", block: i, align: pick(["left", "center", "right", "justify"]) };
     }
     case "image": {
       model.push({ type: "image", text: "" });

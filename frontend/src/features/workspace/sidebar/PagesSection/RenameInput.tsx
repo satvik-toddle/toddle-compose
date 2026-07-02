@@ -19,10 +19,13 @@ export function RenameInput({
   const doneRef = useRef(false);
 
   // rAF so focus lands after the actions dropdown restores focus to its trigger on close.
+  // Caret at the end (no select-all): the blinking caret is the edit affordance.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
     });
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -51,7 +54,7 @@ export function RenameInput({
       ref={inputRef}
       value={value}
       aria-label="Page name"
-      className="bg-surface-primary-enabled text-body-s text-primary min-w-0 flex-1 rounded-1 px-1 py-0 [outline:1px_solid_var(--border-focus)]"
+      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-inherit outline-none [font:inherit]"
       onChange={handleChange}
       onBlur={handleBlur}
       onClick={handleClick}

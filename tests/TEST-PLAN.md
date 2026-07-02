@@ -83,11 +83,12 @@ tests without driving a browser.
 **Content ops (AI authoring) — in-process, no servers**:
 - `tests/content-ops.cjs` — every ContentOp end-to-end through the real headless
   binding + extractor: Part A targets each op (blocks, lists, tables, columns,
-  media, in-place insert/format/delete, clear, guards, error 400s); Part B applies
-  1100 unique seeded-random ops in 20-op batches to one live Y.Doc and verifies
-  block structure + per-block text against a model after every batch.
+  media incl. image captions, in-place insert/format/delete — forward, backward,
+  cross-block, offset-clamped — clear, guards, error 400s); Part B applies
+  seeded-random ops in batches to one live Y.Doc and verifies block structure +
+  per-block text against a model after every batch.
 - Run (after `pnpm --filter rtc-server build`): `node tests/content-ops.cjs`
-  (`SEED=n` for a different stress sequence).
+  (`SEED=n` other sequence, `OPS=n` op count, `BATCH=n` ops per delta).
 
-Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 32/32 green
-(seeds 1, 7, 42, 123, 999, 31337).
+Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 37/37 green
+across seeds 1-50 (55k+ ops), a 5000-op deep run, and BATCH=1/BATCH=50 runs.

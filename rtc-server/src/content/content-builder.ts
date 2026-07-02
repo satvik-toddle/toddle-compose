@@ -490,8 +490,16 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
         height: op.height ?? 0,
         maxWidth: op.maxWidth ?? DEFAULT_TABLE_WIDTH,
         showCaption: op.caption ? true : false,
-        caption: op.caption ?? "",
       });
+      // The vendor node's importJSON drops caption/showCaption; its setters are the supported path.
+      if (op.caption) {
+        const captioned = img as unknown as {
+          setCaption?: (c: string) => void;
+          setShowCaption?: (b: boolean) => void;
+        };
+        captioned.setCaption?.(op.caption);
+        captioned.setShowCaption?.(true);
+      }
       parent.append(img);
       break;
     }

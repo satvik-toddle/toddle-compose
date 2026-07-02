@@ -199,7 +199,7 @@ t("columns: layout container/items with nested blocks; empty column padded", () 
   assert(container.children[1].children.length === 1 && container.children[1].children[0].type === "paragraph", "empty col gets a paragraph");
 });
 
-t("image: src/alt/dimensions (caption: vendor image node drops it — see note)", () => {
+t("image: src/alt/dimensions/caption", () => {
   const root = rootOf(
     buildOpsUpdate(null, [{ op: "image", src: "https://i.test/x.png", altText: "pic", width: 300, height: 200, caption: "cap" }])
   );
@@ -207,9 +207,7 @@ t("image: src/alt/dimensions (caption: vendor image node drops it — see note)"
   assert(img.type === "image" && img.src === "https://i.test/x.png", "src");
   assert(img.altText === "pic", "alt");
   assert(img.width === 300 && img.height === 200, "dims");
-  // Known gap this suite surfaced: the vendor image node's importJSON ignores showCaption/caption
-  // (its serialized shape has no caption field), so the op's `caption` cannot take effect.
-  assert(img.showCaption === false && !("caption" in img), "documents the current caption behavior");
+  assert(img.caption === "cap" && img.showCaption === true, "caption via setCaption (importJSON drops it): " + JSON.stringify({ caption: img.caption, showCaption: img.showCaption }));
 });
 
 t("embed + file: embed-media nodes with mimeType", () => {
@@ -333,6 +331,48 @@ t("delete: entire block text empties the block but keeps it", () => {
   assert(textOf(root.children[0]) === "", "emptied");
 });
 
+t("delete: cross-block range merges the blocks", () => {
+  const b = buildOpsUpdate(null, [
+    { op: "paragraph", text: "alpha beta" }, { op: "paragraph", text: "gamma delta" }, { op: "paragraph", text: "tail" },
+  ]);
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "delete", anchor: { parentId: 0, offset: 6 }, focus: { parentId: 1, offset: 6 } },
+  ]));
+  assert(root.children.length === 2, "blocks merged: " + root.children.length);
+  assert(textOf(root.children[0]) === "alpha delta", textOf(root.children[0]));
+  assert(textOf(root.children[1]) === "tail", "later block untouched");
+});
+
+t("delete: backward range (anchor after focus) works", () => {
+  const b = base();
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "delete", anchor: { parentId: 0, offset: 11 }, focus: { parentId: 0, offset: 5 } },
+  ]));
+  assert(textOf(root.children[0]) === "hello", textOf(root.children[0]));
+});
+
+t("format: cross-block range formats both halves", () => {
+  const b = buildOpsUpdate(null, [
+    { op: "paragraph", text: "alpha beta" }, { op: "paragraph", text: "gamma delta" },
+  ]);
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "format", anchor: { parentId: 0, offset: 6 }, focus: { parentId: 1, offset: 5 }, format: ["bold"] },
+  ]));
+  const bolded = findAll(root, "text").filter((x) => (x.format & 1) === 1).map((x) => x.text);
+  assert(bolded.join("|") === "beta|gamma", "bold halves: " + bolded.join("|"));
+});
+
+t("insert: offset past block end clamps to the end", () => {
+  const b = base();
+  const root = rootOf(b, buildOpsUpdate(b, [{ op: "insert", anchor: { parentId: 0, offset: 999 }, text: "!" }]));
+  assert(textOf(root.children[0]) === "hello world!", textOf(root.children[0]));
+});
+
+t("styles: fontSize accepts CSS strings", () => {
+  const root = rootOf(buildOpsUpdate(null, [{ op: "paragraph", text: "big", fontSize: "2em" }]));
+  assert(findAll(root, "text")[0].style.includes("font-size: 2em;"), "2em");
+});
+
 t("clear: wipes the document", () => {
   const b = base();
   const root = rootOf(b, buildOpsUpdate(b, [{ op: "clear" }]));
@@ -426,16 +466,23 @@ function genOp(model) {
   const editable = model
     .map((b, i) => ({ b, i }))
     .filter(({ b }) => SIMPLE.has(b.type) && b.text.length > 0);
+  // adjacent simple-block pairs with non-empty texts, eligible for cross-block delete
+  const crossPairs = model
+    .map((b, i) => i)
+    .filter((i) => i + 1 < model.length
+      && SIMPLE.has(model[i].type) && model[i].text.length > 0
+      && SIMPLE.has(model[i + 1].type) && model[i + 1].text.length > 0);
   const kinds = [
     "paragraph", "paragraph", "paragraph", "heading", "quote", "code", "list",
     "table", "columns", "image", "embed", "file",
     "insertText", "insertText", "insertText", "insertBlock", "insertBlock",
-    "format", "format", "delete", "delete", "clear",
+    "format", "format", "delete", "delete", "deleteCross", "clear",
   ];
   let kind = pick(kinds);
   // clear is rare; in-place edits need an editable target
   if (kind === "clear" && rand() > 0.08) kind = "paragraph";
   if ((kind === "insertText" || kind === "format" || kind === "delete") && editable.length === 0) kind = "paragraph";
+  if (kind === "deleteCross" && crossPairs.length === 0) kind = "paragraph";
 
   switch (kind) {
     case "paragraph": {
@@ -497,12 +544,16 @@ function genOp(model) {
     }
     case "insertText": {
       const { b, i } = pick(editable);
-      const off = randInt(b.text.length + 1);
+      // occasionally aim past the end — the builder clamps to the block's end
+      const past = rand() < 0.1;
+      const off = past ? b.text.length + 1 + randInt(5) : randInt(b.text.length + 1);
+      const eff = Math.min(off, b.text.length);
       const text = uid("x");
-      b.text = b.text.slice(0, off) + text + b.text.slice(off);
+      b.text = b.text.slice(0, eff) + text + b.text.slice(eff);
       return {
         op: "insert", anchor: { parentId: i, offset: off }, text,
         ...(rand() < 0.3 ? { format: [pick(FORMATS)], color: pick(COLORS) } : {}),
+        ...(rand() < 0.1 ? { fontSize: pick(["1.5em", 14, "12px"]) } : {}),
       };
     }
     case "insertBlock": {
@@ -540,7 +591,20 @@ function genOp(model) {
       const a = randInt(b.text.length);
       const f = a + 1 + randInt(b.text.length - a);
       b.text = b.text.slice(0, a) + b.text.slice(f);
-      return { op: "delete", anchor: { parentId: i, offset: a }, focus: { parentId: i, offset: f } };
+      // backward ranges must behave identically to forward ones
+      const backward = rand() < 0.3;
+      return backward
+        ? { op: "delete", anchor: { parentId: i, offset: f }, focus: { parentId: i, offset: a } }
+        : { op: "delete", anchor: { parentId: i, offset: a }, focus: { parentId: i, offset: f } };
+    }
+    case "deleteCross": {
+      // delete from mid-block i into mid-block i+1: blocks merge, keeping block i's type
+      const i = pick(crossPairs);
+      const a = randInt(model[i].text.length + 1);
+      const f = randInt(model[i + 1].text.length + 1);
+      model[i].text = model[i].text.slice(0, a) + model[i + 1].text.slice(f);
+      model.splice(i + 1, 1);
+      return { op: "delete", anchor: { parentId: i, offset: a }, focus: { parentId: i + 1, offset: f } };
     }
     case "clear": {
       model.length = 0;
@@ -567,8 +631,8 @@ function verify(root, model, round) {
   }
 }
 
-const TOTAL_OPS = 1100;
-const BATCH = 20;
+const TOTAL_OPS = Number(process.env.OPS || 1100);
+const BATCH = Number(process.env.BATCH || 20);
 t(`${TOTAL_OPS} randomized ops (seed=${SEED}), verified against the model after every ${BATCH}-op batch`, () => {
   const liveDoc = new Y.Doc(); // persistent doc, like the server's warm Y.Doc
   const model = [];

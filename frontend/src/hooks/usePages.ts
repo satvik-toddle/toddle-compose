@@ -101,16 +101,6 @@ export function useRenameDocument() {
   });
 }
 
-export function useRenameFolder() {
-  const { folders } = useInvalidatePages();
-  return useMutation({
-    mutationFn: (v: { workspaceId: string; id: string; name: string }) =>
-      foldersApi.rename(v.id, { name: v.name }),
-    onSuccess: (_d, v) => folders(v.workspaceId),
-    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
-  });
-}
-
 export function useDeleteDocument() {
   const { docs } = useInvalidatePages();
   return useMutation({

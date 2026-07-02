@@ -111,6 +111,7 @@ export function PageRow({
           role="button"
           tabIndex={0}
           onClick={() => selectPage(doc.id)}
+          onDoubleClick={() => canManage(doc.owner.id) && setIsRenaming(true)}
           onKeyDown={handleRowKeyDown}
         >
           <IconButton

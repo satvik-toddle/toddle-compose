@@ -6,7 +6,7 @@ import { createLogger } from "../logger";
 
 const log = createLogger("versions");
 
-// Sheet Yjs model (mirrors frontend SheetView): 'rows' Array of per-row Y.Map keyed by '__id', 'colTypes' Map. DOC docs have no 'rows' root.
+// Sheet Yjs model (mirrors frontend sheetModel): 'rows' Array of per-row Y.Map keyed by '__id', 'colTypes' Map of column uuid -> { type, order } (stored opaquely here). DOC docs have no 'rows' root.
 const ROWS_KEY = "rows";
 const ID_KEY = "__id";
 const COL_TYPE_KEY = "colTypes";

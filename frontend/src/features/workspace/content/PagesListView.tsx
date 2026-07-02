@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Avatar, Table } from '@toddle-edu/ds-web';
-import { PageFoldPortraitOutlined, GlobeOutlined, LockOutlined } from '@toddle-edu/ds-icons';
+import { GlobeOutlined, LockOutlined } from '@toddle-edu/ds-icons';
+import { pageTypeIcon } from '../pageTypes';
 import { dsAvatarColor } from '../../../lib/dsAvatar';
 import { firstName, relativeTime } from '../../../lib/time';
 import type { DocumentDto } from '../../../types/api';
@@ -23,13 +24,14 @@ const TABLE_HEADERS = [
 ];
 
 function toRow(doc: DocumentDto) {
+  const PageIcon = pageTypeIcon(doc.type);
   return {
     id: doc.id,
     rowData: [
       {
         key: 'name',
         value: doc.title,
-        prefix: <PageFoldPortraitOutlined size="xx-small" variant="subtle" />,
+        prefix: <PageIcon size="xx-small" variant="subtle" />,
       },
       {
         key: 'owner',

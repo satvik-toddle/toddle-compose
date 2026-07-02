@@ -58,7 +58,6 @@ export function ModalRoot() {
       return (
         <RenamePageModal
           onClose={close}
-          kind={modal.kind}
           workspaceId={modal.workspaceId}
           id={modal.id}
           name={modal.name}

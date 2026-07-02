@@ -27,7 +27,7 @@ export type ModalState =
       email: string;
       role?: WorkspaceRole;
     }
-  | { type: 'renamePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
+  | { type: 'renamePage'; workspaceId: string; id: string; name: string }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
   | {
       type: 'shareDocument';

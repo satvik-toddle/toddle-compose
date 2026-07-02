@@ -330,6 +330,11 @@ export class DocStateService {
         await this.drain(docName);
         // Capture seq BEFORE encoding: snapshotAtSeq may lag state but must never exceed it, or compaction drops unsnapshotted updates.
         const flushedSeq = state.lastAppendedSeq;
+        // Snapshot already current (e.g. writeState's checkpoint just wrote it) — skip the duplicate encode+write.
+        if (flushedSeq === state.snapshotAtSeq) {
+          log.debug(`'${docName}' flush skipped reason=${reason} — snapshot already at_seq=${flushedSeq}`);
+          return;
+        }
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
         const version = await this.repo.persistRtcDoc(

@@ -108,15 +108,16 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
     };
   }, [docId, name, color]);
 
-  // Fallback so a never-syncing provider can't trap the user behind the overlay forever.
-  const hasToken = rtc != null;
+  // Only editors mount the collab provider (ds-doc-editor gates it on `editable`), so `sync` only ever fires for them — viewers get no overlay.
+  const isEditor = rtc?.role === 'editor';
+  // Fallback so a never-syncing provider can't trap an editor behind the overlay forever.
   useEffect(() => {
-    if (!hasToken || syncedRef.current) return;
+    if (!isEditor || syncedRef.current) return;
     const timer = setTimeout(() => {
       if (!syncedRef.current) setContentLoading(false);
     }, SYNC_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [hasToken]);
+  }, [isEditor]);
 
   if (isError) {
     return (
@@ -144,7 +145,7 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
         minHeight={0}
         styles={EDITOR_STYLES}
       />
-      {contentLoading && (
+      {contentLoading && isEditor && (
         <div className={s.loadingOverlay}>
           <PageLoader />
         </div>

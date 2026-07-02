@@ -18,6 +18,16 @@ import { VersionsService } from "../history/versions.service";
 import { SessionsService } from "../history/sessions.service";
 import { CompactionService } from "../compaction/compaction.service";
 
+// Parse an optional integer query param; 400 (not a Prisma 500) on garbage like ?to=abc.
+function qInt(name: string, raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    throw new BadRequestException(`${name} must be a number`);
+  }
+  return Math.trunc(n);
+}
+
 @Controller()
 export class HealthController {
   @Get("health")
@@ -55,10 +65,10 @@ export class InternalController {
     @Query("limit") limit?: string,
     @Query("clientSub") clientSub?: string
   ) {
-    const fromN = Math.max(1, Number(from ?? 1));
-    const lim = Math.max(1, Math.min(5000, Number(limit ?? 1000)));
+    const fromN = Math.max(1, qInt("from", from, 1));
+    const lim = Math.max(1, Math.min(5000, qInt("limit", limit, 1000)));
     const head = await this.repo.getHeadSeq(docId);
-    const toN = to ? Number(to) : head;
+    const toN = qInt("to", to, head);
     const cs = clientSub && clientSub.length > 0 ? clientSub : null;
     const rows = await this.repo.listDocUpdates(docId, fromN, toN, lim, cs);
     return { docId, head, count: rows.length, clientSub: cs, updates: rows };
@@ -83,7 +93,7 @@ export class InternalController {
     const cs = clientSub && clientSub.length > 0 ? clientSub : null;
     return this.sessions.buildSessions(docId, {
       clientSub: cs,
-      gapMs: gapMs ? Number(gapMs) : undefined,
+      gapMs: gapMs ? qInt("gapMs", gapMs, 0) : undefined,
       includeNoop: includeNoop === "true" || includeNoop === "1",
     });
   }

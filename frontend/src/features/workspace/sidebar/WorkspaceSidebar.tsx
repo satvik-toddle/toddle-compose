@@ -14,6 +14,7 @@ import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../../hooks/qu
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './constants';
@@ -62,6 +63,10 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
       <div className={styles.header}>
+        <div className="-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full">
+          <WorkspaceSwitcher ctx={ctx} />
+        </div>
+
         <div className="mb-2">
           <SearchInput
             dsVersion="2.0"

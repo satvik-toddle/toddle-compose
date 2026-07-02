@@ -1,5 +1,5 @@
-import { ButtonDisclosure, Dropdown, DropdownMenu } from '@toddle-edu/ds-web';
-import { ChevronLeftOutlined, OutlinedIcons } from '@toddle-edu/ds-icons';
+import { Button, Dropdown, DropdownMenu } from '@toddle-edu/ds-web';
+import { ChevronLeftOutlined, ChevronDownOutlined, OutlinedIcons } from '@toddle-edu/ds-icons';
 import { useRealm, useWorkspaces } from '../../../hooks/queries';
 import { useEnterWorkspace, useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { isRealmAdmin } from '../../../lib/roles';
@@ -9,8 +9,6 @@ import type { WorkspaceCtx } from '../context';
 const HEADER_KEY = '__hdr';
 const LEAVE_KEY = '__leave';
 
-// The workspace glyph is a dynamic ds-icon name; resolve it from the ds-icons
-// namespace. Brand color is applied via overrideVariantStyles + style.
 const resolveDsIcon = (name: string) => OutlinedIcons[name as keyof typeof OutlinedIcons];
 
 export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
@@ -21,7 +19,6 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
   const currentWorkspaceVisual = workspaceVisual(ctx.workspaceId);
   const CurrentWorkspaceIcon = resolveDsIcon(currentWorkspaceVisual.icon);
 
-  // A "Switch workspace" group (tick on the current one) + a "back to launcher" footer.
   const menuOptions = [
     {
       key: HEADER_KEY,
@@ -71,21 +68,25 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
         />
       }
     >
-      {/* antd attaches its open-on-click handler to this DOM node; ButtonDisclosure doesn't forward that injected onClick to its inner button. */}
-      <span className="inline-flex">
-        <ButtonDisclosure
+      {/* Wrapped in a span so antd's open-on-click handler lands on a DOM node.
+          Plain ds Button (regular/h-9) with the workspace icon + a chevron rightIcon. */}
+      <span className="flex w-full">
+        <Button
           dsVersion="2.0"
           variant="neutral"
-          type="outlined"
+          type="plain"
+          isFullWidth
+          style={{ maxWidth: '100%' }}
           icon={
             <CurrentWorkspaceIcon
               overrideVariantStyles
               style={{ color: currentWorkspaceVisual.color }}
             />
           }
+          rightIcon={<ChevronDownOutlined variant="subtle" />}
         >
           {ctx.name}
-        </ButtonDisclosure>
+        </Button>
       </span>
     </Dropdown>
   );

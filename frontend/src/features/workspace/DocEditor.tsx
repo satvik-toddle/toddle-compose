@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-doc-editor';
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
@@ -15,6 +15,9 @@ import s from './DocEditor.module.scss';
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
 const EDITOR_CONFIG = { toolbar: { enabled: false } };
+
+// Stop blocking on the overlay if the first Yjs sync never lands.
+const SYNC_TIMEOUT_MS = 15_000;
 const EDITOR_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: '100%' },
@@ -104,6 +107,16 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
       shouldBootstrap: true,
     };
   }, [docId, name, color]);
+
+  // Fallback so a never-syncing provider can't trap the user behind the overlay forever.
+  const hasToken = rtc != null;
+  useEffect(() => {
+    if (!hasToken || syncedRef.current) return;
+    const timer = setTimeout(() => {
+      if (!syncedRef.current) setContentLoading(false);
+    }, SYNC_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [hasToken]);
 
   if (isError) {
     return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
@@ -9,6 +9,7 @@ import { sidebarRow } from '../sidebarRowStyles';
 import { pageTypeIcon } from '../../pageTypes';
 import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
+import { RenameInput } from './RenameInput';
 import type { PagesSectionController } from './usePagesSection';
 
 const BASE_INDENT = 8;
@@ -33,6 +34,13 @@ export function PageRow({
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
+  // Close the menu explicitly: entering rename unmounts the Dropdown, which
+  // would otherwise remount later with a stale visible=true.
+  const handleRename = () => {
+    setIsMenuOpen(false);
+    setIsRenaming(true);
+  };
+
   const menuItems = buildPageMenuItems({
     canCreate,
     canManage: canManage(doc.owner.id),
@@ -45,12 +53,7 @@ export function PageRow({
       pushToast({ kind: 'success', message: 'Link copied' });
     },
     onOpenInNewTab: () => window.open(docUrl, '_blank', 'noopener,noreferrer'),
-    // Close the menu explicitly: entering rename unmounts the Dropdown, which
-    // would otherwise remount later with a stale visible=true.
-    onRename: () => {
-      setIsMenuOpen(false);
-      setIsRenaming(true);
-    },
+    onRename: handleRename,
     onDelete: () =>
       openModal({
         type: 'confirmDeletePage',
@@ -88,12 +91,18 @@ export function PageRow({
     selectPage(doc.id);
   };
 
+  const handleRowDoubleClick = () => {
+    if (canManage(doc.owner.id)) setIsRenaming(true);
+  };
+
   const commitRename = (value: string) => {
     setIsRenaming(false);
     const title = value.trim();
     if (!title || title === doc.title) return;
     renameDoc.mutate({ workspaceId: pages.ws, id: doc.id, title });
   };
+
+  const cancelRename = () => setIsRenaming(false);
 
   return (
     <>
@@ -111,7 +120,7 @@ export function PageRow({
           role="button"
           tabIndex={0}
           onClick={() => selectPage(doc.id)}
-          onDoubleClick={() => canManage(doc.owner.id) && setIsRenaming(true)}
+          onDoubleClick={handleRowDoubleClick}
           onKeyDown={handleRowKeyDown}
         >
           <IconButton
@@ -129,11 +138,7 @@ export function PageRow({
 
           <PageIcon variant="subtle" size="xxx-small" />
           {isRenaming ? (
-            <RenameInput
-              initial={doc.title}
-              onCommit={commitRename}
-              onCancel={() => setIsRenaming(false)}
-            />
+            <RenameInput initial={doc.title} onCommit={commitRename} onCancel={cancelRename} />
           ) : (
             <span ref={labelRef} className={styles.label}>
               {doc.title}
@@ -184,50 +189,5 @@ export function PageRow({
           <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
         ))}
     </>
-  );
-}
-
-// Inline title editor: commits on Enter/blur, cancels on Escape.
-function RenameInput({
-  initial,
-  onCommit,
-  onCancel,
-}: Readonly<{ initial: string; onCommit: (value: string) => void; onCancel: () => void }>) {
-  const [value, setValue] = useState(initial);
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Guards the blur that follows Enter/Escape from finishing twice.
-  const doneRef = useRef(false);
-
-  // rAF so focus lands after the actions dropdown restores focus to its trigger on close.
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const finish = (commit: boolean) => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    if (commit) onCommit(value);
-    else onCancel();
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      value={value}
-      aria-label="Page name"
-      className="min-w-0 flex-1 rounded-1 bg-surface-primary-enabled px-1 py-0 text-body-s text-primary [outline:1px_solid_var(--border-focus)]"
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => finish(true)}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') finish(true);
-        if (e.key === 'Escape') finish(false);
-      }}
-    />
   );
 }

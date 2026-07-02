@@ -63,7 +63,7 @@ export function DocActions({
       isAdmin,
     });
   const openRenameModal = () =>
-    openModal({ type: 'renamePage', workspaceId, id: doc.id, name: doc.title });
+    openModal({ type: 'renamePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 

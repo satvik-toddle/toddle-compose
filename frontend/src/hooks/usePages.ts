@@ -38,7 +38,10 @@ export function useRtcToken(docId: string | undefined) {
     queryKey: docId ? ['rtcToken', docId] : ['rtcToken', '_none'],
     queryFn: () => documentsApi.rtcToken(docId as string),
     enabled: !!docId,
-    staleTime: 4 * 60_000, // token TTL ~5min; remount mints fresh
+    staleTime: 4 * 60_000, // token TTL ~5min
+    // Re-mint before expiry (focus refetch is globally off): the post-exp reconnect reads the fresh token via DocEditor's paramsRef.
+    refetchInterval: 4 * 60_000,
+    refetchIntervalInBackground: true,
     gcTime: 0,
   });
 }

@@ -5,6 +5,7 @@ import { ConfigService } from "@nestjs/config";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
+import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 
 import "./silence-benign-yjs";
 
@@ -17,6 +18,9 @@ async function bootstrap() {
   nestApp.useBodyParser("json", { limit: "8mb" });
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
+  // Per-request HTTP tracing: times each request and logs its DB-query breakdown.
+  setTracingEnabled(config.get<boolean>("TRACE_REQUESTS") ?? false);
+  app.use(traceMiddleware);
   const port = config.get<number>("RTC_PORT") ?? 4001;
   await app.listen(port);
   app.get(YjsServerService).attach(app.getHttpServer());

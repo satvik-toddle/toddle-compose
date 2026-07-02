@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon';
 import { EmptyState } from '../../components/EmptyState';
 import { RealmChip } from '../../components/RealmChip';
 import { Avatar } from '../../components/Avatar';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { WorkspaceCard } from './WorkspaceCard';
 import s from './LauncherPage.module.scss';
 import card from './WorkspaceCard.module.scss';
@@ -13,7 +13,7 @@ import { useRealm, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { isRealmAdmin, REALM_ROLE_META } from '../../lib/roles';
+import { isRealmAdmin, isUserMember, REALM_ROLE_META } from '../../lib/roles';
 import { greet, firstName } from '../../lib/time';
 import type { User } from '../../types/api';
 
@@ -99,12 +99,13 @@ export function LauncherPage() {
 
   if (!me) return null;
   const admin = isRealmAdmin(realm?.role);
+  const isMember = isUserMember(realm?.role);
   const list = workspaces ?? [];
   const realmName = realm?.name ?? 'Toddle';
 
   let body: React.ReactNode;
   if (isLoading) {
-    body = <PageSpinner />;
+    body = <PageLoader />;
   } else if (list.length === 0) {
     body = admin ? (
       <EmptyOwner onCreate={() => openModal({ type: 'createWorkspace' })} />
@@ -140,6 +141,15 @@ export function LauncherPage() {
                   New workspace
                 </Button>
               )}
+              {isMember && (
+                <Button
+                  variant="primary"
+                  icon="SearchOutlined"
+                  onClick={() => navigate('/access')}
+                >
+                  Discover
+                </Button>
+              )}
             </div>
           </div>
 
@@ -147,7 +157,12 @@ export function LauncherPage() {
 
           <div className={s.lcGrid}>
             {list.map((w) => (
-              <WorkspaceCard key={w.id} ws={w} overlay={admin} onEnter={() => enter.mutate(w.id)} />
+              <WorkspaceCard
+                key={w.id}
+                ws={w}
+                showRoleBadge={realm?.role === 'MEMBER'}
+                onEnter={() => enter.mutate(w.id)}
+              />
             ))}
             {admin && (
               <button className={`${card.wsCard} ${card.add}`} onClick={() => openModal({ type: 'createWorkspace' })}>

@@ -9,6 +9,7 @@ import { Prisma, Visibility, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "../realm/active-realm.service";
 import { AuthzService } from "../realm/authz.service";
+import { trace } from "../tracing/trace";
 
 const USER_SELECT = { id: true, email: true, name: true, color: true } as const;
 
@@ -65,9 +66,15 @@ export class WorkspacesService {
   }
 
   async get(userId: string, workspaceId: string) {
-    const role = await this.authz.requireWorkspaceRole(userId, workspaceId, "READ");
-    const ws = await this.authz.getWorkspaceInRealm(workspaceId);
-    return { ...ws, role };
+    return trace("workspaces.get", async () => {
+      const role = await this.authz.requireWorkspaceRole(
+        userId,
+        workspaceId,
+        "READ"
+      );
+      const ws = await this.authz.getWorkspaceInRealm(workspaceId);
+      return { ...ws, role };
+    });
   }
 
   /** Patch name / visibility / defaultRole; requires workspace ADMIN. */
@@ -131,9 +138,9 @@ export class WorkspacesService {
   // ----------------------------------------------------------- join lifecycle
 
   // Realm workspaces the caller isn't in (metadata only): PRIVATE can be requested, PUBLIC self-joined.
+  // Open to any authenticated user so new sign-ups can find a workspace without a realm-admin step;
+  // joining/approval is what actually grants realm membership (see ensureRealmMember).
   async discoverable(userId: string, skip = 0, take = 50) {
-    // Discovery is realm-internal: outsiders must not see workspace metadata.
-    await this.authz.requireRealmRole(userId, "MEMBER");
     return this.prisma.workspace.findMany({
       where: {
         realmId: this.realm.id,
@@ -148,7 +155,6 @@ export class WorkspacesService {
 
   /** Self-join a PUBLIC workspace as its defaultRole. PRIVATE → must request instead. */
   async join(userId: string, workspaceId: string) {
-    await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility !== "PUBLIC") {
       throw new ForbiddenException("private workspace — request to join instead");
@@ -169,7 +175,6 @@ export class WorkspacesService {
 
   /** Request to join a PRIVATE workspace (PENDING until an admin decides). */
   async requestJoin(userId: string, workspaceId: string, requestedRole?: WorkspaceRole) {
-    await this.authz.requireRealmRole(userId, "MEMBER");
     const ws = await this.authz.getWorkspaceInRealm(workspaceId);
     if (ws.visibility === "PUBLIC") {
       throw new BadRequestException("public workspace — join directly");
@@ -186,6 +191,17 @@ export class WorkspacesService {
 
     return this.prisma.joinRequest.create({
       data: { workspaceId, userId, requestedRole: requestedRole ?? ws.defaultRole },
+    });
+  }
+
+  // The caller's own join requests in this realm (any state) — drives the /access status poll.
+  async myRequests(userId: string) {
+    return this.prisma.joinRequest.findMany({
+      where: { userId, workspace: { realmId: this.realm.id } },
+      include: {
+        workspace: { select: { id: true, name: true, visibility: true } },
+      },
+      orderBy: { createdAt: "desc" },
     });
   }
 

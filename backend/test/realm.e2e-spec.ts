@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import bcrypt from "bcrypt";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@app/database";
 import { AppModule } from "../src/app.module";
 import { ActiveRealmService } from "../src/realm/active-realm.service";
@@ -19,7 +20,10 @@ const REALM_ID = process.env.REALM_ID ?? "realm_toddle";
 const OWNER_EMAIL = "owner@toddle.test";
 const PASSWORD = "password123";
 const stamp = Date.now();
-const db = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the test script.
+const db = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
@@ -38,9 +42,15 @@ describe("Realm / Workspace RBAC (e2e)", () => {
 
   async function register(local: string): Promise<Actor> {
     const email = `rbac_${local}_${stamp}@toddle.test`;
-    const res = await request(server)
+    // Sign-up no longer issues a session (email-verification flow). The suite runs
+    // with BYPASS_EMAIL_SERVICE, which auto-verifies the account, so log in for tokens.
+    await request(server)
       .post("/api/auth/register")
       .send({ email, password: PASSWORD, name: local })
+      .expect(201);
+    const res = await request(server)
+      .post("/api/auth/login")
+      .send({ email, password: PASSWORD })
       .expect(201);
     return { token: res.body.accessToken, id: res.body.user.id, email };
   }
@@ -72,12 +82,14 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     });
     const owner = await db.user.upsert({
       where: { email: OWNER_EMAIL },
-      update: {},
+      // emailVerifiedAt: login requires a verified account (email-verification flow).
+      update: { emailVerifiedAt: new Date() },
       create: {
         email: OWNER_EMAIL,
         name: "Realm Owner",
         color: "#f04c54",
         passwordHash: await bcrypt.hash(PASSWORD, 4),
+        emailVerifiedAt: new Date(),
       },
     });
     ownerId = owner.id;
@@ -569,24 +581,33 @@ describe("Realm / Workspace RBAC (e2e)", () => {
   const hasId = (id: string) => (r: { id: string }) => r.id === id;
 
   describe("public workspaces — self-join", () => {
-    it("outsiders (non-realm members) get 403 on discover / join / request", async () => {
+    it("a fresh registrant (no realm membership yet) can discover and self-join", async () => {
       const wsId = await createPublic("gated");
-      // Fresh registration: the shared `outsider` gets realm membership in an
-      // earlier test (auto-added when joined to a workspace).
+      // No realm-admin step: discovery + self-join are open to any authenticated user,
+      // and the PUBLIC join is what grants realm membership (see ensureRealmMember).
       const stranger = await register("stranger");
-      await request(server)
+      const disc = await request(server)
         .get("/api/workspaces/discoverable")
         .set(auth(stranger.token))
-        .expect(403);
+        .expect(200);
+      expect(disc.body.some(hasId(wsId))).toBe(true);
+
+      const realmBefore = await request(server)
+        .get("/api/realm")
+        .set(auth(stranger.token))
+        .expect(200);
+      expect(realmBefore.body.role).toBeNull(); // not a realm member until joining
+
       await request(server)
         .post(`/api/workspaces/${wsId}/join`)
         .set(auth(stranger.token))
-        .expect(403);
-      await request(server)
-        .post(`/api/workspaces/${wsId}/requests`)
+        .expect(201);
+
+      const realmAfter = await request(server)
+        .get("/api/realm")
         .set(auth(stranger.token))
-        .send({})
-        .expect(403);
+        .expect(200);
+      expect(realmAfter.body.role).toBe("MEMBER"); // joining provisioned realm membership
     });
 
     it("discoverable + self-join as defaultRole; stays realm MEMBER; re-join 409", async () => {
@@ -782,6 +803,98 @@ describe("Realm / Workspace RBAC (e2e)", () => {
         .set(auth(wsAdmin.token))
         .send({ role: "READ" })
         .expect(201);
+    });
+
+    it("GET /workspaces/my-requests returns the caller's own requests with workspace meta", async () => {
+      const wsId = await createWorkspace(maintainer.token, "myreq"); // PRIVATE
+      const u = await register("myrequests");
+      await request(server)
+        .post(`/api/workspaces/${wsId}/requests`)
+        .set(auth(u.token))
+        .send({})
+        .expect(201);
+
+      const mine = await request(server)
+        .get("/api/workspaces/my-requests")
+        .set(auth(u.token))
+        .expect(200);
+      const row = mine.body.find((r: { workspaceId: string }) => r.workspaceId === wsId);
+      expect(row.state).toBe("PENDING");
+      expect(row.workspace.name).toContain("myreq");
+    });
+  });
+
+  // ------------------------------------------------- realm settings / signup gate
+
+  describe("realm settings — email-domain allowlist", () => {
+    it("OWNER restricts signup to allowed domains (normalised), then reopens", async () => {
+      const set = await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: ["@Toddle.TEST", "toddle.test", "  "] })
+        .expect(200);
+      expect(set.body.allowedEmailDomains).toEqual(["toddle.test"]); // lowercased, @-stripped, deduped
+
+      const info = await request(server).get("/api/realm").set(auth(ownerToken)).expect(200);
+      expect(info.body.allowedEmailDomains).toEqual(["toddle.test"]);
+
+      // Disallowed domain is turned away at signup.
+      await request(server)
+        .post("/api/auth/register")
+        .send({ email: `blocked_${stamp}@example.com`, password: PASSWORD, name: "Blocked" })
+        .expect(403);
+
+      // Allowed domain still registers.
+      await request(server)
+        .post("/api/auth/register")
+        .send({ email: `allowed_${stamp}@toddle.test`, password: PASSWORD, name: "Allowed" })
+        .expect(201);
+
+      // Reopen so later registrations aren't gated.
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: [] })
+        .expect(200);
+    });
+
+    it("non-owner cannot change realm settings → 403", async () => {
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(maintainer.token))
+        .send({ allowedEmailDomains: ["toddleapp.com"] })
+        .expect(403);
+    });
+
+    it("malformed domains are rejected → 400 (not silently stored)", async () => {
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: ["toddleapp,com"] }) // typo'd separator
+        .expect(400);
+    });
+
+    it("non-admins don't get the allowlist in /api/realm", async () => {
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: ["toddle.test"] })
+        .expect(200);
+
+      const outsider = await register("noinfo"); // role null, not a realm member
+      const info = await request(server)
+        .get("/api/realm")
+        .set(auth(outsider.token))
+        .expect(200);
+      expect(info.body.role).toBeNull();
+      expect(info.body.allowedEmailDomains).toBeUndefined();
+
+      // Reopen so later registrations aren't gated.
+      await request(server)
+        .patch("/api/realm")
+        .set(auth(ownerToken))
+        .send({ allowedEmailDomains: [] })
+        .expect(200);
     });
   });
 });

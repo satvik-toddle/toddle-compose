@@ -4,8 +4,10 @@ generator client {
 }
 
 datasource db {
+  // Prisma 7 no longer allows `url` here. The connection string lives in
+  // prisma.config.ts (for Migrate) and is passed via the @prisma/adapter-pg
+  // driver adapter to the PrismaClient constructor (for the app runtime).
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Visibility {
@@ -66,6 +68,8 @@ enum AccessTokenPermission {
 model Realm {
   id         String        @id @default(cuid())
   name       String
+  // Self-signup email allowlist (bare domains, e.g. "toddleapp.com"). Empty = any domain may register.
+  allowedEmailDomains String[] @default([]) @map("allowed_email_domains")
   createdAt  DateTime      @default(now()) @map("created_at")
   members    RealmMember[]
   workspaces Workspace[]
@@ -141,16 +145,57 @@ model User {
   passwordHash  String         @map("password_hash")
   name          String
   color         String         @default("#f04c54")
+  // Null until the user clicks the link in their sign-up verification email.
+  // Login is refused while this is null (the "user not authenticated" state).
+  // Added as a nullable column with NO backfill: pre-existing/legacy users are
+  // intentionally treated as unverified and must verify (or reset password) to
+  // sign in. See migrations/20260624_add_email_verification.sql.
+  emailVerifiedAt DateTime?    @map("email_verified_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   documents     Document[]
   folders       Folder[]
   refreshTokens RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
   accessTokens         AccessToken[]
+  documentStars        DocumentStar[]
 
   @@map("users")
+}
+
+// Short-lived, single-use tokens emailed on sign-up to verify ownership of the
+// address. Mirrors RefreshToken: only the sha256 hash is stored, never the raw
+// token (which travels in the email link). Consumed on success; GC'd once stale.
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// Short-lived, single-use tokens emailed for "forgot password". Same shape as
+// EmailVerificationToken: only the sha256 hash is stored; consumed on a
+// successful reset and GC'd once stale.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model RefreshToken {
@@ -236,6 +281,8 @@ model Document {
   parentId    String?      @map("parent_id")
   parent      Document?    @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
   children    Document[]   @relation("DocumentTree")
+  // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
+  stars       DocumentStar[]
   // PUBLIC additionally exposes the doc to any realm member, across workspaces.
   visibility  Visibility   @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -251,4 +298,23 @@ model Document {
   // Backs the documents list (filtered by workspace, ordered by updatedAt desc).
   @@index([workspaceId, updatedAt])
   @@map("documents")
+}
+
+// A user's star ("favorite") on a document. Join table: one row = this user has
+// starred this document. The composite primary key [userId, documentId] makes
+// starring idempotent — a user can star a given doc at most once. Cascades on
+// both sides, so deleting the user or the document drops the star automatically.
+// Mirrors the WorkspaceMember/RealmMember join-table shape used elsewhere.
+model DocumentStar {
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String   @map("document_id")
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // PK indexes userId-first, so "this user's stars" (the starred list) is covered;
+  // the extra index backs lookups/cascades by document.
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_stars")
 }

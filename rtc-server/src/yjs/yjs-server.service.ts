@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { IncomingMessage, Server as HttpServer } from "http";
 import * as decoding from "lib0/decoding";
-import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
+import { getYDoc, setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
 import { createLogger, decodeYFrame, nextConnId } from "../logger";
@@ -81,8 +81,9 @@ export class YjsServerService
   onApplicationBootstrap(): void {
     setPersistence({
       provider: null,
-      bindState: async (docName: string, ydoc: unknown) => {
-        await this.docState.bindState(docName, ydoc as never);
+      bindState: (docName: string, ydoc: unknown) => {
+        // bindState self-tracks the cold-load so a connecting client can await it (see verifyClient).
+        return this.docState.bindState(docName, ydoc as never);
       },
       writeState: async (docName: string) => {
         await this.docState.writeState(docName);
@@ -144,6 +145,12 @@ export class YjsServerService
             return;
           }
           (req as IncomingMessage & { rtcClaims: RtcClaims }).rtcClaims = claims;
+          // Load persisted state before the handshake completes, so the client's first
+          // sync sees the saved doc. Otherwise a cold reload (doc evicted on the last
+          // disconnect) races the async bindState and the client treats the doc as
+          // empty — which makes the sheet re-seed its rows on every refresh.
+          getYDoc(parsed.docId, true);
+          await this.docState.whenLoaded(parsed.docId);
           log.debug(
             `verifyClient ACCEPT sub=${claims.sub} doc='${parsed.docId}' role=${claims.role}`
           );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { TextInput } from '../../components/TextInput';
@@ -23,6 +23,12 @@ export function RenamePageModal({
   const [name, setName] = useState(initialName);
   const pending = renameDoc.isPending || renameFolder.isPending;
   const label = kind === 'doc' ? 'page' : 'folder';
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (pending) return 'Saving…';
+    return 'Save';
+  }, [pending]);
 
   const submit = () => {
     if (!name.trim() || pending) return;
@@ -54,7 +60,7 @@ export function RenamePageModal({
           Cancel
         </Button>
         <Button variant="primary" disabled={!name.trim() || pending} onClick={submit}>
-          {pending ? 'Saving…' : 'Save'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { RoleSelect } from '../../components/RoleSelect';
 import { EmptyState } from '../../components/EmptyState';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import { useWorkspaceMembers } from '../../hooks/queries';
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -79,7 +79,7 @@ export function MembersPanel() {
         </div>
 
         {isLoading ? (
-          <PageSpinner />
+          <PageLoader />
         ) : (
           <div className={`tbl ${s.wsMemTbl}`}>
             <div className="thead">

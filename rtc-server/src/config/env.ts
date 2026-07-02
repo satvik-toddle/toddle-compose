@@ -32,6 +32,14 @@ export const envSchema = z.object({
   RTC_SESSION_GAP_MS: z.coerce.number().default(30 * 1000),
   // Debug: when >0, log every inbound Yjs update as base64 (for capture/replay of editor ops).
   RTC_CAPTURE_UPDATES: z.coerce.number().int().default(0),
+
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

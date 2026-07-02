@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Icon, type IconName } from '../../components/Icon';
@@ -85,6 +85,12 @@ export function ShareDocumentModal({
 
   const otherMembers = members.filter((m) => m.userId !== ownerId);
 
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const addButtonLabel = useMemo(() => {
+    if (addMember.isPending) return '…';
+    return 'Add';
+  }, [addMember.isPending]);
+
   return (
     <Modal onClose={onClose} wide>
       <ModalHead
@@ -164,7 +170,7 @@ export function ShareDocumentModal({
                 disabled={!email.trim() || addMember.isPending}
                 onClick={invite}
               >
-                {addMember.isPending ? '…' : 'Add'}
+                {addButtonLabel}
               </Button>
             </div>
             <div className={s.shareNote}>

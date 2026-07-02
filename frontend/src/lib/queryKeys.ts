@@ -3,10 +3,12 @@ import type { JoinRequestState } from '../types/roles';
 // Central query-key factory. Keep all keys here so invalidations stay precise.
 export const qk = {
   me: ['me'] as const,
+  authConfig: ['authConfig'] as const,
   realm: ['realm'] as const,
   realmMembers: ['realm', 'users'] as const,
   workspaces: ['workspaces'] as const,
   discoverable: ['workspaces', 'discoverable'] as const,
+  myRequests: ['joinRequests', 'mine'] as const,
   workspace: (id: string) => ['workspaces', id] as const,
   workspaceMembers: (id: string) => ['workspaces', id, 'users'] as const,
   realmRequests: (state: JoinRequestState = 'PENDING') =>
@@ -15,6 +17,7 @@ export const qk = {
     ['workspaces', id, 'requests', state] as const,
   documents: (workspaceId: string, folderId?: string | null) =>
     ['documents', workspaceId, folderId ?? null] as const,
+  starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
 };
 

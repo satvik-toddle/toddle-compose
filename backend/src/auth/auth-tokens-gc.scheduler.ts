@@ -16,22 +16,27 @@ export class AuthTokensGcScheduler {
     const revokedCutoff = new Date(
       now.getTime() - AuthTokensGcScheduler.REVOKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
     );
-    const refresh = await this.prisma.refreshToken.deleteMany({
-      where: {
-        OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
-      },
-    });
-    if (refresh.count > 0) {
-      this.log.log(`purged ${refresh.count} expired/long-revoked refresh token(s)`);
-    }
+    // Refresh tokens: drop expired ones and revoked ones past the retention
+    // window. Verification + reset tokens are short-lived and single-use, so
+    // expired-or-consumed rows can go immediately.
+    const staleSingleUse = {
+      OR: [{ expiresAt: { lt: now } }, { consumedAt: { not: null } }],
+    };
+    const staleRevocable = {
+      OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
+    };
+    const [refresh, access, verif, resets] = await Promise.all([
+      this.prisma.refreshToken.deleteMany({ where: staleRevocable }),
+      this.prisma.accessToken.deleteMany({ where: staleRevocable }),
+      this.prisma.emailVerificationToken.deleteMany({ where: staleSingleUse }),
+      this.prisma.passwordResetToken.deleteMany({ where: staleSingleUse }),
+    ]);
 
-    const access = await this.prisma.accessToken.deleteMany({
-      where: {
-        OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
-      },
-    });
-    if (access.count > 0) {
-      this.log.log(`purged ${access.count} expired/long-revoked access token(s)`);
+    const total = refresh.count + access.count + verif.count + resets.count;
+    if (total > 0) {
+      this.log.log(
+        `purged ${total} stale token(s) (refresh=${refresh.count} access=${access.count} verify=${verif.count} reset=${resets.count})`
+      );
     }
   }
 }

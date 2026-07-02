@@ -1,0 +1,75 @@
+import { Suspense, lazy } from 'react';
+import { EmptyState } from '@toddle-edu/ds-web';
+import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
+import { cn } from '../../../lib/cn';
+import { PageLoader } from '../../../components/Loader';
+import { wsAtLeast } from '../../../lib/roles';
+import type { DocumentDto } from '../../../types/api';
+import type { WorkspaceCtx } from '../context';
+import { PageTitle } from './PageTitle';
+
+// The editor bundles are large — load them only when a page is opened.
+const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.DocEditor })));
+const SheetEditor = lazy(() =>
+  import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
+);
+
+const styles = {
+  contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
+  scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
+  // Doc: title centered over the editor's readable column (760px + 88px text inset).
+  docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
+  // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
+  sheetTitle: 'flex-none w-full pt-7 px-6',
+};
+
+type PageViewProps = {
+  ctx: WorkspaceCtx;
+  docs: DocumentDto[];
+  selDoc: string;
+};
+
+// Reader: a single page is open (via the `?doc=` param). Renders the editable
+// title + the lazy editor, or a "not found" state for a stale/deleted id.
+export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
+  const openDoc = docs.find((doc) => doc.id === selDoc);
+
+  if (!openDoc) {
+    return (
+      <main className={styles.contentShell}>
+        <div className={cn(styles.scrollBody, 'flex items-center justify-center')}>
+          <EmptyState
+            dsVersion="2.0"
+            illustration={EmptyStateIllustrations.Error404Illustration}
+            title="Page not found"
+            subtitle="It may have been moved or deleted."
+          />
+        </div>
+      </main>
+    );
+  }
+
+  const { id: openDocId, title: pageTitle } = openDoc;
+  const canEdit = wsAtLeast(ctx.role, 'EDIT');
+  const isSheet = openDoc.type === 'SHEET';
+
+  return (
+    <main className={styles.contentShell}>
+      <div className={isSheet ? styles.sheetTitle : styles.docTitle}>
+        <PageTitle
+          workspaceId={ctx.workspaceId}
+          docId={openDocId}
+          title={pageTitle}
+          canEdit={canEdit}
+        />
+      </div>
+      <Suspense fallback={<PageLoader />}>
+        {isSheet ? (
+          <SheetEditor key={openDocId} docId={openDocId} />
+        ) : (
+          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
+        )}
+      </Suspense>
+    </main>
+  );
+}

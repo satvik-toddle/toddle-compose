@@ -14,6 +14,11 @@ declare module "y-websocket/bin/utils" {
     opts?: { docName?: string; gc?: boolean }
   ): void;
 
+  export function getYDoc(
+    docname: string,
+    gc?: boolean
+  ): Y.Doc & { conns: Map<WebSocket, Set<number>> };
+
   export function setPersistence(persistence: {
     bindState: (docName: string, ydoc: Y.Doc) => void | Promise<void>;
     writeState: (docName: string, ydoc: Y.Doc) => Promise<unknown>;

@@ -1,35 +1,19 @@
-import "../silence-benign-yjs";
 import * as Y from "yjs";
 import { createHeadlessEditor } from "@lexical/headless";
+import { createBinding, syncYjsChangesToLexical } from "@lexical/yjs";
+import { $getRoot } from "lexical";
 import {
-  createBinding,
-  syncYjsChangesToLexical,
-  type Provider,
-} from "@lexical/yjs";
-import { Awareness } from "y-protocols/awareness";
-import { $getRoot, type Klass, type LexicalNode } from "lexical";
+  NAMESPACE,
+  excludedProperties,
+  makeStubProvider,
+  serverNodes,
+  withBenignYjsSilenced,
+} from "../lexical-headless";
 import { createLogger } from "../logger";
 
 const log = createLogger("extract");
-const NAMESPACE = "ds-doc-editor-collab";
 
 export type ExtractResult = { lexicalJson: string | null; plainText: string };
-
-// Pre-bundled CJS (lexical/yjs externalized) so nodes share the loading context's single lexical/yjs instances. See scripts/bundle-server-nodes.mjs.
-const serverNodes: Array<Klass<LexicalNode>> =
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime CJS bundle, not a typed module
-  require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
-
-function makeStubProvider(ydoc: Y.Doc): Provider {
-  const awareness = new Awareness(ydoc);
-  return {
-    awareness,
-    connect: () => {},
-    disconnect: () => {},
-    on: () => {},
-    off: () => {},
-  } as unknown as Provider;
-}
 
 // Synchronous, CPU-heavy headless-Lexical extraction; main-thread callers use LexicalExtractService's worker pool instead.
 export function extractFromBytesSync(stateUpdate: Uint8Array): ExtractResult {
@@ -43,11 +27,21 @@ export function extractFromBytesSync(stateUpdate: Uint8Array): ExtractResult {
     });
     const docMap = new Map<string, Y.Doc>([[NAMESPACE, tmpDoc]]);
     const provider = makeStubProvider(tmpDoc);
-    const binding = createBinding(editor, provider, NAMESPACE, tmpDoc, docMap);
+    // Same excludedProperties as content-builder: without it, table-cell array props break the XML-attr sync on read.
+    const binding = createBinding(
+      editor,
+      provider,
+      NAMESPACE,
+      tmpDoc,
+      docMap,
+      excludedProperties
+    );
 
     binding.root.getSharedType().observeDeep((events) => {
       try {
-        syncYjsChangesToLexical(binding, provider, events, false);
+        withBenignYjsSilenced(() =>
+          syncYjsChangesToLexical(binding, provider, events, false)
+        );
       } catch (e) {
         log.warn(`sync Y->L failed: ${e instanceof Error ? e.message : e}`);
       }

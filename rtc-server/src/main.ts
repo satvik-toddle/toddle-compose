@@ -7,7 +7,6 @@ import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
 import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 
-import "./silence-benign-yjs";
 
 let app: INestApplication | null = null;
 

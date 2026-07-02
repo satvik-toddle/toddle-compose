@@ -1,4 +1,3 @@
-import "../silence-benign-yjs";
 import * as Y from "yjs";
 import { createHeadlessEditor } from "@lexical/headless";
 import {
@@ -6,9 +5,14 @@ import {
   syncLexicalUpdateToYjs,
   syncYjsChangesToLexical,
   type Binding,
-  type Provider,
 } from "@lexical/yjs";
-import { Awareness } from "y-protocols/awareness";
+import {
+  NAMESPACE,
+  excludedProperties,
+  makeStubProvider,
+  serverNodes,
+  withBenignYjsSilenced,
+} from "../lexical-headless";
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -43,28 +47,6 @@ import { $createCodeNode } from "@lexical/code";
 import { createLogger } from "../logger";
 
 const log = createLogger("content-builder");
-
-// Must match the editor's collaboration namespace (the Yjs root key).
-const NAMESPACE = "ds-doc-editor-collab";
-
-const serverNodes: Array<Klass<LexicalNode>> =
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime CJS bundle, not a typed module
-  require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
-
-// Custom table cell's array/object props (border types/colors) break yjs XML-attr sync; exclude them, constructor re-applies defaults.
-const excludedProperties: Map<Klass<LexicalNode>, Set<string>> = (() => {
-  const map = new Map<Klass<LexicalNode>, Set<string>>();
-  const cellKlass = serverNodes.find(
-    (n) => typeof n === "function" && "getType" in n && n.getType() === "custom-table-cell"
-  );
-  if (cellKlass) {
-    map.set(
-      cellKlass,
-      new Set(["__borderTypes", "__borderColors", "borderTypes", "borderColors"])
-    );
-  }
-  return map;
-})();
 
 // Usable content width of a page (px) — editable surface minus padding; auto-width tables spread evenly across this.
 const DEFAULT_TABLE_WIDTH = 582;
@@ -185,15 +167,14 @@ export type ContentOp =
       block?: ContentOp;
     };
 
-function makeStubProvider(ydoc: Y.Doc): Provider {
-  const awareness = new Awareness(ydoc);
-  return {
-    awareness,
-    connect: () => {},
-    disconnect: () => {},
-    on: () => {},
-    off: () => {},
-  } as unknown as Provider;
+// True if any op — including ops nested via insert.block or columns — destroys existing content; the live-editor guard gates on this, so nesting can't smuggle a clear past it.
+export function hasDestructiveOp(ops: ContentOp[]): boolean {
+  return ops.some((op) => {
+    if (op.op === "clear") return true;
+    if (op.op === "insert" && op.block) return hasDestructiveOp([op.block]);
+    if (op.op === "columns") return op.columns.some((col) => hasDestructiveOp(col));
+    return false;
+  });
 }
 
 // Split `total` px across `n` columns evenly; remainder goes to leftmost columns so parts sum to `total`.
@@ -386,6 +367,8 @@ function selectPoints(
 
 // Split `block` at the boundaries and return the text nodes exactly covering [start, end), for applying inline style to just the selection.
 function rangeTextNodes(block: ElementNode, start: number, end: number): TextNode[] {
+  // Normalize backward ranges (anchor after focus) — RangeSelection handles them, so this must too or styles silently drop.
+  if (start > end) [start, end] = [end, start];
   const segs: TextNode[] = [];
   let base = 0;
   for (const t of textNodesUnder(block)) {
@@ -557,7 +540,8 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     }
     case "format": {
       const picked = selectPoints(op.anchor, op.focus);
-      if (!picked) { log.debug(`format: bad selection`); break; }
+      // Throw (→ 400), don't silently skip: the endpoint would otherwise report ok for an op that did nothing.
+      if (!picked) throw new Error(`format: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
       const fmts = op.operations ?? op.format ?? [];
       for (const f of fmts) if (!picked.sel.hasFormat(f)) picked.sel.formatText(f);
       const adds = styleAdditions(op);
@@ -585,7 +569,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     }
     case "delete": {
       const picked = selectPoints(op.anchor, op.focus);
-      if (!picked) { log.debug(`delete: bad selection`); break; }
+      if (!picked) throw new Error(`delete: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
       picked.sel.insertText(""); // delete = type "" over the selection (editor's own delete)
       log.debug(`delete ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset}`);
       break;
@@ -594,23 +578,27 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       // (a) inline caret insertion at an anchor point
       if (op.anchor !== undefined) {
         const block = blockAt(op.anchor.parentId);
-        const at = op.anchor.offset;
-        if (block) {
-          const sel = selectRange(block, at, at); // collapsed caret
-          if (sel && op.text) {
-            sel.insertText(op.text);
-            const adds = styleAdditions(op);
-            const fmts = op.operations ?? op.format ?? [];
-            if (Object.keys(adds).length > 0 || fmts.length > 0) {
-              const sel2 = selectRange(block, at, at + op.text.length);
-              if (sel2) for (const f of fmts) if (!sel2.hasFormat(f)) sel2.formatText(f);
-              if (Object.keys(adds).length > 0)
-                for (const node of rangeTextNodes(block, at, at + op.text.length))
-                  node.setStyle(mergeCss(node.getStyle(), adds));
-            }
-          }
+        if (!block) throw new Error(`insert: no block at index ${op.anchor.parentId}`);
+        if (!op.text) throw new Error(`insert: anchor requires text`);
+        let at = op.anchor.offset;
+        const sel = selectRange(block, at, at); // collapsed caret
+        if (sel) {
+          sel.insertText(op.text);
+        } else {
+          // Empty block: no text node to anchor a caret to — append the text directly (offset can only be 0).
+          at = 0;
+          block.append($createTextNode(op.text));
         }
-        log.debug(`insert text ${op.anchor.parentId}@${at}`);
+        const adds = styleAdditions(op);
+        const fmts = op.operations ?? op.format ?? [];
+        if (Object.keys(adds).length > 0 || fmts.length > 0) {
+          const sel2 = selectRange(block, at, at + op.text.length);
+          if (sel2) for (const f of fmts) if (!sel2.hasFormat(f)) sel2.formatText(f);
+          if (Object.keys(adds).length > 0)
+            for (const node of rangeTextNodes(block, at, at + op.text.length))
+              node.setStyle(mergeCss(node.getStyle(), adds));
+        }
+        log.debug(`insert text ${op.anchor.parentId}@${op.anchor.offset}`);
         break;
       }
       // (b) new block: build by appending to root, then move the new node(s) into position.
@@ -671,13 +659,17 @@ export function buildOpsUpdate(
     excludedProperties
   );
 
-  // Yjs → Lexical (load existing content), skipping our own writes; swallow the benign transient "Invalid access" the base-state apply can throw (discrete flush below rebuilds correctly).
+  // Yjs → Lexical (load existing content), skipping our own writes; only the benign transient "Invalid access" is swallowed (discrete flush below rebuilds correctly) — anything else means the base failed to load and offsets would target the wrong content, so abort the edit.
   binding.root.getSharedType().observeDeep((events, tx) => {
     if (tx.origin !== binding) {
       try {
-        syncYjsChangesToLexical(binding, provider, events, false);
+        withBenignYjsSilenced(() =>
+          syncYjsChangesToLexical(binding, provider, events, false)
+        );
       } catch (e) {
-        log.debug(`Y->L base-load sync skipped: ${e instanceof Error ? e.message : e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!/Invalid access|Add Yjs type/i.test(msg)) throw e;
+        log.debug(`Y->L base-load sync skipped benign: ${msg}`);
       }
     }
   });
@@ -686,15 +678,17 @@ export function buildOpsUpdate(
   editor.registerUpdateListener(
     ({ prevEditorState, editorState, dirtyLeaves, dirtyElements, normalizedNodes, tags }) => {
       if (tags.has("collaboration") || tags.has("historic")) return;
-      syncLexicalUpdateToYjs(
-        binding,
-        provider,
-        prevEditorState,
-        editorState,
-        dirtyElements,
-        dirtyLeaves,
-        normalizedNodes,
-        tags
+      withBenignYjsSilenced(() =>
+        syncLexicalUpdateToYjs(
+          binding,
+          provider,
+          prevEditorState,
+          editorState,
+          dirtyElements,
+          dirtyLeaves,
+          normalizedNodes,
+          tags
+        )
       );
     }
   );

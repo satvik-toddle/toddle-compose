@@ -2,8 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { docs as ywsDocs, getYDoc } from "y-websocket/bin/utils";
-import { buildOpsUpdate, type ContentOp } from "../content/content-builder";
-import { extractFromBytesSync } from "./lexical-extract.core";
+import { buildOpsUpdate, hasDestructiveOp, type ContentOp } from "../content/content-builder";
+import { LexicalExtractService } from "./lexical-extract.service";
 import { DocRepository } from "./doc-repository.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
@@ -58,6 +58,7 @@ export class DocStateService {
   constructor(
     private readonly repo: DocRepository,
     private readonly compaction: CompactionService,
+    private readonly extract: LexicalExtractService,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -147,16 +148,15 @@ export class DocStateService {
   }
 
   // Apply high-level content ops as a merged Yjs delta. Block destructive ops
-  // (`clear`) while an editor is live — they race to corrupt/empty the doc; appends are CRDT-safe.
+  // (`clear`, even nested inside insert.block/columns) while an editor is live — they race to corrupt/empty the doc; appends are CRDT-safe.
   editDoc(docId: string, ops: ContentOp[]): Promise<number> {
-    const destructive = ops.filter((o) => o.op === "clear");
-    if (destructive.length > 0) {
+    if (hasDestructiveOp(ops)) {
       const shared = ywsDocs.get(docId);
       const liveConns = shared ? shared.conns.size : 0;
       if (liveConns > 0) {
         return Promise.reject(
           new Error(
-            `refusing destructive op '${destructive[0].op}' while ${liveConns} ` +
+            `refusing destructive op 'clear' while ${liveConns} ` +
               `editor(s) have this doc open — AI edits must be additive. Drop the ` +
               `clear (append instead) or retry when the doc is idle.`
           )
@@ -173,8 +173,11 @@ export class DocStateService {
 
   // Read the doc's current content as extracted Lexical JSON (block ids + text for in-place edits).
   readContent(docId: string): Promise<string> {
-    return this.withWarmDoc(docId, (ydoc) => {
-      const { lexicalJson } = extractFromBytesSync(Y.encodeStateAsUpdate(ydoc));
+    return this.withWarmDoc(docId, async (ydoc) => {
+      // Worker-pool extraction: the headless parse is CPU-heavy and would stall every live WebSocket if run on the main thread.
+      const { lexicalJson } = await this.extract.extractFromBytes(
+        Y.encodeStateAsUpdate(ydoc)
+      );
       return lexicalJson ?? "";
     });
   }

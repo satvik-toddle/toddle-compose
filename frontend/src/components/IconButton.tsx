@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactElement } from 'react';
-import { IconButton as DsIconButton } from '@toddle-edu/ds-web';
+import { IconButton as DsIconButton, type IconButtonProps as DsIconButtonProps } from '@toddle-edu/ds-web';
 import { Icon, type IconName, type IconSize } from './Icon';
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
@@ -8,17 +8,20 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   muted?: boolean;
   red?: boolean;
   sm?: boolean;
+  variant?: DsIconButtonProps['variant'];
+  type?: DsIconButtonProps['type'];
 }
 
 // Icon-only ds-web IconButton (plain style), keyed by our IconName map.
-export function IconButton({ icon, iconSize = 14, muted = true, red, sm, ...rest }: IconButtonProps) {
+export function IconButton({ icon, iconSize = 14, muted = true, red, sm, variant, type = 'plain', ...rest }: IconButtonProps) {
   return (
     <DsIconButton
       dsVersion="2.0"
-      variant={red ? 'destructive' : 'neutral'}
-      type="plain"
+      variant={variant ?? (red ? 'destructive' : 'neutral')}
+      type={type}
       size={sm ? 'x-small' : 'small'}
-      icon={(<Icon name={icon} size={iconSize} red={red} muted={muted && !red} />) as ReactElement}
+      // With an explicit variant, skip our inline icon color so the ds variant classes drive it.
+      icon={(<Icon name={icon} size={iconSize} red={red} muted={!variant && muted && !red} />) as ReactElement}
       {...rest}
     />
   );

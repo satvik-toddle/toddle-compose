@@ -345,7 +345,7 @@ function MembersTab({
             onChange={setQuery}
           />
         </div>
-        <IconButton icon="AddOutlined" iconSize={16} muted={false} title="Add member" onClick={onAdd} />
+        <IconButton variant="primary" type={"fill"} icon="AddOutlined" iconSize={16} muted={false} title="Add member" onClick={onAdd} />
       </div>
       <div className={t.table}>
         <div className={cn(t.thead, MEM_GRID)}>

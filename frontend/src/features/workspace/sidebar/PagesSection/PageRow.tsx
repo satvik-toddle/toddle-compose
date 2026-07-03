@@ -104,6 +104,14 @@ export function PageRow({
 
   const cancelRename = () => setIsRenaming(false);
 
+  const titleContent = isRenaming ? (
+    <RenameInput initial={doc.title} onCommit={commitRename} onCancel={cancelRename} />
+  ) : (
+    <span ref={labelRef} className={styles.label}>
+      {doc.title}
+    </span>
+  );
+
   return (
     <>
       {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
@@ -137,13 +145,7 @@ export function PageRow({
           />
 
           <PageIcon variant="subtle" size="xxx-small" />
-          {isRenaming ? (
-            <RenameInput initial={doc.title} onCommit={commitRename} onCancel={cancelRename} />
-          ) : (
-            <span ref={labelRef} className={styles.label}>
-              {doc.title}
-            </span>
-          )}
+          {titleContent}
 
           {!isRenaming && menuItems.length > 0 && (
             <span

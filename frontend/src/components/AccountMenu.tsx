@@ -1,10 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button, Dropdown, Tag } from '@toddle-edu/ds-web';
-import { ChevronDownOutlined, OutlinedIcons } from '@toddle-edu/ds-icons';
+import { Avatar, Dropdown, DropdownMenu, Tag } from '@toddle-edu/ds-web';
+import {
+  ChevronDownOutlined,
+  LogoutOutlined,
+  OutlinedIcons,
+  PaintBrushOutlined,
+} from '@toddle-edu/ds-icons';
 import { performLogout } from '../lib/session';
 import { cn } from '../lib/cn';
 import { dsAvatarColor, dsAvatarSize } from '../lib/dsAvatar';
+import { isThemePreference, useThemeStore } from '../stores/themeStore';
 import type { User } from '../types/api';
 import type { RealmRole } from '../types/roles';
 import { REALM_ROLE_META } from '../lib/roles';
@@ -21,7 +27,33 @@ const styles = {
   menuName: 'text-label',
   menuEmail: 'mt-0.25 text-body-s text-secondary',
   menuRole: 'mt-2',
+  // Strip the standalone DropdownMenu's own panel chrome (border + inline
+  // elevation shadow) so it sits flush inside this overlay.
+  menuOptions: '[&_.dropdown-v2-overlay]:border-0 [&_.dropdown-v2-overlay]:!shadow-none',
 };
+
+const SIGN_OUT_KEY = 'signOut';
+
+const ACCOUNT_MENU_OPTIONS = [
+  {
+    key: 'theme',
+    label: 'Theme',
+    icon: <PaintBrushOutlined size="xx-small" />,
+    isSubMenu: true,
+    options: [
+      { key: 'light', label: 'Light' },
+      { key: 'dark', label: 'Dark' },
+      { key: 'system', label: 'System' },
+    ],
+  },
+  { key: 'divider', isDivider: true },
+  {
+    key: SIGN_OUT_KEY,
+    label: 'Sign out',
+    icon: <LogoutOutlined size="xx-small" />,
+    isDestructive: true,
+  },
+];
 
 const REALM_TAG_COLOR: Record<RealmRole, 'red' | 'violet' | 'neutral'> = {
   OWNER: 'red',
@@ -41,10 +73,20 @@ export function AccountMenu({
 }>) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const themePreference = useThemeStore((state) => state.preference);
+  const setThemePreference = useThemeStore((state) => state.setPreference);
 
   const signOut = async () => {
     await performLogout(queryClient);
     navigate('/login');
+  };
+
+  const handleMenuOptionClick = (optionKey: string) => {
+    if (optionKey === SIGN_OUT_KEY) {
+      void signOut();
+    } else if (isThemePreference(optionKey)) {
+      setThemePreference(optionKey);
+    }
   };
 
   const triggerClass = cn(styles.trigger, compact ? styles.triggerCompact : styles.triggerExpanded);
@@ -71,9 +113,15 @@ export function AccountMenu({
         )}
       </div>
 
-      <Button dsVersion="2.0" isFullWidth onClick={signOut}>
-        Sign out
-      </Button>
+      <div className={styles.menuOptions}>
+        <DropdownMenu
+          dsVersion="2.0"
+          options={ACCOUNT_MENU_OPTIONS}
+          value={themePreference}
+          showSelection
+          onClick={(option) => handleMenuOptionClick(option.key)}
+        />
+      </div>
     </div>
   );
 

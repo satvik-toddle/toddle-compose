@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Toddle Compose</title>
+    <!-- Applies the saved theme before React mounts to avoid a flash of the wrong theme. Storage key must stay in sync with src/stores/themeStore.ts. -->
+    <script>
+      (() => {
+        const preference = localStorage.getItem('toddle-compose-theme');
+        const prefersDark = globalThis.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (preference === 'dark' || (preference !== 'light' && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

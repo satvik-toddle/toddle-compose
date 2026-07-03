@@ -1,12 +1,12 @@
-import { Badge, IconButton, Tooltip } from '@toddle-edu/ds-web';
+import { IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { ArrowLeftPaneOutlined, ArrowRightPaneOutlined } from '@toddle-edu/ds-icons';
-import { isAppleDevice } from '../../../lib/platform';
+import { commandModifierKey } from '../../../lib/platform';
+import { ShortcutHint } from '../../../components/ShortcutHint';
 
-const shortcutKeys = isAppleDevice ? ['⌘', '\\'] : ['Ctrl', '\\'];
+const shortcutKeys = [commandModifierKey, '\\'];
 
 const styles = {
   tooltip: 'flex items-center gap-2',
-  keys: 'flex items-center gap-1',
 };
 
 export function SidebarToggle({
@@ -22,11 +22,7 @@ export function SidebarToggle({
       tooltip={
         <span className={styles.tooltip}>
           {label}
-          <span className={styles.keys}>
-            {shortcutKeys.map((key) => (
-              <Badge key={key} dsVersion="2.0" type="shortcut" value={key} shape="square" />
-            ))}
-          </span>
+          <ShortcutHint keys={shortcutKeys} />
         </span>
       }
     >

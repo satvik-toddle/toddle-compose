@@ -24,10 +24,12 @@ import {
   type SheetColTypes,
   type SheetRows,
 } from './sheetModel';
+import { createSheetCellContextMenu } from './sheetContextMenu';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
   // Grid + the right-edge "add column" bar sit side by side; "add row" spans below.
+
   gridRow: 'flex flex-1 min-h-0 gap-2',
   // min-w-0 lets the grid shrink in the flex row so the add-column bar stays on screen.
   grid: 'min-h-0 min-w-0 flex-1',
@@ -98,10 +100,13 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     rowsRef.current = yRows;
     colTypesRef.current = yColTypes;
 
+    const cellContextMenu = canEdit
+      ? createSheetCellContextMenu(ydoc, yRows, yColTypes)
+      : undefined;
     const refresh = () => {
       const ids = readColumnIds(yColTypes);
       setColumnIds(ids);
-      setRows(readSheetRows(yRows, ids, canEdit));
+      setRows(readSheetRows(yRows, ids, canEdit, cellContextMenu));
     };
     yRows.observeDeep(refresh);
     yColTypes.observe(refresh);

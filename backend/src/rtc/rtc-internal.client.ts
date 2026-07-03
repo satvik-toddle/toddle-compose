@@ -135,4 +135,5 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
+  yjsStateB64: string;
 };

@@ -32,6 +32,25 @@ export function useStarredDocuments(workspaceId: string | undefined, enabled = t
   });
 }
 
+// Version-history timeline (edit sessions, newest first) for an open document.
+export function useDocHistory(docId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: docId ? qk.docHistory(docId) : ['docHistory', '_none'],
+    queryFn: () => documentsApi.history(docId as string),
+    enabled: !!docId && enabled,
+  });
+}
+
+// Read-only snapshot of a document at a given update seq (null seq = skip).
+export function useDocSnapshot(docId: string | undefined, seq: number | null) {
+  return useQuery({
+    queryKey: docId && seq != null ? qk.docSnapshot(docId, seq) : ['docHistory', '_none', 'snap'],
+    queryFn: () => documentsApi.historyAt(docId as string, seq as number),
+    enabled: !!docId && seq != null,
+    staleTime: Infinity, // a past snapshot is immutable
+  });
+}
+
 // Mint an RTC token for real-time collaboration on a document (Yjs/rtc-server).
 export function useRtcToken(docId: string | undefined) {
   return useQuery({

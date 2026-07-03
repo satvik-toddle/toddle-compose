@@ -19,6 +19,8 @@ export const qk = {
     ['documents', workspaceId, folderId ?? null] as const,
   starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
+  docHistory: (docId: string) => ['docHistory', docId] as const,
+  docSnapshot: (docId: string, seq: number) => ['docHistory', docId, seq] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace

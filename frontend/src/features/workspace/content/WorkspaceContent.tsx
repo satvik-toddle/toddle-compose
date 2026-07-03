@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PageLoader } from '../../../components/Loader';
 import { useDocuments } from '../../../hooks/usePages';
 import { useWorkspaceCtx } from '../WorkspaceLayout';
+import { DocHistoryView, useHistoryMode } from '../history';
 import { AllPagesView } from './AllPagesView';
 import { PageView } from './PageView';
 
@@ -14,6 +15,7 @@ export function WorkspaceContent() {
   const ws = ctx.workspaceId;
   const [params] = useSearchParams();
   const selDoc = params.get('doc');
+  const history = useHistoryMode();
 
   const { data: docs = [], isLoading } = useDocuments(ws);
 
@@ -26,6 +28,12 @@ export function WorkspaceContent() {
   }
 
   if (selDoc) {
+    // History mode only applies to DOC pages (see DocActions); otherwise fall
+    // through to the normal editor view.
+    const openDoc = docs.find((d) => d.id === selDoc);
+    if (history.active && openDoc?.type === 'DOC') {
+      return <DocHistoryView doc={openDoc} />;
+    }
     return <PageView ctx={ctx} docs={docs} selDoc={selDoc} />;
   }
 

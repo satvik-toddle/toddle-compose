@@ -1,5 +1,5 @@
 import { http } from '../lib/http';
-import type { DocumentDto, DocumentType } from '../types/api';
+import type { DocumentDto, DocumentType, DocHistoryResponse, DocSnapshot } from '../types/api';
 import type { Visibility } from '../types/roles';
 
 export const documentsApi = {
@@ -40,4 +40,9 @@ export const documentsApi = {
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
   star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
+  // Per-author edit-session timeline for the version-history panel.
+  history: (id: string) => http.get<DocHistoryResponse>(`/documents/${id}/history`),
+  // Read-only snapshot of the document at a given update seq.
+  historyAt: (id: string, seq: number) =>
+    http.get<DocSnapshot>(`/documents/${id}/history/${seq}`),
 };

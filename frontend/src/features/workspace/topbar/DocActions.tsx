@@ -1,6 +1,7 @@
 import { Button, Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
 import {
   AddOutlined,
+  ClockRecentsOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
   PencilOutlined,
@@ -10,6 +11,7 @@ import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
+import { useHistoryMode } from '../history';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import {
   findPageMenuOption,
@@ -28,6 +30,7 @@ export function DocActions({
   user,
 }: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; user: User }>) {
   const openModal = useUiStore((state) => state.openModal);
+  const history = useHistoryMode();
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
@@ -101,8 +104,22 @@ export function DocActions({
       : []),
   ];
 
+  // Version history is only meaningful for DOC pages (SHEET has no lexical
+  // projection to render read-only yet).
+  const showHistory = doc.type === 'DOC';
+
   return (
     <>
+      {showHistory && (
+        <IconButton
+          dsVersion="2.0"
+          variant={history.active ? 'primary' : 'neutral'}
+          type={history.active ? 'fill' : 'plain'}
+          icon={<ClockRecentsOutlined />}
+          aria-label={history.active ? 'Exit version history' : 'Version history'}
+          onClick={() => (history.active ? history.exit() : history.enter())}
+        />
+      )}
       <Button
         dsVersion="2.0"
         variant="neutral"

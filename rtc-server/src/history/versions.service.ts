@@ -27,6 +27,9 @@ export type VersionPreview = {
   rawTexts: Record<string, string>;
   // SHEET docs only: reconstructed grid at this seq; null for DOCs.
   sheet: SheetSnapshot | null;
+  // Full Yjs state at this seq (base64). The frontend binds it to a read-only
+  // editor to render the snapshot through the exact live-collab path.
+  yjsStateB64: string;
   elapsedMs: number;
 };
 
@@ -104,6 +107,7 @@ export class VersionsService {
       plainText,
       rawTexts,
       sheet,
+      yjsStateB64: Buffer.from(yjsState).toString("base64"),
       elapsedMs,
     };
   }

@@ -13,6 +13,7 @@ import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
+import { VersionsSection, useHistoryMode } from '../history';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './constants';
@@ -57,6 +58,7 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   const hasPendingRequests = !!requests?.length;
   const pages = usePagesSection(ctx);
   const { width, isResizing, startResize, handleResizeKeyDown } = useSidebarWidth();
+  const history = useHistoryMode();
 
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
@@ -96,15 +98,19 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           </NavLink>
         </div>
 
-        <div className={styles.sectionHeading}>Pages</div>
+        {!history.active && <div className={styles.sectionHeading}>Pages</div>}
       </div>
 
       <div className={styles.body}>
-        <PagesSection pages={pages} />
+        {history.active && history.docId ? (
+          <VersionsSection docId={history.docId} />
+        ) : (
+          <PagesSection pages={pages} />
+        )}
       </div>
 
       <div className={styles.footerGroup}>
-        {pages.canCreate && (
+        {!history.active && pages.canCreate && (
           <CreatePageDropdown
             placement="topLeft"
             onCreate={(type) => pages.createPage(undefined, type)}

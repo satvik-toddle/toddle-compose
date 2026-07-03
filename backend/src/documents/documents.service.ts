@@ -382,6 +382,7 @@ export class DocumentsService {
           ...base,
           lexicalJson: preview.lexicalJson,
           plainText: preview.plainText,
+          yjsStateB64: preview.yjsStateB64,
         };
     }
   }

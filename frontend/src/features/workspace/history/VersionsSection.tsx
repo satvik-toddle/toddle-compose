@@ -1,0 +1,95 @@
+import { CloseOutlined } from '@toddle-edu/ds-icons';
+import { IconButton } from '@toddle-edu/ds-web';
+import { useDocHistory } from '../../../hooks/usePages';
+import { relativeTime } from '../../../lib/time';
+import { cn } from '../../../lib/cn';
+import { Avatar } from '../../../components/Avatar';
+import { PageLoader } from '../../../components/Loader';
+import { useHistoryMode } from './useHistoryMode';
+import type { DocHistorySession } from '../../../types/api';
+
+const styles = {
+  head: 'flex items-center justify-between px-2.25 pb-2 pt-1',
+  heading: 'text-label-xs uppercase text-secondary',
+  message: 'px-2.25 py-4 text-body-s text-secondary',
+  list: 'flex flex-col gap-0.25',
+  row: 'flex w-full items-start gap-2.5 rounded-2 px-2.25 py-2 text-left focus-visible:[outline:1px_solid_var(--border-focus)]',
+  rowDefault: 'hover:bg-surface-secondary-hover',
+  rowSelected: 'bg-surface-secondary-active',
+  rowBody: 'flex min-w-0 flex-col',
+  name: 'truncate text-body-s font-medium text-primary',
+  meta: 'truncate text-body-xs text-secondary',
+};
+
+// One row per edit session: who edited, when, and how much.
+function VersionRow({
+  session,
+  selected,
+  onSelect,
+}: Readonly<{ session: DocHistorySession; selected: boolean; onSelect: () => void }>) {
+  const name = session.user?.name ?? 'Unknown editor';
+  const when = relativeTime(new Date(session.endedAt).toISOString());
+  const edits = session.origin === 'archive' ? 'archived' : `${session.updateCount} edit${session.updateCount === 1 ? '' : 's'}`;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={selected}
+      className={cn(styles.row, selected ? styles.rowSelected : styles.rowDefault)}
+    >
+      <Avatar person={{ name, color: session.user?.color }} size={24} />
+      <span className={styles.rowBody}>
+        <span className={styles.name}>{name}</span>
+        <span className={styles.meta}>
+          {when} · {edits}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// Left-panel content when a doc is in history mode: the edit-session timeline,
+// newest first. Selecting a row previews that version in the content pane.
+export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
+  const { selectedSeq, select, exit } = useHistoryMode();
+  const { data, isLoading, isError } = useDocHistory(docId);
+
+  const sessions = data?.sessions ?? [];
+  // Default to the newest version when none is explicitly selected.
+  const effectiveSeq = selectedSeq ?? sessions[0]?.lastSeq ?? null;
+
+  return (
+    <div>
+      <div className={styles.head}>
+        <span className={styles.heading}>Version history</span>
+        <IconButton
+          dsVersion="2.0"
+          variant="neutral"
+          type="plain"
+          size="xxx-small"
+          icon={<CloseOutlined />}
+          aria-label="Exit version history"
+          onClick={exit}
+        />
+      </div>
+
+      {isLoading && <PageLoader />}
+      {isError && <div className={styles.message}>Couldn&apos;t load version history.</div>}
+      {!isLoading && !isError && sessions.length === 0 && (
+        <div className={styles.message}>No edits recorded yet.</div>
+      )}
+
+      <div className={styles.list}>
+        {sessions.map((session) => (
+          <VersionRow
+            key={session.lastSeq}
+            session={session}
+            selected={session.lastSeq === effectiveSeq}
+            onSelect={() => select(session.lastSeq)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

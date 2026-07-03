@@ -143,6 +143,41 @@ export interface DocumentDto {
   isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
 }
 
+// One edit "session": updates by a single author grouped by a time gap. `startedAt`
+// / `endedAt` are epoch-ms; `lastSeq` is the update seq to preview the doc's state at.
+export interface DocHistorySession {
+  firstSeq: number;
+  lastSeq: number;
+  startedAt: number;
+  endedAt: number;
+  updateCount: number;
+  totalBytes: number;
+  noop: boolean;
+  origin: string | null;
+  changedCells: Array<{ rowId: string; colId: string }>;
+  user: { id: string; name: string; email: string; color: string } | null;
+}
+
+// GET /documents/:id/history — edit-session timeline, newest first.
+export interface DocHistoryResponse {
+  docId: string;
+  head: number;
+  sessions: DocHistorySession[];
+}
+
+// GET /documents/:id/history/:seq — read-only snapshot of the doc at an update seq.
+// DOC docs carry the serialized Lexical editor state; SHEET omits it.
+export interface DocSnapshot {
+  docId: string;
+  type: DocumentType;
+  seq: number;
+  headSeq: number;
+  lexicalJson?: string | null;
+  plainText?: string;
+  // DOC docs: full Yjs state at this seq (base64) for read-only rendering.
+  yjsStateB64?: string;
+}
+
 export interface FolderDto {
   id: string;
   name: string;

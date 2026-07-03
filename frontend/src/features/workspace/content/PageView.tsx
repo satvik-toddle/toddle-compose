@@ -13,6 +13,9 @@ const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.Do
 const SheetEditor = lazy(() =>
   import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
 );
+const WhiteboardEditor = lazy(() =>
+  import('../whiteboard/WhiteboardEditor').then((m) => ({ default: m.WhiteboardEditor })),
+);
 
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
@@ -51,11 +54,21 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   const { id: openDocId, title: pageTitle } = openDoc;
   const canEdit = wsAtLeast(ctx.role, 'EDIT');
-  const isSheet = openDoc.type === 'SHEET';
+  // Sheets and whiteboards fill the width; only docs center a readable column.
+  const isFullWidth = openDoc.type !== 'DOC';
+
+  let editor;
+  if (openDoc.type === 'SHEET') {
+    editor = <SheetEditor key={openDocId} docId={openDocId} />;
+  } else if (openDoc.type === 'WHITEBOARD') {
+    editor = <WhiteboardEditor key={openDocId} docId={openDocId} />;
+  } else {
+    editor = <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />;
+  }
 
   return (
     <main className={styles.contentShell}>
-      <div className={isSheet ? styles.sheetTitle : styles.docTitle}>
+      <div className={isFullWidth ? styles.sheetTitle : styles.docTitle}>
         <PageTitle
           workspaceId={ctx.workspaceId}
           docId={openDocId}
@@ -63,13 +76,7 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
           canEdit={canEdit}
         />
       </div>
-      <Suspense fallback={<PageLoader />}>
-        {isSheet ? (
-          <SheetEditor key={openDocId} docId={openDocId} />
-        ) : (
-          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
-        )}
-      </Suspense>
+      <Suspense fallback={<PageLoader />}>{editor}</Suspense>
     </main>
   );
 }

@@ -9,7 +9,7 @@ import {
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
 type VisibilityInput = (typeof VISIBILITIES)[number];
 
-const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
+const DOCUMENT_TYPES = ["DOC", "SHEET", "WHITEBOARD"] as const;
 type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
 
 export class CreateDocumentDto {
@@ -24,7 +24,7 @@ export class CreateDocumentDto {
   @MaxLength(16)
   icon?: string;
 
-  // DOC (rich-text, default) or SHEET (data grid); both share the RTC/Yjs stack.
+  // DOC (rich-text, default), SHEET (data grid), or WHITEBOARD (canvas); all share the RTC/Yjs stack.
   @IsOptional()
   @IsIn(DOCUMENT_TYPES)
   type?: DocumentTypeInput;

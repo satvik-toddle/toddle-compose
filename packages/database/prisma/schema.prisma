@@ -16,12 +16,13 @@ enum Visibility {
 }
 
 // Document kind. DOC is the collaborative rich-text editor (default); SHEET is
-// the collaborative data grid. Both share the same RTC/Yjs persistence, keyed
-// by Document.id — only the client-side surface differs. Both kinds nest the
-// same way (parentId DocumentTree below).
+// the collaborative data grid; WHITEBOARD is the collaborative canvas. All share
+// the same RTC/Yjs persistence, keyed by Document.id — only the client-side
+// surface differs. All kinds nest the same way (parentId DocumentTree below).
 enum DocumentType {
   DOC
   SHEET
+  WHITEBOARD
 }
 
 // Realm hierarchy (cumulative): OWNER > MAINTAINER > MEMBER.

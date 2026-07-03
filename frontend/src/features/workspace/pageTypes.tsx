@@ -1,4 +1,4 @@
-import { PageFoldPortraitOutlined, SheetsOutlined } from '@toddle-edu/ds-icons';
+import { PageFoldPortraitOutlined, ShapesOutlined, SheetsOutlined } from '@toddle-edu/ds-icons';
 import type { DocumentType } from '../../types/api';
 
 // The page kinds a user can create — the single source for every "new page"
@@ -16,6 +16,12 @@ export const PAGE_TYPES = [
     label: 'Sheet',
     description: 'Organize data in rows and columns',
     Icon: SheetsOutlined,
+  },
+  {
+    type: 'WHITEBOARD',
+    label: 'Whiteboard',
+    description: 'Sketch and diagram on a canvas',
+    Icon: ShapesOutlined,
   },
 ] satisfies ReadonlyArray<{
   type: DocumentType;

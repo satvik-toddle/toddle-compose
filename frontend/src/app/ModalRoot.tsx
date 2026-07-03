@@ -3,9 +3,9 @@ import { CreateWorkspaceModal } from '../features/modals/CreateWorkspaceModal';
 import { RenameWorkspaceModal } from '../features/modals/RenameWorkspaceModal';
 import { AddRealmMemberModal } from '../features/modals/AddRealmMemberModal';
 import { AddWorkspaceMemberModal } from '../features/modals/AddWorkspaceMemberModal';
+import { WorkspaceSettingsModal } from '../features/modals/WorkspaceSettingsModal';
 import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWorkspaceModal';
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
-import { RenamePageModal } from '../features/modals/RenamePageModal';
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
 import { ShareDocumentModal } from '../features/modals/ShareDocumentModal';
 
@@ -37,6 +37,15 @@ export function ModalRoot() {
           workspaceName={modal.workspaceName}
         />
       );
+    case 'workspaceSettings':
+      return (
+        <WorkspaceSettingsModal
+          onClose={close}
+          workspaceId={modal.workspaceId}
+          workspaceName={modal.workspaceName}
+          isAdmin={modal.isAdmin}
+        />
+      );
     case 'confirmDeleteWorkspace':
       return (
         <ConfirmDeleteWorkspaceModal onClose={close} workspaceId={modal.workspaceId} name={modal.name} />
@@ -52,16 +61,6 @@ export function ModalRoot() {
           name={modal.name}
           email={modal.email}
           role={modal.role}
-        />
-      );
-    case 'renamePage':
-      return (
-        <RenamePageModal
-          onClose={close}
-          kind={modal.kind}
-          workspaceId={modal.workspaceId}
-          id={modal.id}
-          name={modal.name}
         />
       );
     case 'confirmDeletePage':

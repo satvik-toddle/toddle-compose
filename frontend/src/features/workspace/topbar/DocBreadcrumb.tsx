@@ -5,8 +5,7 @@ import { DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import type { BreadcrumbSegment } from './ancestorTrail';
 
 const styles = {
-  // -ml-1 cancels the topbar's gap-1 so the lead matches the inter-segment spacing.
-  crumb: 'relative -ml-1 flex items-center min-w-0 overflow-hidden whitespace-nowrap text-body',
+  crumb: 'relative flex items-center min-w-0 overflow-hidden whitespace-nowrap text-body',
   measure: 'invisible pointer-events-none absolute left-0 flex items-center',
   separator: 'shrink-0 mx-2 leading-none text-secondary',
   link: 'shrink-0 text-secondary hover:text-primary hover:underline',
@@ -58,10 +57,9 @@ export function DocBreadcrumb({
       </Link>
     );
 
-  // Lead divider is a pipe, nested separators are slashes — same style for both.
-  const renderSeparator = (index: number) => (
-    <span className={styles.separator}>{index === 0 ? '|' : '/'}</span>
-  );
+  // No lead divider now that nothing precedes the breadcrumb; nested segments use slashes.
+  const renderSeparator = (index: number) =>
+    index === 0 ? null : <span className={styles.separator}>/</span>;
 
   const visibleSegments = isCollapsed
     ? [

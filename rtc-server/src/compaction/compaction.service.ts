@@ -96,10 +96,9 @@ export class CompactionService {
       const maxCreatedAt = g.rows[g.rows.length - 1].created_at;
       try {
         const merged = this.mergeBlobs(g.rows.map((r) => r.blob));
-        await this.repo.replaceSeqRangeWithMerged({
+        await this.repo.replaceSeqsWithMerged({
           docId,
-          minSeq,
-          maxSeq,
+          seqs: g.rows.map((r) => r.seq),
           mergedSeq: maxSeq,
           mergedBlob: merged,
           origin: "session-compacted",
@@ -138,10 +137,9 @@ export class CompactionService {
     const maxCreatedAt = candidates[candidates.length - 1].created_at;
     try {
       const merged = this.mergeBlobs(candidates.map((c) => c.blob));
-      await this.repo.replaceSeqRangeWithMerged({
+      await this.repo.replaceSeqsWithMerged({
         docId,
-        minSeq,
-        maxSeq,
+        seqs: candidates.map((c) => c.seq),
         mergedSeq: maxSeq,
         mergedBlob: merged,
         origin: "archive",

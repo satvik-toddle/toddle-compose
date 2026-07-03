@@ -38,6 +38,7 @@ export class LexicalExtractService implements OnApplicationShutdown {
   private nextId = 1;
   private started = false;
   private poolBroken = false;
+  private shuttingDown = false;
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
@@ -90,6 +91,8 @@ export class LexicalExtractService implements OnApplicationShutdown {
   }
 
   onApplicationShutdown(): void {
+    // terminate() fires 'exit' with code 1; the flag keeps onDeath from respawning the pool.
+    this.shuttingDown = true;
     for (const w of this.workers) void w.terminate();
     this.workers = [];
     this.idle = [];
@@ -135,6 +138,8 @@ export class LexicalExtractService implements OnApplicationShutdown {
       this.workers = this.workers.filter((w) => w !== worker);
       // Settle the orphaned task inline so its caller still completes.
       if (task) task.settleInline();
+      // terminate() fires 'exit' during shutdown; the flag stops us respawning the pool.
+      if (this.shuttingDown) return;
       try {
         this.spawnWorker();
       } catch (e) {

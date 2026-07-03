@@ -265,10 +265,10 @@ export class DocRepository {
     );
   }
 
-  async replaceSeqRangeWithMerged(args: {
+  // Deletes exactly the merged rows, not a seq range: non-candidate rows (already-compacted/too-young) can sit between candidate seqs, and a range delete silently dropped them.
+  async replaceSeqsWithMerged(args: {
     docId: string;
-    minSeq: number;
-    maxSeq: number;
+    seqs: number[];
     mergedSeq: number;
     mergedBlob: Buffer;
     origin: string;
@@ -279,7 +279,7 @@ export class DocRepository {
       const del = await tx.rtcDocumentUpdate.deleteMany({
         where: {
           docId: args.docId,
-          seq: { gte: args.minSeq, lte: args.maxSeq },
+          seq: { in: args.seqs },
         },
       });
       await tx.rtcDocumentUpdate.create({

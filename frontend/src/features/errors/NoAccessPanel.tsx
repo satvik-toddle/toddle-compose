@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import { AppBar } from '../../components/AppBar';
 import { EmptyState } from '../../components/EmptyState';
 import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
 import { useAuthStore } from '../../stores/authStore';
 import { useRealm } from '../../hooks/queries';
 
@@ -23,8 +22,6 @@ export function NoAccessPanel({
       <div className="page" style={{ display: 'flex', alignItems: 'center' }}>
         <div className="page-wrap">
           <EmptyState
-            glyph={<Icon name="LockOutlined" size={24} red style={{ width: 40, height: 40 }} />}
-            glyphStyle={{ background: 'var(--surface-semantic-error)' }}
             title={title}
             actions={
               <Button variant="primary" icon="ChevronLeftOutlined" onClick={() => navigate('/launcher')}>

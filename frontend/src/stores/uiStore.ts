@@ -16,6 +16,7 @@ export type ModalState =
   | { type: 'renameWorkspace'; workspaceId: string; name: string; icon: IconName }
   | { type: 'addRealmMember' }
   | { type: 'addWorkspaceMember'; workspaceId: string; workspaceName: string }
+  | { type: 'workspaceSettings'; workspaceId: string; workspaceName: string; isAdmin: boolean }
   | { type: 'confirmDeleteWorkspace'; workspaceId: string; name: string; memberCount?: number }
   | {
       type: 'confirmRemoveMember';
@@ -27,7 +28,6 @@ export type ModalState =
       email: string;
       role?: WorkspaceRole;
     }
-  | { type: 'renamePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
   | {
       type: 'shareDocument';

@@ -38,7 +38,10 @@ export function useRtcToken(docId: string | undefined) {
     queryKey: docId ? ['rtcToken', docId] : ['rtcToken', '_none'],
     queryFn: () => documentsApi.rtcToken(docId as string),
     enabled: !!docId,
-    staleTime: 4 * 60_000, // token TTL ~5min; remount mints fresh
+    staleTime: 4 * 60_000, // token TTL ~5min
+    // Re-mint before expiry (focus refetch is globally off): the post-exp reconnect reads the fresh token via DocEditor's paramsRef.
+    refetchInterval: 4 * 60_000,
+    refetchIntervalInBackground: true,
     gcTime: 0,
   });
 }
@@ -97,16 +100,6 @@ export function useRenameDocument() {
     mutationFn: (v: { workspaceId: string; id: string; title: string }) =>
       documentsApi.rename(v.id, v.title),
     onSuccess: (_d, v) => docs(v.workspaceId),
-    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
-  });
-}
-
-export function useRenameFolder() {
-  const { folders } = useInvalidatePages();
-  return useMutation({
-    mutationFn: (v: { workspaceId: string; id: string; name: string }) =>
-      foldersApi.rename(v.id, { name: v.name }),
-    onSuccess: (_d, v) => folders(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }

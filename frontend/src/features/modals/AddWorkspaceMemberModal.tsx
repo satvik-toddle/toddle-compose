@@ -4,7 +4,6 @@ import { Field } from '../../components/Field';
 import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import { WSChip } from '../../components/WSChip';
 import { RoleRadios } from '../../components/RoleRadios';
 import { useAddWorkspaceMember } from '../../hooks/useWorkspaceMemberMutations';
 import { isNotFound, messageOf } from '../../lib/errors';
@@ -49,7 +48,6 @@ export function AddWorkspaceMemberModal({
   return (
     <Modal onClose={onClose}>
       <ModalHead
-        icon="AddOutlined"
         title={`Add to ${workspaceName}`}
         sub="Give someone access to this workspace by email."
         onClose={onClose}
@@ -100,7 +98,6 @@ export function AddWorkspaceMemberModal({
             onChange={setRole}
             options={WS_ROLES.map((r) => ({
               value: r,
-              chip: <WSChip role={r} />,
               desc: WS_ROLE_META[r].desc,
             }))}
           />

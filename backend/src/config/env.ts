@@ -73,7 +73,8 @@ export const envSchema = z.object({
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
 
   // Internal HTTP channel to rtc-server (shared-secret authed); production REQUIRES a long random secret.
-  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
+  // rtc-server serves its internal API on the same port as WS (RTC_PORT, default 4001).
+  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4001"),
   INTERNAL_TOKEN: isProduction
     ? z.string().min(32, "INTERNAL_TOKEN must be at least 32 characters in production")
     : z.string().min(1).default("dev-internal-secret-change-me"),

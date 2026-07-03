@@ -3,7 +3,6 @@ import {
   AddOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
-  PencilOutlined,
   ShareOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
@@ -19,7 +18,6 @@ import {
 import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
-const RENAME_KEY = 'rename';
 const DELETE_KEY = 'delete';
 
 export function DocActions({
@@ -62,8 +60,6 @@ export function DocActions({
       canManage,
       isAdmin,
     });
-  const openRenameModal = () =>
-    openModal({ type: 'renamePage', workspaceId, id: doc.id, name: doc.title });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
@@ -81,15 +77,10 @@ export function DocActions({
           },
         ]
       : []),
+    // Divider only when a create group sits above it, else it leads the menu.
+    ...(canCreate && canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
     ...(canManage
       ? [
-          {
-            key: RENAME_KEY,
-            label: 'Rename',
-            icon: <PencilOutlined size="xxx-small" variant="subtle" />,
-            onSelect: openRenameModal,
-          },
-          { key: `${DELETE_KEY}__divider`, isDivider: true },
           {
             key: DELETE_KEY,
             label: 'Delete',

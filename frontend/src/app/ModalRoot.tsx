@@ -5,7 +5,6 @@ import { AddRealmMemberModal } from '../features/modals/AddRealmMemberModal';
 import { AddWorkspaceMemberModal } from '../features/modals/AddWorkspaceMemberModal';
 import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWorkspaceModal';
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
-import { RenamePageModal } from '../features/modals/RenamePageModal';
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
 import { ShareDocumentModal } from '../features/modals/ShareDocumentModal';
 
@@ -52,15 +51,6 @@ export function ModalRoot() {
           name={modal.name}
           email={modal.email}
           role={modal.role}
-        />
-      );
-    case 'renamePage':
-      return (
-        <RenamePageModal
-          onClose={close}
-          workspaceId={modal.workspaceId}
-          id={modal.id}
-          name={modal.name}
         />
       );
     case 'confirmDeletePage':

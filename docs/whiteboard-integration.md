@@ -2,12 +2,21 @@
 
 ## Status
 
-`feat/whiteboard-excalidraw` implements v1 with `@excalidraw/excalidraw` 0.18.1 + `y-excalidraw`
-2.0.12. Verified end-to-end against the live dev stack (2 editors + 1 viewer, real browser):
-create from menu, draw, live two-way sync, remote cursors, persistence across reload, read-only
-viewer, DOC/SHEET regression. Not yet exercised: undo/redo semantics under concurrency, export,
-copy/paste, offline merge, dark theme, large boards. Fonts load from Excalidraw's CDN fallback —
-self-host via `EXCALIDRAW_ASSET_PATH` before production.
+Both branches implement v1 and pass the same 14-step E2E verification against the live dev stack
+(2 editors + 1 viewer, real browser): create from menu, draw, live two-way sync, remote cursors,
+persistence across reload, read-only viewer, DOC/SHEET regression.
+
+- `feat/whiteboard-excalidraw` — `@excalidraw/excalidraw` 0.18.1 + `y-excalidraw` 2.0.12.
+  Fonts load from Excalidraw's CDN fallback — self-host via `EXCALIDRAW_ASSET_PATH` before
+  production. y-excalidraw's peer range says ^0.17 (audited: its API usage is 0.18-safe).
+- `feat/whiteboard-tldraw` — `tldraw` 5.2.2 + a hand-rolled ~180-line Yjs binding
+  (`useYjsTldrawStore.ts`; no maintained community binding exists — tldraw pushes its own sync
+  service). Runs unlicensed with a "Get a license for production" watermark; a business license
+  (~$6k/yr) is required to ship.
+
+Not yet exercised on either: undo/redo under concurrency, export, copy/paste, offline merge,
+dark theme, large boards. Undo/redo parity gap: Excalidraw branch shares a `Y.UndoManager`
+(undo only your own ops); tldraw branch uses tldraw's built-in local history.
 
 ## Goal
 
@@ -103,15 +112,16 @@ Workspace fit:
 1. **Doc size limits.** Very large boards → large Yjs docs. `rtc-server` persistence coalesces
    updates, but we should sanity-check snapshot size with a few hundred elements.
 
-## Comparison criteria (fill in after both branches)
+## Comparison (E2E-verified where noted; rest pending)
 
 | Criterion | Excalidraw | tldraw |
 | --- | --- | --- |
-| Checklist coverage / gaps | | |
-| Integration effort (Yjs binding quality) | | |
-| Bundle size added (lazy chunk) | | |
-| Perf with large boards (500+ elements) | | |
-| Collab correctness (concurrent edits, reconnect, undo) | | |
-| Look & feel / UX polish | | |
-| Extensibility (custom shapes for future toddle content) | | |
-| License / cost | MIT, free | License key required; watermark or ~$6k/yr |
+| Checklist coverage / gaps | v1 verified 14/14 | v1 verified 14/14 |
+| Integration effort (Yjs binding) | `y-excalidraw` off the shelf; small community lib, stale peer range — vendor if it breaks | hand-rolled binding (~180 lines), we own sync + presence code; no lib risk, more surface to maintain |
+| Bundle size added (lazy chunk) | TBD (measure on build) | TBD (measure on build) |
+| Perf with large boards (500+ elements) | TBD | TBD |
+| Collab correctness (verified) | live 2-way sync, presence cursors, persistence, viewer write-block | same |
+| Undo/redo | shared Y.UndoManager (own-ops only) | tldraw local history (not Yjs-scoped) |
+| Look & feel / UX polish | hand-drawn aesthetic, minimal chrome | noticeably richer default UI: style panel, page menu, snapping; rich text in shapes |
+| Extensibility (custom shapes for toddle content) | effectively fork-only | first-class custom shape/tool API |
+| License / cost | MIT, free | watermark without key; ~$6k/yr business license for production |

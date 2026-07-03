@@ -24,16 +24,18 @@ export function ModalHead({
   onClose,
 }: {
   tone?: ModalTone;
-  icon: IconName;
+  icon?: IconName;
   title: ReactNode;
   sub?: ReactNode;
   onClose: () => void;
 }) {
   return (
     <div className="m-head">
-      <span className="m-ic" style={{ background: TONE_BG[tone] }}>
-        <Icon name={icon} size={18} style={{ color: TONE_ICON[tone] }} />
-      </span>
+      {icon && (
+        <span className="m-ic" style={{ background: TONE_BG[tone] }}>
+          <Icon name={icon} size={18} style={{ color: TONE_ICON[tone] }} />
+        </span>
+      )}
       <div style={{ flex: 1 }}>
         <h3>{title}</h3>
         {sub && <p>{sub}</p>}

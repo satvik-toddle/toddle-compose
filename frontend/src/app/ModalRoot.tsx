@@ -3,6 +3,7 @@ import { CreateWorkspaceModal } from '../features/modals/CreateWorkspaceModal';
 import { RenameWorkspaceModal } from '../features/modals/RenameWorkspaceModal';
 import { AddRealmMemberModal } from '../features/modals/AddRealmMemberModal';
 import { AddWorkspaceMemberModal } from '../features/modals/AddWorkspaceMemberModal';
+import { WorkspaceSettingsModal } from '../features/modals/WorkspaceSettingsModal';
 import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWorkspaceModal';
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
 import { RenamePageModal } from '../features/modals/RenamePageModal';
@@ -35,6 +36,15 @@ export function ModalRoot() {
           onClose={close}
           workspaceId={modal.workspaceId}
           workspaceName={modal.workspaceName}
+        />
+      );
+    case 'workspaceSettings':
+      return (
+        <WorkspaceSettingsModal
+          onClose={close}
+          workspaceId={modal.workspaceId}
+          workspaceName={modal.workspaceName}
+          isAdmin={modal.isAdmin}
         />
       );
     case 'confirmDeleteWorkspace':

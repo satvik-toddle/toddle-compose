@@ -138,17 +138,22 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     };
   }, [docId, canEdit]);
 
-  // Scroll + select the appended row/column cell once the change lands over Yjs
-  // (re-runs on columnIds so a just-added column is in the grid's index map first).
+  // Focus the appended row/column cell once it lands over Yjs. Deferred a tick:
+  // the grid's ref API resolves colIds against internal state synced one render
+  // behind `headers`.
   useEffect(() => {
     const pending = pendingFocusRef.current;
-    const grid = gridRef.current;
-    if (!pending || !grid) return;
+    if (!pending || !gridRef.current) return;
     if (!rows.some((row) => row.rowId === pending.rowId)) return;
-    pendingFocusRef.current = null;
 
-    grid.scrollTo({ colId: pending.colId, rowId: pending.rowId });
-    grid.selection.cells({ cell: [pending.colId, pending.rowId] });
+    const timer = window.setTimeout(() => {
+      const grid = gridRef.current;
+      if (!grid || pendingFocusRef.current !== pending) return;
+      pendingFocusRef.current = null;
+      grid.scrollTo({ colId: pending.colId, rowId: pending.rowId });
+      grid.selection.cells({ cell: [pending.colId, pending.rowId] });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [rows, columnIds]);
 
   return (

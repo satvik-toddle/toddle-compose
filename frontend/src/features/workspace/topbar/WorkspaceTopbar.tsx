@@ -31,12 +31,12 @@ export function WorkspaceTopbar({
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  if (!currentUser) return null;
-
   // The currently open page, if any (driven by the ?doc= query param).
   const openDocId = params.get('doc');
   const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
   const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
+
+  if (!currentUser) return null;
 
   return (
     <div className={styles.bar}>

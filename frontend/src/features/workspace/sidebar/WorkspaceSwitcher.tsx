@@ -76,6 +76,8 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
           variant="neutral"
           type="plain"
           isFullWidth
+          aria-label={`Switch workspace, current: ${ctx.name}`}
+          aria-haspopup="menu"
           style={{ maxWidth: '100%' }}
           icon={
             <CurrentWorkspaceIcon

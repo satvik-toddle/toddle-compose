@@ -40,6 +40,30 @@ const EXPIRY_OPTIONS = [
 
 const TOKEN_GRID = 'grid-cols-[2fr_130px_120px_100px_64px]';
 
+const styles = {
+  root: 'flex flex-col gap-3.5',
+  toolbar: 'flex flex-col items-center justify-between gap-2',
+  toolbarActions: 'flex w-full justify-end',
+  intro: 'text-body-s text-secondary',
+  reveal:
+    'flex flex-col gap-2.5 rounded-3 border border-[var(--border-semantic-success,var(--line))] bg-[var(--surface-semantic-success-subtle,var(--surface-secondary-enabled))] px-4 py-3.5',
+  revealHead:
+    'flex items-center gap-2 text-body-s font-semibold text-[var(--text-semantic-success,var(--text-primary))]',
+  revealRow: 'flex items-center gap-2.5',
+  tokenCode:
+    'flex-1 overflow-x-auto whitespace-nowrap rounded-2 border border-[var(--line)] bg-surface-primary-enabled px-3 py-2 font-mono text-[13px] text-primary',
+  form: 'flex flex-col gap-4 rounded-3 border border-[var(--line)] bg-surface-secondary-enabled px-4 py-4',
+  formGrid: 'flex flex-wrap gap-4',
+  fieldWide: 'flex min-w-[200px] flex-1 flex-col gap-1.5',
+  field: 'flex min-w-[150px] flex-col gap-1.5',
+  fieldLabel: 'text-label-xs font-semibold text-secondary',
+  formActions: 'flex justify-end gap-2',
+  empty:
+    'rounded-3 border border-dashed border-[var(--line)] px-4 py-10 text-center text-body-s text-secondary',
+  rowInactive: 'opacity-60',
+  cellDash: 'text-secondary',
+};
+
 // A revoked or past-expiry token stays listed (audit trail) but reads as inactive.
 function statusOf(token: AccessToken): { label: string; tone: 'green' | 'neutral' } {
   if (token.revokedAt) return { label: 'Revoked', tone: 'neutral' };
@@ -110,34 +134,28 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
   if (isLoading) return <PageLoader />;
 
   return (
-    <div className="flex flex-col gap-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-body-s text-secondary">
-          Tokens let scripts and integrations act in this workspace with the permission you choose —
-          treat them like passwords.
+    <div className={styles.root}>
+      <div className={styles.toolbar}>
+        <div className={styles.intro}>
+          Tokens let scripts and integrations act in this workspace with the permission you choose.
         </div>
-        {!showForm && !freshToken && (
-          <Button
-            variant="primary"
-            size="sm"
-            icon="AddOutlined"
-            onClick={() => setShowForm(true)}
-          >
-            New token
-          </Button>
-        )}
+        <div className={styles.toolbarActions}>
+          {!showForm && !freshToken && (
+            <Button variant="primary" size="sm" icon="AddOutlined" onClick={() => setShowForm(true)}>
+              New token
+            </Button>
+          )}
+        </div>
       </div>
 
       {freshToken && (
-        <div className="flex flex-col gap-2.5 rounded-3 border border-[var(--border-semantic-success,var(--line))] bg-[var(--surface-semantic-success-subtle,var(--surface-secondary-enabled))] px-4 py-3.5">
-          <div className="flex items-center gap-2 text-body-s font-semibold text-[var(--text-semantic-success,var(--text-primary))]">
+        <div className={styles.reveal}>
+          <div className={styles.revealHead}>
             <Icon name="TickCircleOutlined" size={16} />
             Copy your token now — you won't be able to see it again.
           </div>
-          <div className="flex items-center gap-2.5">
-            <code className="flex-1 overflow-x-auto whitespace-nowrap rounded-2 border border-[var(--line)] bg-surface-primary-enabled px-3 py-2 font-mono text-[13px] text-primary">
-              {freshToken}
-            </code>
+          <div className={styles.revealRow}>
+            <code className={styles.tokenCode}>{freshToken}</code>
             <Button variant="" size="sm" icon="CopyOutlined" onClick={copyToken}>
               Copy
             </Button>
@@ -147,10 +165,10 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
       )}
 
       {showForm && (
-        <div className="flex flex-col gap-4 rounded-3 border border-[var(--line)] bg-surface-secondary-enabled px-4 py-4">
-          <div className="flex flex-wrap gap-4">
-            <label className="flex min-w-[200px] flex-1 flex-col gap-1.5">
-              <span className="text-label-xs font-semibold text-secondary">Name</span>
+        <div className={styles.form}>
+          <div className={styles.formGrid}>
+            <label className={styles.fieldWide}>
+              <span className={styles.fieldLabel}>Name</span>
               <TextInput
                 dsVersion="2.0"
                 leadingIcon={<KeyDiagonalOutlined />}
@@ -162,8 +180,8 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
                 }}
               />
             </label>
-            <label className="flex min-w-[150px] flex-col gap-1.5">
-              <span className="text-label-xs font-semibold text-secondary">Permission</span>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Permission</span>
               <RoleSelect<AccessTokenPermission>
                 value={permission}
                 options={PERMISSION_OPTIONS}
@@ -175,8 +193,8 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
                 )}
               />
             </label>
-            <label className="flex min-w-[150px] flex-col gap-1.5">
-              <span className="text-label-xs font-semibold text-secondary">Expires in</span>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Expires in</span>
               <RoleSelect<string>
                 value={expiresInDays}
                 options={EXPIRY_OPTIONS}
@@ -185,7 +203,7 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
               />
             </label>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className={styles.formActions}>
             <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
               Cancel
             </Button>
@@ -203,7 +221,7 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
       )}
 
       {tokens.length === 0 ? (
-        <div className="rounded-3 border border-dashed border-[var(--line)] px-4 py-10 text-center text-body-s text-secondary">
+        <div className={styles.empty}>
           No access tokens yet. Create one to let scripts and integrations act in this workspace.
         </div>
       ) : (
@@ -219,7 +237,7 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
             const status = statusOf(token);
             const inactive = status.label !== 'Active';
             return (
-              <div key={token.id} className={cn(t.trow, TOKEN_GRID, inactive && 'opacity-60')}>
+              <div key={token.id} className={cn(t.trow, TOKEN_GRID, inactive && styles.rowInactive)}>
                 <div className={t.td}>
                   <div className={t.nm}>{token.name}</div>
                   <div className={t.rowSub}>
@@ -239,7 +257,7 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
                 </div>
                 <div className={cn(t.td, t.cellRight)}>
                   {inactive ? (
-                    <span className="text-secondary">—</span>
+                    <span className={styles.cellDash}>—</span>
                   ) : (
                     <IconButton
                       icon="DeleteOutlined"

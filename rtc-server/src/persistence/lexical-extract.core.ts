@@ -18,8 +18,10 @@ export type ExtractResult = { lexicalJson: string | null; plainText: string };
 // Synchronous, CPU-heavy headless-Lexical extraction; main-thread callers use LexicalExtractService's worker pool instead.
 export function extractFromBytesSync(stateUpdate: Uint8Array): ExtractResult {
   const t0 = Date.now();
+  // Destroyed in finally so the stub Awareness's cleanup interval is cleared; otherwise every
+  // extraction leaks a timer plus the retained doc + editor + binding graph.
+  const tmpDoc = new Y.Doc();
   try {
-    const tmpDoc = new Y.Doc();
     const editor = createHeadlessEditor({
       namespace: NAMESPACE,
       nodes: serverNodes,
@@ -66,5 +68,7 @@ export function extractFromBytesSync(stateUpdate: Uint8Array): ExtractResult {
       `headless extraction FAILED in ${Date.now() - t0}ms: ${e instanceof Error ? e.message : e}`
     );
     return { lexicalJson: null, plainText: "" };
+  } finally {
+    tmpDoc.destroy();
   }
 }

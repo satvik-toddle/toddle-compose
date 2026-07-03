@@ -30,15 +30,25 @@ export class AuthzService {
     private readonly realm: ActiveRealmService
   ) {}
 
-  async realmRole(userId: string): Promise<RealmRole | null> {
+  // Live realm role from the DB, IGNORING any access-token cap. Private: only the
+  // workspace-overlay computation may use it, and only because it applies its own
+  // token confinement afterwards. Every other caller must use realmRole().
+  private async rawRealmRole(userId: string): Promise<RealmRole | null> {
     const member = await this.prisma.realmMember.findUnique({
       where: { realmId_userId: { realmId: this.realm.id, userId } },
     });
     return member?.role ?? null;
   }
 
+  // Realm role capped to what the current access token (if any) permits, so realm-wide
+  // reads (workspace list, join-request inbox, realm config) can't exceed a WORKSPACE- or
+  // permission-limited token's scope. This is the safe default for all external callers.
+  async realmRole(userId: string): Promise<RealmRole | null> {
+    return this.capRealmRole(await this.rawRealmRole(userId));
+  }
+
   async requireRealmRole(userId: string, min: RealmRole): Promise<RealmRole> {
-    const role = this.capRealmRole(await this.realmRole(userId));
+    const role = await this.realmRole(userId);
     if (role === null || REALM_ORDER[role] < REALM_ORDER[min]) {
       throw new ForbiddenException(`requires realm role ${min} or higher`);
     }
@@ -64,7 +74,8 @@ export class AuthzService {
     // round trip instead of three (the dominant fixed cost on every authed request).
     const [, realmRole, member] = await Promise.all([
       this.getWorkspaceInRealm(workspaceId), // 404s if the workspace isn't in this realm
-      this.realmRole(userId),
+      this.rawRealmRole(userId), // overlay: token confinement applied below, not the realm cap
+
       this.prisma.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId, userId } },
       }),

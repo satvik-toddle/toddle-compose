@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { docs as ywsDocs, getYDoc } from "y-websocket/bin/utils";
-import { buildOpsUpdate, hasDestructiveOp, type ContentOp } from "../content/content-builder";
+import { hasDestructiveOp, ContentOpError, type ContentOp } from "../content/content-builder";
 import { LexicalExtractService } from "./lexical-extract.service";
 import { DocRepository } from "./doc-repository.service";
 import { CompactionService } from "../compaction/compaction.service";
@@ -49,6 +49,8 @@ export class DocStateService {
     { ydoc: Y.Doc; state: DebounceState }
   >();
   private readonly chains = new Map<string, Promise<unknown>>();
+  // Per-doc mutex serializing HTTP content ops (see serializeOp); distinct from `chains`.
+  private readonly opLocks = new Map<string, Promise<unknown>>();
   // In-flight cold-load (bindState) promises, so a connecting client can await the
   // persisted state before its first sync — otherwise the reload races bindState and
   // the client sees an empty doc and re-seeds it.
@@ -105,6 +107,24 @@ export class DocStateService {
     if (chain) await chain;
   }
 
+  // Serialize HTTP content ops per doc (separate from the append `chains`, which drain() awaits —
+  // reusing that here would self-deadlock). Without this, two overlapping withWarmDoc calls on a
+  // cold doc can race teardown: one destroys/evicts the shared doc while the other's buffered
+  // append is still pending, silently dropping an acknowledged edit.
+  private serializeOp<T>(docId: string, task: () => Promise<T>): Promise<T> {
+    const prev = this.opLocks.get(docId) ?? Promise.resolve();
+    const run = prev.then(task, task);
+    const guard = run.then(
+      () => undefined,
+      () => undefined
+    );
+    this.opLocks.set(docId, guard);
+    void guard.finally(() => {
+      if (this.opLocks.get(docId) === guard) this.opLocks.delete(docId);
+    });
+    return run;
+  }
+
   // y-websocket persistence hook; tracks the load promise so callers can await cold-load.
   bindState(docName: string, ydoc: Y.Doc): Promise<void> {
     const p = this.loadState(docName, ydoc);
@@ -114,29 +134,32 @@ export class DocStateService {
 
   // Run `fn` against a doc's shared Y.Doc via getYDoc (race-safe with a client
   // connecting mid-op); if we warmed the doc just for this, flush and evict after.
-  private async withWarmDoc<T>(
+  // Serialized per doc so warm/teardown of one op can't race another's in-flight edit.
+  private withWarmDoc<T>(
     docId: string,
     fn: (ydoc: Y.Doc) => T | Promise<T>
   ): Promise<T> {
-    const wasLive = ywsDocs.has(docId);
-    const ydoc = getYDoc(docId, true);
-    await this.whenLoaded(docId);
-    try {
-      return await fn(ydoc);
-    } finally {
-      if (!wasLive) {
-        const shared = ywsDocs.get(docId);
-        // Only tear down if no client connected while we held it.
-        if (shared && shared.conns.size === 0) {
-          await this.drain(docId);
-          await this.writeState(docId);
-          if (ywsDocs.get(docId) === shared && shared.conns.size === 0) {
-            ywsDocs.delete(docId);
-            shared.destroy();
+    return this.serializeOp(docId, async () => {
+      const wasLive = ywsDocs.has(docId);
+      const ydoc = getYDoc(docId, true);
+      await this.whenLoaded(docId);
+      try {
+        return await fn(ydoc);
+      } finally {
+        if (!wasLive) {
+          const shared = ywsDocs.get(docId);
+          // Only tear down if no client connected while we held it.
+          if (shared && shared.conns.size === 0) {
+            await this.drain(docId);
+            await this.writeState(docId);
+            if (ywsDocs.get(docId) === shared && shared.conns.size === 0) {
+              ywsDocs.delete(docId);
+              shared.destroy();
+            }
           }
         }
       }
-    }
+    });
   }
 
   /** Apply a raw Yjs update (base64-decoded) to a doc. */
@@ -155,7 +178,7 @@ export class DocStateService {
       const liveConns = shared ? shared.conns.size : 0;
       if (liveConns > 0) {
         return Promise.reject(
-          new Error(
+          new ContentOpError(
             `refusing destructive op 'clear' while ${liveConns} ` +
               `editor(s) have this doc open — AI edits must be additive. Drop the ` +
               `clear (append instead) or retry when the doc is idle.`
@@ -163,9 +186,12 @@ export class DocStateService {
         );
       }
     }
-    return this.withWarmDoc(docId, (ydoc) => {
+    return this.withWarmDoc(docId, async (ydoc) => {
       const base = Y.encodeStateAsUpdate(ydoc);
-      const delta = buildOpsUpdate(base, ops);
+      // Off the main thread: buildOpsUpdate hydrates the whole doc through a headless editor and
+      // would otherwise stall every live WebSocket. withWarmDoc serializes ops per doc, so the
+      // await gap can't race another edit/teardown; only the cheap encode + applyUpdate stay here.
+      const delta = await this.extract.buildOps(base, ops);
       Y.applyUpdate(ydoc, delta, "content-builder");
       return delta.byteLength;
     });

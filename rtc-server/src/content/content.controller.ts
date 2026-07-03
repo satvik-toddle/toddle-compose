@@ -11,7 +11,7 @@ import {
 } from "@nestjs/common";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
-import type { ContentOp } from "./content-builder";
+import { ContentOpError, type ContentOp } from "./content-builder";
 
 // RTC-token-authed writes keep the backend off the per-update hot path; auth matches the WS handshake (JWKS-verified RS256, scoped to docId + role).
 @Controller("docs")
@@ -80,9 +80,13 @@ export class ContentController {
       const applied = await this.docState.editDoc(docId, body.ops);
       return { ok: true, docId, applied };
     } catch (e) {
-      throw new BadRequestException(
-        `edit failed: ${e instanceof Error ? e.message : String(e)}`
-      );
+      // Only invalid-ops (bad target/field/op) are the caller's fault → 400. Infrastructure
+      // failures (DB, worker, Yjs load) must surface as 5xx so the caller retries instead of
+      // rewriting correct ops, and so monitoring sees them as server faults.
+      if (e instanceof ContentOpError) {
+        throw new BadRequestException(`edit failed: ${e.message}`);
+      }
+      throw e;
     }
   }
 

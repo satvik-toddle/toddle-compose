@@ -54,6 +54,15 @@ import { createLogger } from "../logger";
 
 const log = createLogger("content-builder");
 
+// Invalid-ops error (bad target, missing field, unknown op): the caller's request is wrong, so the
+// controller maps it to 400. Infrastructure failures stay plain Errors and surface as 5xx.
+export class ContentOpError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ContentOpError";
+  }
+}
+
 // Usable content width of a page (px) — editable surface minus padding; auto-width tables spread evenly across this.
 const DEFAULT_TABLE_WIDTH = 582;
 
@@ -454,7 +463,7 @@ function nodeKlass(type: string): {
       return false;
     }
   });
-  if (!k) throw new Error(`node '${type}' not in server bundle`);
+  if (!k) throw new ContentOpError(`node '${type}' not in server bundle`);
   return k as unknown as { importJSON: (json: Record<string, unknown>) => LexicalNode };
 }
 function layoutKlass(type: "layout-container" | "layout-item"): {
@@ -484,7 +493,7 @@ function gridSpans(weights: number[]): { template: string; ranges: string[] } {
 
 function tableAt(index: number): TableNode {
   const b = blockAt(index);
-  if (!b || !$isTableNode(b)) throw new Error(`no table at block index ${index}`);
+  if (!b || !$isTableNode(b)) throw new ContentOpError(`no table at block index ${index}`);
   return b;
 }
 function tableRows(table: TableNode): TableRowNode[] {
@@ -572,11 +581,11 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     case "resizeColumns": {
       const block = blockAt(op.columns);
       if (!block || block.getType() !== "layout-container") {
-        throw new Error(`resizeColumns: no column layout at block index ${op.columns}`);
+        throw new ContentOpError(`resizeColumns: no column layout at block index ${op.columns}`);
       }
       const items = block.getChildren().filter($isElementNode);
       if (op.weights.length !== items.length) {
-        throw new Error(`resizeColumns: ${op.weights.length} weight(s) for ${items.length} column(s)`);
+        throw new ContentOpError(`resizeColumns: ${op.weights.length} weight(s) for ${items.length} column(s)`);
       }
       const { template, ranges } = gridSpans(op.weights);
       (block as unknown as { setTemplateColumns(t: string): void }).setTemplateColumns(template);
@@ -669,13 +678,17 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     case "tableAddColumn": {
       const table = tableAt(op.table);
       const rows = tableRows(table);
-      if (rows.length === 0) throw new Error(`tableAddColumn: table at ${op.table} has no rows`);
+      if (rows.length === 0) throw new ContentOpError(`tableAddColumn: table at ${op.table} has no rows`);
       rows.forEach((row, r) => {
         const cells = rowCells(row);
-        // New cell adopts the row's header state so a header row stays uniform.
-        const state = cells[0]?.getHeaderStyles() ?? TableCellHeaderStates.NO_STATUS;
-        const cell = makeCell(op.cells?.[r] ?? "", state, op.width);
         const ref = op.at !== undefined ? cells[op.at] : undefined;
+        // A new column is a data column: start NO_STATUS and inherit only the ROW bit from the
+        // same-row neighbour (Lexical's own rule), so it belongs to a header ROW but never
+        // becomes a header COLUMN — copying the row's full state leaked COLUMN/BOTH into it.
+        const neighbour = ref ?? cells[cells.length - 1];
+        const state =
+          (neighbour?.getHeaderStyles() ?? 0) & TableCellHeaderStates.ROW;
+        const cell = makeCell(op.cells?.[r] ?? "", state, op.width);
         if (ref) ref.insertBefore(cell);
         else row.append(cell);
       });
@@ -691,7 +704,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     case "tableDeleteRow": {
       const table = tableAt(op.table);
       const row = tableRows(table)[op.row];
-      if (!row) throw new Error(`tableDeleteRow: no row ${op.row} in table at ${op.table}`);
+      if (!row) throw new ContentOpError(`tableDeleteRow: no row ${op.row} in table at ${op.table}`);
       row.remove();
       break;
     }
@@ -699,7 +712,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       const table = tableAt(op.table);
       const rows = tableRows(table);
       if (!rows.some((r) => rowCells(r)[op.col])) {
-        throw new Error(`tableDeleteColumn: no column ${op.col} in table at ${op.table}`);
+        throw new ContentOpError(`tableDeleteColumn: no column ${op.col} in table at ${op.table}`);
       }
       for (const row of rows) rowCells(row)[op.col]?.remove();
       const widths = table.getColWidths();
@@ -714,7 +727,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       const table = tableAt(op.table);
       const row = tableRows(table)[op.row];
       const cell = row ? rowCells(row)[op.col] : undefined;
-      if (!cell) throw new Error(`tableSetCell: no cell ${op.row},${op.col} in table at ${op.table}`);
+      if (!cell) throw new ContentOpError(`tableSetCell: no cell ${op.row},${op.col} in table at ${op.table}`);
       if (op.text !== undefined || op.runs) {
         cell.clear();
         const p = $createParagraphNode();
@@ -732,7 +745,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       const table = tableAt(op.table);
       const rows = tableRows(table);
       const numCols = rows.reduce((m, r) => Math.max(m, rowCells(r).length), 0);
-      if (numCols === 0) throw new Error(`tableSetWidths: table at ${op.table} has no cells`);
+      if (numCols === 0) throw new ContentOpError(`tableSetWidths: table at ${op.table} has no cells`);
       const widths = resolveColumnWidths(
         numCols,
         op.tableWidth ?? DEFAULT_TABLE_WIDTH,
@@ -744,14 +757,14 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     }
     case "align": {
       const block = blockAt(op.block);
-      if (!block) throw new Error(`align: no block at index ${op.block}`);
+      if (!block) throw new ContentOpError(`align: no block at index ${op.block}`);
       block.setFormat(op.align);
       break;
     }
     case "format": {
       const picked = selectPoints(op.anchor, op.focus);
       // Throw (→ 400), don't silently skip: the endpoint would otherwise report ok for an op that did nothing.
-      if (!picked) throw new Error(`format: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
+      if (!picked) throw new ContentOpError(`format: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
       const fmts = op.operations ?? op.format ?? [];
       for (const f of fmts) if (!picked.sel.hasFormat(f)) picked.sel.formatText(f);
       const adds = styleAdditions(op);
@@ -779,7 +792,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
     }
     case "delete": {
       const picked = selectPoints(op.anchor, op.focus);
-      if (!picked) throw new Error(`delete: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
+      if (!picked) throw new ContentOpError(`delete: no text at ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset} (missing or empty block)`);
       picked.sel.insertText(""); // delete = type "" over the selection (editor's own delete)
       log.debug(`delete ${op.anchor.parentId}:${op.anchor.offset}→${op.focus.parentId}:${op.focus.offset}`);
       break;
@@ -788,9 +801,12 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       // (a) inline caret insertion at an anchor point
       if (op.anchor !== undefined) {
         const block = blockAt(op.anchor.parentId);
-        if (!block) throw new Error(`insert: no block at index ${op.anchor.parentId}`);
-        if (!op.text) throw new Error(`insert: anchor requires text`);
-        let at = op.anchor.offset;
+        if (!block) throw new ContentOpError(`insert: no block at index ${op.anchor.parentId}`);
+        if (!op.text) throw new ContentOpError(`insert: anchor requires text`);
+        // Clamp to the block's text length so the styling range below matches where the caret
+        // actually landed: pointInBlock clamps a past-end offset to the end, so an unclamped
+        // `at` would select an empty out-of-range span and silently drop format/color.
+        let at = Math.min(op.anchor.offset, block.getTextContent().length);
         const sel = selectRange(block, at, at); // collapsed caret
         if (sel) {
           sel.insertText(op.text);
@@ -841,7 +857,7 @@ function applyOp(op: ContentOp, parent: ElementNode): void {
       break;
     }
     default:
-      throw new Error(`unknown op '${(op as { op: string }).op}'`);
+      throw new ContentOpError(`unknown op '${(op as { op: string }).op}'`);
   }
 }
 
@@ -851,6 +867,20 @@ export function buildOpsUpdate(
   ops: ContentOp[]
 ): Uint8Array {
   const doc = new Y.Doc();
+  // finally-destroy the temp doc on every path (incl. an op that throws): destroy() clears the
+  // stub Awareness's cleanup interval, otherwise each call leaks a timer + the retained graph.
+  try {
+    return buildOpsUpdateInner(doc, baseState, ops);
+  } finally {
+    doc.destroy();
+  }
+}
+
+function buildOpsUpdateInner(
+  doc: Y.Doc,
+  baseState: Uint8Array | null,
+  ops: ContentOp[]
+): Uint8Array {
   const editor = createHeadlessEditor({
     namespace: NAMESPACE,
     nodes: serverNodes,

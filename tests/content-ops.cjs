@@ -362,10 +362,15 @@ t("format: cross-block range formats both halves", () => {
   assert(bolded.join("|") === "beta|gamma", "bold halves: " + bolded.join("|"));
 });
 
-t("insert: offset past block end clamps to the end", () => {
+t("insert: offset past block end clamps to the end (text AND formatting)", () => {
   const b = base();
-  const root = rootOf(b, buildOpsUpdate(b, [{ op: "insert", anchor: { parentId: 0, offset: 999 }, text: "!" }]));
+  const root = rootOf(b, buildOpsUpdate(b, [
+    { op: "insert", anchor: { parentId: 0, offset: 999 }, text: "!", format: ["bold"], color: "red" },
+  ]));
   assert(textOf(root.children[0]) === "hello world!", textOf(root.children[0]));
+  // regression: the clamp must also move the styling range, or bold/color silently drop
+  const added = findAll(root.children[0], "text").find((x) => x.text === "!");
+  assert(added && (added.format & 1) === 1 && added.style.includes("color: red;"), "formatting applied to clamped insert: " + JSON.stringify(added));
 });
 
 t("styles: fontSize accepts CSS strings", () => {
@@ -393,7 +398,7 @@ t("tableAddRow: append and insert-at", () => {
   assert(rows[1].children.every((c) => !c.headerState), "inserted row is not a header");
 });
 
-t("tableAddColumn: header state adopted, widths updated", () => {
+t("tableAddColumn: inherits ROW header bit only, never COLUMN; widths updated", () => {
   const b = tableBase();
   const root = rootOf(b, buildOpsUpdate(b, [
     { op: "tableAddColumn", table: 0, cells: ["h3", "x"], width: 80 },
@@ -401,9 +406,17 @@ t("tableAddColumn: header state adopted, widths updated", () => {
   const table = root.children[0];
   const row0 = table.children[0].children;
   assert(row0.length === 3 && textOf(row0[2]) === "h3", "new cell appended");
-  assert(row0[2].headerState === 1, "adopts header row state");
+  assert(row0[2].headerState === 1, "row-0 new cell inherits ROW header");
   assert(table.children[1].children[2].headerState === 0, "body row cell plain");
   assert(table.colWidths[2] === 80, "width appended: " + JSON.stringify(table.colWidths));
+});
+
+t("tableAddColumn: appending to a non-header table adds a plain data column", () => {
+  const b = buildOpsUpdate(null, [{ op: "table", rows: [["a", "b"], ["c", "d"]], tableWidth: 400 }]);
+  const root = rootOf(b, buildOpsUpdate(b, [{ op: "tableAddColumn", table: 0, cells: ["x", "y"] }]));
+  const table = root.children[0];
+  // regression: must not copy the row's first-cell state (would leak header styling into data cells)
+  assert(table.children.every((r) => r.children[2].headerState === 0), "new column cells are all plain");
 });
 
 t("tableSetCell: replaces content, sets background, leaves neighbors", () => {

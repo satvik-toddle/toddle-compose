@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Badge, SearchInput, Tooltip } from '@toddle-edu/ds-web';
+import { Alert, Badge, Button as DsButton, SearchInput, Tooltip } from '@toddle-edu/ds-web';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -35,17 +35,12 @@ const MEM_GRID = 'grid-cols-[2fr_220px_120px]';
 
 const styles = {
   wsHead: 'flex items-center gap-2.75 px-[18px] pb-4 pt-[18px]',
-  wsName: 'truncate text-body-s font-bold leading-tight',
-  wsSub: 'mt-0.5 text-label-xs text-secondary',
+  wsName: 'truncate text-body font-bold leading-tight',
+  wsSub: 'mt-0.5 text-body-s text-secondary',
   sectionLabel: 'px-5 pb-1.5 pt-1 text-label-xs uppercase text-secondary',
   dangerLabel: 'px-2.5 pb-1.5 pt-1 text-label-xs uppercase text-secondary',
   navList: 'flex flex-col gap-0.5 px-2.5',
-  navItem: 'flex h-9 items-center gap-2.5 rounded-2 px-2.5 text-body-s',
-  navItemActive: 'bg-surface-primary-enabled border border-secondary font-semibold',
-  navItemIdle: 'border border-transparent hover:bg-surface-tertiary-enabled',
-  navLabel: 'flex-1 text-left',
   dangerZone: 'mt-auto px-2.5 pb-3 pt-3',
-  dangerNav: 'flex h-9 w-full items-center gap-2.5 rounded-2 px-2.5 text-body-s text-semantic-error',
   bar: 'flex items-center gap-3 border-b border-secondary px-5.5 py-4',
   barTitle: 'text-[16px] font-bold leading-tight',
   barDesc: 'mt-1 text-body-s text-secondary',
@@ -137,14 +132,18 @@ export function WorkspaceSettingsModal({
       {isAdmin && (
         <div className={styles.dangerZone}>
           <div className={styles.dangerLabel}>Danger zone</div>
-          <button
-            type="button"
+          <DsButton
+            variant="destructive"
+            type="plain"
+            size="medium"
+            isFullWidth
+            isActivated={tab === 'danger'}
             onClick={() => setTab('danger')}
-            className={cn(styles.dangerNav, tab === 'danger' ? styles.navItemActive : styles.navItemIdle)}
+            icon={<Icon name="DeleteOutlined" size={16} red />}
+            rightIcon={<span aria-hidden />}
           >
-            <Icon name="DeleteOutlined" size={16} red />
-            <span className={styles.navLabel}>Delete workspace</span>
-          </button>
+            Delete workspace
+          </DsButton>
         </div>
       )}
     </>
@@ -237,24 +236,31 @@ function NavItem({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <DsButton
+      variant="neutral"
+      type="plain"
+      size="medium"
+      isFullWidth
+      isActivated={active}
       onClick={onClick}
-      className={cn(styles.navItem, active ? styles.navItemActive : styles.navItemIdle)}
+      icon={<Icon name={icon} size={16} muted={!active} />}
+      rightIcon={
+        count != null ? (
+          <Badge
+            dsVersion="2.0"
+            type="numeric"
+            variant={alert ? 'notifications' : 'subtle'}
+            size="xxx-small"
+            value={count}
+            showZero
+          />
+        ) : (
+          <span aria-hidden />
+        )
+      }
     >
-      <Icon name={icon} size={16} muted={!active} />
-      <span className={styles.navLabel}>{label}</span>
-      {count != null && (
-        <Badge
-          dsVersion="2.0"
-          type="numeric"
-          variant={alert ? 'notifications' : 'subtle'}
-          size="xxx-small"
-          value={count}
-          showZero
-        />
-      )}
-    </button>
+      {label}
+    </DsButton>
   );
 }
 

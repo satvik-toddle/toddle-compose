@@ -19,6 +19,7 @@ export function EmptyState({
       <DsEmptyState
         illustration=""
         title={typeof title === 'string' ? title : String(title ?? '')}
+        titleStyle={{ fontSize: '18px', lineHeight: '24px', fontWeight: 700 }}
         subtitle={typeof children === 'string' ? children : undefined}
         primaryButton={(actions as ReactElement) ?? undefined}
       />

@@ -16,8 +16,7 @@ import s from './DocEditor.module.scss';
 // the full width and height of the page pane (no centered 800px column).
 const EDITOR_CONFIG = { toolbar: { enabled: false } };
 const EDITOR_STYLES = {
-  // The page-level wrapper (title + editor) owns scrolling, so the editor's
-  // internal scroll container is flattened into normal flow.
+  // internal scrolling flattened — the page-level wrapper (title + editor) scrolls
   scrollableContainer: {
     height: 'auto',
     maxHeight: 'none',

@@ -5,8 +5,7 @@
    constraining the text to a centered, readable column — Coda-style. */
 
 .tc-editor {
-  /* grow to at least fill the page scroll wrapper; never shrink below content
-     (scrolling is owned by the wrapper, together with the page title) */
+  /* fill the page scroll wrapper, never shrink below content */
   flex: 1 0 auto;
   min-width: 0;
   display: flex;

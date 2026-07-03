@@ -17,8 +17,7 @@ const SheetEditor = lazy(() =>
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
-  // Doc: title + editor share one scroll container so the title scrolls away
-  // with the content (the editor's internal scrolling is disabled).
+  // Doc: title + editor share this scroll container so the title scrolls with the content.
   docScroll: 'flex-1 min-h-0 overflow-y-auto flex flex-col',
   // Doc: title centered over the editor's readable column (760px + 88px text inset).
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
@@ -56,15 +55,15 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const canEdit = wsAtLeast(ctx.role, 'EDIT');
   const isSheet = openDoc.type === 'SHEET';
 
-  const pageTitle_ = (
+  const titleNode = (
     <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
   );
 
-  // Sheet: fixed title over the grid (the grid virtualizes + scrolls itself).
+  // Sheet: fixed title over the grid (the grid scrolls itself).
   if (isSheet) {
     return (
       <main className={styles.contentShell}>
-        <div className={styles.sheetTitle}>{pageTitle_}</div>
+        <div className={styles.sheetTitle}>{titleNode}</div>
         <Suspense fallback={<PageLoader />}>
           <SheetEditor key={openDocId} docId={openDocId} />
         </Suspense>
@@ -75,7 +74,7 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   return (
     <main className={styles.contentShell}>
       <div className={styles.docScroll}>
-        <div className={styles.docTitle}>{pageTitle_}</div>
+        <div className={styles.docTitle}>{titleNode}</div>
         <Suspense fallback={<PageLoader />}>
           <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
         </Suspense>

@@ -151,6 +151,9 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
       if (!grid || pendingFocusRef.current !== pending) return;
       pendingFocusRef.current = null;
       grid.scrollTo({ colId: pending.colId, rowId: pending.rowId });
+      // Twice: cells() focuses the canvas after selecting, and focusing a
+      // never-focused grid auto-selects the top-left cell over ours.
+      grid.selection.cells({ cell: [pending.colId, pending.rowId] });
       grid.selection.cells({ cell: [pending.colId, pending.rowId] });
     }, 0);
     return () => window.clearTimeout(timer);

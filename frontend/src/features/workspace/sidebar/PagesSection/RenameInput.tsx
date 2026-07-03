@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
+import { TextInput } from '@toddle-edu/ds-web';
 
 // Inline title editor: commits on Enter/blur, cancels on Escape.
 export function RenameInput({
@@ -50,11 +51,17 @@ export function RenameInput({
   };
 
   return (
-    <input
+    <TextInput
       ref={inputRef}
+      dsVersion="2.0"
       value={value}
+      variant="plain"
+      size="medium"
       aria-label="Page name"
-      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-inherit outline-none [font:inherit]"
+      className="min-w-0 flex-1"
+      // Drop the DS wrapper's fixed h-[28px] + padding so the input matches the
+      // row's text line-height and the row doesn't grow on edit. (style lands on the wrapper.)
+      style={{ height: 'auto', padding: 0 }}
       onChange={handleChange}
       onBlur={handleBlur}
       onClick={handleClick}

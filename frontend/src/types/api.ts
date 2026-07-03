@@ -159,3 +159,38 @@ export interface FolderDto {
 export interface OkResponse {
   ok: true;
 }
+
+// A token is scoped to a single workspace or to the whole realm.
+export type AccessTokenScope = 'REALM' | 'WORKSPACE';
+// Permission the token carries; MAINTAINER is REALM-only.
+export type AccessTokenPermission = 'VIEW' | 'COMMENT' | 'EDIT' | 'ADMIN' | 'MAINTAINER';
+
+// GET /access-tokens — the safe view (never includes the raw token or its hash).
+export interface AccessToken {
+  id: string;
+  name: string;
+  prefix: string; // human-readable leading segment, shown so a token is recognisable
+  scope: AccessTokenScope;
+  permission: AccessTokenPermission;
+  workspaceId: string | null;
+  createdById: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+// POST /access-tokens body.
+export interface CreateAccessTokenBody {
+  name: string;
+  scope: AccessTokenScope;
+  workspaceId?: string;
+  permission: AccessTokenPermission;
+  expiresInDays?: number;
+}
+
+// POST /access-tokens response — `token` is the raw secret, shown exactly once.
+export interface CreateAccessTokenResult {
+  token: string;
+  accessToken: AccessToken;
+}

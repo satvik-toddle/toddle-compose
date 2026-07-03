@@ -4,6 +4,7 @@ import { authApi } from '../api/auth';
 import { realmApi } from '../api/realm';
 import { workspacesApi } from '../api/workspaces';
 import { joinApi } from '../api/joinRequests';
+import { accessTokensApi } from '../api/accessTokens';
 import { useAuthStore } from '../stores/authStore';
 
 const useAuthed = () => useAuthStore((s) => s.status === 'authed');
@@ -74,6 +75,12 @@ export function useRealmJoinRequests(enabled = true) {
     queryFn: () => joinApi.realmRequests('PENDING'),
     enabled,
   });
+}
+
+// The caller's own access tokens (all scopes). Gated so it only fires where the
+// tokens UI is actually shown (workspace admins).
+export function useAccessTokens(enabled = true) {
+  return useQuery({ queryKey: qk.accessTokens, queryFn: accessTokensApi.list, enabled });
 }
 
 export function useWorkspaceJoinRequests(id: string | undefined, enabled = true) {

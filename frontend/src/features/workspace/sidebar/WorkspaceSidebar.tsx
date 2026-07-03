@@ -6,6 +6,7 @@ import {
   BellRingOutlined,
   MultipleUsersOutlined,
   SettingsOutlined,
+  KeyDiagonalOutlined,
   ChevronLeftOutlined,
   AddOutlined,
   DotsSixVerticalOutlined,
@@ -157,6 +158,17 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
                 showZero
               />
             </span>
+          </NavLink>
+        )}
+        {isAdmin && (
+          <NavLink
+            to={`/w/${workspaceId}/access-tokens`}
+            className={({ isActive }) =>
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
+            }
+          >
+            <KeyDiagonalOutlined size="xxx-small" />
+            Access tokens
           </NavLink>
         )}
         <div className={cn(sidebarRow.base, sidebarRow.default)}>

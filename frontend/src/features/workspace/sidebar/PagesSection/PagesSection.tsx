@@ -9,9 +9,19 @@ const styles = {
   loader: 'flex flex-1 items-center justify-center',
 };
 
+// Icon + message row shared by the empty and no-results states.
+function StatusMessage({ message }: Readonly<{ message: string }>) {
+  return (
+    <div className={styles.statusMessage}>
+      <InformationOutlined variant="subtle" size="xxx-small" />
+      {message}
+    </div>
+  );
+}
+
 // Scrollable page hierarchy; the "Pages" heading + "New page" live in WorkspaceSidebar.
 export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController }>) {
-  const { isLoading, isEmpty, roots } = pages;
+  const { isLoading, isEmpty, isSearching, searchResults, roots } = pages;
 
   const renderPages = () => {
     if (isLoading) {
@@ -22,14 +32,15 @@ export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController
       );
     }
 
-    if (isEmpty) {
-      return (
-        <div className={styles.statusMessage}>
-          <InformationOutlined variant="subtle" size="xxx-small" />
-          No pages yet
-        </div>
-      );
+    // Active query: flat list of title matches in place of the tree.
+    if (isSearching) {
+      if (searchResults.length === 0) return <StatusMessage message="No pages found" />;
+      return searchResults.map((doc) => (
+        <PageRow key={doc.id} node={{ doc, children: [] }} depth={0} pages={pages} />
+      ));
     }
+
+    if (isEmpty) return <StatusMessage message="No pages yet" />;
 
     return roots.map((node) => <PageRow key={node.doc.id} node={node} depth={0} pages={pages} />);
   };

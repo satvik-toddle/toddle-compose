@@ -5,6 +5,7 @@ import { foldersApi } from '../api/folders';
 import { messageOf } from '../lib/errors';
 import { pushToast } from '../stores/uiStore';
 import type { Visibility } from '../types/roles';
+import type { DocumentType } from '../types/api';
 
 // ---- queries ----
 export function useFolders(workspaceId: string | undefined, enabled = true) {
@@ -23,13 +24,24 @@ export function useDocuments(workspaceId: string | undefined, enabled = true) {
   });
 }
 
+export function useStarredDocuments(workspaceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: workspaceId ? qk.starredDocuments(workspaceId) : ['documents', '_none', 'starred'],
+    queryFn: () => documentsApi.listStarred(workspaceId as string),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
 // Mint an RTC token for real-time collaboration on a document (Yjs/rtc-server).
 export function useRtcToken(docId: string | undefined) {
   return useQuery({
     queryKey: docId ? ['rtcToken', docId] : ['rtcToken', '_none'],
     queryFn: () => documentsApi.rtcToken(docId as string),
     enabled: !!docId,
-    staleTime: 4 * 60_000, // token TTL ~5min; remount mints fresh
+    staleTime: 4 * 60_000, // token TTL ~5min
+    // Re-mint before expiry (focus refetch is globally off): the post-exp reconnect reads the fresh token via DocEditor's paramsRef.
+    refetchInterval: 4 * 60_000,
+    refetchIntervalInBackground: true,
     gcTime: 0,
   });
 }
@@ -52,7 +64,21 @@ export function useCreateDocument() {
       parentId?: string | null;
       folderId?: string | null;
       title?: string;
+      type?: DocumentType;
     }) => documentsApi.create(v),
+    onSuccess: (_d, v) => docs(v.workspaceId),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+// Star when currently unstarred, unstar otherwise; docs invalidation refreshes the starred list.
+export function useToggleStar() {
+  const { docs } = useInvalidatePages();
+  return useMutation({
+    mutationFn: async (v: { workspaceId: string; id: string; isStarred: boolean }) => {
+      if (v.isStarred) await documentsApi.unstar(v.id);
+      else await documentsApi.star(v.id);
+    },
     onSuccess: (_d, v) => docs(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });

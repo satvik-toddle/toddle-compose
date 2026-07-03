@@ -85,3 +85,10 @@ export class ListDocumentsDto {
   @IsString()
   workspaceId?: string;
 }
+
+export class ListStarredDocumentsDto {
+  // Defaults to the caller's active workspace from the session.
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+}

@@ -45,6 +45,10 @@ export class DocStateService {
     { ydoc: Y.Doc; state: DebounceState }
   >();
   private readonly chains = new Map<string, Promise<unknown>>();
+  // In-flight cold-load (bindState) promises, so a connecting client can await the
+  // persisted state before its first sync — otherwise the reload races bindState and
+  // the client sees an empty doc and re-seeds it.
+  private readonly loads = new Map<string, Promise<void>>();
   private readonly wsToClaims = new WeakMap<object, RtcClaims>();
 
   constructor(
@@ -59,6 +63,21 @@ export class DocStateService {
 
   registerClaims(ws: object, claims: RtcClaims): void {
     this.wsToClaims.set(ws, claims);
+  }
+
+  // Record a doc's in-flight cold-load so a connection can await it; self-clears on settle.
+  trackLoad(docName: string, load: Promise<void>): void {
+    // Swallow load errors so a connection never fails just because bindState did.
+    const tracked = load.catch(() => undefined);
+    this.loads.set(docName, tracked);
+    void tracked.finally(() => {
+      if (this.loads.get(docName) === tracked) this.loads.delete(docName);
+    });
+  }
+
+  // Resolves once the doc's persisted state is loaded (or immediately if already warm).
+  whenLoaded(docName: string): Promise<void> {
+    return this.loads.get(docName) ?? Promise.resolve();
   }
 
   private enqueue<T>(docId: string, task: () => Promise<T>): Promise<T> {
@@ -311,6 +330,11 @@ export class DocStateService {
         await this.drain(docName);
         // Capture seq BEFORE encoding: snapshotAtSeq may lag state but must never exceed it, or compaction drops unsnapshotted updates.
         const flushedSeq = state.lastAppendedSeq;
+        // Snapshot already current (e.g. writeState's checkpoint just wrote it) — skip the duplicate encode+write.
+        if (flushedSeq === state.snapshotAtSeq) {
+          log.debug(`'${docName}' flush skipped reason=${reason} — snapshot already at_seq=${flushedSeq}`);
+          return;
+        }
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
         const version = await this.repo.persistRtcDoc(

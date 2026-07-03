@@ -3,7 +3,7 @@ import { qk } from '../lib/queryKeys';
 import { realmApi } from '../api/realm';
 import { messageOf } from '../lib/errors';
 import { pushToast } from '../stores/uiStore';
-import type { RealmMember } from '../types/api';
+import type { RealmInfo, RealmMember } from '../types/api';
 import type { RealmRole } from '../types/roles';
 
 type AssignableRealmRole = Exclude<RealmRole, 'OWNER'>;
@@ -34,6 +34,20 @@ export function useSetRealmRole() {
       pushToast({ kind: 'error', message: messageOf(e) });
     },
     onSettled: () => qc.invalidateQueries({ queryKey: qk.realmMembers }),
+  });
+}
+
+export function useUpdateRealmSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { allowedEmailDomains: string[] }) => realmApi.updateSettings(b),
+    onSuccess: (realm) => {
+      // Merge rather than replace: if the PATCH response ever omits a field (e.g. the
+      // caller's `role`), keep the previously-cached value so admin UI doesn't collapse.
+      qc.setQueryData<RealmInfo>(qk.realm, (prev) => (prev ? { ...prev, ...realm } : realm));
+      pushToast({ kind: 'success', message: 'Realm settings saved.' });
+    },
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }
 

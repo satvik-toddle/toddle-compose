@@ -7,7 +7,7 @@ import { ConfigService } from "@nestjs/config";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { IncomingMessage, Server as HttpServer } from "http";
 import * as decoding from "lib0/decoding";
-import { setupWSConnection, setPersistence } from "y-websocket/bin/utils";
+import { getYDoc, setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
 import { createLogger, decodeYFrame, nextConnId } from "../logger";
@@ -81,8 +81,11 @@ export class YjsServerService
   onApplicationBootstrap(): void {
     setPersistence({
       provider: null,
-      bindState: async (docName: string, ydoc: unknown) => {
-        await this.docState.bindState(docName, ydoc as never);
+      bindState: (docName: string, ydoc: unknown) => {
+        // Track the cold-load so a connecting client can await it (see verifyClient).
+        const loaded = this.docState.bindState(docName, ydoc as never);
+        this.docState.trackLoad(docName, loaded);
+        return loaded;
       },
       writeState: async (docName: string) => {
         await this.docState.writeState(docName);
@@ -133,6 +136,12 @@ export class YjsServerService
             return;
           }
           (req as IncomingMessage & { rtcClaims: RtcClaims }).rtcClaims = claims;
+          // Load persisted state before the handshake completes, so the client's first
+          // sync sees the saved doc. Otherwise a cold reload (doc evicted on the last
+          // disconnect) races the async bindState and the client treats the doc as
+          // empty — which makes the sheet re-seed its rows on every refresh.
+          getYDoc(parsed.docId, true);
+          await this.docState.whenLoaded(parsed.docId);
           log.info(
             `verifyClient ACCEPT sub=${claims.sub} doc='${parsed.docId}' role=${claims.role}`
           );
@@ -228,6 +237,8 @@ export class YjsServerService
       };
 
       const originalOn = ws.on.bind(ws);
+      // Set when y-websocket subscribes to 'message' through the wrapper below; asserted after setupWSConnection.
+      let messageWrapInstalled = false;
       (ws as unknown as { on: typeof ws.on }).on = ((
         event: string,
         listener: (...args: unknown[]) => void
@@ -275,10 +286,20 @@ export class YjsServerService
           }
           deliver(data);
         };
+        messageWrapInstalled = true;
         return originalOn("message" as never, wrapped as never);
       }) as typeof ws.on;
 
       setupWSConnection(ws, req, { docName: parsed.docId, gc: true });
+
+      // Fail closed: if a y-websocket upgrade stops subscribing via ws.on('message'), the wrapper's rate limit + viewer write-block silently vanish — refuse the connection instead.
+      if (!messageWrapInstalled) {
+        clog.error(
+          `y-websocket did not subscribe via ws.on('message') — enforcement wrapper not installed, closing sub=${sub} doc='${parsed.docId}'`
+        );
+        ws.close(1011, "server misconfiguration");
+        return;
+      }
     });
 
     wss.on("error", (err) => log.error("WSS error", err));

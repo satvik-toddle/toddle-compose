@@ -1,5 +1,5 @@
 import { http } from '../lib/http';
-import type { DocumentDto } from '../types/api';
+import type { DocumentDto, DocumentType } from '../types/api';
 import type { Visibility } from '../types/roles';
 
 export const documentsApi = {
@@ -7,12 +7,15 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
+  listStarred: (workspaceId: string) =>
+    http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
   create: (b: {
     workspaceId: string;
     parentId?: string | null;
     folderId?: string | null;
     title?: string;
     icon?: string;
+    type?: DocumentType;
   }) =>
     http.post<DocumentDto>('/documents', {
       workspaceId: b.workspaceId,
@@ -21,6 +24,8 @@ export const documentsApi = {
       ...(b.parentId ? { parentId: b.parentId } : b.folderId ? { folderId: b.folderId } : {}),
       ...(b.title ? { title: b.title } : {}),
       ...(b.icon ? { icon: b.icon } : {}),
+      // Omit for DOC — the backend defaults to it; only SHEET needs sending.
+      ...(b.type ? { type: b.type } : {}),
     }),
   rename: (id: string, title: string) => http.patch<DocumentDto>(`/documents/${id}`, { title }),
   // Short-lived RTC token for real-time collaboration (editor|viewer role).
@@ -33,4 +38,6 @@ export const documentsApi = {
   setVisibility: (id: string, visibility: Visibility) =>
     http.patch<DocumentDto>(`/documents/${id}/visibility`, { visibility }),
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
+  star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
+  unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
 };

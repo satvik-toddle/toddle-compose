@@ -16,6 +16,7 @@ export type ModalState =
   | { type: 'renameWorkspace'; workspaceId: string; name: string; icon: IconName }
   | { type: 'addRealmMember' }
   | { type: 'addWorkspaceMember'; workspaceId: string; workspaceName: string }
+  | { type: 'workspaceSettings'; workspaceId: string; workspaceName: string; isAdmin: boolean }
   | { type: 'confirmDeleteWorkspace'; workspaceId: string; name: string; memberCount?: number }
   | {
       type: 'confirmRemoveMember';

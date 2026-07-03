@@ -3,25 +3,45 @@ import { SearchInput, Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
-  BellRingOutlined,
-  MultipleUsersOutlined,
   SettingsOutlined,
   ChevronLeftOutlined,
   AddOutlined,
+  DotsSixVerticalOutlined,
 } from '@toddle-edu/ds-icons';
-import { useWorkspaceJoinRequests, useWorkspaceMembers } from '../../../hooks/queries';
+import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
+import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './constants';
+import { useSidebarWidth } from './useSidebarWidth';
 import type { WorkspaceCtx } from '../WorkspaceLayout';
 
 const styles = {
+  // No overflow-hidden: the resize knob straddles the right border; collapse is
+  // already clipped by the parent layout container.
   sidebar:
-    'flex w-[266px] flex-none flex-col overflow-hidden border-r border-secondary bg-surface-secondary-enabled p-2.5 transition-[margin-left] duration-200 ease-in-out',
-  sidebarCollapsed: '-ml-[266px]',
+    'relative flex flex-none flex-col border-r border-secondary bg-surface-secondary-enabled p-2.5 transition-[margin-left] duration-200 ease-in-out',
+  // 6px hit-area on the right edge; the 2px bar inside lights up on hover/focus/drag.
+  // outline-none: the blue bar is the focus indicator, so drop the default focus ring.
+  resizeHandle:
+    'group/resize absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize focus:outline-none',
+  resizeBar:
+    'pointer-events-none absolute right-0 top-0 h-full w-0.5 transition-colors duration-150 group-hover/resize:bg-[var(--border-focus)] group-focus-visible/resize:bg-[var(--border-focus)]',
+  resizeBarActive: 'bg-[var(--border-focus)]',
+  // Grip knob: a centered tab (surface + border + shadow) holding the grip icon, so the
+  // handle reads as resizable — including on keyboard focus, where there's no resize cursor.
+  resizeKnob:
+    'pointer-events-none absolute right-0 top-1/2 flex h-6 w-4 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-1 border border-secondary bg-surface-primary-enabled text-secondary shadow-elevation-2-bottom opacity-0 transition-opacity duration-150 group-hover/resize:opacity-100 group-focus-visible/resize:opacity-100',
+  resizeKnobActive: 'opacity-100',
   // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
+  // Full-bleed row (cancels the sidebar padding) so the switcher spans edge to edge.
+  switcherRow: '-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full',
+  searchRow: 'mb-2',
   // -mx/px gives the scroll area room for the focus ring without misaligning rows.
   body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
@@ -34,24 +54,28 @@ type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
 export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarProps>) {
   const { workspaceId, isAdmin } = ctx;
   const leave = useLeaveWorkspace();
+  const openModal = useUiStore((s) => s.openModal);
   const [searchParams] = useSearchParams();
   const hasOpenDoc = !!searchParams.get('doc');
-  const { data: members } = useWorkspaceMembers(workspaceId, isAdmin);
   const { data: requests } = useWorkspaceJoinRequests(workspaceId, isAdmin);
   const hasPendingRequests = !!requests?.length;
   const pages = usePagesSection(ctx);
+  const { width, isResizing, startResize, handleResizeKeyDown } = useSidebarWidth();
 
   return (
-    <aside className={cn(styles.sidebar, collapsed && styles.sidebarCollapsed)}>
+    <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
       <div className={styles.header}>
-        {/* Read-only stub until workspace search is wired up. */}
-        <div className="mb-2">
+        <div className={styles.switcherRow}>
+          <WorkspaceSwitcher ctx={ctx} />
+        </div>
+
+        <div className={styles.searchRow}>
           <SearchInput
             dsVersion="2.0"
             size="medium"
             placeholder="Search this workspace…"
             aria-label="Search this workspace"
-            readOnly
+            onChange={pages.setQuery}
           />
         </div>
 
@@ -69,10 +93,15 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
             <HomeOutlined size="xxx-small" />
             Home
           </NavLink>
-          <div className={cn(sidebarRow.base, sidebarRow.default)}>
+          <NavLink
+            to={`/w/${workspaceId}/starred`}
+            className={({ isActive }) =>
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
+            }
+          >
             <StarOutlined size="xxx-small" />
             Starred
-          </div>
+          </NavLink>
         </div>
 
         <div className={styles.sectionHeading}>Pages</div>
@@ -84,62 +113,37 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
 
       <div className={styles.footerGroup}>
         {pages.canCreate && (
-          <button
-            type="button"
-            className={cn(sidebarRow.base, sidebarRow.default)}
-            onClick={() => pages.createPage()}
+          <CreatePageDropdown
+            placement="topLeft"
+            onCreate={(type) => pages.createPage(undefined, type)}
           >
-            <AddOutlined size="xxx-small" />
-            New page
-          </button>
+            <button type="button" className={cn(sidebarRow.base, sidebarRow.default, 'w-full')}>
+              <AddOutlined size="xxx-small" />
+              New page
+            </button>
+          </CreatePageDropdown>
         )}
-        {isAdmin && (
-          <NavLink
-            to={`/w/${workspaceId}/requests`}
-            className={({ isActive }) =>
-              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
-            }
-          >
-            <BellRingOutlined size="xxx-small" />
-            Requests
-            {hasPendingRequests && (
-              <span className="ml-auto">
-                <Badge
-                  dsVersion="2.0"
-                  type="numeric"
-                  variant="notifications"
-                  size="xxx-small"
-                  value={requests.length}
-                />
-              </span>
-            )}
-          </NavLink>
-        )}
-        {isAdmin && (
-          <NavLink
-            to={`/w/${workspaceId}/members`}
-            className={({ isActive }) =>
-              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
-            }
-          >
-            <MultipleUsersOutlined size="xxx-small" />
-            Members
+        <button
+          type="button"
+          className={cn(sidebarRow.base, sidebarRow.default)}
+          onClick={() =>
+            openModal({ type: 'workspaceSettings', workspaceId, workspaceName: ctx.name, isAdmin })
+          }
+        >
+          <SettingsOutlined size="xxx-small" />
+          Workspace settings
+          {isAdmin && hasPendingRequests && (
             <span className="ml-auto">
               <Badge
                 dsVersion="2.0"
                 type="numeric"
-                variant="subtle"
+                variant="notifications"
                 size="xxx-small"
-                value={members?.length ?? 0}
-                showZero
+                value={requests.length}
               />
             </span>
-          </NavLink>
-        )}
-        <div className={cn(sidebarRow.base, sidebarRow.default)}>
-          <SettingsOutlined size="xxx-small" />
-          Workspace settings
-        </div>
+          )}
+        </button>
         <button
           type="button"
           className={cn(sidebarRow.base, sidebarRow.default)}
@@ -149,6 +153,26 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           {isAdmin ? 'All workspaces' : 'Launcher'}
         </button>
       </div>
+
+      {!collapsed && (
+        <div
+          className={styles.resizeHandle}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          aria-valuenow={width}
+          tabIndex={0}
+          onMouseDown={startResize}
+          onKeyDown={handleResizeKeyDown}
+        >
+          <span className={cn(styles.resizeBar, isResizing && styles.resizeBarActive)} />
+          <span className={cn(styles.resizeKnob, isResizing && styles.resizeKnobActive)}>
+            <DotsSixVerticalOutlined variant="subtle" size="xxx-small" />
+          </span>
+        </div>
+      )}
     </aside>
   );
 }

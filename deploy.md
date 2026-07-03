@@ -131,7 +131,7 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   REALM_ID=realm_toddle
   CORS_ORIGINS=https://<your-netlify-domain>
   BACKEND_PUBLIC_URL=https://<backend>.onrender.com
-  RTC_INTERNAL_URL=http://<rtc-service-name>:4002  # rtc over the private network
+  RTC_INTERNAL_URL=http://<rtc-service-name>:10000 # rtc over the private network (same port as WS)
   RTC_PRIVATE_KEY_PATH=/etc/secrets/rtc-private.pem
   RTC_PUBLIC_KEY_PATH=/etc/secrets/rtc-public.pem
   ```
@@ -152,12 +152,11 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   INTERNAL_TOKEN=<same value as backend>
   RTC_DATABASE_URL=<Internal rtc DB URL>           # …/toddle_compose_rtc
   JWKS_URL=https://<backend>.onrender.com/.well-known/rtc-jwks.json
-  RTC_PORT=10000                                    # public WebSocket → bind Render's port
-  RTC_INTERNAL_PORT=4002                            # internal API the backend calls
+  RTC_PORT=10000                                    # single port: public WS + internal API
   ```
-  > rtc-server opens **two** ports (public WS + internal HTTP). Render routes one
-  > external port, so set `RTC_PORT` to Render's assigned port (default `10000`) for
-  > browser WebSockets; the backend reaches the internal API privately on `:4002`.
+  > rtc-server serves browser WebSockets and the internal HTTP API on the one
+  > `RTC_PORT`; set it to Render's assigned port (default `10000`). The backend
+  > reaches `/internal/*` on that same port over the private network.
 
 ### 6. Deploy hooks → GitHub secrets
 Each Render service → **Settings → Deploy Hook** → copy the URL. Then:

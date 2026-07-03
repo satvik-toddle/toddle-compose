@@ -40,6 +40,9 @@ const styles = {
   resizeKnobActive: 'opacity-100',
   // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
+  // Full-bleed row (cancels the sidebar padding) so the switcher spans edge to edge.
+  switcherRow: '-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full',
+  searchRow: 'mb-2',
   // -mx/px gives the scroll area room for the focus ring without misaligning rows.
   body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
@@ -63,11 +66,11 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
       <div className={styles.header}>
-        <div className="-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full">
+        <div className={styles.switcherRow}>
           <WorkspaceSwitcher ctx={ctx} />
         </div>
 
-        <div className="mb-2">
+        <div className={styles.searchRow}>
           <SearchInput
             dsVersion="2.0"
             size="medium"

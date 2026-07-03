@@ -6,6 +6,10 @@ import { isRealmAdmin } from '../../../lib/roles';
 import { workspaceVisual } from '../../../lib/workspaceVisual';
 import type { WorkspaceCtx } from '../context';
 
+const styles = {
+  trigger: 'flex w-full',
+};
+
 const HEADER_KEY = '__hdr';
 const LEAVE_KEY = '__leave';
 
@@ -70,7 +74,7 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
     >
       {/* Wrapped in a span so antd's open-on-click handler lands on a DOM node.
           Plain ds Button (regular/h-9) with the workspace icon + a chevron rightIcon. */}
-      <span className="flex w-full">
+      <span className={styles.trigger}>
         <Button
           dsVersion="2.0"
           variant="neutral"

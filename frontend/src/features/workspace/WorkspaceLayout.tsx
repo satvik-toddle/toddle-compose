@@ -12,6 +12,12 @@ import type { WorkspaceCtx } from './context';
 export { useWorkspaceCtx } from './context';
 export type { WorkspaceCtx } from './context';
 
+const styles = {
+  shell: 'flex min-h-0 flex-1 overflow-hidden',
+  // min-w-0 + overflow-hidden so wide editors scroll internally instead of growing the page.
+  content: 'flex min-w-0 flex-1 flex-col overflow-hidden',
+};
+
 export function WorkspaceLayout() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { data: ws, isLoading } = useWorkspace(workspaceId);
@@ -40,9 +46,9 @@ export function WorkspaceLayout() {
 
   return (
     <div className="rbac">
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className={styles.shell}>
         <WorkspaceSidebar ctx={ctx} collapsed={collapsed} />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className={styles.content}>
           <WorkspaceTopbar ctx={ctx} sidebarCollapsed={collapsed} onToggleSidebar={toggle} />
           <Outlet context={ctx} />
         </div>

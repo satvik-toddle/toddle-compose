@@ -20,11 +20,11 @@ const styles = {
   triggerCompact: 'gap-1 py-0.75 pl-0.75 pr-1',
   triggerExpanded: 'gap-2.25 py-1 pl-1 pr-1.5',
   identity: 'flex flex-col leading-tight',
-  name: 'text-label-s',
+  name: 'text-label-s text-primary',
   role: 'text-body-xs text-secondary',
   menu: 'w-[240px] p-1.5 rounded-3 border border-secondary bg-surface-primary-enabled shadow-elevation-3-bottom z-[60]',
   menuHead: 'px-2.5 pt-2.5 pb-2 mb-1 border-b border-secondary',
-  menuName: 'text-label',
+  menuName: 'text-label text-primary',
   menuEmail: 'mt-0.25 text-body-s text-secondary',
   menuRole: 'mt-2',
   // Strip the standalone DropdownMenu's own panel chrome (border + inline

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { TextAreaInput } from '@toddle-edu/ds-web';
 import { useRenameDocument } from '../../../hooks/usePages';
 import { DEFAULT_PAGE_TITLE } from '../constants';
-import titleStyles from './PageTitle.module.scss';
 
 const styles = {
+  // Strip the DS field chrome (border/padding/radius/surface), then restore
+  // heading-1 type via primitive utilities — the DS sheet's `text-body` would
+  // out-rank a `text-heading-1` class on the same element.
   field:
-    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
+    'border-0 !rounded-0 !p-0 bg-transparent font-avenirNext text-size-800 font-weight-700 leading-700 text-primary break-words [word-break:break-word] placeholder:font-weight-600',
   heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
   named: 'text-primary',
   // grey colour for an unnamed page (flips with the theme, unlike a raw neutral)
@@ -47,25 +50,22 @@ export function PageTitle({ workspaceId, docId, title, canEdit }: Readonly<PageT
     if (trimmed !== title) rename.mutate({ workspaceId, id: docId, title: trimmed });
   };
 
-  // data-value feeds the CSS auto-grow mirror; text-heading-1 sits here too so
-  // the mirror inherits the same type as the textarea.
   return (
-    <div className={`${titleStyles.autoGrow} text-heading-1`} data-value={draft}>
-      <textarea
-        className={styles.field}
-        value={draft}
-        placeholder="Add a page title"
-        aria-label="Page title"
-        rows={1}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-        }}
-      />
-    </div>
+    <TextAreaInput
+      dsVersion="2.0"
+      className={styles.field}
+      value={draft}
+      minRows={1}
+      placeholder="Add a page title"
+      aria-label="Page title"
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
   );
 }

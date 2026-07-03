@@ -5,18 +5,17 @@
    constraining the text to a centered, readable column — Coda-style. */
 
 .tc-editor {
-  flex: 1;
+  /* grow to at least fill the page scroll wrapper; never shrink below content
+     (scrolling is owned by the wrapper, together with the page title) */
+  flex: 1 0 auto;
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
   background: var(--panel-bg);
   --surface-primary-active: var(--panel-bg);
 
   > * {
-    flex: 1;
-    min-height: 0;
+    flex: 1 0 auto;
   }
 
   :global(.ds-de-anchor-element) {

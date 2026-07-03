@@ -7,7 +7,7 @@ import { firstName, relativeTime } from '../../../lib/time';
 import type { DocumentDto } from '../../../types/api';
 
 const styles = {
-  contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
+  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   body: 'flex-1 min-h-0 flex flex-col pt-6 px-7.5 pb-10', // Fills the panel; the table inside scrolls, not the whole page.
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon: 'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-surface-tertiary-enabled',

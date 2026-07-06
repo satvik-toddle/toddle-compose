@@ -97,6 +97,12 @@ export class DocumentsController {
     );
   }
 
+  // Global "Shared with me" across all workspaces (launcher side panel).
+  @Get("shared-with-me")
+  listAllShared(@CurrentUser() user: AuthUser, @Query() page: PaginationDto) {
+    return this.documents.listAllSharedWithMe(user, page.skip, page.take);
+  }
+
   @Get(":id")
   get(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.get(user.id, id);

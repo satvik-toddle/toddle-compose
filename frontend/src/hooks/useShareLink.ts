@@ -76,6 +76,15 @@ export function useDeleteShareLink(docId: string) {
   });
 }
 
+// Global (cross-workspace) list of pages shared with the current user — for the launcher panel.
+export function useAllSharedDocuments(enabled = true) {
+  return useQuery({
+    queryKey: qk.allSharedDocuments(),
+    queryFn: () => documentsApi.listAllSharedWithMe(),
+    enabled,
+  });
+}
+
 // Public link resolve (/link/:token) — 404 surfaces as an error, 401 for a REALM link viewed logged-out.
 export function useShareLinkResolve(token: string) {
   return useQuery({

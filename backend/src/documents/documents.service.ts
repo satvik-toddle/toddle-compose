@@ -260,6 +260,38 @@ export class DocumentsService {
     return this.attachStarred(user.id, rows);
   }
 
+  // Every doc shared with the caller across ALL workspaces (grants only, excludes owned),
+  // newest grant first — powers the launcher's global "Shared with me" view. Each row
+  // carries its workspace {id, name}, the grant date, and the caller's effective role.
+  async listAllSharedWithMe(user: AuthUser, skip = 0, take = 200) {
+    const grants = await this.prisma.documentPermission.findMany({
+      where: { userId: user.id, document: { NOT: { ownerId: user.id } } },
+      select: {
+        role: true,
+        createdAt: true,
+        document: {
+          select: {
+            ...this.summarySelect(),
+            workspace: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+    });
+    // Effective role = max(workspace role, grant); resolve each distinct workspace once.
+    const wsRoleByWs = new Map<string, WorkspaceRole | null>();
+    for (const wsId of new Set(grants.map((g) => g.document.workspaceId))) {
+      wsRoleByWs.set(wsId, await this.authz.effectiveWorkspaceRole(user.id, wsId));
+    }
+    return grants.map((g) => ({
+      ...g.document,
+      sharedAt: g.createdAt,
+      myRole: this.authz.maxWorkspaceRole(wsRoleByWs.get(g.document.workspaceId) ?? null, g.role)!,
+    }));
+  }
+
   // Sidebar hierarchy: root ancestor expanded down the spine, each on-path node listing its children.
   // Gated to workspace members/owner: unlike GET /:id, a PUBLIC-only realm viewer gets 404.
   async hierarchy(userId: string, id: string): Promise<HierarchyNode> {

@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppBar } from '../../components/AppBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
+import { cn } from '../../lib/cn';
+import { SharedWithMeView } from './SharedWithMeView';
 import { EmptyState } from '../../components/EmptyState';
 import { RealmChip } from '../../components/RealmChip';
 import { Avatar } from '../../components/Avatar';
@@ -85,6 +88,15 @@ function EmptyOwner({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+// Left rail switching the launcher between the workspace grid and the global "Shared with me".
+const nav = {
+  layout: 'flex flex-1 min-h-0',
+  side: 'flex-none w-56 flex flex-col gap-1 p-3 border-r border-secondary',
+  item: 'flex items-center gap-2 rounded-1.5 px-2.5 py-2 text-body-s text-secondary cursor-pointer hover:bg-surface-secondary-hover text-left w-full border-0 bg-transparent',
+  itemOn: 'bg-surface-secondary-hover text-primary font-semibold',
+  main: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-auto',
+};
+
 export function LauncherPage() {
   const me = useAuthStore((s) => s.user);
   const { data: realm } = useRealm();
@@ -92,6 +104,7 @@ export function LauncherPage() {
   const enter = useEnterWorkspace();
   const openModal = useUiStore((s) => s.openModal);
   const navigate = useNavigate();
+  const [view, setView] = useState<'workspaces' | 'shared'>('workspaces');
 
   if (!me) return null;
   const admin = isRealmAdmin(realm?.role);
@@ -176,9 +189,27 @@ export function LauncherPage() {
   }
 
   return (
-    <div className="rbac">
+    <div className="rbac" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <AppBar realm={realmName} sub="Realm" me={me} realmRole={realm?.role} />
-      {body}
+      <div className={nav.layout}>
+        <aside className={nav.side}>
+          <button
+            className={cn(nav.item, view === 'workspaces' && nav.itemOn)}
+            onClick={() => setView('workspaces')}
+          >
+            <Icon name="GridOutlined" size={16} muted />
+            Workspaces
+          </button>
+          <button
+            className={cn(nav.item, view === 'shared' && nav.itemOn)}
+            onClick={() => setView('shared')}
+          >
+            <Icon name="MultipleUsersOutlined" size={16} muted />
+            Shared with me
+          </button>
+        </aside>
+        <div className={nav.main}>{view === 'shared' ? <SharedWithMeView /> : body}</div>
+      </div>
     </div>
   );
 }

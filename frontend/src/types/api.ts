@@ -166,6 +166,7 @@ export interface DocumentDto {
   myRole?: WorkspaceRole | null; // caller's effective role on this doc = owner ? ADMIN : max(ws role, per-doc grant); null for public-only viewers
   sharedAt?: string; // when the caller's per-page grant was created (only on the shared-with-me list)
   shareMode?: ShareMode; // access mode (present on GET /documents/:id)
+  workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
 }
 
 // GET /documents/:id/permissions row — EDIT/ADMIN granted on one document, independent of workspace membership.

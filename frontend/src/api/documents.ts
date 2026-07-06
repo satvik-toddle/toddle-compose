@@ -18,6 +18,7 @@ export const documentsApi = {
     http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
   listSharedWithMe: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents/shared?workspaceId=${encodeURIComponent(workspaceId)}`), // Pages shared with the current user via per-page grants — excludes owned docs, newest grant first.
+  listAllSharedWithMe: () => http.get<DocumentDto[]>('/documents/shared-with-me'), // Global: shared pages across all workspaces (each row carries its workspace).
   create: (b: {
     workspaceId: string;
     parentId?: string | null;

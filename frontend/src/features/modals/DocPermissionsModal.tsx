@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { Icon, type IconName } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { RoleSelect } from '../../components/RoleSelect';
+import { cn } from '../../lib/cn';
 import {
   useDocPermissions,
   useAddDocPermission,
@@ -12,6 +13,7 @@ import {
   useRemoveDocPermission,
 } from '../../hooks/useDocPermissions';
 import {
+  useDocDetail,
   useShareLink,
   usePutShareLink,
   useRegenerateShareLink,
@@ -21,7 +23,7 @@ import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
 import { Loader } from '../../components/Loader';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
-import { WS_ROLE_META, WS_ROLE_OPTIONS } from '../../lib/roles';
+import { WS_ROLE_META, WS_ROLES } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
 import type { ShareLinkScope } from '../../types/api';
 
@@ -37,47 +39,62 @@ interface MemberOption {
   email: string;
 }
 
-// Link roles are a subset of workspace roles (never ADMIN via a link).
+// Google-Docs-style labels for doc sharing (distinct from the workspace-role vocabulary).
+const DOC_ROLE_LABEL: Record<WorkspaceRole, string> = {
+  READ: 'Viewer',
+  COMMENT: 'Commenter',
+  EDIT: 'Editor',
+  ADMIN: 'Full access',
+};
+const INVITE_ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: DOC_ROLE_LABEL[r] }));
 const LINK_ROLE_OPTIONS = (['READ', 'COMMENT', 'EDIT'] as WorkspaceRole[]).map((r) => ({
   value: r,
-  label: WS_ROLE_META[r].label,
+  label: DOC_ROLE_LABEL[r],
 }));
-
 const SCOPE_OPTIONS: { value: ShareLinkScope; label: string }[] = [
   { value: 'REALM', label: 'Anyone in the realm with the link' },
   { value: 'ANYONE', label: 'Anyone with the link (no sign-in)' },
 ];
 
 const styles = {
-  section: 'flex flex-col gap-2',
-  sectionHead: 'flex items-center justify-between',
-  sectionTitle: 'flex items-center gap-1.5 text-body-s font-semibold text-primary',
-  divider: 'my-4 border-t border-secondary',
-  invite: 'flex flex-col gap-2',
-  inviteRow: 'flex items-start gap-2',
+  add: 'flex items-start gap-2',
   selectWrap: 'flex-1 min-w-0',
-  errorText: 'flex items-center gap-1.5 text-body-s text-semantic-error',
-  peopleHead: 'mb-1.5 text-body-xs font-semibold text-secondary',
-  empty: 'py-2 text-body-s text-secondary',
-  row: 'flex items-center gap-2.5 py-2',
-  rowWho: 'flex-1 min-w-0',
-  rowName: 'truncate text-body-s font-medium text-primary',
-  rowEmail: 'truncate text-body-xs text-secondary',
+  errorText: 'mt-1 flex items-center gap-1.5 text-body-s text-semantic-error',
+  lbl: 'mt-5 mb-1 text-body-xs font-semibold text-primary',
+  people: 'flex flex-col',
+  prow: 'flex items-center gap-3 py-2',
+  who: 'flex-1 min-w-0',
+  nm: 'flex items-center gap-1.5 text-body-s font-semibold text-primary truncate',
+  sub: 'text-body-xs text-secondary truncate',
+  ownerTag: 'pr-1.5 text-body-xs font-semibold text-secondary',
   removeBtn:
-    'flex h-6.5 w-6.5 flex-none cursor-pointer items-center justify-center rounded-1.5 border-0 bg-transparent hover:bg-surface-secondary-hover',
-  note: 'flex items-center gap-1.5 text-body-xs text-secondary',
-  linkControls: 'flex items-center gap-2',
-  linkUrlRow: 'flex items-center gap-2',
-  linkUrl:
-    'flex-1 min-w-0 truncate rounded-1.5 border border-secondary bg-surface-secondary-enabled px-2.5 py-1.5 text-body-s text-secondary',
-  warn: 'flex items-center gap-1.5 text-body-xs text-semantic-warning',
-  linkActions: 'flex items-center gap-2',
-  quiet: 'text-body-s text-secondary',
+    'flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-1.5 border-0 bg-transparent hover:bg-surface-secondary-hover',
+  // share-via-link block
+  link: 'mt-4 pt-4 border-t border-secondary',
+  linkHead: 'flex items-center gap-3',
+  linkIc: 'flex h-9.5 w-9.5 flex-none items-center justify-center rounded-full',
+  linkIcOff: 'bg-surface-tertiary-enabled',
+  linkIcOn: 'bg-surface-tertiary-enabled',
+  linkTxt: 'flex-1 min-w-0',
+  linkT: 'text-body-s font-semibold text-primary',
+  linkD: 'mt-0.5 text-body-xs text-secondary',
+  linkRow: 'mt-3.5 flex items-center gap-2',
+  linkField:
+    'flex-1 flex items-center gap-2 h-10 px-3 rounded-1.5 border border-secondary bg-surface-secondary-enabled text-body-s text-primary min-w-0',
+  url: 'flex-1 truncate',
+  permRow: 'mt-3 flex items-center gap-2 flex-wrap text-body-xs text-secondary',
+  actions: 'mt-2',
+  warn: 'mt-2 flex items-center gap-1.5 text-body-xs text-semantic-warning',
+  // switch (matches the 4e design: 40x23 pill, teal when on)
+  sw: 'relative flex-none w-10 h-[23px] rounded-full border cursor-pointer transition-colors border-secondary bg-surface-tertiary-enabled',
+  swOn: 'bg-[var(--interactive-primary,#00b0c2)] border-[var(--interactive-primary,#00b0c2)]',
+  knob: 'absolute top-0.5 left-0.5 w-[17px] h-[17px] rounded-full bg-white shadow transition-[left]',
+  knobOn: 'left-[19px]',
+  footNote: 'flex items-center gap-1.5 text-body-xs text-secondary',
 };
 
-// Access management for one page. Link sharing and per-user invites are ADDITIVE —
-// both can be active at once, layered over the workspace-member baseline. Applies
-// to this page only (never its sub-pages).
+// Doc share modal (design 4e): add people + list who has access, then a "Share via
+// link" toggle. Link and invites are additive, layered over workspace-member access.
 export function DocPermissionsModal({
   onClose,
   docId,
@@ -90,20 +107,26 @@ export function DocPermissionsModal({
   docTitle: string;
   ownerId: string;
 }) {
+  const { data: link } = useShareLink(docId);
+  const linkOn = !!link;
+
   return (
     <Modal onClose={onClose} wide>
       <ModalHead
         icon="ShareOutlined"
-        title="Share"
-        sub={`“${docTitle}” — access applies to this page only.`}
+        title={`Share “${docTitle}”`}
+        sub="Only people you add can open it — access applies to this page only."
         onClose={onClose}
       />
       <div className="m-body">
-        <LinkSection docId={docId} />
-        <div className={styles.divider} />
         <InviteSection docId={docId} ownerId={ownerId} />
+        <LinkSection docId={docId} />
       </div>
       <div className="m-foot">
+        <span className={styles.footNote}>
+          <Icon name={linkOn ? 'GlobeOutlined' : 'LockOutlined'} size={14} muted />
+          {linkOn ? 'Link sharing on' : 'Restricted'}
+        </span>
         <span className="gap" />
         <Button variant="primary" onClick={onClose}>
           Done
@@ -113,123 +136,16 @@ export function DocPermissionsModal({
   );
 }
 
-// "Anyone with the link" — off by default; creating a link exposes scope + role controls.
-function LinkSection({ docId }: { docId: string }) {
-  const { data: link, isLoading } = useShareLink(docId);
-  const putLink = usePutShareLink(docId);
-  const regenerate = useRegenerateShareLink(docId);
-  const removeLink = useDeleteShareLink(docId);
+const renderRole = (v: WorkspaceRole) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+    <Icon name={WS_ROLE_META[v].icon as IconName} size={14} muted />
+    {DOC_ROLE_LABEL[v]}
+  </span>
+);
 
-  const setScope = (scope: ShareLinkScope) => link && putLink.mutate({ role: link.role, scope });
-  const setRole = (role: WorkspaceRole) => link && putLink.mutate({ role, scope: link.scope });
-
-  const copy = async () => {
-    if (!link) return;
-    await navigator.clipboard.writeText(link.url);
-    pushToast({ kind: 'success', message: 'Link copied' });
-  };
-
-  return (
-    <div className={styles.section} data-test-id="share-link-section">
-      <div className={styles.sectionHead}>
-        <span className={styles.sectionTitle}>
-          <Icon name="ShareOutlined" size={14} muted />
-          Anyone with the link
-        </span>
-        {isLoading ? (
-          <Loader size={16} />
-        ) : link ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="DeleteOutlined"
-            disabled={removeLink.isPending}
-            onClick={() => removeLink.mutate()}
-          >
-            Remove link
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="AddOutlined"
-            disabled={putLink.isPending}
-            onClick={() => putLink.mutate({ role: 'READ', scope: 'REALM' })}
-          >
-            Create link
-          </Button>
-        )}
-      </div>
-
-      {!link && !isLoading && (
-        <div className={styles.quiet}>Create a link to share this page beyond its workspace members.</div>
-      )}
-
-      {link && (
-        <>
-          <div className={styles.linkControls}>
-            <div className={styles.selectWrap}>
-              <Select
-                options={SCOPE_OPTIONS}
-                value={SCOPE_OPTIONS.find((o) => o.value === link.scope)}
-                onChange={(o: { value: ShareLinkScope } | null) => o && setScope(o.value)}
-                isSearchable={false}
-                isClearable={false}
-                size="small"
-                testId="share-link-scope"
-              />
-            </div>
-            <RoleSelect<WorkspaceRole>
-              value={link.role}
-              onChange={setRole}
-              options={LINK_ROLE_OPTIONS}
-              renderValue={(v) => (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                  <Icon name={WS_ROLE_META[v].icon as IconName} size={14} muted />
-                  {WS_ROLE_META[v].label}
-                </span>
-              )}
-            />
-          </div>
-
-          {link.scope === 'ANYONE' && (
-            <div className={styles.warn}>
-              <Icon name="WarningTriangleOutlined" size={14} />
-              Anyone on the internet with this link can access this page.
-            </div>
-          )}
-
-          <div className={styles.linkUrlRow}>
-            <span className={styles.linkUrl} data-test-id="share-link-url">
-              {link.url}
-            </span>
-            <Button variant="primary" size="sm" onClick={copy}>
-              Copy
-            </Button>
-          </div>
-
-          <div className={styles.linkActions}>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={regenerate.isPending}
-              onClick={() =>
-                regenerate.mutate(undefined, {
-                  onSuccess: () => pushToast({ kind: 'success', message: 'New link generated' }),
-                })
-              }
-            >
-              Regenerate
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// "Invite" — realm-wide user search + per-page grants list.
+// Add-people row + the "People with access" list (owner first, then grantees).
 function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
+  const { data: detail } = useDocDetail(docId);
   const { data: grants = [] } = useDocPermissions(docId);
   const addPermission = useAddDocPermission();
   const updatePermission = useUpdateDocPermission();
@@ -237,13 +153,12 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
 
   const [term, setTerm] = useState('');
   const { users, isSearching } = useRealmUserSearch(term);
-
   const [selected, setSelected] = useState<MemberOption[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
   const [adding, setAdding] = useState(false);
   const [addErrors, setAddErrors] = useState<{ name: string; message: string }[]>([]);
 
-  // Realm-wide matches except the owner (always has full access) and existing grantees.
+  // Realm-wide matches except the owner (always full access) and existing grantees.
   const options = useMemo(() => {
     const granted = new Set(grants.map((g) => g.userId));
     return users
@@ -275,7 +190,6 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
       }
     }
     setAdding(false);
-    // Keep only the failed selections so a retry doesn't re-grant the successes.
     setSelected(failed);
     setAddErrors(errors);
     if (errors.length === 0) {
@@ -284,80 +198,76 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
     }
   };
 
-  const renderRole = (v: WorkspaceRole) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-      <Icon name={WS_ROLE_META[v].icon as IconName} size={14} muted />
-      {WS_ROLE_META[v].label}
-    </span>
-  );
+  const owner = detail?.owner;
 
   return (
-    <div className={styles.section}>
-      <span className={styles.sectionTitle}>
-        <Icon name="UserProfileOutlined" size={14} muted />
-        Invite people
-      </span>
-      <div className={styles.invite}>
-        <div className={styles.inviteRow}>
-          <div className={styles.selectWrap}>
-            <Select
-              isMulti
-              options={options}
-              value={selected}
-              onChange={(opts: MemberOption[] | null) => {
-                setSelected(opts ?? []);
-                setAddErrors([]);
-              }}
-              onSearchTextChange={setTerm}
-              // Results are already server-filtered (name OR email); react-select's
-              // default label filter would wrongly drop email matches.
-              filterOption={null}
-              placeholder="Search people…"
-              noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
-              loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
-              size="small"
-              testId="doc-perm-users"
-              error={addErrors.length > 0 ? ' ' : undefined}
-            />
-          </div>
-          <RoleSelect<WorkspaceRole>
-            value={role}
-            onChange={setRole}
-            options={WS_ROLE_OPTIONS}
-            renderValue={renderRole}
+    <>
+      <div className={styles.add}>
+        <div className={styles.selectWrap}>
+          <Select
+            isMulti
+            options={options}
+            value={selected}
+            onChange={(opts: MemberOption[] | null) => {
+              setSelected(opts ?? []);
+              setAddErrors([]);
+            }}
+            onSearchTextChange={setTerm}
+            filterOption={null}
+            placeholder="Add people by name or email"
+            noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
+            loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
+            size="small"
+            testId="doc-perm-users"
+            error={addErrors.length > 0 ? ' ' : undefined}
           />
-          <Button
-            variant="primary"
-            size="sm"
-            icon="AddOutlined"
-            disabled={selected.length === 0 || adding}
-            onClick={add}
-          >
-            {adding ? '…' : 'Add'}
-          </Button>
         </div>
-        {addErrors.map((err) => (
-          <div key={err.name} className={styles.errorText}>
-            <Icon name="WarningTriangleOutlined" size={14} />
-            {err.name}: {err.message}
-          </div>
-        ))}
+        <RoleSelect<WorkspaceRole>
+          value={role}
+          onChange={setRole}
+          options={INVITE_ROLE_OPTIONS}
+          renderValue={renderRole}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          icon="AddOutlined"
+          disabled={selected.length === 0 || adding}
+          onClick={add}
+        >
+          {adding ? '…' : 'Add'}
+        </Button>
       </div>
+      {addErrors.map((err) => (
+        <div key={err.name} className={styles.errorText}>
+          <Icon name="WarningTriangleOutlined" size={14} />
+          {err.name}: {err.message}
+        </div>
+      ))}
 
-      <div>
-        <div className={styles.peopleHead}>People with access to this page</div>
-        {grants.length === 0 && <div className={styles.empty}>No page-specific access yet.</div>}
+      <div className={styles.lbl}>People with access</div>
+      <div className={styles.people}>
+        {owner && (
+          <div className={styles.prow}>
+            <Avatar person={{ name: owner.name, color: owner.color }} size={34} />
+            <div className={styles.who}>
+              <div className={styles.nm}>{owner.name}</div>
+              <div className={styles.sub}>Owner</div>
+            </div>
+            <span className={styles.ownerTag}>Owner</span>
+          </div>
+        )}
         {grants.map((g) => (
-          <div key={g.userId} className={styles.row}>
-            <Avatar person={{ name: g.user.name, color: g.user.color }} size={28} />
-            <div className={styles.rowWho}>
-              <div className={styles.rowName}>{g.user.name}</div>
-              <div className={styles.rowEmail}>{g.user.email}</div>
+          <div key={g.userId} className={styles.prow}>
+            <Avatar person={{ name: g.user.name, color: g.user.color }} size={34} />
+            <div className={styles.who}>
+              <div className={styles.nm}>{g.user.name}</div>
+              <div className={styles.sub}>{g.user.email}</div>
             </div>
             <RoleSelect<WorkspaceRole>
               value={g.role}
               onChange={(r) => updatePermission.mutate({ docId, userId: g.userId, role: r })}
-              options={WS_ROLE_OPTIONS}
+              options={INVITE_ROLE_OPTIONS}
               renderValue={renderRole}
             />
             <button
@@ -371,11 +281,117 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
           </div>
         ))}
       </div>
+    </>
+  );
+}
 
-      <div className={styles.note}>
-        <Icon name="InformationOutlined" size={14} muted />
-        Grants apply to this page only — not its sub-pages.
+// "Share via link" — a toggle that reveals the link URL, scope, and link-role picker.
+function LinkSection({ docId }: { docId: string }) {
+  const { data: link, isLoading } = useShareLink(docId);
+  const putLink = usePutShareLink(docId);
+  const regenerate = useRegenerateShareLink(docId);
+  const removeLink = useDeleteShareLink(docId);
+  const linkOn = !!link;
+
+  const toggle = () => {
+    if (linkOn) removeLink.mutate();
+    else putLink.mutate({ role: 'READ', scope: 'REALM' });
+  };
+  const setScope = (scope: ShareLinkScope) => link && putLink.mutate({ role: link.role, scope });
+  const setRole = (role: WorkspaceRole) => link && putLink.mutate({ role, scope: link.scope });
+  const copy = async () => {
+    if (!link) return;
+    await navigator.clipboard.writeText(link.url);
+    pushToast({ kind: 'success', message: 'Link copied' });
+  };
+  const busy = putLink.isPending || removeLink.isPending || isLoading;
+
+  return (
+    <div className={styles.link} data-test-id="share-link-section">
+      <div className={styles.linkHead}>
+        <span className={cn(styles.linkIc, linkOn ? styles.linkIcOn : styles.linkIcOff)}>
+          <Icon name={linkOn ? 'GlobeOutlined' : 'LockOutlined'} size={18} muted />
+        </span>
+        <div className={styles.linkTxt}>
+          <div className={styles.linkT}>Share via link</div>
+          <div className={styles.linkD}>
+            {linkOn
+              ? 'Anyone with the link can open this doc — no workspace membership needed.'
+              : 'Off — only the people listed above can open this doc.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={linkOn}
+          aria-label="Share via link"
+          disabled={busy}
+          className={cn(styles.sw, linkOn && styles.swOn)}
+          onClick={toggle}
+          data-test-id="share-link-toggle"
+        >
+          <span className={cn(styles.knob, linkOn && styles.knobOn)} />
+        </button>
       </div>
+
+      {link && (
+        <>
+          <div className={styles.linkRow}>
+            <span className={styles.linkField}>
+              <Icon name="GlobeOutlined" size={14} muted />
+              <span className={styles.url} data-test-id="share-link-url">
+                {link.url}
+              </span>
+            </span>
+            <Button variant="primary" size="sm" icon="ShareOutlined" onClick={copy}>
+              Copy link
+            </Button>
+          </div>
+
+          <div className={styles.permRow}>
+            <span>Anyone with the link can</span>
+            <RoleSelect<WorkspaceRole>
+              value={link.role}
+              onChange={setRole}
+              options={LINK_ROLE_OPTIONS}
+              renderValue={renderRole}
+            />
+            <div style={{ minWidth: 220 }}>
+              <Select
+                options={SCOPE_OPTIONS}
+                value={SCOPE_OPTIONS.find((o) => o.value === link.scope)}
+                onChange={(o: { value: ShareLinkScope } | null) => o && setScope(o.value)}
+                isSearchable={false}
+                isClearable={false}
+                size="small"
+                testId="share-link-scope"
+              />
+            </div>
+          </div>
+
+          {link.scope === 'ANYONE' && (
+            <div className={styles.warn}>
+              <Icon name="WarningTriangleOutlined" size={14} />
+              Anyone on the internet with this link can access this page.
+            </div>
+          )}
+
+          <div className={styles.actions}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={regenerate.isPending}
+              onClick={() =>
+                regenerate.mutate(undefined, {
+                  onSuccess: () => pushToast({ kind: 'success', message: 'New link generated' }),
+                })
+              }
+            >
+              Regenerate link
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

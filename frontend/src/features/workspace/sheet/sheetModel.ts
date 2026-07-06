@@ -22,10 +22,26 @@ const COLUMN_WIDTH = 160;
 export const SHEET_ROW_COUNT = 100;
 const CELL_TYPE = 'text';
 
+export const SHEET_CELL_TYPES = ['text', 'number', 'checkbox', 'toggle', 'radio'] as const;
+export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
+
 export type SheetRows = Y.Array<Y.Map<unknown>>;
 export type SheetColTypes = Y.Map<unknown>;
 // One column's persisted metadata: its cell type and its position in the grid.
 type SheetColMeta = { type: string; order: number };
+
+// A cell's metadata sits in its row's Y.Map under `<colId>#meta` — row deletion
+// cleans it up for free, and '#' can't occur in a uuid column id.
+const CELL_META_SUFFIX = '#meta';
+type SheetCellMeta = { type: SheetCellType };
+
+const cellMetaKey = (colId: string): string => `${colId}${CELL_META_SUFFIX}`;
+const isCellMetaKey = (key: string): boolean => key.endsWith(CELL_META_SUFFIX);
+
+function readCellType(row: Y.Map<unknown>, colId: string): SheetCellType {
+  const meta = row.get(cellMetaKey(colId)) as SheetCellMeta | undefined;
+  return meta?.type ?? 'text';
+}
 
 const ALPHABET_SIZE = 26;
 const LETTER_A_CODE = 'A'.codePointAt(0)!;
@@ -99,10 +115,35 @@ const makeColumnId = (): string => crypto.randomUUID();
 const findRowMap = (yRows: SheetRows, rowId: string): Y.Map<unknown> | undefined =>
   yRows.toArray().find((row) => row.get(ID_KEY) === rowId);
 
-// Map the Yjs rows into ds-data-grid rows — one all-text row per Y.Map; a cell whose
-// column key is absent reads as an empty string. Cells follow `columnIds` order.
-// The same contextMenu config is shared by every cell; its onClick receives the
-// clicked cell's coordinates, so no per-cell closure is needed.
+const CHECKBOX_VALUES = ['checked', 'unchecked', 'indeterminate'];
+
+// The stored value survives type switches untouched; each type coerces it for
+// display, so switching back to text recovers the original content.
+function toGridCell(type: SheetCellType, stored: unknown): DataGridCell {
+  switch (type) {
+    case 'number': {
+      const numeric = typeof stored === 'number' ? stored : Number(stored);
+      const hasNumericValue = stored != null && stored !== '' && Number.isFinite(numeric);
+      return { cellType: 'number', value: hasNumericValue ? numeric : '' };
+    }
+    case 'checkbox':
+      return {
+        cellType: 'checkbox',
+        value: CHECKBOX_VALUES.includes(stored as string) ? stored : 'unchecked',
+      };
+    case 'toggle':
+      return { cellType: 'toggle', value: stored === true };
+    case 'radio':
+      return { cellType: 'radio', value: stored, checked: stored === true };
+    default:
+      return { cellType: 'text', value: stored == null ? '' : String(stored) };
+  }
+}
+
+// Map the Yjs rows into ds-data-grid rows; a cell whose column key is absent reads
+// as an empty string. Cells follow `columnIds` order. The same contextMenu config is
+// shared by every cell; its onClick receives the clicked cell's coordinates, so no
+// per-cell closure is needed.
 export function readSheetRows(
   yRows: SheetRows,
   columnIds: string[],
@@ -113,8 +154,7 @@ export function readSheetRows(
     rowId: row.get(ID_KEY) as string,
     columns: columnIds.map(
       (id): DataGridCell => ({
-        cellType: 'text',
-        value: (row.get(id) as string | undefined) ?? '',
+        ...toGridCell(readCellType(row, id), row.get(id)),
         isEditable,
         contextMenu,
       }),
@@ -122,9 +162,24 @@ export function readSheetRows(
   }));
 }
 
-// A single cell's text; an absent key reads as empty, matching readSheetRows.
+// A single cell's content as text; an absent key reads as empty.
 export function readSheetCell(yRows: SheetRows, rowId: string, colId: string): string {
-  return (findRowMap(yRows, rowId)?.get(colId) as string | undefined) ?? '';
+  const value = findRowMap(yRows, rowId)?.get(colId);
+  return value == null ? '' : String(value);
+}
+
+export function setSheetCellType(
+  ydoc: Y.Doc,
+  yRows: SheetRows,
+  cells: ReadonlyArray<{ rowId: string; colId: string }>,
+  type: SheetCellType,
+): void {
+  const rowsById = new Map(yRows.toArray().map((row) => [row.get(ID_KEY) as string, row]));
+  ydoc.transact(() => {
+    for (const { rowId, colId } of cells) {
+      rowsById.get(rowId)?.set(cellMetaKey(colId), { type } satisfies SheetCellMeta);
+    }
+  });
 }
 
 export function setSheetCell(
@@ -160,13 +215,21 @@ export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColType
   });
 }
 
-// Write the grid's cell edits back into the matching row Y.Maps (text values only).
+// The radio cell reports its state via `checked` instead of `value`.
+function editedCellValue(newValue: DataGridCellEdit['newValue']): unknown {
+  if (newValue?.cellType === 'radio' && typeof newValue.checked === 'boolean') {
+    return newValue.checked;
+  }
+  return newValue?.value ?? '';
+}
+
+// Write the grid's cell edits back into the matching row Y.Maps.
 export function applySheetEdits(ydoc: Y.Doc, yRows: SheetRows, edits: DataGridCellEdit[]): void {
   ydoc.transact(() => {
     for (const { cellCoods, newValue } of edits) {
       if (cellCoods.colId == null) continue;
       const row = findRowMap(yRows, cellCoods.rowId);
-      if (row) row.set(String(cellCoods.colId), newValue?.value ?? '');
+      if (row) row.set(String(cellCoods.colId), editedCellValue(newValue));
     }
   });
 }
@@ -203,11 +266,12 @@ export function insertSheetRow(
   return rowId;
 }
 
+// Clears values only — cell types stick, matching Google Sheets' clear-content.
 export function clearSheetRow(ydoc: Y.Doc, yRows: SheetRows, rowId: string): void {
   const row = findRowMap(yRows, rowId);
   if (!row) return;
   // Snapshot the keys first — deleting while iterating the live Y.Map is undefined.
-  const contentKeys = [...row.keys()].filter((key) => key !== ID_KEY);
+  const contentKeys = [...row.keys()].filter((key) => key !== ID_KEY && !isCellMetaKey(key));
   ydoc.transact(() => {
     for (const key of contentKeys) row.delete(key);
   });
@@ -290,7 +354,10 @@ export function deleteSheetColumn(
   if (!yColTypes.has(colId)) return true;
   ydoc.transact(() => {
     yColTypes.delete(colId);
-    for (const row of yRows.toArray()) row.delete(colId);
+    for (const row of yRows.toArray()) {
+      row.delete(colId);
+      row.delete(cellMetaKey(colId));
+    }
   });
   return true;
 }

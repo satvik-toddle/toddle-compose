@@ -24,6 +24,8 @@ import {
   applySheetEdits,
   buildSheetColumns,
   formatSelectionRange,
+  setSheetCellType,
+  type SheetCellType,
   readColumnIds,
   readSheetRows,
   seedSheet,
@@ -74,10 +76,29 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const headers = useMemo(() => buildSheetColumns(columnIds), [columnIds]);
   const { isOpen: isPanelOpen, open: openPanel, close: closePanel } = useSheetPanel(canEdit);
-  const [selectionLabel, setSelectionLabel] = useState<string | null>(null);
+  const [selectedCells, setSelectedCells] = useState<DataGridSelectedCell[]>([]);
+  const selectionLabel = useMemo(() => formatSelectionRange(selectedCells), [selectedCells]);
 
-  const onCellSelectionChange = (cells: DataGridSelectedCell[]) => {
-    setSelectionLabel(formatSelectionRange(cells));
+  // The shared type of the selected cells, driving the panel's cell-type dropdown.
+  const selectedCellType = useMemo((): SheetCellType | 'mixed' | null => {
+    if (selectedCells.length === 0) return null;
+    const rowsById = new Map(rows.map((row) => [row.rowId, row]));
+    const colIndexById = new Map(columnIds.map((id, index) => [id, index]));
+    let sharedType: string | null = null;
+    for (const cell of selectedCells) {
+      const colIndex = colIndexById.get(String(cell.colId));
+      const row = rowsById.get(cell.rowId);
+      const cellType = (colIndex != null && row?.columns[colIndex]?.cellType) || 'text';
+      if (sharedType === null) sharedType = cellType;
+      else if (sharedType !== cellType) return 'mixed';
+    }
+    return sharedType as SheetCellType;
+  }, [selectedCells, rows, columnIds]);
+
+  const onCellTypeChange = (type: SheetCellType) => {
+    if (!docRef.current || !rowsRef.current) return;
+    const cells = selectedCells.map((cell) => ({ rowId: cell.rowId, colId: String(cell.colId) }));
+    setSheetCellType(docRef.current, rowsRef.current, cells, type);
   };
 
   const onCellEdit = (edits: DataGridCellEdit[]) => {
@@ -178,7 +199,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
               data={rows}
               isViewMode={!canEdit}
               onCellEdit={onCellEdit}
-              onCellSelectionChange={onCellSelectionChange}
+              onCellSelectionChange={setSelectedCells}
               onAppendRowAtEnd={onAppendRowAtEnd}
               dataGridHeight="100%"
             />
@@ -209,7 +230,13 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
           </Tooltip>
         )}
         {canEdit && (
-          <SheetPanel isOpen={isPanelOpen} selectionLabel={selectionLabel} onClose={closePanel} />
+          <SheetPanel
+            isOpen={isPanelOpen}
+            selectionLabel={selectionLabel}
+            cellType={selectedCellType}
+            onCellTypeChange={onCellTypeChange}
+            onClose={closePanel}
+          />
         )}
       </div>
     </div>

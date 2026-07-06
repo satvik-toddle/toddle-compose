@@ -1,11 +1,16 @@
-import { useEffect } from 'react';
-import { EmptyState, IconButton, Tooltip } from '@toddle-edu/ds-web';
+import { useEffect, type ComponentType } from 'react';
+import { EmptyState, IconButton, SelectDropdown, Tooltip } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { CloseOutlined } from '@toddle-edu/ds-icons';
 import { commandModifierKey } from '../../../lib/platform';
 import { ShortcutHint } from '../../../components/ShortcutHint';
 import { cn } from '../../../lib/cn';
-import { SHEET_PANEL_SHORTCUT_KEY } from './constants';
+import {
+  SHEET_CELL_TYPE_OPTIONS,
+  SHEET_PANEL_SHORTCUT_KEY,
+  type SheetCellTypeOption,
+} from './constants';
+import type { SheetCellType } from './sheetModel';
 
 const styles = {
   // Floats over the grid's right edge, Google-Sheets style — the grid keeps its size.
@@ -15,13 +20,29 @@ const styles = {
   panelClosed: 'invisible translate-x-[calc(100%+1.5rem)]',
   header: 'flex items-center justify-between gap-2 border-b border-secondary py-2 pl-4 pr-2',
   title: 'text-heading-6 text-primary',
-  body: 'flex flex-1 flex-col gap-1 px-4 py-3',
+  body: 'flex flex-1 flex-col gap-4 px-4 py-3',
+  rangeSection: 'flex flex-col gap-1',
   rangeLabel: 'text-label text-secondary',
   rangeValue: 'text-body text-primary',
   tooltip: 'flex items-center gap-2',
 };
 
 const closeShortcutKeys = [commandModifierKey, SHEET_PANEL_SHORTCUT_KEY];
+
+// SelectDropdown's version-union type drops value/onChange (same gap RoleSelect
+// works around); retype it narrowly for this picker.
+type CellTypeSelectProps = {
+  dsVersion: '2.0';
+  label: string;
+  options: readonly SheetCellTypeOption[];
+  value?: SheetCellTypeOption;
+  onChange: (option: SheetCellTypeOption | null) => void;
+  placeholder?: string;
+  isClearable?: boolean;
+  isCreatable?: boolean;
+  isSearchable?: boolean;
+};
+const CellTypeSelect = SelectDropdown as unknown as ComponentType<CellTypeSelectProps>;
 
 // While the grid's inline cell editor (or any other text field) has focus, Escape
 // belongs to it — the panel only claims Escape from non-typing targets.
@@ -33,12 +54,23 @@ const isTypingTarget = (target: EventTarget | null): boolean =>
 type SheetPanelProps = {
   isOpen: boolean;
   selectionLabel: string | null;
+  cellType: SheetCellType | 'mixed' | null;
+  onCellTypeChange: (type: SheetCellType) => void;
   onClose: () => void;
 };
 
 // Overlay for the sheet's cell-level options. Phase 1 is the shell only — the
 // cell-type and property controls land here next.
-export function SheetPanel({ isOpen, selectionLabel, onClose }: Readonly<SheetPanelProps>) {
+export function SheetPanel({
+  isOpen,
+  selectionLabel,
+  cellType,
+  onCellTypeChange,
+  onClose,
+}: Readonly<SheetPanelProps>) {
+  const selectedTypeOption =
+    SHEET_CELL_TYPE_OPTIONS.find((option) => option.value === cellType) ?? null;
+
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -80,8 +112,21 @@ export function SheetPanel({ isOpen, selectionLabel, onClose }: Readonly<SheetPa
       <div className={styles.body}>
         {selectionLabel ? (
           <>
-            <span className={styles.rangeLabel}>Applies to</span>
-            <span className={styles.rangeValue}>{selectionLabel}</span>
+            <div className={styles.rangeSection}>
+              <span className={styles.rangeLabel}>Applies to</span>
+              <span className={styles.rangeValue}>{selectionLabel}</span>
+            </div>
+            <CellTypeSelect
+              dsVersion="2.0"
+              label="Cell type"
+              options={SHEET_CELL_TYPE_OPTIONS}
+              value={selectedTypeOption ?? undefined}
+              onChange={(option) => option && onCellTypeChange(option.value)}
+              placeholder={cellType === 'mixed' ? 'Mixed' : 'Select cell type'}
+              isClearable={false}
+              isCreatable={false}
+              isSearchable={false}
+            />
           </>
         ) : (
           <EmptyState

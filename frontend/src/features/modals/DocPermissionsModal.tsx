@@ -52,7 +52,7 @@ const LINK_ROLE_OPTIONS = (['READ', 'COMMENT', 'EDIT'] as WorkspaceRole[]).map((
   label: DOC_ROLE_LABEL[r],
 }));
 const SCOPE_OPTIONS: { value: ShareLinkScope; label: string }[] = [
-  { value: 'REALM', label: 'Anyone in the realm with the link' },
+  { value: 'REALM', label: 'Anyone in the org with the link' },
   { value: 'ANYONE', label: 'Anyone with the link (no sign-in)' },
 ];
 
@@ -212,7 +212,7 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
             onSearchTextChange={setTerm}
             filterOption={null}
             placeholder="Add people by name or email"
-            noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
+            noOptionsText={term.trim() ? 'No matching people in this org' : 'No people to suggest'}
             loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
             size="small"
             testId="doc-perm-users"

@@ -22,8 +22,22 @@ import { DocumentCacheService } from "./document-cache.service";
 import { DocumentsService } from "./documents.service";
 import { RtcTokenService, type RtcRole } from "../rtc/rtc-token.service";
 
-// Neutral presence color for anonymous link visitors (no user row to take it from).
-const ANON_COLOR = "#6b7280";
+// Anonymous link visitors have no user row, so give each a friendly random display name +
+// presence color so collaborators can tell them apart in the editor's awareness cursors.
+const ANON_ADJECTIVES = [
+  "Anonymous", "Curious", "Swift", "Quiet", "Happy", "Clever", "Brave",
+  "Gentle", "Jolly", "Keen", "Lively", "Merry", "Nimble", "Witty",
+];
+const ANON_ANIMALS = [
+  "Otter", "Panda", "Fox", "Koala", "Falcon", "Lynx", "Heron", "Bison",
+  "Tapir", "Gecko", "Marmot", "Ibex", "Quokka", "Wren",
+];
+const ANON_COLORS = [
+  "#f04c54", "#5a5ae2", "#00ac8a", "#e8653a", "#b646ee",
+  "#00b0c2", "#ef4371", "#d67d00", "#6d9c00", "#a43dd7",
+];
+const pick = <T,>(arr: T[]): T => arr[randomBytes(1)[0] % arr.length];
+const randomGuestName = () => `${pick(ANON_ADJECTIVES)} ${pick(ANON_ANIMALS)}`;
 
 // "Anyone with the link" sharing. The token IS the credential: the manage endpoints (owner /
 // ws-ADMIN / doc-ADMIN grantee) mint and rotate it; the public endpoints resolve it with no
@@ -143,12 +157,12 @@ export class DocumentShareLinksService {
         // No standing access of their own — the link role stands.
       }
     } else {
-      // Anonymous visitor (ANYONE scope): synthetic, unguessable identity for presence.
+      // Anonymous visitor (ANYONE scope): synthetic, unguessable identity + random display name.
       identity = {
         id: `link-${randomUUID()}`,
         email: "",
-        name: "Guest",
-        color: ANON_COLOR,
+        name: randomGuestName(),
+        color: pick(ANON_COLORS),
         activeWorkspaceId: null,
       };
     }

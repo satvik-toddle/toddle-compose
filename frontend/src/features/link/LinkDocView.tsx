@@ -52,7 +52,7 @@ export function LinkDocView() {
               title={needsSignIn ? 'Sign in to open this link' : 'Link unavailable'}
               subtitle={
                 needsSignIn
-                  ? 'This link is limited to members of the workspace’s realm. Sign in to continue.'
+                  ? 'This link is limited to members of the workspace’s org. Sign in to continue.'
                   : 'This link is invalid or has been removed.'
               }
             />

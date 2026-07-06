@@ -25,11 +25,15 @@ import {
   type SheetRows,
 } from './sheetModel';
 import { createSheetCellContextMenu } from './sheetContextMenu';
+import { SheetPanel } from './SheetPanel';
+import { useSheetPanel } from './useSheetPanel';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
   // Grid + the right-edge "add column" bar sit side by side; "add row" spans below.
 
+  // relative anchors the sheet panel, which overlays the full grid + add-row area.
+  content: 'relative flex-1 min-h-0 flex flex-col',
   gridRow: 'flex flex-1 min-h-0 gap-2',
   // min-w-0 lets the grid shrink in the flex row so the add-column bar stays on screen.
   grid: 'min-h-0 min-w-0 flex-1',
@@ -63,6 +67,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   const [rows, setRows] = useState<DataGridRow[]>([]);
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const headers = useMemo(() => buildSheetColumns(columnIds), [columnIds]);
+  const { isOpen: isPanelOpen, open: openPanel, close: closePanel } = useSheetPanel(canEdit);
 
   const onCellEdit = (edits: DataGridCellEdit[]) => {
     if (!docRef.current || !rowsRef.current) return;
@@ -101,7 +106,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     colTypesRef.current = yColTypes;
 
     const cellContextMenu = canEdit
-      ? createSheetCellContextMenu(ydoc, yRows, yColTypes)
+      ? createSheetCellContextMenu(ydoc, yRows, yColTypes, openPanel)
       : undefined;
     const refresh = () => {
       const ids = readColumnIds(yColTypes);
@@ -136,7 +141,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
       rowsRef.current = null;
       colTypesRef.current = null;
     };
-  }, [docId, canEdit]);
+  }, [docId, canEdit, openPanel]);
 
   // Scroll + select the appended row/column cell once the change lands over Yjs
   // (re-runs on columnIds so a just-added column is in the grid's index map first).
@@ -153,43 +158,46 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
 
   return (
     <div className={styles.shell}>
-      <div className={styles.gridRow}>
-        <div className={styles.grid}>
-          <DataGrid
-            ref={gridRef}
-            headers={headers}
-            data={rows}
-            isViewMode={!canEdit}
-            onCellEdit={onCellEdit}
-            onAppendRowAtEnd={onAppendRowAtEnd}
-            dataGridHeight="100%"
-          />
+      <div className={styles.content}>
+        <div className={styles.gridRow}>
+          <div className={styles.grid}>
+            <DataGrid
+              ref={gridRef}
+              headers={headers}
+              data={rows}
+              isViewMode={!canEdit}
+              onCellEdit={onCellEdit}
+              onAppendRowAtEnd={onAppendRowAtEnd}
+              dataGridHeight="100%"
+            />
+          </div>
+          {canEdit && (
+            <Tooltip dsVersion="2.0" placement="left" showArrow tooltip="Add column">
+              <button
+                type="button"
+                aria-label="Add column"
+                className={cn(styles.addBar, styles.addColBar)}
+                onClick={onAddColumn}
+              >
+                <AddOutlined variant="subtle" />
+              </button>
+            </Tooltip>
+          )}
         </div>
         {canEdit && (
-          <Tooltip dsVersion="2.0" placement="left" showArrow tooltip="Add column">
+          <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Add row">
             <button
               type="button"
-              aria-label="Add column"
-              className={cn(styles.addBar, styles.addColBar)}
-              onClick={onAddColumn}
+              aria-label="Add row"
+              className={cn(styles.addBar, styles.addRowBar)}
+              onClick={onAddRow}
             >
               <AddOutlined variant="subtle" />
             </button>
           </Tooltip>
         )}
+        {canEdit && <SheetPanel isOpen={isPanelOpen} onClose={closePanel} />}
       </div>
-      {canEdit && (
-        <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Add row">
-          <button
-            type="button"
-            aria-label="Add row"
-            className={cn(styles.addBar, styles.addRowBar)}
-            onClick={onAddRow}
-          >
-            <AddOutlined variant="subtle" />
-          </button>
-        </Tooltip>
-      )}
     </div>
   );
 }

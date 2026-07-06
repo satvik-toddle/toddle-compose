@@ -31,6 +31,10 @@ const fromListItems = (items: DragAndDropListItemInterfaceV2[]): SheetDropdownOp
     label: typeof item.value === 'string' ? item.value : '',
   }));
 
+// Blank rows get random ids, so dirtiness compares labels (and order) only.
+const draftSignature = (options: SheetDropdownOption[], isMulti: boolean): string =>
+  JSON.stringify({ labels: options.map((option) => option.label), isMulti });
+
 type SheetDropdownOptionsFormProps = {
   optionSet: SheetOptionSet | null;
   onSave: (optionSet: SheetOptionSet) => void;
@@ -45,6 +49,11 @@ export function SheetDropdownOptionsForm({
     draftFromSet(optionSet),
   );
   const [isMulti, setIsMulti] = useState(optionSet?.isMulti ?? false);
+
+  // Pristine (form-lib term): the draft still equals the saved set — nothing to save or discard, so Save/Cancel stay disabled.
+  const isPristine =
+    draftSignature(draftOptions, isMulti) ===
+    draftSignature(draftFromSet(optionSet), optionSet?.isMulti ?? false);
 
   const save = () => {
     const options = draftOptions
@@ -86,10 +95,16 @@ export function SheetDropdownOptionsForm({
         />
       </div>
       <div className={styles.actions}>
-        <Button dsVersion="2.0" type="outlined" variant="neutral" onClick={cancel}>
+        <Button
+          dsVersion="2.0"
+          type="outlined"
+          variant="neutral"
+          disabled={isPristine}
+          onClick={cancel}
+        >
           Cancel
         </Button>
-        <Button dsVersion="2.0" onClick={save}>
+        <Button dsVersion="2.0" disabled={isPristine} onClick={save}>
           Save
         </Button>
       </div>

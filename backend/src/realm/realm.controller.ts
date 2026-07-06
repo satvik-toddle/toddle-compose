@@ -15,6 +15,7 @@ import { RealmService } from "./realm.service";
 import {
   AddRealmUserDto,
   PaginationDto,
+  SearchRealmUsersDto,
   UpdateRealmSettingsDto,
   UpdateRealmUserDto,
 } from "./dto";
@@ -40,6 +41,12 @@ export class RealmController {
   @Get("users")
   listUsers(@CurrentUser() user: AuthUser, @Query() page: PaginationDto) {
     return this.realm.listUsers(user.id, page.skip, page.take);
+  }
+
+  // Member search for pickers (any realm member); q matches name or email, top 20.
+  @Get("users/search")
+  searchUsers(@CurrentUser() user: AuthUser, @Query() q: SearchRealmUsersDto) {
+    return this.realm.searchUsers(user.id, q.q, q.take);
   }
 
   @Post("users")

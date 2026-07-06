@@ -4,7 +4,6 @@ import {
   DeleteOutlined,
   DotsHorizontalOutlined,
   LockOutlined,
-  ShareOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
@@ -53,15 +52,6 @@ export function DocActions({
     );
   }
 
-  const openShareModal = () =>
-    openModal({
-      type: 'shareDocument',
-      workspaceId,
-      docId: doc.id,
-      docTitle: doc.title,
-      canManage,
-      isAdmin,
-    });
   const openPermissionsModal = () =>
     openModal({
       type: 'docPermissions',
@@ -114,15 +104,6 @@ export function DocActions({
 
   return (
     <>
-      <Button
-        dsVersion="2.0"
-        variant="neutral"
-        type="outlined"
-        icon={<ShareOutlined />}
-        onClick={openShareModal}
-      >
-        Share
-      </Button>
       {(canCreate || canManage) && (
         <Dropdown
           trigger={['click']}

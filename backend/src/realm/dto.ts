@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from "class-validator";
 
 // OWNER excluded: the seeded realm owner is never assignable via the API.
@@ -35,6 +36,22 @@ export class UpdateRealmSettingsDto {
   @IsString({ each: true })
   @MaxLength(253, { each: true })
   allowedEmailDomains!: string[];
+}
+
+export class SearchRealmUsersDto {
+  // Substring matched case-insensitively against realm members' names and emails.
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  q!: string;
+
+  // Result cap for the dropdown; defaults to 20 and can only be lowered.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  take?: number;
 }
 
 export class PaginationDto {

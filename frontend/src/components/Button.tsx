@@ -42,6 +42,7 @@ export function Button({
   const onFill = v.dsType === 'fill';
   return (
     <DsButton
+      dsVersion="2.0"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       variant={v.variant as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,5 +1,5 @@
 import { http } from '../lib/http';
-import type { OkResponse, RealmInfo, RealmMember } from '../types/api';
+import type { OkResponse, PublicUser, RealmInfo, RealmMember } from '../types/api';
 import type { RealmRole } from '../types/roles';
 
 export const realmApi = {
@@ -7,6 +7,9 @@ export const realmApi = {
   updateSettings: (b: { allowedEmailDomains: string[] }) =>
     http.patch<RealmInfo>('/realm', b),
   listUsers: () => http.get<RealmMember[]>('/realm/users'),
+  // Member-directory search for pickers: name/email substring, any realm member, ≤20 rows.
+  searchUsers: (q: string, take = 20) =>
+    http.get<PublicUser[]>(`/realm/users/search?q=${encodeURIComponent(q)}&take=${take}`),
   addUser: (b: { email: string; role: Exclude<RealmRole, 'OWNER'> }) =>
     http.post<RealmMember>('/realm/users', b),
   setRole: (userId: string, role: Exclude<RealmRole, 'OWNER'>) =>

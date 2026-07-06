@@ -58,6 +58,7 @@ export function Modal({
 }) {
   return (
     <DsModal
+      dsVersion="2.0"
       isOpen
       onClose={onClose}
       width={wide ? '560px' : '440px'}

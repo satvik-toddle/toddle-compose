@@ -1,15 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
+import { SelectDropdown } from '@toddle-edu/ds-web';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
-import { TextInput } from '../../components/TextInput';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
+import { Avatar } from '../../components/Avatar';
+import { Loader } from '../../components/Loader';
 import { RoleRadios } from '../../components/RoleRadios';
 import { useAddWorkspaceMember } from '../../hooks/useWorkspaceMemberMutations';
-import { isNotFound, messageOf } from '../../lib/errors';
+import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
+import { useWorkspaceMembers } from '../../hooks/queries';
+import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
+
+// The version-switching selector's union type drops some react-select props
+// (value/onChange/filterOption); use it untyped like components/RoleSelect.tsx does.
+const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
+
+// One selectable realm user; `email` rides along for the add-member call.
+interface UserOption {
+  value: string;
+  label: string;
+  subtitle: string;
+  icon: React.ReactElement;
+  email: string;
+}
 
 export function AddWorkspaceMemberModal({
   onClose,
@@ -21,9 +38,30 @@ export function AddWorkspaceMemberModal({
   workspaceName: string;
 }) {
   const add = useAddWorkspaceMember();
-  const [email, setEmail] = useState('');
+  const [term, setTerm] = useState('');
+  const [selected, setSelected] = useState<UserOption | null>(null);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
-  const notFound = isNotFound(add.error);
+  const { users, isSearching } = useRealmUserSearch(term);
+  // Only admins reach this modal, so the members read is authorized.
+  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+
+  // Realm-wide matches minus people who are already in this workspace.
+  const options = useMemo(() => {
+    const memberIds = new Set(members.map((m) => m.userId));
+    return users
+      .filter((u) => !memberIds.has(u.id))
+      .map(
+        (u): UserOption => ({
+          value: u.id,
+          label: u.name,
+          subtitle: u.email,
+          icon: <Avatar person={{ name: u.name, color: u.color }} size={20} />,
+          email: u.email,
+        }),
+      );
+  }, [users, members]);
+
+  const noResults = !!term.trim() && !isSearching && options.length === 0;
 
   // Centralised so additional states (e.g. validating, retrying) can be added here later.
   const submitButtonLabel = useMemo(() => {
@@ -32,8 +70,8 @@ export function AddWorkspaceMemberModal({
   }, [add.isPending]);
 
   const submit = () => {
-    if (!email.trim() || add.isPending) return;
-    add.mutate({ workspaceId, email: email.trim(), role }, { onSuccess: () => onClose() });
+    if (!selected || add.isPending) return;
+    add.mutate({ workspaceId, email: selected.email, role }, { onSuccess: () => onClose() });
   };
 
   const copyLink = async () => {
@@ -49,42 +87,41 @@ export function AddWorkspaceMemberModal({
     <Modal onClose={onClose}>
       <ModalHead
         title={`Add to ${workspaceName}`}
-        sub="Give someone access to this workspace by email."
+        sub="Search people in this realm by name or email."
         onClose={onClose}
       />
       <div className="m-body">
-        <Field label="Email address">
-          <TextInput
-            icon="EmailOutlined"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            err={add.isError}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
-            }}
+        <Field label="Person">
+          <Select
+            options={options}
+            value={selected}
+            onChange={(opt: UserOption | null) => setSelected(opt)}
+            onSearchTextChange={setTerm}
+            // Results are already server-filtered (name OR email); react-select's
+            // default label filter would wrongly drop email matches.
+            filterOption={null}
+            isSearchable
+            isClearable
+            placeholder="Search people…"
+            noOptionsText={term.trim() ? 'No matching people in this realm' : 'Type a name or email to search'}
+            loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
+            size="small"
+            testId="ws-member-search"
           />
         </Field>
 
-        {notFound && (
-          <>
-            <div className="err-text">
-              <Icon name="WarningTriangleOutlined" size={14} />
-              No user with that email — they must register first.
+        {noResults && (
+          <div className="invite-fallback">
+            <div>
+              <div className="t">Can’t find them?</div>
+              <div className="d">Send a link so they can create an account, then add them here.</div>
             </div>
-            <div className="invite-fallback">
-              <div>
-                <div className="t">Want them to join?</div>
-                <div className="d">Send a link so they can create an account, then add them here.</div>
-              </div>
-              <Button size="sm" icon="SendOutlined" onClick={copyLink}>
-                Copy sign-up link
-              </Button>
-            </div>
-          </>
+            <Button size="sm" icon="SendOutlined" onClick={copyLink}>
+              Copy sign-up link
+            </Button>
+          </div>
         )}
-        {add.isError && !notFound && (
+        {add.isError && (
           <div className="err-text">
             <Icon name="WarningTriangleOutlined" size={14} />
             {messageOf(add.error)}
@@ -108,7 +145,7 @@ export function AddWorkspaceMemberModal({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" icon="AddOutlined" disabled={!email.trim() || add.isPending} onClick={submit}>
+        <Button variant="primary" icon="AddOutlined" disabled={!selected || add.isPending} onClick={submit}>
           {submitButtonLabel}
         </Button>
       </div>

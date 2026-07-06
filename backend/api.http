@@ -84,6 +84,11 @@ Authorization: Bearer {{ownerToken}}
 GET {{baseUrl}}/realm/users?skip=0&take=50
 Authorization: Bearer {{ownerToken}}
 
+### Search realm members by name/email substring (any realm MEMBER; powers member pickers).
+### Case-insensitive, realm-scoped, name asc, top 20 → [{ id, email, name, color }]
+GET {{baseUrl}}/realm/users/search?q=ali&take=20
+Authorization: Bearer {{ownerToken}}
+
 ### Add a realm user (role: MAINTAINER | MEMBER) → capture their userId
 # @name addRealmUser
 POST {{baseUrl}}/realm/users

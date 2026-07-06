@@ -6,6 +6,7 @@ export const qk = {
   authConfig: ['authConfig'] as const,
   realm: ['realm'] as const,
   realmMembers: ['realm', 'users'] as const,
+  realmUserSearch: (q: string) => ['realm', 'users', 'search', q] as const,
   workspaces: ['workspaces'] as const,
   discoverable: ['workspaces', 'discoverable'] as const,
   myRequests: ['joinRequests', 'mine'] as const,

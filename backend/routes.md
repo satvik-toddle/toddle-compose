@@ -94,6 +94,11 @@ scoped to that workspace; "leave" to drop back to the realm-wide view (realm adm
 ### Realm
 - `GET /api/realm` → `{ id, name, role }` (`role` is your realm role, or `null` if not a member).
 - `GET /api/realm/users` → `[{ user, role, createdAt }]`. Requires realm `MEMBER`+. `?skip&?take`.
+- `GET /api/realm/users/search?q=…&take=…` → `[{ id, email, name, color }]` — realm-member directory
+  search for pickers (e.g. Workspace settings → Members). Case-insensitive substring match on **name
+  or email**, scoped to this realm's members, ordered by name asc. Requires realm `MEMBER`+ (not
+  admin — workspace admins can search). `q` required (`400` if missing, `[]` if whitespace-only);
+  `take` defaults to 20, max 20.
 - `POST /api/realm/users` — `{ email, role: "MAINTAINER" | "MEMBER" }` → add an existing user.
   `MAINTAINER`+ required; granting `MAINTAINER` is **owner-only**. `OWNER` is not assignable.
   `404` unknown email · `409` already a member · `400` invalid role (incl. `OWNER`).

@@ -61,7 +61,7 @@ const styles = {
   selectWrap: 'flex-1 min-w-0',
   errorText: 'mt-1 flex items-center gap-1.5 text-body-s text-semantic-error',
   lbl: 'mt-5 mb-1 text-body-xs font-semibold text-primary',
-  people: 'flex flex-col',
+  people: 'flex flex-col max-h-[350px] overflow-auto',
   prow: 'flex items-center gap-3 py-2',
   who: 'flex-1 min-w-0',
   nm: 'flex items-center gap-1.5 text-body-s font-semibold text-primary truncate',

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { IconButton, Tooltip } from '@toddle-edu/ds-web';
+import { EmptyState, IconButton, Tooltip } from '@toddle-edu/ds-web';
+import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { CloseOutlined } from '@toddle-edu/ds-icons';
 import { commandModifierKey } from '../../../lib/platform';
 import { ShortcutHint } from '../../../components/ShortcutHint';
@@ -13,8 +14,10 @@ const styles = {
   // 1.5rem matches the shell's p-6, so the slide-out clears the padding gutter too.
   panelClosed: 'invisible translate-x-[calc(100%+1.5rem)]',
   header: 'flex items-center justify-between gap-2 border-b border-secondary py-2 pl-4 pr-2',
-  title: 'text-label-s text-primary',
-  body: 'flex-1 px-4 py-3 text-body-s text-secondary',
+  title: 'text-heading-6 text-primary',
+  body: 'flex flex-1 flex-col gap-1 px-4 py-3',
+  rangeLabel: 'text-label text-secondary',
+  rangeValue: 'text-body text-primary',
   tooltip: 'flex items-center gap-2',
 };
 
@@ -27,11 +30,15 @@ const isTypingTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLInputElement ||
   target instanceof HTMLTextAreaElement;
 
-type SheetPanelProps = { isOpen: boolean; onClose: () => void };
+type SheetPanelProps = {
+  isOpen: boolean;
+  selectionLabel: string | null;
+  onClose: () => void;
+};
 
 // Overlay for the sheet's cell-level options. Phase 1 is the shell only — the
 // cell-type and property controls land here next.
-export function SheetPanel({ isOpen, onClose }: Readonly<SheetPanelProps>) {
+export function SheetPanel({ isOpen, selectionLabel, onClose }: Readonly<SheetPanelProps>) {
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -44,12 +51,12 @@ export function SheetPanel({ isOpen, onClose }: Readonly<SheetPanelProps>) {
 
   return (
     <aside
-      aria-label="Cell options"
+      aria-label="Cell configuration"
       aria-hidden={!isOpen}
       className={cn(styles.panel, !isOpen && styles.panelClosed)}
     >
       <header className={styles.header}>
-        <h2 className={styles.title}>Cell options</h2>
+        <h2 className={styles.title}>Cell configuration</h2>
         <Tooltip
           dsVersion="2.0"
           showArrow
@@ -65,12 +72,26 @@ export function SheetPanel({ isOpen, onClose }: Readonly<SheetPanelProps>) {
             variant="neutral"
             type="plain"
             icon={<CloseOutlined />}
-            aria-label="Close cell options"
+            aria-label="Close cell configuration"
             onClick={onClose}
           />
         </Tooltip>
       </header>
-      <div className={styles.body}>Cell type and formatting options will show up here.</div>
+      <div className={styles.body}>
+        {selectionLabel ? (
+          <>
+            <span className={styles.rangeLabel}>Applies to</span>
+            <span className={styles.rangeValue}>{selectionLabel}</span>
+          </>
+        ) : (
+          <EmptyState
+            dsVersion="2.0"
+            illustration={EmptyStateIllustrations.NoDataIllustration}
+            title="No cells selected"
+            subtitle="Select a cell or a range of cells to configure it."
+          />
+        )}
+      </div>
     </aside>
   );
 }

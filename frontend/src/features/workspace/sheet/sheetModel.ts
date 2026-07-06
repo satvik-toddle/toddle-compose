@@ -44,6 +44,19 @@ export function indexToColumnId(index: number): string {
   return label;
 }
 
+// A1-style label for the selected cells' bounding box: 'B3' or 'B3:D7'; null when
+// nothing is selected.
+export function formatSelectionRange(
+  cells: ReadonlyArray<{ row: number; col: number }>,
+): string | null {
+  if (cells.length === 0) return null;
+  const rows = cells.map((cell) => cell.row);
+  const cols = cells.map((cell) => cell.col);
+  const start = `${indexToColumnId(Math.min(...cols))}${Math.min(...rows) + 1}`;
+  const end = `${indexToColumnId(Math.max(...cols))}${Math.max(...rows) + 1}`;
+  return start === end ? start : `${start}:${end}`;
+}
+
 // Inverse of indexToColumnId ('A'↔0, 'Z'↔25, 'AA'↔26).
 function columnIdToIndex(label: string): number {
   let position = 0;

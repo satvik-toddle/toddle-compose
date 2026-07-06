@@ -4,7 +4,12 @@ import { WebsocketProvider } from 'y-websocket';
 import { DataGrid } from '@toddle-edu/ds-data-grid';
 // The grid's styles (canvas chrome, inline editor, scrollbars).
 import '@toddle-edu/ds-data-grid/dist/main.css';
-import type { DataGridCellEdit, DataGridRef, DataGridRow } from '@toddle-edu/ds-data-grid';
+import type {
+  DataGridCellEdit,
+  DataGridRef,
+  DataGridRow,
+  DataGridSelectedCell,
+} from '@toddle-edu/ds-data-grid';
 import { AddOutlined } from '@toddle-edu/ds-icons';
 import { Tooltip } from '@toddle-edu/ds-web';
 import { useRtcToken } from '../../../hooks/usePages';
@@ -18,6 +23,7 @@ import {
   appendSheetRow,
   applySheetEdits,
   buildSheetColumns,
+  formatSelectionRange,
   readColumnIds,
   readSheetRows,
   seedSheet,
@@ -68,6 +74,11 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   const [columnIds, setColumnIds] = useState<string[]>([]);
   const headers = useMemo(() => buildSheetColumns(columnIds), [columnIds]);
   const { isOpen: isPanelOpen, open: openPanel, close: closePanel } = useSheetPanel(canEdit);
+  const [selectionLabel, setSelectionLabel] = useState<string | null>(null);
+
+  const onCellSelectionChange = (cells: DataGridSelectedCell[]) => {
+    setSelectionLabel(formatSelectionRange(cells));
+  };
 
   const onCellEdit = (edits: DataGridCellEdit[]) => {
     if (!docRef.current || !rowsRef.current) return;
@@ -167,6 +178,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
               data={rows}
               isViewMode={!canEdit}
               onCellEdit={onCellEdit}
+              onCellSelectionChange={onCellSelectionChange}
               onAppendRowAtEnd={onAppendRowAtEnd}
               dataGridHeight="100%"
             />
@@ -196,7 +208,9 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
             </button>
           </Tooltip>
         )}
-        {canEdit && <SheetPanel isOpen={isPanelOpen} onClose={closePanel} />}
+        {canEdit && (
+          <SheetPanel isOpen={isPanelOpen} selectionLabel={selectionLabel} onClose={closePanel} />
+        )}
       </div>
     </div>
   );

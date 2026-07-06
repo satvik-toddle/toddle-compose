@@ -126,7 +126,7 @@ export function LauncherPage() {
         <div className="page-wrap">
           <div className={s.lcGreet}>
             <div>
-              <h1>Workspaces</h1>
+              <h1 className="text-primary">Workspaces</h1>
               <div className="sub">
                 You can reach <b>{list.length}</b> {list.length === 1 ? 'workspace' : 'workspaces'} in{' '}
                 {realmName} · signed in as {me.email}

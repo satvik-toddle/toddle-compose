@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react';
-import { TextInput, Tag } from '@toddle-edu/ds-web';
+import { TextInput, Tag, Table } from '@toddle-edu/ds-web';
 import { KeyDiagonalOutlined } from '@toddle-edu/ds-icons';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { RoleSelect } from '../../components/RoleSelect';
 import { PageLoader } from '../../components/Loader';
-import { tableStyles as t } from '../../components/tableStyles';
 import { useAccessTokens } from '../../hooks/queries';
-import { useCreateAccessToken, useRevokeAccessToken } from '../../hooks/useAccessTokenMutations';
+import { useCreateAccessToken } from '../../hooks/useAccessTokenMutations';
 import { pushToast } from '../../stores/uiStore';
 import { formatDate } from '../../lib/time';
-import { cn } from '../../lib/cn';
+import { ConfirmRevokeTokenModal } from './ConfirmRevokeTokenModal';
 import type { AccessToken, AccessTokenPermission } from '../../types/api';
 
 // MAINTAINER is realm-only; a workspace token tops out at ADMIN.
@@ -23,7 +22,10 @@ const PERMISSION_LABEL: Record<AccessTokenPermission, string> = {
   ADMIN: 'Admin',
   MAINTAINER: 'Maintainer',
 };
-const PERMISSION_COLOR: Record<AccessTokenPermission, 'neutral' | 'blue' | 'teal' | 'violet' | 'orange'> = {
+const PERMISSION_COLOR: Record<
+  AccessTokenPermission,
+  'neutral' | 'blue' | 'teal' | 'violet' | 'orange'
+> = {
   VIEW: 'neutral',
   COMMENT: 'blue',
   EDIT: 'teal',
@@ -38,7 +40,13 @@ const EXPIRY_OPTIONS = [
   { value: '365', label: '1 year' },
 ];
 
-const TOKEN_GRID = 'grid-cols-[2fr_130px_120px_100px_64px]';
+const TOKEN_HEADERS = [
+  { key: 'name', value: 'Name' },
+  { key: 'permission', value: 'Permission' },
+  { key: 'expires', value: 'Expires' },
+  { key: 'status', value: 'Status' },
+  { key: 'actions', value: 'Revoke', alignment: 'right' as const },
+];
 
 const styles = {
   root: 'flex flex-col gap-3.5',
@@ -60,7 +68,7 @@ const styles = {
   formActions: 'flex justify-end gap-2',
   empty:
     'rounded-3 border border-dashed border-[var(--line)] px-4 py-10 text-center text-body-s text-secondary',
-  rowInactive: 'opacity-60',
+  tableWrap: 'min-h-0 overflow-auto rounded-2 border border-secondary',
   cellDash: 'text-secondary',
 };
 
@@ -79,18 +87,20 @@ export interface WorkspaceAccessTokensTabProps {
 export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAccessTokensTabProps>) {
   const { data: allTokens, isLoading } = useAccessTokens(true);
   const create = useCreateAccessToken();
-  const revoke = useRevokeAccessToken();
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [permission, setPermission] = useState<AccessTokenPermission>('EDIT');
   const [expiresInDays, setExpiresInDays] = useState('90');
+  // Token pending revoke confirmation; drives the stacked confirm modal.
+  const [revoking, setRevoking] = useState<AccessToken | null>(null);
   // The raw secret is returned exactly once; hold it here until dismissed.
   const [freshToken, setFreshToken] = useState<string | null>(null);
 
   // Only this workspace's tokens (the API returns the caller's tokens across scopes).
   const tokens = useMemo(
-    () => (allTokens ?? []).filter((tk) => tk.scope === 'WORKSPACE' && tk.workspaceId === workspaceId),
+    () =>
+      (allTokens ?? []).filter((tk) => tk.scope === 'WORKSPACE' && tk.workspaceId === workspaceId),
     [allTokens, workspaceId],
   );
 
@@ -141,7 +151,12 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
         </div>
         <div className={styles.toolbarActions}>
           {!showForm && !freshToken && (
-            <Button variant="primary" size="sm" icon="AddOutlined" onClick={() => setShowForm(true)}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="AddOutlined"
+              onClick={() => setShowForm(true)}
+            >
               New token
             </Button>
           )}
@@ -225,53 +240,62 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
           No access tokens yet. Create one to let scripts and integrations act in this workspace.
         </div>
       ) : (
-        <div className={t.table}>
-          <div className={cn(t.thead, TOKEN_GRID)}>
-            <div className={t.th}>Name</div>
-            <div className={t.th}>Permission</div>
-            <div className={t.th}>Expires</div>
-            <div className={t.th}>Status</div>
-            <div className={cn(t.th, t.cellRight)}>Revoke</div>
-          </div>
-          {tokens.map((token) => {
-            const status = statusOf(token);
-            const inactive = status.label !== 'Active';
-            return (
-              <div key={token.id} className={cn(t.trow, TOKEN_GRID, inactive && styles.rowInactive)}>
-                <div className={t.td}>
-                  <div className={t.nm}>{token.name}</div>
-                  <div className={t.rowSub}>
-                    <code>{token.prefix}…</code> · created {formatDate(token.createdAt)}
-                  </div>
-                </div>
-                <div className={t.td}>
-                  <Tag color={PERMISSION_COLOR[token.permission]} size="small">
-                    {PERMISSION_LABEL[token.permission]}
-                  </Tag>
-                </div>
-                <div className={t.td}>{formatDate(token.expiresAt)}</div>
-                <div className={t.td}>
-                  <Tag color={status.tone} size="small">
-                    {status.label}
-                  </Tag>
-                </div>
-                <div className={cn(t.td, t.cellRight)}>
-                  {inactive ? (
-                    <span className={styles.cellDash}>—</span>
-                  ) : (
-                    <IconButton
-                      icon="DeleteOutlined"
-                      red
-                      title="Revoke token"
-                      disabled={revoke.isPending}
-                      onClick={() => revoke.mutate(token.id)}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className={styles.tableWrap}>
+          <Table
+            dsVersion="2.0"
+            isHeaderFixed
+            headers={TOKEN_HEADERS}
+            data={tokens.map((token) => {
+              const status = statusOf(token);
+              const inactive = status.label !== 'Active';
+              return {
+                id: token.id,
+                isDisabled: inactive,
+                rowData: [
+                  {
+                    key: 'name',
+                    value: token.name,
+                    subText: `${token.prefix}… · created ${formatDate(token.createdAt)}`,
+                  },
+                  {
+                    key: 'permission',
+                    value: (
+                      <Tag color={PERMISSION_COLOR[token.permission]} size="small">
+                        {PERMISSION_LABEL[token.permission]}
+                      </Tag>
+                    ),
+                  },
+                  { key: 'expires', value: formatDate(token.expiresAt) },
+                  {
+                    key: 'status',
+                    value: (
+                      <Tag color={status.tone} size="small">
+                        {status.label}
+                      </Tag>
+                    ),
+                  },
+                  {
+                    key: 'actions',
+                    value: inactive ? (
+                      <span className={styles.cellDash}>—</span>
+                    ) : (
+                      <IconButton
+                        icon="DeleteOutlined"
+                        red
+                        title="Revoke token"
+                        onClick={() => setRevoking(token)}
+                      />
+                    ),
+                  },
+                ],
+              };
+            })}
+          />
         </div>
+      )}
+
+      {revoking && (
+        <ConfirmRevokeTokenModal token={revoking} onClose={() => setRevoking(null)} />
       )}
     </div>
   );

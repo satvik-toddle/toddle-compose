@@ -135,7 +135,7 @@ export function AddWorkspaceMemberModal({
             onChange={setRole}
             options={WS_ROLES.map((r) => ({
               value: r,
-              desc: WS_ROLE_META[r].desc,
+              desc: WS_ROLE_META[r].label,
             }))}
           />
         </Field>

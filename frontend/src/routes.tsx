@@ -20,6 +20,7 @@ import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
 import { SharedPagesView } from './features/workspace/content/SharedPagesView';
+import { LinkDocView } from './features/link/LinkDocView';
 
 export function AppRoutes() {
   return (
@@ -31,6 +32,9 @@ export function AppRoutes() {
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+      {/* public share link (works logged-out for ANYONE-scope links) */}
+      <Route path="/link/:token" element={<LinkDocView />} />
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>

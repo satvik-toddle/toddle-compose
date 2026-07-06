@@ -118,3 +118,27 @@ export class UpdateDocumentPermissionDto {
   @IsIn(WORKSPACE_ROLES)
   role!: DocPermissionRoleInput;
 }
+
+// Share links never confer ADMIN — role is capped at EDIT here, at the API edge.
+const SHARE_LINK_ROLES = ["READ", "COMMENT", "EDIT"] as const;
+type ShareLinkRoleInput = (typeof SHARE_LINK_ROLES)[number];
+
+const SHARE_LINK_SCOPES = ["REALM", "ANYONE"] as const;
+type ShareLinkScopeInput = (typeof SHARE_LINK_SCOPES)[number];
+
+const SHARE_MODES = ["DEFAULT", "INVITE", "LINK"] as const;
+type ShareModeInput = (typeof SHARE_MODES)[number];
+
+export class UpsertShareLinkDto {
+  @IsIn(SHARE_LINK_ROLES)
+  role!: ShareLinkRoleInput;
+
+  // REALM → any logged-in realm member with the link; ANYONE → works logged-out.
+  @IsIn(SHARE_LINK_SCOPES)
+  scope!: ShareLinkScopeInput;
+}
+
+export class SetShareModeDto {
+  @IsIn(SHARE_MODES)
+  mode!: ShareModeInput;
+}

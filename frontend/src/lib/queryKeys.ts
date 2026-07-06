@@ -21,6 +21,10 @@ export const qk = {
   starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
   sharedDocuments: (workspaceId: string) => ['documents', workspaceId, 'shared'] as const, // Same prefix-sharing as starredDocuments.
   docPermissions: (docId: string) => ['documents', docId, 'permissions'] as const,
+  docDetail: (docId: string) => ['documents', docId, 'detail'] as const, // single-doc GET (shareMode lives here)
+  docShareLink: (docId: string) => ['documents', docId, 'shareLink'] as const,
+  shareLink: (token: string) => ['shareLink', token] as const, // public /link/:token resolve
+  shareLinkRtc: (token: string) => ['shareLink', token, 'rtc'] as const,
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
 };
 

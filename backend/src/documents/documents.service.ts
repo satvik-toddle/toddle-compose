@@ -24,6 +24,7 @@ const SUMMARY_SELECT = {
   icon: true,
   type: true,
   visibility: true,
+  shareMode: true,
   workspaceId: true,
   folderId: true,
   parentId: true,

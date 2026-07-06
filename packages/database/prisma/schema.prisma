@@ -49,6 +49,22 @@ enum JoinRequestState {
   REJECTED
 }
 
+// Reach of a document share link: REALM → any logged-in realm member with the
+// link; ANYONE → works logged-out, no auth at all.
+enum ShareLinkScope {
+  REALM
+  ANYONE
+}
+
+// Which sharing pane the doc's Share modal opens on (DEFAULT workspace roles,
+// INVITE per-user grants, LINK share link). UI state only — authz always derives
+// from the grant/link rows themselves, never from this mode.
+enum DocShareMode {
+  DEFAULT
+  INVITE
+  LINK
+}
+
 model Realm {
   id         String        @id @default(cuid())
   name       String
@@ -245,6 +261,10 @@ model Document {
   stars       DocumentStar[]
   // Per-page permission grants on this doc; deleting the doc removes them (cascade).
   permissions DocumentPermission[]
+  // At most one live share link per doc (cascade on doc delete).
+  shareLink   DocumentShareLink?
+  // Which Share-modal pane opens; purely presentational (see DocShareMode).
+  shareMode   DocShareMode @default(DEFAULT) @map("share_mode")
   // PUBLIC additionally exposes the doc to any realm member, across workspaces.
   visibility  Visibility   @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -300,4 +320,23 @@ model DocumentPermission {
   @@id([userId, documentId])
   @@index([documentId])
   @@map("document_permissions")
+}
+
+// "Anyone with the link" sharing: at most one live link per document (documentId
+// is unique). The token is a crypto-random capability — knowing it (plus, for
+// REALM scope, being a logged-in realm member) grants `role` on this one doc.
+// Role is capped at EDIT (never ADMIN), enforced at the DTO layer. Regenerating
+// replaces the token, instantly invalidating the old URL. createdById is a plain
+// audit field (no relation), mirroring JoinRequest.decidedById.
+model DocumentShareLink {
+  id          String         @id @default(cuid())
+  documentId  String         @unique @map("document_id")
+  document    Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token       String         @unique
+  role        WorkspaceRole  @default(READ)
+  scope       ShareLinkScope @default(REALM)
+  createdById String         @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@map("document_share_links")
 }

@@ -3,6 +3,7 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
+import { useShareLinkRtcToken } from '../../hooks/useShareLink';
 import { uploadFile } from '../../api/uploads';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
@@ -54,11 +55,23 @@ async function uploadToServer(arg: UploadArg): Promise<string> {
 // `collab` config whose providerFactory opens a Yjs Websocket to the rtc-server
 // (room = docId). The body lives in Yjs (rtc-database) — multi-user, live, server
 // persistence. Keyed by docId at the call site → remounts per document.
-export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
+// `shareToken` (public /link/:token view) mints the RTC token via the link instead of the
+// authenticated doc endpoint; everything downstream (viewOnly, provider) is identical.
+export function DocEditor({
+  docId,
+  shareToken,
+}: {
+  docId: string;
+  canEdit?: boolean;
+  shareToken?: string;
+}) {
   // Select primitive slices, not the user object: a token refresh replaces `user` by identity but leaves these values equal, so `collab` below stays stable instead of tearing down the live provider.
   const name = useAuthStore((s) => s.user?.name);
   const color = useAuthStore((s) => s.user?.color);
-  const { data: rtc, isLoading, isError } = useRtcToken(docId);
+  // Exactly one source is enabled (the other is disabled via a falsy arg), so hooks stay unconditional.
+  const docRtc = useRtcToken(shareToken ? undefined : docId);
+  const linkRtc = useShareLinkRtcToken(shareToken);
+  const { data: rtc, isLoading, isError } = shareToken ? linkRtc : docRtc;
 
   // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
   const paramsRef = useRef<{ token?: string }>({});

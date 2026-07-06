@@ -1,5 +1,12 @@
 import { http } from '../lib/http';
-import type { DocumentDto, DocumentPermission, DocumentType } from '../types/api';
+import type {
+  DocumentDto,
+  DocumentPermission,
+  DocumentShareLink,
+  DocumentType,
+  ShareLinkScope,
+  ShareMode,
+} from '../types/api';
 import type { Visibility, WorkspaceRole } from '../types/roles';
 
 export const documentsApi = {
@@ -51,4 +58,14 @@ export const documentsApi = {
     http.patch<DocumentPermission>(`/documents/${id}/permissions/${userId}`, { role }),
   removePermission: (id: string, userId: string) =>
     http.del<{ ok: true }>(`/documents/${id}/permissions/${userId}`),
+
+  // Share link + access mode (managers only). PUT upserts and flips shareMode to LINK.
+  getShareLink: (id: string) => http.get<DocumentShareLink>(`/documents/${id}/share-link`),
+  putShareLink: (id: string, b: { role: WorkspaceRole; scope: ShareLinkScope }) =>
+    http.put<DocumentShareLink>(`/documents/${id}/share-link`, b),
+  regenerateShareLink: (id: string) =>
+    http.post<DocumentShareLink>(`/documents/${id}/share-link/regenerate`),
+  deleteShareLink: (id: string) => http.del<{ ok: true }>(`/documents/${id}/share-link`), // resets shareMode to DEFAULT
+  setShareMode: (id: string, mode: ShareMode) =>
+    http.patch<DocumentDto>(`/documents/${id}/share-mode`, { mode }),
 };

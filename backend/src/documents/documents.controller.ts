@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from "@nestjs/common";
@@ -15,6 +16,7 @@ import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
 import { PaginationDto } from "../realm/dto";
 import { DocumentsService } from "./documents.service";
 import { DocumentPermissionsService } from "./document-permissions.service";
+import { DocumentShareLinksService } from "./document-share-links.service";
 import { RtcTokenService } from "../rtc/rtc-token.service";
 import {
   AddDocumentPermissionDto,
@@ -24,8 +26,10 @@ import {
   ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
+  SetShareModeDto,
   SetVisibilityDto,
   UpdateDocumentPermissionDto,
+  UpsertShareLinkDto,
 } from "./dto";
 
 @UseGuards(JwtAuthGuard)
@@ -34,6 +38,7 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly permissions: DocumentPermissionsService,
+    private readonly shareLinks: DocumentShareLinksService,
     private readonly rtcTokens: RtcTokenService
   ) {}
 
@@ -220,6 +225,41 @@ export class DocumentsController {
     @Param("userId") userId: string
   ) {
     return this.permissions.remove(user.id, id, userId);
+  }
+
+  // ------------------------------------------------------------ share link (manage)
+
+  @Get(":id/share-link")
+  getShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.get(user.id, id);
+  }
+
+  @Put(":id/share-link")
+  upsertShareLink(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() dto: UpsertShareLinkDto
+  ) {
+    return this.shareLinks.upsert(user.id, id, dto.role, dto.scope);
+  }
+
+  @Post(":id/share-link/regenerate")
+  regenerateShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.regenerate(user.id, id);
+  }
+
+  @Delete(":id/share-link")
+  removeShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.remove(user.id, id);
+  }
+
+  @Patch(":id/share-mode")
+  setShareMode(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() dto: SetShareModeDto
+  ) {
+    return this.shareLinks.setShareMode(user.id, id, dto.mode);
   }
 }
 

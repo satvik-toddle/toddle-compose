@@ -27,7 +27,6 @@ export function JoinRequestsTab() {
           requests={requests ?? []}
           isLoading={isLoading}
           showWorkspace
-          emptyText="When someone asks to join a private workspace, it'll show up here."
         />
       </div>
     </div>

@@ -24,7 +24,7 @@ export function RequestsTable({
 }: {
   requests: JoinRequest[];
   isLoading?: boolean;
-  emptyText: string;
+  emptyText?: string;
   showWorkspace?: boolean;
 }) {
   const approve = useApproveRequest();

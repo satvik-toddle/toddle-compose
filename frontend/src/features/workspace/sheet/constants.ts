@@ -11,4 +11,5 @@ export const SHEET_CELL_TYPE_OPTIONS: readonly SheetCellTypeOption[] = [
   { label: 'Checkbox', value: 'checkbox' },
   { label: 'Toggle', value: 'toggle' },
   { label: 'Radio', value: 'radio' },
+  { label: 'Dropdown', value: 'dropdown' },
 ];

@@ -10,7 +10,8 @@ import {
   SHEET_PANEL_SHORTCUT_KEY,
   type SheetCellTypeOption,
 } from './constants';
-import type { SheetCellType } from './sheetModel';
+import { SheetDropdownOptionsForm } from './SheetDropdownOptionsForm';
+import type { SheetCellType, SheetOptionSet } from './sheetModel';
 
 const styles = {
   // Floats over the grid's right edge, Google-Sheets style — the grid keeps its size.
@@ -20,7 +21,7 @@ const styles = {
   panelClosed: 'invisible translate-x-[calc(100%+1.5rem)]',
   header: 'flex items-center justify-between gap-2 border-b border-secondary py-2 pl-4 pr-2',
   title: 'text-heading-6 text-primary',
-  body: 'flex flex-1 flex-col gap-4 px-4 py-3',
+  body: 'flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto px-4 py-3',
   rangeSection: 'flex flex-col gap-1',
   rangeLabel: 'text-label text-secondary',
   rangeValue: 'text-body text-primary',
@@ -56,6 +57,9 @@ type SheetPanelProps = {
   selectionLabel: string | null;
   cellType: SheetCellType | 'mixed' | null;
   onCellTypeChange: (type: SheetCellType) => void;
+  dropdownOptionSetId: string | null;
+  dropdownOptionSet: SheetOptionSet | null;
+  onSaveDropdownOptions: (optionSet: SheetOptionSet) => void;
   onClose: () => void;
 };
 
@@ -66,6 +70,9 @@ export function SheetPanel({
   selectionLabel,
   cellType,
   onCellTypeChange,
+  dropdownOptionSetId,
+  dropdownOptionSet,
+  onSaveDropdownOptions,
   onClose,
 }: Readonly<SheetPanelProps>) {
   const selectedTypeOption =
@@ -127,6 +134,15 @@ export function SheetPanel({
               isCreatable={false}
               isSearchable={false}
             />
+            {cellType === 'dropdown' && (
+              <SheetDropdownOptionsForm
+                // Remount when the target set (or a set-less selection) changes so the
+                // draft never leaks across ranges.
+                key={dropdownOptionSetId ?? `new-${selectionLabel}`}
+                optionSet={dropdownOptionSet}
+                onSave={onSaveDropdownOptions}
+              />
+            )}
           </>
         ) : (
           <EmptyState

@@ -13,8 +13,11 @@ import type {
 // The column id is an opaque uuid (not the letter label), so two clients adding a
 // column concurrently can't collide on the same map key; the letter label is derived
 // from `order` at render. The server records each value opaquely, so this stays safe.
+// 'optionSets' (set id -> { options, isMulti }) is not yet in extractSheet — version
+// snapshots miss it until the rtc-server registry work lands.
 export const ROWS_KEY = 'rows';
 export const COL_TYPE_KEY = 'colTypes';
+export const OPTION_SETS_KEY = 'optionSets';
 const ID_KEY = '__id';
 
 const COLUMN_COUNT = 26; // A–Z, Google-Sheets style
@@ -22,25 +25,35 @@ const COLUMN_WIDTH = 160;
 export const SHEET_ROW_COUNT = 100;
 const CELL_TYPE = 'text';
 
-export const SHEET_CELL_TYPES = ['text', 'number', 'checkbox', 'toggle', 'radio'] as const;
+export const SHEET_CELL_TYPES = ['text', 'number', 'checkbox', 'toggle', 'radio', 'dropdown'] as const;
 export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
 
 export type SheetRows = Y.Array<Y.Map<unknown>>;
 export type SheetColTypes = Y.Map<unknown>;
+export type SheetOptionSets = Y.Map<unknown>;
 // One column's persisted metadata: its cell type and its position in the grid.
 type SheetColMeta = { type: string; order: number };
+
+export type SheetDropdownOption = { id: string; label: string };
+// One dropdown option list, shared by every cell whose meta points at its set id —
+// a range of dropdown cells stores the list once, and editing it updates them all.
+export type SheetOptionSet = { options: SheetDropdownOption[]; isMulti: boolean };
+
+export type SheetCellRef = { rowId: string; colId: string };
 
 // A cell's metadata sits in its row's Y.Map under `<colId>#meta` — row deletion
 // cleans it up for free, and '#' can't occur in a uuid column id.
 const CELL_META_SUFFIX = '#meta';
-type SheetCellMeta = { type: SheetCellType };
+type SheetCellMeta = { type: SheetCellType; config?: { optionSetId?: string } };
 
 const cellMetaKey = (colId: string): string => `${colId}${CELL_META_SUFFIX}`;
 const isCellMetaKey = (key: string): boolean => key.endsWith(CELL_META_SUFFIX);
 
-function readCellType(row: Y.Map<unknown>, colId: string): SheetCellType {
-  const meta = row.get(cellMetaKey(colId)) as SheetCellMeta | undefined;
-  return meta?.type ?? 'text';
+const readCellMeta = (row: Y.Map<unknown>, colId: string): SheetCellMeta | undefined =>
+  row.get(cellMetaKey(colId)) as SheetCellMeta | undefined;
+
+export function readOptionSet(yOptionSets: SheetOptionSets, setId: string): SheetOptionSet | null {
+  return (yOptionSets.get(setId) as SheetOptionSet | undefined) ?? null;
 }
 
 const ALPHABET_SIZE = 26;
@@ -115,11 +128,35 @@ const makeColumnId = (): string => crypto.randomUUID();
 const findRowMap = (yRows: SheetRows, rowId: string): Y.Map<unknown> | undefined =>
   yRows.toArray().find((row) => row.get(ID_KEY) === rowId);
 
-const CHECKBOX_VALUES = ['checked', 'unchecked', 'indeterminate'];
+const CHECKBOX_VALUES = new Set(['checked', 'unchecked', 'indeterminate']);
+
+// Former richer values (e.g. a dropdown's id array) stringify readably, not as
+// '[object Object]'.
+const toDisplayText = (stored: unknown): string => {
+  if (stored == null) return '';
+  return typeof stored === 'object' ? JSON.stringify(stored) : String(stored);
+};
+
+// A dropdown cell stores selected option ids; resolve them against the cell's set
+// (ids whose option was deleted drop out silently).
+function toDropdownCell(stored: unknown, optionSet: SheetOptionSet | null): DataGridCell {
+  const selectedIds = Array.isArray(stored) ? stored : [];
+  const options = optionSet?.options ?? [];
+  return {
+    cellType: 'dropdown',
+    value: options.filter((option) => selectedIds.includes(option.id)),
+    validInputs: { options },
+    // The grid defaults isMulti to true; ours comes from the set.
+    isMulti: optionSet?.isMulti ?? false,
+    // Options are managed from the sheet panel, not from inside the cell editor.
+    addNewOptionEnabled: false,
+  };
+}
 
 // The stored value survives type switches untouched; each type coerces it for
 // display, so switching back to text recovers the original content.
-function toGridCell(type: SheetCellType, stored: unknown): DataGridCell {
+function toGridCell(meta: SheetCellMeta | undefined, stored: unknown, yOptionSets: SheetOptionSets): DataGridCell {
+  const type = meta?.type ?? 'text';
   switch (type) {
     case 'number': {
       const numeric = typeof stored === 'number' ? stored : Number(stored);
@@ -129,14 +166,18 @@ function toGridCell(type: SheetCellType, stored: unknown): DataGridCell {
     case 'checkbox':
       return {
         cellType: 'checkbox',
-        value: CHECKBOX_VALUES.includes(stored as string) ? stored : 'unchecked',
+        value: CHECKBOX_VALUES.has(stored as string) ? stored : 'unchecked',
       };
     case 'toggle':
       return { cellType: 'toggle', value: stored === true };
     case 'radio':
       return { cellType: 'radio', value: stored, checked: stored === true };
+    case 'dropdown': {
+      const setId = meta?.config?.optionSetId;
+      return toDropdownCell(stored, setId ? readOptionSet(yOptionSets, setId) : null);
+    }
     default:
-      return { cellType: 'text', value: stored == null ? '' : String(stored) };
+      return { cellType: 'text', value: toDisplayText(stored) };
   }
 }
 
@@ -146,6 +187,7 @@ function toGridCell(type: SheetCellType, stored: unknown): DataGridCell {
 // per-cell closure is needed.
 export function readSheetRows(
   yRows: SheetRows,
+  yOptionSets: SheetOptionSets,
   columnIds: string[],
   isEditable: boolean,
   contextMenu?: DataGridContextMenu,
@@ -154,7 +196,7 @@ export function readSheetRows(
     rowId: row.get(ID_KEY) as string,
     columns: columnIds.map(
       (id): DataGridCell => ({
-        ...toGridCell(readCellType(row, id), row.get(id)),
+        ...toGridCell(readCellMeta(row, id), row.get(id), yOptionSets),
         isEditable,
         contextMenu,
       }),
@@ -164,20 +206,82 @@ export function readSheetRows(
 
 // A single cell's content as text; an absent key reads as empty.
 export function readSheetCell(yRows: SheetRows, rowId: string, colId: string): string {
-  const value = findRowMap(yRows, rowId)?.get(colId);
-  return value == null ? '' : String(value);
+  return toDisplayText(findRowMap(yRows, rowId)?.get(colId));
+}
+
+const makeOptionSetId = (): string => crypto.randomUUID();
+
+const rowsById = (yRows: SheetRows): Map<string, Y.Map<unknown>> =>
+  new Map(yRows.toArray().map((row) => [row.get(ID_KEY) as string, row]));
+
+// The single option set shared by every given cell; null when the cells span
+// mixed/missing sets (or none are dropdowns).
+export function sharedOptionSetId(yRows: SheetRows, cells: readonly SheetCellRef[]): string | null {
+  if (cells.length === 0) return null;
+  const rows = rowsById(yRows);
+  let sharedSetId: string | null = null;
+  for (const { rowId, colId } of cells) {
+    const row = rows.get(rowId);
+    if (!row) return null;
+    const meta = readCellMeta(row, colId);
+    const setId = meta?.type === 'dropdown' ? meta.config?.optionSetId : undefined;
+    if (setId == null) return null;
+    if (sharedSetId === null) sharedSetId = setId;
+    else if (sharedSetId !== setId) return null;
+  }
+  return sharedSetId;
 }
 
 export function setSheetCellType(
   ydoc: Y.Doc,
   yRows: SheetRows,
-  cells: ReadonlyArray<{ rowId: string; colId: string }>,
+  yOptionSets: SheetOptionSets,
+  cells: readonly SheetCellRef[],
   type: SheetCellType,
 ): void {
-  const rowsById = new Map(yRows.toArray().map((row) => [row.get(ID_KEY) as string, row]));
+  const rows = rowsById(yRows);
   ydoc.transact(() => {
+    if (type === 'dropdown') {
+      // Reuse the range's common set so re-picking "Dropdown" keeps existing options.
+      const setId = sharedOptionSetId(yRows, cells) ?? makeOptionSetId();
+      if (!yOptionSets.has(setId)) {
+        yOptionSets.set(setId, { options: [], isMulti: false } satisfies SheetOptionSet);
+      }
+      for (const { rowId, colId } of cells) {
+        rows
+          .get(rowId)
+          ?.set(cellMetaKey(colId), { type, config: { optionSetId: setId } } satisfies SheetCellMeta);
+      }
+      return;
+    }
     for (const { rowId, colId } of cells) {
-      rowsById.get(rowId)?.set(cellMetaKey(colId), { type } satisfies SheetCellMeta);
+      rows.get(rowId)?.set(cellMetaKey(colId), { type } satisfies SheetCellMeta);
+    }
+  });
+}
+
+// Persist the panel's options form: update the shared set in place, or — when the
+// selection has no single set — create one and point every selected cell at it.
+export function saveDropdownOptions(
+  ydoc: Y.Doc,
+  yRows: SheetRows,
+  yOptionSets: SheetOptionSets,
+  cells: readonly SheetCellRef[],
+  optionSetId: string | null,
+  optionSet: SheetOptionSet,
+): void {
+  const setId = optionSetId ?? makeOptionSetId();
+  const rows = rowsById(yRows);
+  ydoc.transact(() => {
+    yOptionSets.set(setId, optionSet);
+    if (optionSetId != null) return;
+    for (const { rowId, colId } of cells) {
+      rows
+        .get(rowId)
+        ?.set(cellMetaKey(colId), {
+          type: 'dropdown',
+          config: { optionSetId: setId },
+        } satisfies SheetCellMeta);
     }
   });
 }
@@ -215,10 +319,14 @@ export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColType
   });
 }
 
-// The radio cell reports its state via `checked` instead of `value`.
+// The radio cell reports its state via `checked` instead of `value`; the dropdown
+// cell reports selected option objects, of which only the ids are stored.
 function editedCellValue(newValue: DataGridCellEdit['newValue']): unknown {
   if (newValue?.cellType === 'radio' && typeof newValue.checked === 'boolean') {
     return newValue.checked;
+  }
+  if (newValue?.cellType === 'dropdown' && Array.isArray(newValue.value)) {
+    return newValue.value.map((option) => (option as SheetDropdownOption).id);
   }
   return newValue?.value ?? '';
 }

@@ -18,18 +18,24 @@ import { RTC_WS_URL } from '../../../lib/env';
 import { cn } from '../../../lib/cn';
 import {
   COL_TYPE_KEY,
+  OPTION_SETS_KEY,
   ROWS_KEY,
   appendSheetColumn,
   appendSheetRow,
   applySheetEdits,
   buildSheetColumns,
   formatSelectionRange,
+  saveDropdownOptions,
   setSheetCellType,
-  type SheetCellType,
+  sharedOptionSetId,
   readColumnIds,
   readSheetRows,
   seedSheet,
+  type SheetCellRef,
+  type SheetCellType,
   type SheetColTypes,
+  type SheetOptionSet,
+  type SheetOptionSets,
   type SheetRows,
 } from './sheetModel';
 import { createSheetCellContextMenu } from './sheetContextMenu';
@@ -67,6 +73,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   const docRef = useRef<Y.Doc | null>(null);
   const rowsRef = useRef<SheetRows | null>(null);
   const colTypesRef = useRef<SheetColTypes | null>(null);
+  const optionSetsRef = useRef<SheetOptionSets | null>(null);
   const gridRef = useRef<DataGridRef>(null);
   // The column being edited when a new row is appended, so focus can drop straight
   // down into the same column of that row once it arrives from Yjs.
@@ -74,6 +81,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   const pendingFocusRef = useRef<{ rowId: string; colId: string | number } | null>(null);
   const [rows, setRows] = useState<DataGridRow[]>([]);
   const [columnIds, setColumnIds] = useState<string[]>([]);
+  const [optionSets, setOptionSets] = useState<Record<string, SheetOptionSet>>({});
   const headers = useMemo(() => buildSheetColumns(columnIds), [columnIds]);
   const { isOpen: isPanelOpen, open: openPanel, close: closePanel } = useSheetPanel(canEdit);
   const [selectedCells, setSelectedCells] = useState<DataGridSelectedCell[]>([]);
@@ -95,10 +103,34 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     return sharedType as SheetCellType;
   }, [selectedCells, rows, columnIds]);
 
+  const selectedCellRefs = useMemo(
+    (): SheetCellRef[] =>
+      selectedCells.map((cell) => ({ rowId: cell.rowId, colId: String(cell.colId) })),
+    [selectedCells],
+  );
+
+  // The option set shared by the whole selection; null for mixed or brand-new ranges.
+  // `rows` is a dep purely to re-read the live yRows after remote changes.
+  const selectedOptionSetId = useMemo(() => {
+    if (selectedCellType !== 'dropdown' || !rowsRef.current) return null;
+    return sharedOptionSetId(rowsRef.current, selectedCellRefs);
+  }, [selectedCellType, selectedCellRefs, rows]);
+
   const onCellTypeChange = (type: SheetCellType) => {
-    if (!docRef.current || !rowsRef.current) return;
-    const cells = selectedCells.map((cell) => ({ rowId: cell.rowId, colId: String(cell.colId) }));
-    setSheetCellType(docRef.current, rowsRef.current, cells, type);
+    if (!docRef.current || !rowsRef.current || !optionSetsRef.current) return;
+    setSheetCellType(docRef.current, rowsRef.current, optionSetsRef.current, selectedCellRefs, type);
+  };
+
+  const onSaveDropdownOptions = (optionSet: SheetOptionSet) => {
+    if (!docRef.current || !rowsRef.current || !optionSetsRef.current) return;
+    saveDropdownOptions(
+      docRef.current,
+      rowsRef.current,
+      optionSetsRef.current,
+      selectedCellRefs,
+      selectedOptionSetId,
+      optionSet,
+    );
   };
 
   const onCellEdit = (edits: DataGridCellEdit[]) => {
@@ -133,9 +165,11 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     const ydoc = new Y.Doc();
     const yRows = ydoc.getArray<Y.Map<unknown>>(ROWS_KEY);
     const yColTypes = ydoc.getMap<unknown>(COL_TYPE_KEY);
+    const yOptionSets = ydoc.getMap<unknown>(OPTION_SETS_KEY);
     docRef.current = ydoc;
     rowsRef.current = yRows;
     colTypesRef.current = yColTypes;
+    optionSetsRef.current = yOptionSets;
 
     const cellContextMenu = canEdit
       ? createSheetCellContextMenu(ydoc, yRows, yColTypes, openPanel)
@@ -143,10 +177,12 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     const refresh = () => {
       const ids = readColumnIds(yColTypes);
       setColumnIds(ids);
-      setRows(readSheetRows(yRows, ids, canEdit, cellContextMenu));
+      setRows(readSheetRows(yRows, yOptionSets, ids, canEdit, cellContextMenu));
+      setOptionSets(yOptionSets.toJSON());
     };
     yRows.observeDeep(refresh);
     yColTypes.observe(refresh);
+    yOptionSets.observe(refresh);
 
     const provider = new WebsocketProvider(RTC_WS_URL, docId, ydoc, {
       params: paramsRef.current,
@@ -166,12 +202,14 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     return () => {
       yRows.unobserveDeep(refresh);
       yColTypes.unobserve(refresh);
+      yOptionSets.unobserve(refresh);
       provider.off('sync', onSync);
       provider.destroy();
       ydoc.destroy();
       docRef.current = null;
       rowsRef.current = null;
       colTypesRef.current = null;
+      optionSetsRef.current = null;
     };
   }, [docId, canEdit, openPanel]);
 
@@ -235,6 +273,11 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
             selectionLabel={selectionLabel}
             cellType={selectedCellType}
             onCellTypeChange={onCellTypeChange}
+            dropdownOptionSetId={selectedOptionSetId}
+            dropdownOptionSet={
+              selectedOptionSetId ? (optionSets[selectedOptionSetId] ?? null) : null
+            }
+            onSaveDropdownOptions={onSaveDropdownOptions}
             onClose={closePanel}
           />
         )}

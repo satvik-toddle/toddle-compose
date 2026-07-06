@@ -17,7 +17,6 @@ import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
 import { isRealmAdmin, isUserMember, REALM_ROLE_META } from '../../lib/roles';
-import { greet, firstName } from '../../lib/time';
 import type { User } from '../../types/api';
 
 function RoleNote({ roleLabel }: { roleLabel: string }) {
@@ -91,10 +90,10 @@ function EmptyOwner({ onCreate }: { onCreate: () => void }) {
 // Left rail switching the launcher between the workspace grid and the global "Shared with me".
 const nav = {
   layout: 'flex flex-1 min-h-0',
-  side: 'flex-none w-56 flex flex-col gap-1 p-3 border-r border-secondary',
-  item: 'flex items-center gap-2 rounded-1.5 px-2.5 py-2 text-body-s text-secondary cursor-pointer hover:bg-surface-secondary-hover text-left w-full border-0 bg-transparent',
+  side: 'flex-none w-56 flex flex-col gap-1 p-3 border-r border-secondary bg-surface-secondary-enabled',
+  item: 'flex items-center gap-2 rounded-1.5 px-2.5 py-2 text-body-s text-primary cursor-pointer hover:bg-surface-secondary-hover text-left w-full border-0 bg-transparent',
   itemOn: 'bg-surface-secondary-hover text-primary font-semibold',
-  main: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-auto',
+  main: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-auto bg-[var(--panel-bg)]',
 };
 
 export function LauncherPage() {
@@ -127,9 +126,7 @@ export function LauncherPage() {
         <div className="page-wrap">
           <div className={s.lcGreet}>
             <div>
-              <h1>
-                {greet()}, {firstName(me.name)}
-              </h1>
+              <h1>Workspaces</h1>
               <div className="sub">
                 You can reach <b>{list.length}</b> {list.length === 1 ? 'workspace' : 'workspaces'} in{' '}
                 {realmName} · signed in as {me.email}

@@ -19,7 +19,6 @@ import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
-import { SharedPagesView } from './features/workspace/content/SharedPagesView';
 import { LinkDocView } from './features/link/LinkDocView';
 
 export function AppRoutes() {
@@ -57,7 +56,6 @@ export function AppRoutes() {
           <Route element={<WorkspaceLayout />}>
             <Route index element={<WorkspaceContent />} />
             <Route path="starred" element={<StarredPagesView />} />
-            <Route path="shared" element={<SharedPagesView />} />
           </Route>
         </Route>
       </Route>

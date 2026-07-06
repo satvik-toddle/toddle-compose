@@ -2,6 +2,7 @@ import { useMemo, useState, type ComponentType } from 'react';
 import { SelectDropdown } from '@toddle-edu/ds-web';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
+import { IconButton } from '../../components/IconButton';
 import { Icon, type IconName } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { RoleSelect } from '../../components/RoleSelect';
@@ -13,7 +14,6 @@ import {
   useRemoveDocPermission,
 } from '../../hooks/useDocPermissions';
 import {
-  useDocDetail,
   useShareLink,
   usePutShareLink,
   useRegenerateShareLink,
@@ -145,7 +145,6 @@ const renderRole = (v: WorkspaceRole) => (
 
 // Add-people row + the "People with access" list (owner first, then grantees).
 function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
-  const { data: detail } = useDocDetail(docId);
   const { data: grants = [] } = useDocPermissions(docId);
   const addPermission = useAddDocPermission();
   const updatePermission = useUpdateDocPermission();
@@ -198,8 +197,6 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
     }
   };
 
-  const owner = detail?.owner;
-
   return (
     <>
       <div className={styles.add}>
@@ -228,15 +225,14 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
           options={INVITE_ROLE_OPTIONS}
           renderValue={renderRole}
         />
-        <Button
+        <IconButton
+          icon="SendOutlined"
           variant="primary"
-          size="sm"
-          icon="AddOutlined"
+          type="fill"
+          aria-label="Add people"
           disabled={selected.length === 0 || adding}
           onClick={add}
-        >
-          {adding ? '…' : 'Add'}
-        </Button>
+        />
       </div>
       {addErrors.map((err) => (
         <div key={err.name} className={styles.errorText}>
@@ -247,16 +243,6 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
 
       <div className={styles.lbl}>People with access</div>
       <div className={styles.people}>
-        {owner && (
-          <div className={styles.prow}>
-            <Avatar person={{ name: owner.name, color: owner.color }} size={34} />
-            <div className={styles.who}>
-              <div className={styles.nm}>{owner.name}</div>
-              <div className={styles.sub}>Owner</div>
-            </div>
-            <span className={styles.ownerTag}>Owner</span>
-          </div>
-        )}
         {grants.map((g) => (
           <div key={g.userId} className={styles.prow}>
             <Avatar person={{ name: g.user.name, color: g.user.color }} size={34} />

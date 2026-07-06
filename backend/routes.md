@@ -213,6 +213,10 @@ Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, par
   document summary plus `sharedAt` (grant creation time), `myRole` (effective role =
   `MAX(workspace role, grant)`), and `isStarred`. `?skip&?take`. `403` if the caller has neither a
   workspace role nor any grant here.
+- `GET /api/documents/shared-with-me` → the caller's grants across **all** workspaces (no
+  `workspaceId`; powers the launcher's global "Shared with me"), newest grant first, excluding docs
+  they own. Each row is the document summary plus `workspace: { id, name }`, `sharedAt`, `myRole`, and
+  `isStarred`. `?skip&?take`.
 - `POST /api/documents` — `{ title?, icon?, type?, folderId?, parentId?, workspaceId? }` → create.
   `title` 1–200 chars, `icon` ≤16 chars. `type` is `DOC` (default) or `SHEET`; when `icon` is omitted
   it defaults per kind (`📄` for DOC, `📊` for SHEET). `parentId` nests it under an existing document of
@@ -367,6 +371,32 @@ Non-managers get `403`; a missing doc is `404`.
 
 > Accepted leak: a guest streaming the workspace SSE feed sees title-level events for other docs in
 > the workspace (same class as `PUBLIC`-doc metadata exposure).
+
+### Share links (link-based access)
+A document can have **at most one** share link — additive with per-page grants and workspace roles.
+A link has a **scope** (`REALM` = any signed-in realm member with the link; `ANYONE` = works
+logged-out, no auth) and a **role** (`READ` | `COMMENT` | `EDIT` — never `ADMIN`). The token is an
+unguessable capability; a link never exposes anything about the workspace beyond the one doc.
+
+Manage endpoints (same **manage rights** as permissions — owner / workspace `ADMIN` / doc-`ADMIN`):
+- `GET /api/documents/:id/share-link` → `{ token, role, scope, createdAt, url }` (`url` =
+  `${FRONTEND_URL}/link/:token`) or `404` if none.
+- `PUT /api/documents/:id/share-link` — `{ role: "READ"|"COMMENT"|"EDIT", scope: "REALM"|"ANYONE" }` →
+  upsert (creates if absent, else updates role/scope keeping the token); sets the doc's `shareMode` to
+  `LINK`. Returns the same shape.
+- `POST /api/documents/:id/share-link/regenerate` → rotate the token (old URL dies immediately),
+  keeping role/scope. `404` if no link.
+- `DELETE /api/documents/:id/share-link` → `{ ok: true }`; resets `shareMode` to `DEFAULT`.
+- `PATCH /api/documents/:id/share-mode` — `{ mode: "DEFAULT"|"INVITE"|"LINK" }` → set the Share-modal
+  pane (presentational; leaving `LINK` does **not** delete the link).
+
+Public endpoints (**unguarded** — the token is the credential):
+- `GET /api/share-links/:token` → `{ document: { id, title, icon, type, workspaceId }, role, scope }`.
+  `ANYONE` scope needs no auth; `REALM` scope requires a valid access token belonging to a realm member
+  (else `401`). `404` for an unknown token (constant — never reveals whether a token existed).
+- `POST /api/share-links/:token/rtc-token` → mint an RTC token for the doc. `EDIT` link → `editor`,
+  `READ`/`COMMENT` → `viewer`. Logged-out `ANYONE` visitors get a synthetic anonymous "Guest" identity;
+  an authenticated caller with stronger standing access (owner / workspace role / grant) keeps it.
 
 ---
 

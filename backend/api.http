@@ -524,6 +524,37 @@ Authorization: Bearer {{bobGuestWsToken}}
 DELETE {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
 Authorization: Bearer {{wsToken}}
 
+### Global "shared with me" across ALL workspaces (launcher) — rows carry workspace {id,name}
+GET {{baseUrl}}/documents/shared-with-me
+Authorization: Bearer {{bobToken}}
+
+### ---- share links (doc 3-dots → Share → "Anyone with the link") ----
+### Create/update the link (manager). scope REALM|ANYONE, role READ|COMMENT|EDIT. Flips shareMode→LINK.
+PUT {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "role": "READ", "scope": "REALM" }
+
+### Read the current link
+GET {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
+
+### Rotate the token (old URL dies immediately)
+POST {{baseUrl}}/documents/{{docId}}/share-link/regenerate
+Authorization: Bearer {{wsToken}}
+
+### Public resolve — REALM scope needs a signed-in realm member (else 401); ANYONE works with no auth
+GET {{baseUrl}}/share-links/{{shareToken}}
+Authorization: Bearer {{bobToken}}
+
+### Public RTC token via the link (anonymous "Guest" identity when logged-out on an ANYONE link)
+POST {{baseUrl}}/share-links/{{shareToken}}/rtc-token
+
+### Revoke the link → resets shareMode to DEFAULT
+DELETE {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
+
 ### Delete a document (creator or ADMIN) — run in cleanup
 # DELETE {{baseUrl}}/documents/{{docId}}
 # Authorization: Bearer {{wsToken}}

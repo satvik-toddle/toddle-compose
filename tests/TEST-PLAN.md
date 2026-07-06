@@ -25,11 +25,23 @@ tests without driving a browser.
 - **create**: PRIVATE by default; requires EDIT; `workspaceId` + `ownerId` set;
   optional `folderId` must be a live folder in the same workspace.
 - **read**: owner, any workspace READ (members + workspace ADMIN + realm
-  OWNER/MAINTAINER overlay), OR — when PUBLIC — any realm member. Otherwise 404
-  (existence hidden).
-- **write** (rename/move/visibility/delete): creator OR workspace ADMIN; else 403.
+  OWNER/MAINTAINER overlay), a **per-page grant** (any role, any registered user),
+  OR — when PUBLIC — any realm member. Otherwise 404 (existence hidden).
+- **write** (rename/move/visibility/delete): creator OR effective doc role ≥ min,
+  where effective doc role = MAX(workspace role, per-page grant); else 403. So a
+  doc-ADMIN grantee can rename/move/toggle-visibility/delete; a doc-EDIT grantee can
+  rename/move but gets 403 on visibility/delete.
 - **move**: target folder must be in the document's workspace.
 - **visibility toggle**: PRIVATE↔PUBLIC flips read reach as above.
+- **per-page permissions** (`GET/POST/PATCH/DELETE /documents/:id/permissions[/:userId]`):
+  manage gate = owner / effective workspace ADMIN / doc-ADMIN grantee (else 403, 404 if
+  doc missing); grant by email accepts any role (READ|COMMENT|EDIT|ADMIN) but only ever
+  elevates — effective doc role = max(ws role, grant), so READ/COMMENT grants mint viewer
+  RTC tokens while EDIT/ADMIN mint editor; 404 unregistered email, 409 owner, 409 duplicate;
+  POST also sends a best-effort "shared with you" email; DELETE also allowed for the grantee
+  themselves (leave). No cascade to sub-pages. Grant-only users get guest workspace entry
+  with the doc list filtered to grants; `GET /documents/shared` lists grant rows
+  (doc + sharedAt + myRole) excluding owned docs.
 
 ## 3. Authorization core (`AuthzService`) — pure ordering
 

@@ -89,12 +89,40 @@ export class AuthzService {
     return role;
   }
 
-  private maxWorkspaceRole(
+  maxWorkspaceRole(
     a: WorkspaceRole | null,
     b: WorkspaceRole | null
   ): WorkspaceRole | null {
     if (a === null) return b;
     if (b === null) return a;
     return WS_ORDER[a] >= WS_ORDER[b] ? a : b;
+  }
+
+  // Per-page grant for this user on this exact document (never cascades to sub-pages); null if none.
+  async docGrantRole(
+    userId: string,
+    documentId: string
+  ): Promise<WorkspaceRole | null> {
+    const grant = await this.prisma.documentPermission.findUnique({
+      where: { userId_documentId: { userId, documentId } },
+    });
+    return grant?.role ?? null;
+  }
+
+  // True if `role` (nullable) ranks at or above `min` on the workspace ladder.
+  meetsWorkspaceRole(role: WorkspaceRole | null, min: WorkspaceRole): boolean {
+    return role !== null && WS_ORDER[role] >= WS_ORDER[min];
+  }
+
+  // Whether the user holds any per-page grant on a document in this workspace (drives guest entry).
+  async hasDocGrantInWorkspace(
+    userId: string,
+    workspaceId: string
+  ): Promise<boolean> {
+    const grant = await this.prisma.documentPermission.findFirst({
+      where: { userId, document: { workspaceId } },
+      select: { documentId: true },
+    });
+    return grant !== null;
   }
 }

@@ -446,6 +446,70 @@ Content-Type: application/json
 
 { "visibility": "PUBLIC" }
 
+### ---- per-page permission grants (doc 3-dots → Permissions) ----
+
+### Grant Bob EDIT on this doc by email → capture his userId (manager: owner/ws-ADMIN/doc-ADMIN).
+### Any role is grantable (READ|COMMENT|EDIT|ADMIN) — grants only elevate: effective = max(ws role, grant);
+### READ/COMMENT grants mint viewer RTC tokens. Side effect: Bob gets a "shared with you" email (View doc button).
+# @name grantBob
+POST {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "email": "bob@toddle.test", "role": "EDIT" }
+
+> {% client.global.set("bobGrantUserId", response.body.userId); %}
+
+### List this doc's grants (managers only) → [{ userId, documentId, role, createdAt, user }]
+GET {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+
+### Duplicate grant for the same user → 409
+POST {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "email": "bob@toddle.test", "role": "ADMIN" }
+
+### Grant to an unregistered email → 404 ("must register first")
+POST {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "email": "nobody@nowhere.test", "role": "EDIT" }
+
+### Promote Bob to doc ADMIN (rename/move/visibility/delete/manage)
+PATCH {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "role": "ADMIN" }
+
+### Bob (non-member) enters as a GUEST via his grant → { role: "READ", guest: true }
+POST {{baseUrl}}/auth/workspace/enter
+Authorization: Bearer {{bobToken}}
+Content-Type: application/json
+
+{ "workspaceId": "{{workspaceId}}" }
+
+> {% client.global.set("bobGuestWsToken", response.body.accessToken); %}
+
+### Bob's doc list shows ONLY his granted docs (guest fallback); each carries `myRole`
+GET {{baseUrl}}/documents
+Authorization: Bearer {{bobGuestWsToken}}
+
+### Bob's "shared with me" list — grant rows newest first, each doc + sharedAt + myRole + isStarred
+GET {{baseUrl}}/documents/shared
+Authorization: Bearer {{bobGuestWsToken}}
+
+### Bob opens the granted doc — breadcrumbs collapse to the doc itself (no ancestor leak)
+GET {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{bobGuestWsToken}}
+
+### Revoke Bob's grant (manager) — or Bob himself may DELETE with his own userId to "leave"
+DELETE {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
+Authorization: Bearer {{wsToken}}
+
 ### Delete a document (creator or ADMIN) — run in cleanup
 # DELETE {{baseUrl}}/documents/{{docId}}
 # Authorization: Bearer {{wsToken}}

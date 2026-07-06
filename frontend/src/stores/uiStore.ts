@@ -36,7 +36,8 @@ export type ModalState =
       docTitle: string;
       canManage: boolean;
       isAdmin: boolean;
-    };
+    }
+  | { type: 'docPermissions'; workspaceId: string; docId: string; docTitle: string; ownerId: string };
 
 interface UiState {
   modal: ModalState | null;

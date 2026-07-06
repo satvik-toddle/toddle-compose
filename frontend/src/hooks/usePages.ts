@@ -32,6 +32,14 @@ export function useStarredDocuments(workspaceId: string | undefined, enabled = t
   });
 }
 
+export function useSharedDocuments(workspaceId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: workspaceId ? qk.sharedDocuments(workspaceId) : ['documents', '_none', 'shared'],
+    queryFn: () => documentsApi.listSharedWithMe(workspaceId as string),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
 // Mint an RTC token for real-time collaboration on a document (Yjs/rtc-server).
 export function useRtcToken(docId: string | undefined) {
   return useQuery({

@@ -1,6 +1,6 @@
 import { http } from '../lib/http';
-import type { DocumentDto, DocumentType } from '../types/api';
-import type { Visibility } from '../types/roles';
+import type { DocumentDto, DocumentPermission, DocumentType } from '../types/api';
+import type { Visibility, WorkspaceRole } from '../types/roles';
 
 export const documentsApi = {
   // All documents in a workspace (client groups by folderId for the tree/list).
@@ -9,6 +9,8 @@ export const documentsApi = {
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
   listStarred: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
+  listSharedWithMe: (workspaceId: string) =>
+    http.get<DocumentDto[]>(`/documents/shared?workspaceId=${encodeURIComponent(workspaceId)}`), // Pages shared with the current user via per-page grants — excludes owned docs, newest grant first.
   create: (b: {
     workspaceId: string;
     parentId?: string | null;
@@ -40,4 +42,13 @@ export const documentsApi = {
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
   star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
+
+  // Per-page permission grants (manage from the doc's 3-dots → Permissions).
+  listPermissions: (id: string) => http.get<DocumentPermission[]>(`/documents/${id}/permissions`),
+  addPermission: (id: string, b: { email: string; role: WorkspaceRole }) =>
+    http.post<DocumentPermission>(`/documents/${id}/permissions`, b),
+  updatePermission: (id: string, userId: string, role: WorkspaceRole) =>
+    http.patch<DocumentPermission>(`/documents/${id}/permissions/${userId}`, { role }),
+  removePermission: (id: string, userId: string) =>
+    http.del<{ ok: true }>(`/documents/${id}/permissions/${userId}`),
 };

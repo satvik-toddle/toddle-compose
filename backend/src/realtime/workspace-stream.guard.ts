@@ -50,7 +50,8 @@ export class WorkspaceStreamGuard implements CanActivate {
 
     const workspaceId: string = req.params.workspaceId;
     const role = await this.authz.effectiveWorkspaceRole(user.id, workspaceId);
-    if (role === null) {
+    // Grant-only guests may stream; accepted leak: title-level SSE for other docs (like PUBLIC metadata).
+    if (role === null && !(await this.authz.hasDocGrantInWorkspace(user.id, workspaceId))) {
       throw new UnauthorizedException("no access to this workspace");
     }
 

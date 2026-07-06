@@ -3,6 +3,7 @@ import { SearchInput, Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
+  MultipleUsersOutlined,
   SettingsOutlined,
   ChevronLeftOutlined,
   AddOutlined,
@@ -101,6 +102,15 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           >
             <StarOutlined size="xxx-small" />
             Starred
+          </NavLink>
+          <NavLink
+            to={`/w/${workspaceId}/shared`}
+            className={({ isActive }) =>
+              cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
+            }
+          >
+            <MultipleUsersOutlined size="xxx-small" />
+            Shared with me
           </NavLink>
         </div>
 

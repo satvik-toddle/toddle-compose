@@ -1,10 +1,12 @@
 import {
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from "class-validator";
+import { WORKSPACE_ROLES } from "../workspaces/dto";
 
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
 type VisibilityInput = (typeof VISIBILITIES)[number];
@@ -91,4 +93,28 @@ export class ListStarredDocumentsDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+}
+
+export class ListSharedDocumentsDto {
+  // Defaults to the caller's active workspace from the session.
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+}
+
+// Per-page grants accept any WorkspaceRole; they only ever elevate (effective = max(ws role, grant)).
+type DocPermissionRoleInput = (typeof WORKSPACE_ROLES)[number];
+
+export class AddDocumentPermissionDto {
+  // The grantee must already be a registered user (looked up by email; 404 otherwise).
+  @IsEmail()
+  email!: string;
+
+  @IsIn(WORKSPACE_ROLES)
+  role!: DocPermissionRoleInput;
+}
+
+export class UpdateDocumentPermissionDto {
+  @IsIn(WORKSPACE_ROLES)
+  role!: DocPermissionRoleInput;
 }

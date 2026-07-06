@@ -144,6 +144,7 @@ model User {
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
   documentStars        DocumentStar[]
+  documentPermissions  DocumentPermission[]
 
   @@map("users")
 }
@@ -242,6 +243,8 @@ model Document {
   children    Document[]   @relation("DocumentTree")
   // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
   stars       DocumentStar[]
+  // Per-page permission grants on this doc; deleting the doc removes them (cascade).
+  permissions DocumentPermission[]
   // PUBLIC additionally exposes the doc to any realm member, across workspaces.
   visibility  Visibility   @default(PRIVATE)
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -276,4 +279,25 @@ model DocumentStar {
   @@id([userId, documentId])
   @@index([documentId])
   @@map("document_stars")
+}
+
+// A per-page (per-document) permission grant: one row = this user holds `role`
+// on this specific document, independent of workspace membership. The grant does
+// NOT cascade to sub-pages (lookups are by exact documentId). The role reuses the
+// WorkspaceRole enum (any of READ/COMMENT/EDIT/ADMIN may be granted). Effective
+// doc role = MAX(workspace-derived role, grant) — a grant only ever elevates.
+// Composite PK [userId, documentId] makes a grant idempotent per (user, doc).
+// Cascades on both sides, so deleting the user or the document drops the grant.
+// Mirrors the DocumentStar/WorkspaceMember join-table shape used elsewhere.
+model DocumentPermission {
+  userId     String        @map("user_id")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String        @map("document_id")
+  document   Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  role       WorkspaceRole @default(EDIT)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_permissions")
 }

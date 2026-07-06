@@ -11,6 +11,10 @@ import {
   renderPasswordReset,
   type PasswordResetTemplateInput,
 } from "./templates/password-reset";
+import {
+  renderDocShared,
+  type DocSharedTemplateInput,
+} from "./templates/doc-shared";
 
 export type SendResult = { delivered: boolean };
 
@@ -83,6 +87,13 @@ export class MailerService implements OnModuleInit {
     input: PasswordResetTemplateInput
   ): Promise<SendResult> {
     return this.send(to, renderPasswordReset(input), "password-reset", input.resetUrl);
+  }
+
+  async sendDocShared(
+    to: string,
+    input: DocSharedTemplateInput
+  ): Promise<SendResult> {
+    return this.send(to, renderDocShared(input), "doc-shared", input.docUrl);
   }
 
   // Shared delivery path: in dev (no Gmail) the link is logged so the flow is

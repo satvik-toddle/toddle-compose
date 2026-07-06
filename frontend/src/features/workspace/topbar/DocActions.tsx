@@ -3,6 +3,7 @@ import {
   AddOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
+  LockOutlined,
   ShareOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
@@ -18,6 +19,7 @@ import {
 import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
+const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 
 export function DocActions({
@@ -29,7 +31,7 @@ export function DocActions({
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
-  const canManage = !!doc && (isAdmin || doc.owner.id === user.id);
+  const canManage = !!doc && (isAdmin || doc.owner.id === user.id || doc.myRole === 'ADMIN');
 
   if (!doc) {
     return (
@@ -60,6 +62,14 @@ export function DocActions({
       canManage,
       isAdmin,
     });
+  const openPermissionsModal = () =>
+    openModal({
+      type: 'docPermissions',
+      workspaceId,
+      docId: doc.id,
+      docTitle: doc.title,
+      ownerId: doc.owner.id,
+    });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
@@ -77,8 +87,18 @@ export function DocActions({
           },
         ]
       : []),
-    // Divider only when a create group sits above it, else it leads the menu.
-    ...(canCreate && canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
+    ...(canManage
+      ? [
+          {
+            key: PERMISSIONS_KEY,
+            label: 'Share',
+            icon: <LockOutlined size="xxx-small" variant="subtle" />,
+            onSelect: openPermissionsModal,
+          },
+        ]
+      : []),
+    // Divider before Delete whenever a manage group (Permissions) sits above it.
+    ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
     ...(canManage
       ? [
           {

@@ -14,14 +14,18 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
 import { PaginationDto } from "../realm/dto";
 import { DocumentsService } from "./documents.service";
+import { DocumentPermissionsService } from "./document-permissions.service";
 import { RtcTokenService } from "../rtc/rtc-token.service";
 import {
+  AddDocumentPermissionDto,
   CreateDocumentDto,
   ListDocumentsDto,
+  ListSharedDocumentsDto,
   ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
   SetVisibilityDto,
+  UpdateDocumentPermissionDto,
 } from "./dto";
 
 @UseGuards(JwtAuthGuard)
@@ -29,6 +33,7 @@ import {
 export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
+    private readonly permissions: DocumentPermissionsService,
     private readonly rtcTokens: RtcTokenService
   ) {}
 
@@ -64,6 +69,22 @@ export class DocumentsController {
     @Query() page: PaginationDto
   ) {
     return this.documents.listStarred(
+      user,
+      { workspaceId: q.workspaceId },
+      page.skip,
+      page.take
+    );
+  }
+
+  // Docs shared with the current user via per-page grants, newest grant first.
+  // Declared before `:id` so "shared" isn't matched as a document id.
+  @Get("shared")
+  listShared(
+    @CurrentUser() user: AuthUser,
+    @Query() q: ListSharedDocumentsDto,
+    @Query() page: PaginationDto
+  ) {
+    return this.documents.listSharedWithMe(
       user,
       { workspaceId: q.workspaceId },
       page.skip,
@@ -160,6 +181,45 @@ export class DocumentsController {
   @Delete(":id/star")
   unstar(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.unstar(user.id, id);
+  }
+
+  // --- Per-page permission grants (manage from the doc's 3-dots → Permissions) ---
+
+  // Explicit grants on this doc; requires manage rights (owner / workspace ADMIN / doc-ADMIN grantee).
+  @Get(":id/permissions")
+  listPermissions(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.permissions.list(user.id, id);
+  }
+
+  // Grant a registered user any role on this doc (elevate-only); 404 unregistered email, 409 owner/duplicate.
+  @Post(":id/permissions")
+  addPermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() dto: AddDocumentPermissionDto
+  ) {
+    return this.permissions.add(user, id, dto.email, dto.role);
+  }
+
+  // Change a grant's role; 404 if there's no grant for that user.
+  @Patch(":id/permissions/:userId")
+  updatePermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @Body() dto: UpdateDocumentPermissionDto
+  ) {
+    return this.permissions.update(user.id, id, userId, dto.role);
+  }
+
+  // Revoke a grant; allowed for managers or the grantee themselves (leave the page).
+  @Delete(":id/permissions/:userId")
+  removePermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("userId") userId: string
+  ) {
+    return this.permissions.remove(user.id, id, userId);
   }
 }
 

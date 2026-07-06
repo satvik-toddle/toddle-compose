@@ -85,8 +85,10 @@ per-request from the DB — never read from the JWT.
 The access token from login is identity-only. To act inside a workspace, "enter" it to get a token
 scoped to that workspace; "leave" to drop back to the realm-wide view (realm admins then see all).
 
-- `POST /api/auth/workspace/enter` — `{ workspaceId }` → `{ accessToken, expiresIn, workspaceId, role }`.
-  `403` if you have no access to the workspace · `404` if it isn't in this realm.
+- `POST /api/auth/workspace/enter` — `{ workspaceId }` → `{ accessToken, expiresIn, workspaceId, role, guest }`.
+  `403` if you have no access to the workspace · `404` if it isn't in this realm. A user who is not a
+  workspace member but holds a per-page grant here enters as a **guest**: `role: "READ", guest: true`
+  (the doc list is then filtered to just their granted docs — see Document permissions below).
 - `POST /api/auth/workspace/leave` — → `{ accessToken, expiresIn, workspaceId: null }`.
 
 ### Realm
@@ -197,6 +199,11 @@ Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, par
   omit `workspaceId` to use the active workspace, omit `folderId`/`parentId` for the whole workspace.
   `parentId=null` (or empty) returns only top-level docs (no parent); `parentId=<id>` returns that
   document's direct subdocs. `?skip&?take`.
+- `GET /api/documents/shared?workspaceId=…` → docs **shared with the caller** via per-page grants
+  (see Document permissions below), newest grant first, excluding docs they own. Each row is the
+  document summary plus `sharedAt` (grant creation time), `myRole` (effective role =
+  `MAX(workspace role, grant)`), and `isStarred`. `?skip&?take`. `403` if the caller has neither a
+  workspace role nor any grant here.
 - `POST /api/documents` — `{ title?, icon?, type?, folderId?, parentId?, workspaceId? }` → create.
   `title` 1–200 chars, `icon` ≤16 chars. `type` is `DOC` (default) or `SHEET`; when `icon` is omitted
   it defaults per kind (`📄` for DOC, `📊` for SHEET). `parentId` nests it under an existing document of
@@ -320,6 +327,37 @@ Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, par
 - `PATCH /api/documents/:id/visibility` — `{ visibility: "PUBLIC" | "PRIVATE" }` → change visibility.
 - `DELETE /api/documents/:id` — remove the document and its entire subdoc subtree →
   `{ ok: true, deleted: <count> }`.
+
+### Document permissions (per-page grants)
+Grant a **registered** user a role on **one specific document**, independent of workspace membership.
+The **effective doc role** used by every read/write gate is `MAX(workspace-derived role, per-page grant)`
+— a grant can only **elevate** access, never lower it (a `READ` grant on top of workspace `EDIT` changes
+nothing). Any workspace role may be granted: `READ` | `COMMENT` | `EDIT` | `ADMIN` (`READ`/`COMMENT` →
+view the page and mint **viewer** RTC tokens; `EDIT` → edit content (editor RTC token); `ADMIN` → also
+rename / move / change visibility / delete / manage permissions).
+Grants **do not cascade** to sub-pages (lookups are by exact document id). A grantee who is not a
+workspace member gets implicit read-only **guest** entry to the workspace shell, with the sidebar
+filtered to their granted docs; `GET /api/documents/:id` collapses breadcrumbs to the doc itself so
+ancestor titles don't leak. (`myRole` is added per document on list/get responses = the caller's
+effective role, `ADMIN` for the owner, `null` when access is only via `PUBLIC`.)
+
+**Manage rights** = doc owner **OR** effective workspace `ADMIN` **OR** a doc-`ADMIN` grantee.
+Non-managers get `403`; a missing doc is `404`.
+
+- `GET /api/documents/:id/permissions` → `[{ userId, documentId, role, createdAt, user: { id, email, name, color } }]`.
+  Requires manage rights.
+- `POST /api/documents/:id/permissions` — `{ email, role: "READ" | "COMMENT" | "EDIT" | "ADMIN" }` →
+  grant a role by email. Requires manage rights. Side effects: the user is ensured to be at least a
+  realm `MEMBER`, and a **"shared with you" notification email** (with a "View doc" button linking to
+  the doc) is sent to them best-effort — mail failures never fail the request. `404` unknown
+  email ("must register first") · `409` the email belongs to the doc owner · `409` the user already has a grant.
+- `PATCH /api/documents/:id/permissions/:userId` — `{ role }` (same role values) → change a grant's
+  role. Requires manage rights. `404` if there's no grant for that user. No email is sent.
+- `DELETE /api/documents/:id/permissions/:userId` → `{ ok: true }`. Allowed for a manager **or** the
+  grantee themselves (`actorId === userId`, i.e. "leave this page"). `404` if there's no such grant.
+
+> Accepted leak: a guest streaming the workspace SSE feed sees title-level events for other docs in
+> the workspace (same class as `PUBLIC`-doc metadata exposure).
 
 ---
 

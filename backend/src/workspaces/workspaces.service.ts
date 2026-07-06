@@ -67,13 +67,16 @@ export class WorkspacesService {
 
   async get(userId: string, workspaceId: string) {
     return trace("workspaces.get", async () => {
-      const role = await this.authz.requireWorkspaceRole(
-        userId,
-        workspaceId,
-        "READ"
-      );
+      const role = await this.authz.effectiveWorkspaceRole(userId, workspaceId);
       const ws = await this.authz.getWorkspaceInRealm(workspaceId);
-      return { ...ws, role };
+      // Grant-only guest: a per-page grant earns read-only entry to the workspace shell.
+      if (role === null) {
+        if (!(await this.authz.hasDocGrantInWorkspace(userId, workspaceId))) {
+          throw new ForbiddenException("requires workspace role READ or higher");
+        }
+        return { ...ws, role: "READ" as WorkspaceRole, guest: true };
+      }
+      return { ...ws, role, guest: false };
     });
   }
 

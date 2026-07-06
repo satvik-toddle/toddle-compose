@@ -6,6 +6,7 @@ import { wsAtLeast } from '../../../../lib/roles';
 import type { WorkspaceCtx } from '../../WorkspaceLayout';
 import { buildDocTree, filterDocuments, getAncestorIds, mapDocsById } from '../../pagesModel';
 import type { DocumentType } from '../../../../types/api';
+import type { WorkspaceRole } from '../../../../types/roles';
 
 // Owns the pages section's data + interaction state for a workspace: builds the
 // page hierarchy, tracks which pages are expanded (auto-revealing a deep-linked
@@ -65,7 +66,8 @@ export function usePagesSection(ctx: WorkspaceCtx) {
     );
   };
 
-  const canManage = (ownerId: string) => ctx.isAdmin || currentUser?.id === ownerId;
+  const canManage = (ownerId: string, myRole?: WorkspaceRole | null) =>
+    ctx.isAdmin || currentUser?.id === ownerId || myRole === 'ADMIN';
 
   return {
     ws,

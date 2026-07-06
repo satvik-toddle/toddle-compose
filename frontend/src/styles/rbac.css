@@ -455,9 +455,6 @@
 }
 .rbac.dark .auth-row a,
 .rbac.dark .auth-foot a,
-.dark .rbac a {
-  color: var(--blue-600);
-}
 .rbac .auth-check {
   display: flex;
   align-items: center;

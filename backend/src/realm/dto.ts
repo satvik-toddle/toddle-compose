@@ -10,7 +10,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from "class-validator";
 
 // OWNER excluded: the seeded realm owner is never assignable via the API.
@@ -39,11 +38,12 @@ export class UpdateRealmSettingsDto {
 }
 
 export class SearchRealmUsersDto {
-  // Substring matched case-insensitively against realm members' names and emails.
+  // Substring matched case-insensitively against realm members' names and emails;
+  // omitted/blank → the first `take` members (initial dropdown list).
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(200)
-  q!: string;
+  q?: string;
 
   // Result cap for the dropdown; defaults to 20 and can only be lowered.
   @IsOptional()

@@ -27,7 +27,8 @@ export class WorkspacesService {
     private readonly authz: AuthzService
   ) {}
 
-  // Realm admins see all workspaces in the realm; everyone else sees only their memberships.
+  // Realm admins see all workspaces in the realm; everyone else sees their memberships
+  // plus workspaces where they hold a per-page doc grant but no membership (guest rows).
   async list(userId: string, skip = 0, take = 50) {
     const realmRole = await this.authz.realmRole(userId);
 
@@ -38,7 +39,11 @@ export class WorkspacesService {
         skip,
         take,
       });
-      return workspaces.map((w) => ({ ...w, role: "ADMIN" as WorkspaceRole }));
+      return workspaces.map((w) => ({
+        ...w,
+        role: "ADMIN" as WorkspaceRole,
+        guest: false,
+      }));
     }
 
     const memberships = await this.prisma.workspaceMember.findMany({
@@ -48,7 +53,26 @@ export class WorkspacesService {
       skip,
       take,
     });
-    return memberships.map((m) => ({ ...m.workspace, role: m.role }));
+    // Grant-only workspaces (no membership — the `none` filter is the dedupe, so membership
+    // wins). Surfaced so a grantee can find "Shared with me" without the email deep-link.
+    const grantOnly = await this.prisma.workspace.findMany({
+      where: {
+        realmId: this.realm.id,
+        members: { none: { userId } },
+        documents: { some: { permissions: { some: { userId } } } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const rows = [
+      ...memberships.map((m) => ({ ...m.workspace, role: m.role, guest: false })),
+      ...grantOnly.map((w) => ({
+        ...w,
+        role: "READ" as WorkspaceRole,
+        guest: true,
+      })),
+    ];
+    // Keep the endpoint's existing createdAt-asc ordering across both kinds of rows.
+    return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   /** Create a workspace; requires realm MAINTAINER+. Creator becomes workspace ADMIN. */

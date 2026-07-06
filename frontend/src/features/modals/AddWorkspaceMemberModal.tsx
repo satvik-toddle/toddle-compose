@@ -103,7 +103,7 @@ export function AddWorkspaceMemberModal({
             isSearchable
             isClearable
             placeholder="Search people…"
-            noOptionsText={term.trim() ? 'No matching people in this realm' : 'Type a name or email to search'}
+            noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
             loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
             size="small"
             testId="ws-member-search"

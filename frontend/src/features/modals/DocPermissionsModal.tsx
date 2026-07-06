@@ -11,7 +11,8 @@ import {
   useUpdateDocPermission,
   useRemoveDocPermission,
 } from '../../hooks/useDocPermissions';
-import { useWorkspace, useWorkspaceMembers } from '../../hooks/queries';
+import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
+import { Loader } from '../../components/Loader';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLE_META, WS_ROLE_OPTIONS } from '../../lib/roles';
@@ -20,7 +21,7 @@ import type { WorkspaceRole } from '../../types/roles';
 // The version-switching selector's union type drops react-select props (isMulti/value/onChange); use untyped like RoleSelect.tsx.
 const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
 
-// One selectable workspace member; `email` rides along for the grant API call.
+// One selectable realm user; `email` rides along for the grant API call.
 interface MemberOption {
   value: string;
   label: string;
@@ -48,13 +49,12 @@ const styles = {
 // Per-page grants for one document (multi-select of members + role) — unlike the workspace Share modal, page-only, no sub-pages.
 export function DocPermissionsModal({
   onClose,
-  workspaceId,
   docId,
   docTitle,
   ownerId,
 }: {
   onClose: () => void;
-  workspaceId: string;
+  workspaceId: string; // accepted for ModalRoot parity; search is realm-wide
   docId: string;
   docTitle: string;
   ownerId: string;
@@ -64,30 +64,30 @@ export function DocPermissionsModal({
   const updatePermission = useUpdateDocPermission();
   const removePermission = useRemoveDocPermission();
 
-  // Guests 403 on the members endpoint, and a workspace-key 403 trips dropToLauncher — never fire the query for guests.
-  const { data: ws } = useWorkspace(workspaceId);
-  const { data: members = [] } = useWorkspaceMembers(workspaceId, !!ws && !ws.guest);
+  // Realm-wide directory search (any-realm-member gate, so doc-ADMIN guests can use it too).
+  const [term, setTerm] = useState('');
+  const { users, isSearching } = useRealmUserSearch(term);
 
   const [selected, setSelected] = useState<MemberOption[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
   const [adding, setAdding] = useState(false);
   const [addErrors, setAddErrors] = useState<{ name: string; message: string }[]>([]);
 
-  // Everyone in the workspace except the owner (always has full access) and existing grantees.
+  // Realm-wide matches except the owner (always has full access) and existing grantees.
   const options = useMemo(() => {
     const granted = new Set(grants.map((g) => g.userId));
-    return members
-      .filter((m) => m.userId !== ownerId && !granted.has(m.userId))
+    return users
+      .filter((u) => u.id !== ownerId && !granted.has(u.id))
       .map(
-        (m): MemberOption => ({
-          value: m.userId,
-          label: m.user.name,
-          subtitle: m.user.email,
-          icon: <Avatar person={{ name: m.user.name, color: m.user.color }} size={20} />,
-          email: m.user.email,
+        (u): MemberOption => ({
+          value: u.id,
+          label: u.name,
+          subtitle: u.email,
+          icon: <Avatar person={{ name: u.name, color: u.color }} size={20} />,
+          email: u.email,
         }),
       );
-  }, [members, grants, ownerId]);
+  }, [users, grants, ownerId]);
 
   const add = async () => {
     if (selected.length === 0 || adding) return;
@@ -131,11 +131,11 @@ export function DocPermissionsModal({
       <ModalHead
         icon="LockOutlined"
         title="Share"
-        sub={`“${docTitle}” — people granted access to this page only.`}
+        sub={`“${docTitle}” — search people in this realm by name or email; access applies to this page only.`}
         onClose={onClose}
       />
       <div className="m-body">
-        {/* Grant to selected members */}
+        {/* Grant to selected realm users */}
         <div className={styles.invite}>
           <div className={styles.inviteRow}>
             <div className={styles.selectWrap}>
@@ -147,8 +147,13 @@ export function DocPermissionsModal({
                   setSelected(opts ?? []);
                   setAddErrors([]);
                 }}
-                placeholder="Select workspace members…"
-                noOptionsText="No workspace members to suggest"
+                onSearchTextChange={setTerm}
+                // Results are already server-filtered (name OR email); react-select's
+                // default label filter would wrongly drop email matches.
+                filterOption={null}
+                placeholder="Search people…"
+                noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
+                loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
                 size="small"
                 testId="doc-perm-users"
                 error={addErrors.length > 0 ? ' ' : undefined}

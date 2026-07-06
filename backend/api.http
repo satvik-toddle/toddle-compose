@@ -89,6 +89,10 @@ Authorization: Bearer {{ownerToken}}
 GET {{baseUrl}}/realm/users/search?q=ali&take=20
 Authorization: Bearer {{ownerToken}}
 
+### Empty q → the first `take` realm members (the dropdown's initial list)
+GET {{baseUrl}}/realm/users/search
+Authorization: Bearer {{ownerToken}}
+
 ### Add a realm user (role: MAINTAINER | MEMBER) → capture their userId
 # @name addRealmUser
 POST {{baseUrl}}/realm/users
@@ -114,7 +118,8 @@ Authorization: Bearer {{ownerToken}}
 # 3. WORKSPACES  (/api/workspaces)
 # =============================================================================
 
-### List workspaces I can see (realm admins → all; others → their memberships).
+### List workspaces I can see (realm admins → all; others → memberships + guest rows for
+### workspaces where they hold a per-page doc grant: role "READ", guest: true).
 ### Captures the first one's id into {{workspaceId}}.
 # @name listWorkspaces
 GET {{baseUrl}}/workspaces
@@ -489,6 +494,10 @@ Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
 { "role": "ADMIN" }
+
+### Bob's workspace launcher now includes this workspace as a guest row (role "READ", guest: true)
+GET {{baseUrl}}/workspaces
+Authorization: Bearer {{bobToken}}
 
 ### Bob (non-member) enters as a GUEST via his grant → { role: "READ", guest: true }
 POST {{baseUrl}}/auth/workspace/enter

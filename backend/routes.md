@@ -97,8 +97,8 @@ scoped to that workspace; "leave" to drop back to the realm-wide view (realm adm
 - `GET /api/realm/users/search?q=…&take=…` → `[{ id, email, name, color }]` — realm-member directory
   search for pickers (e.g. Workspace settings → Members). Case-insensitive substring match on **name
   or email**, scoped to this realm's members, ordered by name asc. Requires realm `MEMBER`+ (not
-  admin — workspace admins can search). `q` required (`400` if missing, `[]` if whitespace-only);
-  `take` defaults to 20, max 20.
+  admin — workspace admins can search). `q` optional — omitted/blank returns the first `take` members
+  (the dropdown's initial list); `take` defaults to 20, max 20.
 - `POST /api/realm/users` — `{ email, role: "MAINTAINER" | "MEMBER" }` → add an existing user.
   `MAINTAINER`+ required; granting `MAINTAINER` is **owner-only**. `OWNER` is not assignable.
   `404` unknown email · `409` already a member · `400` invalid role (incl. `OWNER`).
@@ -110,7 +110,11 @@ scoped to that workspace; "leave" to drop back to the realm-wide view (realm adm
 Each workspace has a `visibility` (`PUBLIC` → anyone in the realm self-joins as `defaultRole`;
 `PRIVATE` → request + approval) and a `defaultRole` (default `READ`).
 
-- `GET /api/workspaces` → realm admins see all; members see their own. `[]` when none. `?skip&?take`.
+- `GET /api/workspaces` → realm admins see all; members see their own **plus guest rows** —
+  workspaces where the caller holds a per-page doc grant (see Document permissions) but no
+  membership, shaped like member rows with `role: "READ", guest: true` (member/admin rows carry
+  `guest: false`), so grantees can discover the workspace and its "Shared with me" docs without the
+  email deep-link. All rows sorted by `createdAt` asc. `[]` when none. `?skip&?take`.
 - `POST /api/workspaces` — `{ name, visibility?, defaultRole? }` → create (realm `MAINTAINER`+);
   creator becomes workspace `ADMIN`. `visibility` defaults to `PRIVATE`.
 - `GET /api/workspaces/discoverable` → `PUBLIC` workspaces in the realm you can join (not already a

@@ -76,20 +76,23 @@ export class RealmService {
 
   // Member-directory search for pickers: case-insensitive substring on name OR email,
   // scoped to this realm's members. Open to ANY realm member (workspace admins who
-  // aren't realm admins need it); blank/whitespace queries return [].
-  async searchUsers(userId: string, q: string, take = 20) {
+  // aren't realm admins need it); omitted/blank queries return the first `take` members.
+  async searchUsers(userId: string, q: string | undefined, take = 20) {
     await this.authz.requireRealmRole(userId, "MEMBER");
-    const query = q.trim();
-    if (!query) return [];
+    const query = q?.trim() ?? "";
     const members = await this.prisma.realmMember.findMany({
       where: {
         realmId: this.realm.id,
-        user: {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { email: { contains: query, mode: "insensitive" } },
-          ],
-        },
+        ...(query
+          ? {
+              user: {
+                OR: [
+                  { name: { contains: query, mode: "insensitive" } },
+                  { email: { contains: query, mode: "insensitive" } },
+                ],
+              },
+            }
+          : {}),
       },
       select: { user: { select: USER_SELECT } },
       orderBy: { user: { name: "asc" } },

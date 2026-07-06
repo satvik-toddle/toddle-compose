@@ -42,7 +42,9 @@ export function WorkspaceCard({
           <Icon name={vis.icon} size={20} style={{ color: vis.color }} />
         </span>
         <div className={s.wsCardNm}>{ws.name}</div>
-        {showRoleBadge && <WorkspaceRoleBadge role={ws.role} />}
+        {/* Grant-only access: a plain tag instead of the member role badge. */}
+        {ws.guest && <span className={styles.guestTag}>Guest</span>}
+        {showRoleBadge && !ws.guest && <WorkspaceRoleBadge role={ws.role} />}
       </div>
       <div className={s.wsCardMeta}>
         <span>
@@ -69,6 +71,8 @@ export function WorkspaceCard({
 
 const styles = {
   roleBadge: 'absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase',
+  guestTag:
+    'ml-auto flex-none rounded-1 border border-secondary px-1.5 py-0.5 text-body-xs text-secondary',
 };
 
 // Bare `r,g,b` triplets — consumed via rgba(var(--bg-color), …) in the stylesheet.

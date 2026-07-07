@@ -134,11 +134,6 @@ export function LauncherPage() {
             </div>
             <div className={s.lcGreetActions}>
               {admin && (
-                <Button icon="DashboardOutlined" onClick={() => navigate('/admin')}>
-                  Admin console
-                </Button>
-              )}
-              {admin && (
                 <Button
                   variant="primary"
                   icon="AddOutlined"

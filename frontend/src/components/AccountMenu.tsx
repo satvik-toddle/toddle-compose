@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Dropdown, DropdownMenu, Tag } from '@toddle-edu/ds-web';
 import {
   ChevronDownOutlined,
+  DashboardOutlined,
   LogoutOutlined,
   OutlinedIcons,
   PaintBrushOutlined,
@@ -13,7 +14,7 @@ import { dsAvatarColor, dsAvatarSize } from '../lib/dsAvatar';
 import { isThemePreference, useThemeStore } from '../stores/themeStore';
 import type { User } from '../types/api';
 import type { RealmRole } from '../types/roles';
-import { REALM_ROLE_META } from '../lib/roles';
+import { isRealmAdmin, REALM_ROLE_META } from '../lib/roles';
 
 const styles = {
   trigger: 'flex items-center rounded-full border border-secondary',
@@ -33,6 +34,17 @@ const styles = {
 };
 
 const SIGN_OUT_KEY = 'signOut';
+const ADMIN_CONSOLE_KEY = 'adminConsole';
+
+// Prepended for realm OWNER/MAINTAINER only.
+const ADMIN_MENU_OPTIONS = [
+  {
+    key: ADMIN_CONSOLE_KEY,
+    label: 'Admin console',
+    icon: <DashboardOutlined size="xx-small" />,
+  },
+  { key: 'divider-admin', isDivider: true },
+];
 
 const ACCOUNT_MENU_OPTIONS = [
   {
@@ -84,10 +96,16 @@ export function AccountMenu({
   const handleMenuOptionClick = (optionKey: string) => {
     if (optionKey === SIGN_OUT_KEY) {
       void signOut();
+    } else if (optionKey === ADMIN_CONSOLE_KEY) {
+      navigate('/admin');
     } else if (isThemePreference(optionKey)) {
       setThemePreference(optionKey);
     }
   };
+
+  const menuOptions = isRealmAdmin(realmRole)
+    ? [...ADMIN_MENU_OPTIONS, ...ACCOUNT_MENU_OPTIONS]
+    : ACCOUNT_MENU_OPTIONS;
 
   const triggerClass = cn(styles.trigger, compact ? styles.triggerCompact : styles.triggerExpanded);
   const RealmRoleIcon = realmRole
@@ -116,7 +134,7 @@ export function AccountMenu({
       <div className={styles.menuOptions}>
         <DropdownMenu
           dsVersion="2.0"
-          options={ACCOUNT_MENU_OPTIONS}
+          options={menuOptions}
           value={themePreference}
           showSelection
           onClick={(option) => handleMenuOptionClick(option.key)}

@@ -36,10 +36,16 @@ export const envSchema = z.object({
   // seconds. Enforced server-side (per email, not per IP) so a fresh token +
   // email is issued at most once per window. 0 disables the cooldown.
   EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
+  // Which email transport to use. "nodemailer" (default) preserves today's Gmail/console behaviour; "resend" sends via Resend.
+  EMAIL_SERVICE_TYPE: z.enum(["nodemailer", "resend"]).default("nodemailer"),
   // Gmail SMTP credentials; when both set, mail goes via Gmail, else logged to console (dev).
   // Required in production unless BYPASS_EMAIL_SERVICE=true (checked in superRefine below).
   GMAIL_SERVICE_EMAIL: z.string().email().optional(),
   GMAIL_SERVICE_PASSWORD: z.string().min(1).optional(),
+  // Resend API key; when EMAIL_SERVICE_TYPE=resend and set, mail goes via Resend, else logged to console (dev).
+  RESEND_API_KEY: z.string().min(1).optional(),
+  // Resend requires a verified-domain sender; falls back to Resend's test sender (onboarding@resend.dev) in the service.
+  RESEND_FROM_EMAIL: z.string().email().optional(),
   // Display name on the From header.
   MAIL_FROM_NAME: z.string().default("Toddle Compose"),
   // No email service: auto-verifies sign-ups, mints no reset token. Strict enum so it's explicit.
@@ -112,6 +118,7 @@ export const envSchema = z.object({
   if (
     isProduction &&
     !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "nodemailer" &&
     (!env.GMAIL_SERVICE_EMAIL || !env.GMAIL_SERVICE_PASSWORD)
   ) {
     ctx.addIssue({
@@ -119,6 +126,20 @@ export const envSchema = z.object({
       path: ["GMAIL_SERVICE_EMAIL"],
       message:
         "GMAIL_SERVICE_EMAIL and GMAIL_SERVICE_PASSWORD are required in production unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
+  // Mirror rule for the Resend transport: production needs an API key unless bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "resend" &&
+    !env.RESEND_API_KEY
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["RESEND_API_KEY"],
+      message:
+        "RESEND_API_KEY is required in production when EMAIL_SERVICE_TYPE=resend unless BYPASS_EMAIL_SERVICE=true",
     });
   }
 });

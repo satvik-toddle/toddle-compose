@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
 import type { Env } from "../config/env";
 import { type RenderedEmail } from "./templates/action-email";
 import {
@@ -20,22 +21,28 @@ export type SendResult = { delivered: boolean };
 
 // Transport selection is decided once at startup:
 //   - BYPASS_EMAIL_SERVICE=true → no email service at all; every send is a no-op
-//   - GMAIL_SERVICE_EMAIL + GMAIL_SERVICE_PASSWORD set → real Gmail SMTP
+//   - EMAIL_SERVICE_TYPE=resend + RESEND_API_KEY set → real Resend delivery
+//   - EMAIL_SERVICE_TYPE=nodemailer (default) + GMAIL creds set → real Gmail SMTP
 //   - otherwise → a console transport that logs the message (incl. verify link)
 // so local development needs no SMTP credentials.
 @Injectable()
 export class MailerService implements OnModuleInit {
   private readonly log = new Logger("Mailer");
   private transporter!: Transporter;
+  private resend?: Resend;
   private readonly from: string;
   private gmailConfigured = false;
+  private resendConfigured = false;
   private bypassed = false;
 
   constructor(private readonly config: ConfigService<Env, true>) {
     const fromName = this.config.get("MAIL_FROM_NAME", { infer: true });
     const fromAddress =
-      this.config.get("GMAIL_SERVICE_EMAIL", { infer: true }) ??
-      "no-reply@toddle.test";
+      this.config.get("EMAIL_SERVICE_TYPE", { infer: true }) === "resend"
+        ? this.config.get("RESEND_FROM_EMAIL", { infer: true }) ??
+          "onboarding@resend.dev"
+        : this.config.get("GMAIL_SERVICE_EMAIL", { infer: true }) ??
+          "no-reply@toddle.test";
     this.from = `${fromName} <${fromAddress}>`;
   }
 
@@ -47,6 +54,20 @@ export class MailerService implements OnModuleInit {
       this.log.warn(
         "BYPASS_EMAIL_SERVICE is on — no emails (verification, password reset) will be sent"
       );
+      return;
+    }
+
+    if (this.config.get("EMAIL_SERVICE_TYPE", { infer: true }) === "resend") {
+      const apiKey = this.config.get("RESEND_API_KEY", { infer: true });
+      if (apiKey) {
+        this.resend = new Resend(apiKey);
+        this.resendConfigured = true;
+        this.log.log(`Resend transport ready (sending as ${this.from})`);
+      } else {
+        this.log.warn(
+          "RESEND_API_KEY not set — emails will be logged to the console, not delivered"
+        );
+      }
       return;
     }
 
@@ -96,9 +117,9 @@ export class MailerService implements OnModuleInit {
     return this.send(to, renderDocShared(input), "doc-shared", input.docUrl);
   }
 
-  // Shared delivery path: in dev (no Gmail) the link is logged so the flow is
-  // testable; SMTP failures are swallowed (the caller's action already
-  // succeeded and the user can retry) and reported via `delivered`.
+  // Shared delivery path: in dev (no transport configured) the link is logged so
+  // the flow is testable; send failures are swallowed (the caller's action
+  // already succeeded and the user can retry) and reported via `delivered`.
   private async send(
     to: string,
     msg: RenderedEmail,
@@ -107,11 +128,26 @@ export class MailerService implements OnModuleInit {
   ): Promise<SendResult> {
     // No email service: nothing is sent and no link is logged.
     if (this.bypassed) return { delivered: false };
-    if (!this.gmailConfigured) {
+    if (!this.gmailConfigured && !this.resendConfigured) {
       this.log.log(`[dev] ${kind} email for ${to} — link: ${devLink}`);
       return { delivered: false };
     }
     try {
+      if (this.resendConfigured && this.resend) {
+        // Resend's SDK returns { data, error } instead of throwing on API errors.
+        const { error } = await this.resend.emails.send({
+          from: this.from,
+          to,
+          subject: msg.subject,
+          html: msg.html,
+          text: msg.text,
+        });
+        if (error) {
+          this.log.error(`failed to send ${kind} email to ${to}: ${error.message}`);
+          return { delivered: false };
+        }
+        return { delivered: true };
+      }
       await this.transporter.sendMail({
         from: this.from,
         to,

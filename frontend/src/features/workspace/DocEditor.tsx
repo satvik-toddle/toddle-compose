@@ -60,10 +60,15 @@ async function uploadToServer(arg: UploadArg): Promise<string> {
 export function DocEditor({
   docId,
   shareToken,
+  awarenessName,
+  awarenessColor,
 }: {
   docId: string;
   canEdit?: boolean;
   shareToken?: string;
+  // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
+  awarenessName?: string;
+  awarenessColor?: string;
 }) {
   // Select primitive slices, not the user object: a token refresh replaces `user` by identity but leaves these values equal, so `collab` below stays stable instead of tearing down the live provider.
   const name = useAuthStore((s) => s.user?.name);
@@ -101,11 +106,11 @@ export function DocEditor({
           connect: false,
         });
       },
-      username: name ?? 'User',
-      cursorColor: color ?? '#5a5ae2',
+      username: awarenessName ?? name ?? 'User',
+      cursorColor: awarenessColor ?? color ?? '#5a5ae2',
       shouldBootstrap: true,
     };
-  }, [docId, name, color]);
+  }, [docId, name, color, awarenessName, awarenessColor]);
 
   if (isError) {
     return (

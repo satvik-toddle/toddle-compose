@@ -1,14 +1,11 @@
 import {
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { JwtService } from "@nestjs/jwt";
 import { randomBytes, randomUUID } from "crypto";
 import {
-  DocShareMode,
   DocumentShareLink,
   ShareLinkScope,
   WorkspaceRole,
@@ -16,9 +13,8 @@ import {
 import type { Env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
-import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from "../auth/jwt.constants";
+import { AccessTokenService } from "../auth/access-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
-import { DocumentCacheService } from "./document-cache.service";
 import { DocumentsService } from "./documents.service";
 import { RtcTokenService, type RtcRole } from "../rtc/rtc-token.service";
 
@@ -48,10 +44,9 @@ export class DocumentShareLinksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
-    private readonly cache: DocumentCacheService,
     private readonly documents: DocumentsService,
     private readonly rtcTokens: RtcTokenService,
-    private readonly jwt: JwtService,
+    private readonly accessTokens: AccessTokenService,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -67,7 +62,7 @@ export class DocumentShareLinksService {
   }
 
   // Create-or-update: a doc has at most one link; updating role/scope keeps the token
-  // (existing copies of the URL stay valid). Also flips the doc's Share pane to LINK.
+  // (existing copies of the URL stay valid).
   async upsert(
     actorId: string,
     documentId: string,
@@ -86,7 +81,6 @@ export class DocumentShareLinksService {
         createdById: actorId,
       },
     });
-    await this.setDocShareMode(documentId, "LINK");
     return this.toDto(link);
   }
 
@@ -104,25 +98,11 @@ export class DocumentShareLinksService {
     return this.toDto(link);
   }
 
-  // Idempotent revoke; drops the Share pane back to DEFAULT when it pointed at the link.
+  // Idempotent revoke — the URL stops working immediately.
   async remove(actorId: string, documentId: string) {
-    const doc = await this.requireManage(actorId, documentId);
-    await this.prisma.documentShareLink.deleteMany({ where: { documentId } });
-    if (doc.shareMode === "LINK") await this.setDocShareMode(documentId, "DEFAULT");
-    return { ok: true as const };
-  }
-
-  // Switch the Share-modal pane. Leaving LINK does NOT delete the link row — only an
-  // explicit DELETE revokes it (so toggling panes can't silently kill circulating URLs).
-  async setShareMode(actorId: string, documentId: string, mode: DocShareMode) {
     await this.requireManage(actorId, documentId);
-    await this.prisma.document.update({
-      where: { id: documentId },
-      data: { shareMode: mode },
-    });
-    // shareMode is part of the cached summary row — drop it so the next read is fresh.
-    this.cache.invalidate(documentId);
-    return { shareMode: mode };
+    await this.prisma.documentShareLink.deleteMany({ where: { documentId } });
+    return { ok: true as const };
   }
 
   // ------------------------------------------------------------ public (unguarded routes)
@@ -168,7 +148,14 @@ export class DocumentShareLinksService {
     }
 
     const rtcToken = await this.rtcTokens.mint(identity, link.documentId, role);
-    return { token: rtcToken, docId: link.documentId, role };
+    // Echo the minted identity so the client can label "you" without decoding the JWT.
+    return {
+      token: rtcToken,
+      docId: link.documentId,
+      role,
+      name: identity.name,
+      color: identity.color,
+    };
   }
 
   // ------------------------------------------------------------ internals
@@ -188,11 +175,12 @@ export class DocumentShareLinksService {
   }
 
   // Scope gate for the public endpoints; returns the caller when authenticated.
+  // Optional auth: a missing/invalid token yields null instead of 401 (the scope decides).
   private async requireScopeAccess(
     scope: ShareLinkScope,
     authHeader: string | undefined
   ): Promise<AuthUser | null> {
-    const user = await this.optionalUser(authHeader);
+    const user = await this.accessTokens.resolveAccessToken(authHeader);
     if (scope === "ANYONE") return user;
     if (!user || (await this.authz.realmRole(user.id)) === null) {
       throw new UnauthorizedException("sign in to open this link");
@@ -200,55 +188,15 @@ export class DocumentShareLinksService {
     return user;
   }
 
-  // Optional-auth mirror of JwtAuthGuard: same pinned alg/iss/aud verification and user
-  // load, but a missing/invalid token yields null instead of 401 (the scope gate decides).
-  private async optionalUser(header: string | undefined): Promise<AuthUser | null> {
-    if (!header?.startsWith("Bearer ")) return null;
-    try {
-      const payload = await this.jwt.verifyAsync(header.slice(7), {
-        algorithms: [JWT_ALGORITHM],
-        issuer: JWT_ISSUER,
-        audience: JWT_AUDIENCE,
-      });
-      if (payload.type !== "access") return null;
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-      if (!user) return null;
-      return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        color: user.color,
-        activeWorkspaceId: payload.activeWorkspaceId ?? null,
-      };
-    } catch {
-      return null;
-    }
-  }
-
   // Same manage gate as document permissions: owner OR effective ws ADMIN OR doc-ADMIN grantee.
   private async requireManage(actorId: string, documentId: string) {
     const doc = await this.prisma.document.findUnique({
       where: { id: documentId },
-      select: { id: true, ownerId: true, workspaceId: true, shareMode: true },
+      select: { id: true, ownerId: true, workspaceId: true },
     });
     if (!doc) throw new NotFoundException("document not found");
-    if (doc.ownerId === actorId) return doc;
-
-    const [wsRole, grant] = await Promise.all([
-      this.authz.effectiveWorkspaceRole(actorId, doc.workspaceId),
-      this.authz.docGrantRole(actorId, documentId),
-    ]);
-    if (wsRole === "ADMIN" || grant === "ADMIN") return doc;
-
-    throw new ForbiddenException("requires document ADMIN to manage the share link");
-  }
-
-  private async setDocShareMode(documentId: string, mode: DocShareMode) {
-    await this.prisma.document.update({
-      where: { id: documentId },
-      data: { shareMode: mode },
-    });
-    this.cache.invalidate(documentId);
+    await this.authz.requireDocManage(actorId, doc);
+    return doc;
   }
 
   private toDto(link: DocumentShareLink) {

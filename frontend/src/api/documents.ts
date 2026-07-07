@@ -5,9 +5,8 @@ import type {
   DocumentShareLink,
   DocumentType,
   ShareLinkScope,
-  ShareMode,
 } from '../types/api';
-import type { Visibility, WorkspaceRole } from '../types/roles';
+import type { WorkspaceRole } from '../types/roles';
 
 export const documentsApi = {
   // All documents in a workspace (client groups by folderId for the tree/list).
@@ -16,8 +15,6 @@ export const documentsApi = {
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
   listStarred: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
-  listSharedWithMe: (workspaceId: string) =>
-    http.get<DocumentDto[]>(`/documents/shared?workspaceId=${encodeURIComponent(workspaceId)}`), // Pages shared with the current user via per-page grants — excludes owned docs, newest grant first.
   listAllSharedWithMe: () => http.get<DocumentDto[]>('/documents/shared-with-me'), // Global: shared pages across all workspaces (each row carries its workspace).
   create: (b: {
     workspaceId: string;
@@ -45,8 +42,6 @@ export const documentsApi = {
     ),
   move: (id: string, b: { folderId?: string | null; parentId?: string | null }) =>
     http.patch<DocumentDto>(`/documents/${id}/move`, b),
-  setVisibility: (id: string, visibility: Visibility) =>
-    http.patch<DocumentDto>(`/documents/${id}/visibility`, { visibility }),
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
   star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
@@ -60,13 +55,11 @@ export const documentsApi = {
   removePermission: (id: string, userId: string) =>
     http.del<{ ok: true }>(`/documents/${id}/permissions/${userId}`),
 
-  // Share link + access mode (managers only). PUT upserts and flips shareMode to LINK.
+  // Share link (managers only). PUT upserts the link's role + scope.
   getShareLink: (id: string) => http.get<DocumentShareLink>(`/documents/${id}/share-link`),
   putShareLink: (id: string, b: { role: WorkspaceRole; scope: ShareLinkScope }) =>
     http.put<DocumentShareLink>(`/documents/${id}/share-link`, b),
   regenerateShareLink: (id: string) =>
     http.post<DocumentShareLink>(`/documents/${id}/share-link/regenerate`),
-  deleteShareLink: (id: string) => http.del<{ ok: true }>(`/documents/${id}/share-link`), // resets shareMode to DEFAULT
-  setShareMode: (id: string, mode: ShareMode) =>
-    http.patch<DocumentDto>(`/documents/${id}/share-mode`, { mode }),
+  deleteShareLink: (id: string) => http.del<{ ok: true }>(`/documents/${id}/share-link`),
 };

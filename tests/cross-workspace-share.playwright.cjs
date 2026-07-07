@@ -1,7 +1,7 @@
 // Cross-workspace sharing E2E:
 //   1. Share picker opens with an INITIAL list (empty query -> first 20 realm users, name asc).
 //   2. Workspace admin grants a NON-member (bob) via the realm-wide picker.
-//   3. Bob's launcher lists the workspace as a "Guest" row; Shared with me lists the doc; doc is editable.
+//   3. Bob's launcher hides the grant-only workspace; the launcher "Shared with me" panel lists the doc and its "Open" button reaches an editable doc.
 //   4. A member with only workspace EDIT but doc-ADMIN grant (carol) can grant another user (dave).
 //
 // Prereqs: stack up (backend :4000, rtc :4001, frontend :5173), seeded.
@@ -40,7 +40,7 @@ async function openApp(browser, { refresh, wsId, url, tag }) {
 async function openShareModal(page) {
   await page.locator('[aria-label="Page actions"]').last().click();
   await page.locator('.ant-dropdown-menu li[role="menuitem"]:has-text("Share")').first().click();
-  await page.waitForSelector('text=People with access to this page', { timeout: 5000 });
+  await page.waitForSelector('text=People with access', { timeout: 5000 });
 }
 
 async function main() {
@@ -75,23 +75,23 @@ async function main() {
   ok(JSON.stringify(names) === JSON.stringify([...names].sort((a, b) => a.localeCompare(b))), `initial list is alphabetical (${names.join(", ")})`);
   await o.page.screenshot({ path: path.join(ART_DIR, "picker-initial-list.png") });
   await bobOption.click();
-  await o.page.locator('button:has-text("Add")').last().click();
+  await o.page.locator('button[aria-label="Add people"]').click();
   await o.page.waitForSelector('text=bob@toddle.test', { timeout: 8000 });
   ok(true, "non-member bob granted via UI picker (EDIT default)");
   await o.page.keyboard.press("Escape");
 
-  // ===== 3. Bob discovers the workspace: launcher guest row -> Shared with me -> edit =====
-  console.log("\n2. Bob (non-member) — launcher discovery + Shared with me:");
+  // ===== 3. Bob's launcher hides the workspace; discovery is via global Shared with me =====
+  console.log("\n2. Bob (non-member) — launcher hides workspace; Shared with me discovery:");
   let r = await api(`/workspaces`, { token: bob.accessToken });
-  const guestRow = (r.data || []).find((w) => w.id === ws.id);
-  ok(!!guestRow && guestRow.guest === true && guestRow.role === "READ", `bob's workspace list includes ws as guest row (guest=${guestRow?.guest})`);
+  ok(!(r.data || []).some((w) => w.id === ws.id), "bob's workspace list does NOT include the grant-only workspace");
   const b = await openApp(browser, { refresh: bob.refreshToken, wsId: ws.id, url: `${APP}/`, tag: "bob" });
-  await b.page.waitForSelector(`text=xws-${stamp}`, { timeout: 30000 });
-  ok(await b.page.locator('text=Guest').count() >= 1, 'launcher shows a "Guest" tag on the grant-only workspace');
-  await b.page.screenshot({ path: path.join(ART_DIR, "launcher-guest-row.png") });
-  await b.page.goto(`${APP}/w/${encodeURIComponent(ws.id)}/shared`, { waitUntil: "domcontentloaded" });
+  await b.page.waitForSelector('button:has-text("Shared with me")', { timeout: 30000 });
+  ok((await b.page.locator(`text=xws-${stamp}`).count()) === 0, "launcher shows no card for the grant-only workspace");
+  await b.page.click('button:has-text("Shared with me")');
   await b.page.waitForSelector("text=doc1", { timeout: 15000 });
-  ok(true, "bob's Shared with me lists doc1");
+  ok(true, "launcher Shared with me lists doc1");
+  await b.page.screenshot({ path: path.join(ART_DIR, "launcher-shared-with-me.png") });
+  // Open doc1 from the launcher Shared with me panel (row click -> onOpenDoc; the /w/:id/shared route is gone).
   await b.page.click("text=doc1");
   await b.page.waitForSelector(EDITOR, { timeout: 30000 });
   const marker = `xws-bob-${stamp}`;
@@ -114,7 +114,7 @@ async function main() {
   const daveOption = c.page.locator('[data-test-id^="doc-perm-users-select-item-"]:has-text("Dave")').first();
   await daveOption.waitFor({ timeout: 8000 });
   await daveOption.click();
-  await c.page.locator('button:has-text("Add")').last().click();
+  await c.page.locator('button[aria-label="Add people"]').click();
   await c.page.waitForSelector('text=dave@toddle.test', { timeout: 8000 });
   ok(true, "carol grants dave (EDIT) on doc1 via UI");
   // Sanity: dave (non-member) can now read the doc via API.

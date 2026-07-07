@@ -114,6 +114,20 @@ export class AuthzService {
     return role !== null && WS_ORDER[role] >= WS_ORDER[min];
   }
 
+  // Manage gate shared by doc permissions + share links: owner OR effective ws-ADMIN OR doc-ADMIN grantee; else 403.
+  async requireDocManage(
+    userId: string,
+    doc: { id: string; ownerId: string; workspaceId: string }
+  ): Promise<void> {
+    if (doc.ownerId === userId) return;
+    const [wsRole, grant] = await Promise.all([
+      this.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.docGrantRole(userId, doc.id),
+    ]);
+    if (wsRole === "ADMIN" || grant === "ADMIN") return;
+    throw new ForbiddenException("requires document ADMIN to manage sharing");
+  }
+
   // Whether the user holds any per-page grant on a document in this workspace (drives guest entry).
   async hasDocGrantInWorkspace(
     userId: string,

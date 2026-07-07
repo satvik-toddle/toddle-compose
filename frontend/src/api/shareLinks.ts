@@ -7,7 +7,7 @@ import type { ShareLinkResolve } from '../types/api';
 export const shareLinksApi = {
   resolve: (token: string) => http.get<ShareLinkResolve>(`/share-links/${token}`),
   rtcToken: (token: string) =>
-    http.post<{ token: string; docId: string; role: 'editor' | 'viewer' }>(
+    http.post<{ token: string; docId: string; role: 'editor' | 'viewer'; name: string; color: string }>(
       `/share-links/${token}/rtc-token`,
     ),
 };

@@ -1,6 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Table } from '@toddle-edu/ds-web';
-import { GlobeOutlined, LockOutlined } from '@toddle-edu/ds-icons';
 import { pageTypeIcon } from '../pageTypes';
 import { dsAvatarColor } from '../../../lib/dsAvatar';
 import { firstName, relativeTime } from '../../../lib/time';
@@ -20,7 +19,6 @@ const TABLE_HEADERS: TableHeader[] = [
   { key: 'name', value: 'Name' },
   { key: 'owner', value: 'Owner' },
   { key: 'edited', value: 'Edited' },
-  { key: 'sharing', value: 'Sharing' },
 ];
 
 export type TableHeader = { key: string; value: string };
@@ -54,16 +52,6 @@ function defaultToRow(doc: DocumentDto): PageRow {
         ),
       },
       { key: 'edited', value: <span className="tabular-nums">{relativeTime(doc.updatedAt)}</span> },
-      {
-        key: 'sharing',
-        value: doc.visibility === 'PUBLIC' ? 'Public' : 'Private',
-        prefix:
-          doc.visibility === 'PUBLIC' ? (
-            <GlobeOutlined size="xxx-small" variant="subtle" />
-          ) : (
-            <LockOutlined size="xxx-small" variant="subtle" />
-          ),
-      },
     ],
   };
 }

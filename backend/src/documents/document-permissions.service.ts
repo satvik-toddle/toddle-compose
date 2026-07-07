@@ -1,15 +1,13 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Prisma, WorkspaceRole } from "@app/database";
+import { WorkspaceRole } from "@app/database";
 import type { Env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
-import { ActiveRealmService } from "../realm/active-realm.service";
 import { AuthzService } from "../realm/authz.service";
 import { MailerService } from "../mailer/mailer.service";
 import type { AuthUser } from "../auth/current-user.decorator";
@@ -23,7 +21,6 @@ export class DocumentPermissionsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly realm: ActiveRealmService,
     private readonly authz: AuthzService,
     private readonly mailer: MailerService,
     private readonly config: ConfigService<Env, true>
@@ -61,12 +58,10 @@ export class DocumentPermissionsService {
     });
     if (existing) throw new ConflictException("user already has a grant on this document");
 
-    const grant = await this.prisma.$transaction(async (tx) => {
-      await this.ensureRealmMember(tx, user.id);
-      return tx.documentPermission.create({
-        data: { userId: user.id, documentId, role },
-        include: { user: { select: USER_SELECT } },
-      });
+    // Deliberately no realm enrollment: a grant opens one doc, never realm-wide access.
+    const grant = await this.prisma.documentPermission.create({
+      data: { userId: user.id, documentId, role },
+      include: { user: { select: USER_SELECT } },
     });
     // Notify only on add (not update/remove); the grant is committed, so never block on mail.
     this.notifyGranteeBestEffort(actor.name, doc, user, role);
@@ -107,15 +102,8 @@ export class DocumentPermissionsService {
   private async requireManage(actorId: string, documentId: string) {
     const doc = await this.loadDoc(documentId);
     if (!doc) throw new NotFoundException("document not found");
-    if (doc.ownerId === actorId) return doc;
-
-    const [wsRole, grant] = await Promise.all([
-      this.authz.effectiveWorkspaceRole(actorId, doc.workspaceId),
-      this.authz.docGrantRole(actorId, documentId),
-    ]);
-    if (wsRole === "ADMIN" || grant === "ADMIN") return doc;
-
-    throw new ForbiddenException("requires document ADMIN to manage permissions");
+    await this.authz.requireDocManage(actorId, doc);
+    return doc;
   }
 
   private async loadDoc(documentId: string) {
@@ -155,14 +143,5 @@ export class DocumentPermissionsService {
     });
     if (!grant) throw new NotFoundException("no permission grant for that user");
     return grant;
-  }
-
-  // Tenant integrity: ensure realm membership without downgrading an existing role.
-  private async ensureRealmMember(tx: Prisma.TransactionClient, userId: string) {
-    await tx.realmMember.upsert({
-      where: { realmId_userId: { realmId: this.realm.id, userId } },
-      update: {},
-      create: { realmId: this.realm.id, userId, role: "MEMBER" },
-    });
   }
 }

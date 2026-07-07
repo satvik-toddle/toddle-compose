@@ -8,9 +8,6 @@ import {
 } from "class-validator";
 import { WORKSPACE_ROLES } from "../workspaces/dto";
 
-const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
-type VisibilityInput = (typeof VISIBILITIES)[number];
-
 const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
 type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
 
@@ -66,11 +63,6 @@ export class MoveDocumentDto {
   parentId?: string | null;
 }
 
-export class SetVisibilityDto {
-  @IsIn(VISIBILITIES)
-  visibility!: VisibilityInput;
-}
-
 export class ListDocumentsDto {
   // Narrow to a single folder; omit for the whole workspace.
   @IsOptional()
@@ -89,13 +81,6 @@ export class ListDocumentsDto {
 }
 
 export class ListStarredDocumentsDto {
-  // Defaults to the caller's active workspace from the session.
-  @IsOptional()
-  @IsString()
-  workspaceId?: string;
-}
-
-export class ListSharedDocumentsDto {
   // Defaults to the caller's active workspace from the session.
   @IsOptional()
   @IsString()
@@ -126,9 +111,6 @@ type ShareLinkRoleInput = (typeof SHARE_LINK_ROLES)[number];
 const SHARE_LINK_SCOPES = ["REALM", "ANYONE"] as const;
 type ShareLinkScopeInput = (typeof SHARE_LINK_SCOPES)[number];
 
-const SHARE_MODES = ["DEFAULT", "INVITE", "LINK"] as const;
-type ShareModeInput = (typeof SHARE_MODES)[number];
-
 export class UpsertShareLinkDto {
   @IsIn(SHARE_LINK_ROLES)
   role!: ShareLinkRoleInput;
@@ -136,9 +118,4 @@ export class UpsertShareLinkDto {
   // REALM → any logged-in realm member with the link; ANYONE → works logged-out.
   @IsIn(SHARE_LINK_SCOPES)
   scope!: ShareLinkScopeInput;
-}
-
-export class SetShareModeDto {
-  @IsIn(SHARE_MODES)
-  mode!: ShareModeInput;
 }

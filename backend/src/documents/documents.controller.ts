@@ -10,7 +10,6 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { Visibility } from "@app/database";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
 import { PaginationDto } from "../realm/dto";
@@ -22,12 +21,9 @@ import {
   AddDocumentPermissionDto,
   CreateDocumentDto,
   ListDocumentsDto,
-  ListSharedDocumentsDto,
   ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
-  SetShareModeDto,
-  SetVisibilityDto,
   UpdateDocumentPermissionDto,
   UpsertShareLinkDto,
 } from "./dto";
@@ -81,23 +77,8 @@ export class DocumentsController {
     );
   }
 
-  // Docs shared with the current user via per-page grants, newest grant first.
-  // Declared before `:id` so "shared" isn't matched as a document id.
-  @Get("shared")
-  listShared(
-    @CurrentUser() user: AuthUser,
-    @Query() q: ListSharedDocumentsDto,
-    @Query() page: PaginationDto
-  ) {
-    return this.documents.listSharedWithMe(
-      user,
-      { workspaceId: q.workspaceId },
-      page.skip,
-      page.take
-    );
-  }
-
   // Global "Shared with me" across all workspaces (launcher side panel).
+  // Declared before `:id` so "shared-with-me" isn't matched as a document id.
   @Get("shared-with-me")
   listAllShared(@CurrentUser() user: AuthUser, @Query() page: PaginationDto) {
     return this.documents.listAllSharedWithMe(user, page.skip, page.take);
@@ -167,15 +148,6 @@ export class DocumentsController {
       folderId: dto.folderId ?? null,
       parentId: dto.parentId ?? null,
     });
-  }
-
-  @Patch(":id/visibility")
-  setVisibility(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-    @Body() dto: SetVisibilityDto
-  ) {
-    return this.documents.setVisibility(user.id, id, dto.visibility as Visibility);
   }
 
   @Delete(":id")
@@ -259,14 +231,6 @@ export class DocumentsController {
     return this.shareLinks.remove(user.id, id);
   }
 
-  @Patch(":id/share-mode")
-  setShareMode(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-    @Body() dto: SetShareModeDto
-  ) {
-    return this.shareLinks.setShareMode(user.id, id, dto.mode);
-  }
 }
 
 // parentId query → filter: omitted=undefined (no filter), ""/"null"=null (top-level), id=that doc's subdocs.

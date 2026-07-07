@@ -4,50 +4,19 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { PrismaService } from "../prisma/prisma.service";
-import { JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER } from "./jwt.constants";
+import { AccessTokenService } from "./access-token.service";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(
-    private readonly jwt: JwtService,
-    private readonly prisma: PrismaService
-  ) {}
+  constructor(private readonly accessTokens: AccessTokenService) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
-    const header: string | undefined = req.headers["authorization"];
-    if (!header || !header.startsWith("Bearer ")) {
-      throw new UnauthorizedException("missing bearer token");
-    }
-    const token = header.slice(7);
-    let sub: string;
-    let activeWorkspaceId: string | null = null;
-    try {
-      // Pin algorithm + iss/aud so foreign or downgraded JWTs are rejected.
-      const payload = await this.jwt.verifyAsync(token, {
-        algorithms: [JWT_ALGORITHM],
-        issuer: JWT_ISSUER,
-        audience: JWT_AUDIENCE,
-      });
-      if (payload.type !== "access") {
-        throw new UnauthorizedException("not an access token");
-      }
-      sub = payload.sub;
-      activeWorkspaceId = payload.activeWorkspaceId ?? null;
-    } catch {
-      throw new UnauthorizedException("invalid token");
-    }
-    const user = await this.prisma.user.findUnique({ where: { id: sub } });
-    if (!user) throw new UnauthorizedException("user not found");
-    req.user = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      color: user.color,
-      activeWorkspaceId,
-    };
+    const user = await this.accessTokens.resolveAccessToken(
+      req.headers["authorization"]
+    );
+    if (!user) throw new UnauthorizedException("invalid or missing access token");
+    req.user = user;
     return true;
   }
 }

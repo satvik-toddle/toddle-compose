@@ -9,10 +9,10 @@ import { Loader } from '../../components/Loader';
 import { RoleRadios } from '../../components/RoleRadios';
 import { useAddWorkspaceMember } from '../../hooks/useWorkspaceMemberMutations';
 import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
-import { useWorkspaceMembers } from '../../hooks/queries';
+import { useRealm, useWorkspaceMembers } from '../../hooks/queries';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
-import { WS_ROLES, WS_ROLE_META } from '../../lib/roles';
+import { WS_ROLES, WS_ROLE_META, isRealmAdmin } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
 
 // The version-switching selector's union type drops some react-select props
@@ -44,6 +44,9 @@ export function AddWorkspaceMemberModal({
   const { users, isSearching } = useRealmUserSearch(term);
   // Only admins reach this modal, so the members read is authorized.
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  const { data: realm } = useRealm();
+  // Only realm admins may grant the workspace Admin role.
+  const roleChoices = isRealmAdmin(realm?.role) ? WS_ROLES : WS_ROLES.filter((r) => r !== 'ADMIN');
 
   // Realm-wide matches minus people who are already in this workspace.
   const options = useMemo(() => {
@@ -133,7 +136,7 @@ export function AddWorkspaceMemberModal({
             cols
             value={role}
             onChange={setRole}
-            options={WS_ROLES.map((r) => ({
+            options={roleChoices.map((r) => ({
               value: r,
               desc: WS_ROLE_META[r].label,
             }))}

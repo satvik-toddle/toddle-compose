@@ -29,7 +29,12 @@ export type ModalState =
       role?: WorkspaceRole;
     }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
-  | { type: 'docPermissions'; workspaceId: string; docId: string; docTitle: string; ownerId: string };
+  | {
+      type: 'docPermissions';
+      docId: string;
+      docTitle: string;
+      owner: { id: string; name: string; email?: string; color?: string };
+    };
 
 interface UiState {
   modal: ModalState | null;

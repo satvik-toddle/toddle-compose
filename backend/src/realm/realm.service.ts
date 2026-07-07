@@ -74,31 +74,28 @@ export class RealmService {
     });
   }
 
-  // Member-directory search for pickers: case-insensitive substring on name OR email,
-  // scoped to this realm's members. Open to ANY realm member (workspace admins who
-  // aren't realm admins need it); omitted/blank queries return the first `take` members.
+  // User-directory search for pickers: case-insensitive substring on name OR email.
+  // Searches the User table (single-realm app) so registered users who haven't joined a
+  // workspace yet are still findable in the Share/Add-member pickers. Open to ANY realm
+  // member (workspace admins who aren't realm admins need it); omitted/blank queries
+  // return the first `take` users alphabetically.
   async searchUsers(userId: string, q: string | undefined, take = 20) {
     await this.authz.requireRealmRole(userId, "MEMBER");
     const query = q?.trim() ?? "";
-    const members = await this.prisma.realmMember.findMany({
-      where: {
-        realmId: this.realm.id,
-        ...(query
-          ? {
-              user: {
-                OR: [
-                  { name: { contains: query, mode: "insensitive" } },
-                  { email: { contains: query, mode: "insensitive" } },
-                ],
-              },
-            }
-          : {}),
-      },
-      select: { user: { select: USER_SELECT } },
-      orderBy: { user: { name: "asc" } },
+    return this.prisma.user.findMany({
+      where: query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { email: { contains: query, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      select: USER_SELECT,
+      // Tiebreak by id so the order is deterministic when names collide.
+      orderBy: [{ name: "asc" }, { id: "asc" }],
       take: Math.min(take, 20),
     });
-    return members.map((m) => m.user);
   }
 
   // Owner manages maintainers; maintainers manage members. OWNER never assignable.

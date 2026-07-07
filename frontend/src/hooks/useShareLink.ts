@@ -3,17 +3,8 @@ import { documentsApi } from '../api/documents';
 import { shareLinksApi } from '../api/shareLinks';
 import { qk } from '../lib/queryKeys';
 import { isNotFound } from '../lib/errors';
-import type { ShareLinkScope, ShareMode } from '../types/api';
+import type { ShareLinkScope } from '../types/api';
 import type { WorkspaceRole } from '../types/roles';
-
-// Single-doc detail (carries shareMode); the modal reads which pane to open from here.
-export function useDocDetail(docId: string, enabled = true) {
-  return useQuery({
-    queryKey: qk.docDetail(docId),
-    queryFn: () => documentsApi.get(docId),
-    enabled: enabled && !!docId,
-  });
-}
 
 // The doc's share link, or null when none exists yet (a 404 is "no link", not an error).
 export function useShareLink(docId: string, enabled = true) {
@@ -31,28 +22,13 @@ export function useShareLink(docId: string, enabled = true) {
   });
 }
 
-// Switch the Share-modal pane (DEFAULT | INVITE | LINK); refreshes the doc detail + lists.
-export function useSetShareMode(docId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (mode: ShareMode) => documentsApi.setShareMode(docId, mode),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.docDetail(docId) });
-      qc.invalidateQueries({ queryKey: ['documents'] });
-    },
-  });
-}
-
-// Create/update the link (role + scope); the PUT also flips the doc to LINK mode.
+// Create/update the link (role + scope).
 export function usePutShareLink(docId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { role: WorkspaceRole; scope: ShareLinkScope }) =>
       documentsApi.putShareLink(docId, b),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.docShareLink(docId) });
-      qc.invalidateQueries({ queryKey: qk.docDetail(docId) });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.docShareLink(docId) }),
   });
 }
 
@@ -64,15 +40,12 @@ export function useRegenerateShareLink(docId: string) {
   });
 }
 
-// Revoke the link; the backend resets shareMode to DEFAULT when it pointed at LINK.
+// Revoke the link.
 export function useDeleteShareLink(docId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => documentsApi.deleteShareLink(docId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.docShareLink(docId) });
-      qc.invalidateQueries({ queryKey: qk.docDetail(docId) });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.docShareLink(docId) }),
   });
 }
 

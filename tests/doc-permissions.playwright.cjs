@@ -4,8 +4,8 @@
 //   3. UI (EDIT grantee, NOT a workspace member): opens the doc URL as guest, editor is writable,
 //      typed text syncs to the owner; sidebar shows only the granted doc; other docs 404.
 //   4. UI (READ grantee): editor renders read-only (viewer RTC token; typing changes nothing).
-//   5. "Shared with me": /w/:id/shared lists the granted doc with permission + shared date.
-//   6. No cascade + role gates as grantee: EDIT → rename 200 / visibility 403; ADMIN → visibility 200.
+//   5. Shared with me: global /documents/shared-with-me lists the granted doc (sharedAt); the workspace sidebar has no "Shared with me" link.
+//   6. No cascade + role gates as grantee: EDIT → rename 200 / delete 403; ADMIN → manage permissions 200.
 //   7. Doc-shared email hits the mailer (asserted by the caller via backend console in dev mode).
 //   8. Revocation: doc list 403s and GET doc → 404.
 //
@@ -93,7 +93,7 @@ async function main() {
   await shareItem.waitFor({ timeout: 5000 });
   ok(true, '3-dots menu shows a "Share" item');
   await shareItem.click();
-  await o.page.waitForSelector('text=People with access to this page', { timeout: 5000 });
+  await o.page.waitForSelector('text=People with access', { timeout: 5000 });
   ok(await o.page.locator('text=bob@toddle.test').count() === 1, "modal lists bob's existing grant");
   // Multi-select carol + dave from workspace members, one Add grants both (default role EDIT).
   const selectField = o.page.locator('[data-test-id="doc-perm-users-select-button"]');
@@ -103,7 +103,7 @@ async function main() {
   await memberOption('Carol').click();
   await o.page.keyboard.type('dav');
   await memberOption('Dave').click();
-  await o.page.locator('button:has-text("Add")').last().click();
+  await o.page.locator('button[aria-label="Add people"]').click();
   await o.page.waitForSelector('text=carol@toddle.test', { timeout: 8000 });
   await o.page.waitForSelector('text=dave@toddle.test', { timeout: 8000 });
   ok(true, "one Add grants both selected members");
@@ -145,15 +145,11 @@ async function main() {
   const after = await c.page.locator(EDITOR).innerText();
   ok(!after.includes("should-not-appear") && after.includes(marker), "READ grantee cannot type (viewer token, read-only editor)");
 
-  // ===== 5. Shared with me =====
+  // ===== 5. Shared with me (global launcher list; no per-workspace sidebar link) =====
   console.log("\n5. Shared with me:");
-  const carolWs = await must("/auth/workspace/enter", { method: "POST", token: carol.accessToken, body: { workspaceId: ws.id } });
-  r = await api(`/documents/shared?workspaceId=${encodeURIComponent(ws.id)}`, { token: carolWs.accessToken });
-  ok(r.status === 200 && r.data?.length === 1 && r.data[0].id === doc.id && !!r.data[0].sharedAt, `API shared list -> 1 row with sharedAt (${r.status})`);
-  ok(await c.page.locator('text=Shared with me').count() >= 1, 'sidebar shows a "Shared with me" link');
-  await c.page.locator('text=Shared with me').first().click();
-  await c.page.waitForSelector('text=secret page', { timeout: 8000 });
-  ok(true, "Shared with me view lists the granted doc");
+  r = await api(`/documents/shared-with-me`, { token: carol.accessToken });
+  ok(r.status === 200 && r.data?.some((d) => d.id === doc.id && !!d.sharedAt), `global shared-with-me -> granted doc with sharedAt (${r.status})`);
+  ok(await c.page.locator('text=Shared with me').count() === 0, 'workspace sidebar has no "Shared with me" link');
   await c.page.screenshot({ path: path.join(ART_DIR, "shared-with-me.png") });
 
   // ===== 6. Role gates + no cascade (API, as bob) =====
@@ -162,11 +158,11 @@ async function main() {
   ok(r.status === 404, `sub-page of granted doc -> 404 (no cascade) (${r.status})`);
   r = await api(`/documents/${doc.id}`, { method: "PATCH", token: bobWs.accessToken, body: { title: "secret page (bob)" } });
   ok(r.status === 200, `EDIT grantee rename -> 200 (${r.status})`);
-  r = await api(`/documents/${doc.id}/visibility`, { method: "PATCH", token: bobWs.accessToken, body: { visibility: "PUBLIC" } });
-  ok(r.status === 403, `EDIT grantee set visibility -> 403 (${r.status})`);
+  r = await api(`/documents/${doc.id}`, { method: "DELETE", token: bobWs.accessToken });
+  ok(r.status === 403, `EDIT grantee delete doc -> 403 (${r.status})`);
   await must(`/documents/${doc.id}/permissions/${bobId}`, { method: "PATCH", token: ownerWs.accessToken, body: { role: "ADMIN" } });
-  r = await api(`/documents/${doc.id}/visibility`, { method: "PATCH", token: bobWs.accessToken, body: { visibility: "PRIVATE" } });
-  ok(r.status === 200, `ADMIN grantee set visibility -> 200 (${r.status})`);
+  r = await api(`/documents/${doc.id}/permissions`, { token: bobWs.accessToken });
+  ok(r.status === 200, `ADMIN grantee manage permissions -> 200 (${r.status})`);
   r = await api(`/documents?workspaceId=${encodeURIComponent(ws.id)}`, { token: bobWs.accessToken });
   ok(r.status === 200 && r.data?.length === 1 && r.data[0].myRole === "ADMIN", `guest doc list -> only granted doc, myRole=ADMIN (${r.data?.length} docs)`);
 

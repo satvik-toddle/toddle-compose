@@ -84,12 +84,12 @@ Authorization: Bearer {{ownerToken}}
 GET {{baseUrl}}/realm/users?skip=0&take=50
 Authorization: Bearer {{ownerToken}}
 
-### Search realm members by name/email substring (any realm MEMBER; powers member pickers).
-### Case-insensitive, realm-scoped, name asc, top 20 → [{ id, email, name, color }]
+### Search all registered users by name/email substring (any realm MEMBER; powers member pickers).
+### Case-insensitive, name asc, top 20 → [{ id, email, name, color }]. Finds users who haven't joined a workspace yet.
 GET {{baseUrl}}/realm/users/search?q=ali&take=20
 Authorization: Bearer {{ownerToken}}
 
-### Empty q → the first `take` realm members (the dropdown's initial list)
+### Empty q → the first `take` users (the dropdown's initial list)
 GET {{baseUrl}}/realm/users/search
 Authorization: Bearer {{ownerToken}}
 
@@ -118,8 +118,8 @@ Authorization: Bearer {{ownerToken}}
 # 3. WORKSPACES  (/api/workspaces)
 # =============================================================================
 
-### List workspaces I can see (realm admins → all; others → memberships + guest rows for
-### workspaces where they hold a per-page doc grant: role "READ", guest: true).
+### List workspaces I can see (realm admins → all; others → memberships only; per-page doc
+### grants do NOT add the workspace here — grantees use /documents/shared-with-me).
 ### Captures the first one's id into {{workspaceId}}.
 # @name listWorkspaces
 GET {{baseUrl}}/workspaces
@@ -334,7 +334,6 @@ Content-Type: application/json
 
 > {%
   client.global.set("docId", response.body.id);
-  client.test("doc private by default", () => client.assert(response.body.visibility === "PRIVATE"));
   client.test("defaults to type DOC", () => client.assert(response.body.type === "DOC"));
 %}
 
@@ -449,13 +448,6 @@ Authorization: Bearer {{wsToken}}
 GET {{baseUrl}}/documents/{{sheetDocId}}/history/0
 Authorization: Bearer {{wsToken}}
 
-### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member
-PATCH {{baseUrl}}/documents/{{docId}}/visibility
-Authorization: Bearer {{wsToken}}
-Content-Type: application/json
-
-{ "visibility": "PUBLIC" }
-
 ### ---- per-page permission grants (doc 3-dots → Permissions) ----
 
 ### Grant Bob EDIT on this doc by email → capture his userId (manager: owner/ws-ADMIN/doc-ADMIN).
@@ -488,14 +480,14 @@ Content-Type: application/json
 
 { "email": "nobody@nowhere.test", "role": "EDIT" }
 
-### Promote Bob to doc ADMIN (rename/move/visibility/delete/manage)
+### Promote Bob to doc ADMIN (rename/move/delete/manage)
 PATCH {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
 Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
 { "role": "ADMIN" }
 
-### Bob's workspace launcher now includes this workspace as a guest row (role "READ", guest: true)
+### Bob's workspace launcher does NOT include this workspace (per-page grants don't list it)
 GET {{baseUrl}}/workspaces
 Authorization: Bearer {{bobToken}}
 
@@ -512,10 +504,6 @@ Content-Type: application/json
 GET {{baseUrl}}/documents
 Authorization: Bearer {{bobGuestWsToken}}
 
-### Bob's "shared with me" list — grant rows newest first, each doc + sharedAt + myRole + isStarred
-GET {{baseUrl}}/documents/shared
-Authorization: Bearer {{bobGuestWsToken}}
-
 ### Bob opens the granted doc — breadcrumbs collapse to the doc itself (no ancestor leak)
 GET {{baseUrl}}/documents/{{docId}}
 Authorization: Bearer {{bobGuestWsToken}}
@@ -529,7 +517,7 @@ GET {{baseUrl}}/documents/shared-with-me
 Authorization: Bearer {{bobToken}}
 
 ### ---- share links (doc 3-dots → Share → "Anyone with the link") ----
-### Create/update the link (manager). scope REALM|ANYONE, role READ|COMMENT|EDIT. Flips shareMode→LINK.
+### Create/update the link (manager). scope REALM|ANYONE, role READ|COMMENT|EDIT.
 PUT {{baseUrl}}/documents/{{docId}}/share-link
 Authorization: Bearer {{wsToken}}
 Content-Type: application/json
@@ -548,10 +536,10 @@ Authorization: Bearer {{wsToken}}
 GET {{baseUrl}}/share-links/{{shareToken}}
 Authorization: Bearer {{bobToken}}
 
-### Public RTC token via the link (anonymous "Guest" identity when logged-out on an ANYONE link)
+### Public RTC token via the link → { token, docId, role, name, color } (random anonymous identity when logged-out on an ANYONE link)
 POST {{baseUrl}}/share-links/{{shareToken}}/rtc-token
 
-### Revoke the link → resets shareMode to DEFAULT
+### Revoke the link (idempotent)
 DELETE {{baseUrl}}/documents/{{docId}}/share-link
 Authorization: Bearer {{wsToken}}
 

@@ -113,6 +113,7 @@ export interface WorkspaceMember {
   role: WorkspaceRole;
   createdAt: string;
   user: PublicUser;
+  realmRole?: RealmRole | null; // the member's realm role, so the UI can gate admin-only controls
 }
 
 export interface JoinRequest {
@@ -130,8 +131,6 @@ export interface JoinRequest {
 
 export type DocumentType = 'DOC' | 'SHEET';
 
-// How a document is shared beyond explicit grants: workspace-only, invitees, or link.
-export type ShareMode = 'DEFAULT' | 'INVITE' | 'LINK';
 export type ShareLinkScope = 'REALM' | 'ANYONE';
 
 // A document's public/realm share link (manage endpoints; managers only).
@@ -155,7 +154,6 @@ export interface DocumentDto {
   type: DocumentType;
   title: string;
   icon: string;
-  visibility: Visibility;
   workspaceId: string;
   folderId: string | null;
   parentId: string | null;
@@ -165,7 +163,6 @@ export interface DocumentDto {
   isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
   myRole?: WorkspaceRole | null; // caller's effective role on this doc = owner ? ADMIN : max(ws role, per-doc grant); null for public-only viewers
   sharedAt?: string; // when the caller's per-page grant was created (only on the shared-with-me list)
-  shareMode?: ShareMode; // access mode (present on GET /documents/:id)
   workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
 }
 

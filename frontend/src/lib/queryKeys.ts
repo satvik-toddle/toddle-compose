@@ -19,10 +19,8 @@ export const qk = {
   documents: (workspaceId: string, folderId?: string | null) =>
     ['documents', workspaceId, folderId ?? null] as const,
   starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
-  sharedDocuments: (workspaceId: string) => ['documents', workspaceId, 'shared'] as const, // Same prefix-sharing as starredDocuments.
   allSharedDocuments: () => ['documents', 'shared-with-me'] as const, // Global (cross-workspace) shared list.
   docPermissions: (docId: string) => ['documents', docId, 'permissions'] as const,
-  docDetail: (docId: string) => ['documents', docId, 'detail'] as const, // single-doc GET (shareMode lives here)
   docShareLink: (docId: string) => ['documents', docId, 'shareLink'] as const,
   shareLink: (token: string) => ['shareLink', token] as const, // public /link/:token resolve
   shareLinkRtc: (token: string) => ['shareLink', token, 'rtc'] as const,

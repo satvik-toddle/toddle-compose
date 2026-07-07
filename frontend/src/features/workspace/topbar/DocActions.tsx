@@ -55,10 +55,15 @@ export function DocActions({
   const openPermissionsModal = () =>
     openModal({
       type: 'docPermissions',
-      workspaceId,
       docId: doc.id,
       docTitle: doc.title,
-      ownerId: doc.owner.id,
+      // DocumentDto.owner carries no email; supply the viewer's when they are the owner.
+      owner: {
+        id: doc.owner.id,
+        name: doc.owner.name,
+        color: doc.owner.color,
+        email: doc.owner.id === user.id ? user.email : undefined,
+      },
     });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });

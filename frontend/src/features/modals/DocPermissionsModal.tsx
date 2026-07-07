@@ -1,12 +1,11 @@
 import { useMemo, useState, type ComponentType } from 'react';
-import { SelectDropdown } from '@toddle-edu/ds-web';
+import { SelectDropdown, ToggleSwitch } from '@toddle-edu/ds-web';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
 import { Icon, type IconName } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
 import { RoleSelect } from '../../components/RoleSelect';
-import { cn } from '../../lib/cn';
 import {
   useDocPermissions,
   useAddDocPermission,
@@ -26,6 +25,14 @@ import { pushToast } from '../../stores/uiStore';
 import { WS_ROLE_META, WS_ROLES } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
 import type { ShareLinkScope } from '../../types/api';
+
+// Owner shown atop the access list; email may be absent (DocumentDto.owner omits it).
+interface DocOwner {
+  id: string;
+  name: string;
+  email?: string;
+  color?: string;
+}
 
 // The version-switching selector's union type drops react-select props (isMulti/value/onChange); use untyped like RoleSelect.tsx.
 const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
@@ -72,9 +79,7 @@ const styles = {
   // share-via-link block
   link: 'mt-4 pt-4 border-t border-secondary',
   linkHead: 'flex items-center gap-3',
-  linkIc: 'flex h-9.5 w-9.5 flex-none items-center justify-center rounded-full',
-  linkIcOff: 'bg-surface-tertiary-enabled',
-  linkIcOn: 'bg-surface-tertiary-enabled',
+  linkIc: 'flex h-9.5 w-9.5 flex-none items-center justify-center rounded-full bg-surface-tertiary-enabled',
   linkTxt: 'flex-1 min-w-0',
   linkT: 'text-body-s font-semibold text-primary',
   linkD: 'mt-0.5 text-body-xs text-secondary',
@@ -85,11 +90,6 @@ const styles = {
   permRow: 'mt-3 flex items-center gap-2 flex-wrap text-body-xs text-secondary',
   actions: 'mt-2',
   warn: 'mt-2 flex items-center gap-1.5 text-body-xs text-semantic-warning',
-  // switch (matches the 4e design: 40x23 pill, teal when on)
-  sw: 'relative flex-none w-10 h-[23px] rounded-full border cursor-pointer transition-colors border-secondary bg-surface-tertiary-enabled',
-  swOn: 'bg-[var(--interactive-primary,#00b0c2)] border-[var(--interactive-primary,#00b0c2)]',
-  knob: 'absolute top-0.5 left-0.5 w-[17px] h-[17px] rounded-full bg-white shadow transition-[left]',
-  knobOn: 'left-[19px]',
   footNote: 'flex items-center gap-1.5 text-body-xs text-secondary',
 };
 
@@ -99,13 +99,12 @@ export function DocPermissionsModal({
   onClose,
   docId,
   docTitle,
-  ownerId,
+  owner,
 }: {
   onClose: () => void;
-  workspaceId: string; // accepted for ModalRoot parity; search is realm-wide
   docId: string;
   docTitle: string;
-  ownerId: string;
+  owner: DocOwner;
 }) {
   const { data: link } = useShareLink(docId);
   const linkOn = !!link;
@@ -119,7 +118,7 @@ export function DocPermissionsModal({
         onClose={onClose}
       />
       <div className="m-body">
-        <InviteSection docId={docId} ownerId={ownerId} />
+        <InviteSection docId={docId} owner={owner} />
         <LinkSection docId={docId} />
       </div>
       <div className="m-foot">
@@ -144,7 +143,7 @@ const renderRole = (v: WorkspaceRole) => (
 );
 
 // Add-people row + the "People with access" list (owner first, then grantees).
-function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
+function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
   const { data: grants = [] } = useDocPermissions(docId);
   const addPermission = useAddDocPermission();
   const updatePermission = useUpdateDocPermission();
@@ -161,7 +160,7 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
   const options = useMemo(() => {
     const granted = new Set(grants.map((g) => g.userId));
     return users
-      .filter((u) => u.id !== ownerId && !granted.has(u.id))
+      .filter((u) => u.id !== owner.id && !granted.has(u.id))
       .map(
         (u): MemberOption => ({
           value: u.id,
@@ -171,7 +170,7 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
           email: u.email,
         }),
       );
-  }, [users, grants, ownerId]);
+  }, [users, grants, owner.id]);
 
   const add = async () => {
     if (selected.length === 0 || adding) return;
@@ -243,6 +242,14 @@ function InviteSection({ docId, ownerId }: { docId: string; ownerId: string }) {
 
       <div className={styles.lbl}>People with access</div>
       <div className={styles.people}>
+        <div className={styles.prow}>
+          <Avatar person={{ name: owner.name, color: owner.color }} size={34} />
+          <div className={styles.who}>
+            <div className={styles.nm}>{owner.name}</div>
+            {owner.email && <div className={styles.sub}>{owner.email}</div>}
+          </div>
+          <span className={styles.ownerTag}>Owner</span>
+        </div>
         {grants.map((g) => (
           <div key={g.userId} className={styles.prow}>
             <Avatar person={{ name: g.user.name, color: g.user.color }} size={34} />
@@ -295,7 +302,7 @@ function LinkSection({ docId }: { docId: string }) {
   return (
     <div className={styles.link} data-test-id="share-link-section">
       <div className={styles.linkHead}>
-        <span className={cn(styles.linkIc, linkOn ? styles.linkIcOn : styles.linkIcOff)}>
+        <span className={styles.linkIc}>
           <Icon name={linkOn ? 'GlobeOutlined' : 'LockOutlined'} size={18} muted />
         </span>
         <div className={styles.linkTxt}>
@@ -306,18 +313,14 @@ function LinkSection({ docId }: { docId: string }) {
               : 'Off — only the people listed above can open this doc.'}
           </div>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={linkOn}
-          aria-label="Share via link"
+        <ToggleSwitch
+          dsVersion="2.0"
+          checked={linkOn}
+          onChange={toggle}
           disabled={busy}
-          className={cn(styles.sw, linkOn && styles.swOn)}
-          onClick={toggle}
-          data-test-id="share-link-toggle"
-        >
-          <span className={cn(styles.knob, linkOn && styles.knobOn)} />
-        </button>
+          aria-label="Share via link"
+          testId="share-link-toggle"
+        />
       </div>
 
       {link && (

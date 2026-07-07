@@ -77,10 +77,9 @@ export function ModalRoot() {
       return (
         <DocPermissionsModal
           onClose={close}
-          workspaceId={modal.workspaceId}
           docId={modal.docId}
           docTitle={modal.docTitle}
-          ownerId={modal.ownerId}
+          owner={modal.owner}
         />
       );
     default:

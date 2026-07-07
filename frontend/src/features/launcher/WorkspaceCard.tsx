@@ -1,5 +1,5 @@
 import { Icon } from '../../components/Icon';
-import { workspaceVisual } from '../../lib/workspaceVisual';
+import { workspaceVisual, type WorkspaceHue } from '../../lib/workspaceVisual';
 import { formatDate } from '../../lib/time';
 import type { Workspace } from '../../types/api';
 import s from './WorkspaceCard.module.scss';
@@ -35,11 +35,8 @@ export function WorkspaceCard({
       }}
     >
       <div className={s.wsCardTop}>
-        <span
-          className="ws-emoji"
-          style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-        >
-          <Icon name={vis.icon} size={20} style={{ color: vis.color }} />
+        <span className="ws-emoji" style={{ background: `var(--tag-background-${vis.hue}-default)` }}>
+          <Icon name={vis.icon} size={20} style={{ color: `var(--tag-foreground-${vis.hue})` }} />
         </span>
         <div className={s.wsCardNm}>{ws.name}</div>
         {showRoleBadge && <WorkspaceRoleBadge role={ws.role} />}
@@ -71,21 +68,22 @@ const styles = {
   roleBadge: 'absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase',
 };
 
-// Bare `r,g,b` triplets — consumed via rgba(var(--bg-color), …) in the stylesheet.
-const ROLE_BG: Record<string, string> = {
-  EDIT: '31,111,226', // blue
-  COMMENT: '46,160,67', // green
-  READ: '227,142,18', // orange
-  ADMIN: '197,67,241', // purple
+// DS decorative/tag hue per role. Drives --tag-background-{hue}-default (chip fill)
+// and --tag-foreground-{hue} (icon), which flip with the theme.
+const ROLE_HUE: Record<string, WorkspaceHue> = {
+  EDIT: 'blue',
+  COMMENT: 'green',
+  READ: 'orange',
+  ADMIN: 'purple',
 };
 
 function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
-  const rgb = ROLE_BG[role] ?? '0,0,0';
-  const color = `rgb(${rgb})`;
+  const hue = ROLE_HUE[role] ?? 'blue';
+  const color = `var(--tag-foreground-${hue})`;
   return (
     <span
       className={styles.roleBadge}
-      style={{ background: `rgba(${rgb},0.1)`, color }}
+      style={{ background: `var(--tag-background-${hue}-default)`, color }}
     >
       {
         {

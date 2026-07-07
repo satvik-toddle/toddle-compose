@@ -189,12 +189,13 @@ export function RequestAccessPage() {
             <div key={workspace.id} className={styles.row}>
               <span
                 className={styles.icon}
-                style={{
-                  background: appearance.color + '22',
-                  boxShadow: `inset 0 0 0 1px ${appearance.color}44`,
-                }}
+                style={{ background: `var(--tag-background-${appearance.hue}-default)` }}
               >
-                <Icon name={appearance.icon} size={18} style={{ color: appearance.color }} />
+                <Icon
+                  name={appearance.icon}
+                  size={18}
+                  style={{ color: `var(--tag-foreground-${appearance.hue})` }}
+                />
               </span>
               <div className={styles.info}>
                 <div className={styles.workspaceName}>{workspace.name}</div>

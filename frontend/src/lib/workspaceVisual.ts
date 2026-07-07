@@ -18,9 +18,18 @@ export const WORKSPACE_ICONS: IconName[] = [
   'SettingsOutlined',
 ];
 
-export const BRAND_PALETTE = [
-  '#5a5ae2', '#00ac8a', '#ef4371', '#d67d00', '#6d9c00',
-  '#00b0c2', '#b646ee', '#e8653a', '#a43dd7', '#f04c54',
+// A DS decorative/tag hue name. Consumers build the flipping semantic tokens
+// --tag-background-{hue}-default (chip fill) and --tag-foreground-{hue} (icon) from
+// it, so the workspace chip themes itself in both light and dark.
+export type WorkspaceHue =
+  | 'violet' | 'teal' | 'pink' | 'yellow' | 'green'
+  | 'blue' | 'purple' | 'orange' | 'red';
+
+// One hue per slot; mirrors the id→hue mapping in dsAvatar.ts (COLOR_BY_HEX) so a
+// workspace keeps the same identity color it had under the old BRAND_PALETTE.
+const HUE_PALETTE: WorkspaceHue[] = [
+  'violet', 'teal', 'pink', 'yellow', 'green',
+  'blue', 'purple', 'orange', 'purple', 'red',
 ];
 
 function hash(s: string): number {
@@ -29,10 +38,10 @@ function hash(s: string): number {
   return Math.abs(h);
 }
 
-export function workspaceVisual(id: string): { icon: IconName; color: string } {
+export function workspaceVisual(id: string): { icon: IconName; hue: WorkspaceHue } {
   const h = hash(id);
   return {
     icon: WORKSPACE_ICONS[h % WORKSPACE_ICONS.length],
-    color: BRAND_PALETTE[h % BRAND_PALETTE.length],
+    hue: HUE_PALETTE[h % HUE_PALETTE.length],
   };
 }

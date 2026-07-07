@@ -49,6 +49,27 @@ h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-
 h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
 h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
 
+/* ---- ds-web overrides ----
+   ds-web v2 "fill" buttons color their label/icon with .text-inverse / .icon-inverse
+   (= --text-inverse / --icon-inverse), which are white in light but flip to BLACK in
+   dark. That's correct only for the NEUTRAL fill (its bg also flips light↔dark); on
+   the COLORED fills (primary/info/destructive/tertiary) the bg stays saturated in both
+   themes, so a black label/icon in dark is unreadable. Force those to the on-accent
+   white tokens (--text-on / --icon-on = white in both themes). Compound selectors
+   (0,2,0) beat the .text-inverse/.icon-inverse utilities (0,1,0), and this file loads
+   after ds-web's main.css, so no !important is needed. Covers both the app <Button>
+   wrapper and direct ds-web <Button> usages (e.g. auth pages). */
+[class*='bg-interactive-primary'].text-inverse,
+[class*='bg-interactive-semantic'].text-inverse,
+[class*='bg-[var(--purple'].text-inverse {
+  color: var(--text-on);
+}
+[class*='bg-interactive-primary'] .icon-inverse,
+[class*='bg-interactive-semantic'] .icon-inverse,
+[class*='bg-[var(--purple'] .icon-inverse {
+  color: var(--icon-on);
+}
+
 /* ---- app-level helpers not in the design CSS ---- */
 .rbac .tc-center {
   flex: 1;

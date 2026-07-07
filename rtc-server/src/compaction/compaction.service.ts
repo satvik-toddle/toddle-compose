@@ -22,6 +22,14 @@ export type CompactionStats = {
 
 type SessionGroup = { clientSub: string | null; rows: CompactionCandidate[] };
 
+export type CompactionPassTotals = {
+  docsScanned: number;
+  tier1SessionsMerged: number;
+  tier2DocsArchived: number;
+  errors: number;
+  durationMs: number;
+};
+
 function emptyStats(): CompactionStats {
   return {
     tier1RowsBefore: 0,
@@ -193,22 +201,33 @@ export class CompactionService {
     return stats;
   }
 
-  async runCompactionPass(): Promise<void> {
+  async runCompactionPass(): Promise<CompactionPassTotals> {
     const t0 = Date.now();
     const docIds = await this.repo.listDocIdsWithUpdates();
     let totalT1 = 0;
     let totalT2 = 0;
+    let totalErrors = 0;
     for (const id of docIds) {
       try {
         const s = await this.runCompactionForDoc(id);
         totalT1 += s.tier1SessionsMerged;
+        totalErrors += s.errors;
         if (s.tier2Merged) totalT2 += 1;
       } catch (e) {
+        totalErrors += 1;
         log.error(`'${id}' uncaught in compaction`, e);
       }
     }
+    const durationMs = Date.now() - t0;
     log.info(
-      `compaction pass done in ${Date.now() - t0}ms: ${totalT1} merged, ${totalT2} archived across ${docIds.length} docs`
+      `compaction pass done in ${durationMs}ms: ${totalT1} merged, ${totalT2} archived across ${docIds.length} docs`
     );
+    return {
+      docsScanned: docIds.length,
+      tier1SessionsMerged: totalT1,
+      tier2DocsArchived: totalT2,
+      errors: totalErrors,
+      durationMs,
+    };
   }
 }

@@ -239,6 +239,43 @@ export class DocRepository {
     );
   }
 
+  // Newest compaction run by startedAt, or null if none recorded yet.
+  getLatestCompactionRun() {
+    return this.prisma.rtcCompactionRun.findFirst({
+      orderBy: { startedAt: "desc" },
+    });
+  }
+
+  // Opens a run row before a pass and returns its id for later finishing.
+  async recordCompactionRunStart(startedAt: number): Promise<bigint> {
+    const row = await this.prisma.rtcCompactionRun.create({
+      data: { startedAt: BigInt(startedAt) },
+    });
+    return row.id;
+  }
+
+  async finishCompactionRun(
+    id: bigint,
+    totals: {
+      finishedAt: number;
+      docsScanned: number;
+      tier1SessionsMerged: number;
+      tier2DocsArchived: number;
+      errors: number;
+    }
+  ): Promise<void> {
+    await this.prisma.rtcCompactionRun.update({
+      where: { id },
+      data: {
+        finishedAt: BigInt(totals.finishedAt),
+        docsScanned: totals.docsScanned,
+        tier1SessionsMerged: totals.tier1SessionsMerged,
+        tier2DocsArchived: totals.tier2DocsArchived,
+        errors: totals.errors,
+      },
+    });
+  }
+
   // Deletes exactly the merged rows, not a seq range: non-candidate rows (already-compacted/too-young) can sit between candidate seqs, and a range delete silently dropped them.
   async replaceSeqsWithMerged(args: {
     docId: string;

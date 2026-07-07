@@ -47,3 +47,16 @@ model RtcDocumentUpdate {
   @@index([docId, seq])
   @@map("rtc_document_updates")
 }
+
+model RtcCompactionRun {
+  id                   BigInt  @id @default(autoincrement())
+  startedAt            BigInt  @map("started_at")
+  finishedAt           BigInt? @map("finished_at")
+  docsScanned          Int     @default(0) @map("docs_scanned")
+  tier1SessionsMerged  Int     @default(0) @map("tier1_sessions_merged")
+  tier2DocsArchived    Int     @default(0) @map("tier2_docs_archived")
+  errors               Int     @default(0)
+
+  @@index([startedAt(sort: Desc)])
+  @@map("rtc_compaction_runs")
+}

@@ -27,9 +27,12 @@ function VersionRow({
   selected,
   onSelect,
 }: Readonly<{ session: DocHistorySession; selected: boolean; onSelect: () => void }>) {
-  const name = session.user?.name ?? 'Unknown editor';
+  const name = session.user?.name ?? 'Archived';
   const when = relativeTime(new Date(session.endedAt).toISOString());
-  const edits = session.origin === 'archive' ? 'archived' : `${session.updateCount} edit${session.updateCount === 1 ? '' : 's'}`;
+  // Archived rows already say "Archived" as the name; repeating it in the meta line is noise.
+  const meta = session.origin === 'archive' || !session.user
+    ? when
+    : `${when} · ${session.updateCount} edit${session.updateCount === 1 ? '' : 's'}`;
 
   return (
     <button
@@ -41,9 +44,7 @@ function VersionRow({
       <Avatar person={{ name, color: session.user?.color }} size={24} />
       <span className={styles.rowBody}>
         <span className={styles.name}>{name}</span>
-        <span className={styles.meta}>
-          {when} · {edits}
-        </span>
+        <span className={styles.meta}>{meta}</span>
       </span>
     </button>
   );

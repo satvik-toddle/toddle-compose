@@ -62,6 +62,8 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
 
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
+      {/* History mode swaps the whole chrome for the versions panel: no search/nav/footer. */}
+      {!history.active && (
       <div className={styles.header}>
         <div className="mb-2">
           <SearchInput
@@ -98,8 +100,9 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           </NavLink>
         </div>
 
-        {!history.active && <div className={styles.sectionHeading}>Pages</div>}
+        <div className={styles.sectionHeading}>Pages</div>
       </div>
+      )}
 
       <div className={styles.body}>
         {history.active && history.docId ? (
@@ -109,8 +112,9 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
         )}
       </div>
 
+      {!history.active && (
       <div className={styles.footerGroup}>
-        {!history.active && pages.canCreate && (
+        {pages.canCreate && (
           <CreatePageDropdown
             placement="topLeft"
             onCreate={(type) => pages.createPage(undefined, type)}
@@ -151,6 +155,7 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           {isAdmin ? 'All workspaces' : 'Launcher'}
         </button>
       </div>
+      )}
 
       {!collapsed && (
         <div

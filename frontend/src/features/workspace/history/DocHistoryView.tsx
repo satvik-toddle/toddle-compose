@@ -52,7 +52,7 @@ export function DocHistoryView({ doc }: Readonly<DocHistoryViewProps>) {
   }
 
   const when = session ? relativeTime(new Date(session.endedAt).toISOString()) : '';
-  const who = session?.user?.name ?? 'Unknown editor';
+  const who = session?.user?.name;
 
   return (
     <main className={styles.contentShell}>
@@ -60,7 +60,7 @@ export function DocHistoryView({ doc }: Readonly<DocHistoryViewProps>) {
       <div className={cn(styles.banner)}>
         {effectiveSeq == null
           ? 'No versions to preview.'
-          : `Viewing version · ${when} · edited by ${who}`}
+          : `Viewing version · ${when} · ${who ? `edited by ${who}` : 'archived'}`}
       </div>
       {effectiveSeq != null && (
         <Suspense fallback={<PageLoader />}>

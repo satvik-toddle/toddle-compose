@@ -37,7 +37,11 @@ body {
 }
 
 /* Base headings — font-family inherits from body; size/weight are usually set by
-   the page container or a class, so these are just the fallback. */
+   the page container or a class, so these are just the fallback. Set color here
+   (loaded after antd.css) so headings use the flipping DS token instead of antd's
+   fixed dark reset (h1..h6 { color: rgba(0,0,0,.85) }), which was dark-on-dark in
+   dark theme. */
+h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
 h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
 h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
 h3 { font-weight: 700; font-size: var(--font-size-600); line-height: var(--line-height-300); margin: 0; }

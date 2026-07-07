@@ -129,10 +129,10 @@
   gap: 10px;
 }
 .rbac .appbar .brand .logo {
+  /* No tile background: ToddleLogo.svg is a self-contained coral mark, so the box
+     just sizes/centers it (a colored tile behind it only clashed in dark). */
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--red-950);
   display: flex;
   align-items: center;
   justify-content: center;

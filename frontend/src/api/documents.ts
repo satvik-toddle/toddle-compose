@@ -62,4 +62,8 @@ export const documentsApi = {
   regenerateShareLink: (id: string) =>
     http.post<DocumentShareLink>(`/documents/${id}/share-link/regenerate`),
   deleteShareLink: (id: string) => http.del<{ ok: true }>(`/documents/${id}/share-link`),
+
+  // Force everyone currently in the doc to re-check access now (kick live RTC + invalidate tokens).
+  refreshAccess: (id: string) =>
+    http.post<{ ok: true; closed: number }>(`/documents/${id}/refresh-access`),
 };

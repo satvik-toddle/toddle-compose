@@ -17,6 +17,7 @@ import { AccessTokenService } from "../auth/access-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 import { DocumentsService } from "./documents.service";
 import { RtcTokenService, type RtcRole } from "../rtc/rtc-token.service";
+import { RtcInternalClient } from "../rtc/rtc-internal.client";
 
 // Anonymous link visitors have no user row, so give each a friendly random display name +
 // presence color so collaborators can tell them apart in the editor's awareness cursors.
@@ -46,6 +47,7 @@ export class DocumentShareLinksService {
     private readonly authz: AuthzService,
     private readonly documents: DocumentsService,
     private readonly rtcTokens: RtcTokenService,
+    private readonly rtcInternal: RtcInternalClient,
     private readonly accessTokens: AccessTokenService,
     private readonly config: ConfigService<Env, true>
   ) {}
@@ -103,6 +105,14 @@ export class DocumentShareLinksService {
     await this.requireManage(actorId, documentId);
     await this.prisma.documentShareLink.deleteMany({ where: { documentId } });
     return { ok: true as const };
+  }
+
+  // Apply access changes now: kick everyone live on the doc and invalidate their cached RTC
+  // tokens, forcing an immediate re-mint against current permissions (no 5-min TTL wait).
+  async refreshAccess(actorId: string, documentId: string) {
+    await this.requireManage(actorId, documentId);
+    const { closed } = await this.rtcInternal.kickDoc(documentId);
+    return { ok: true as const, closed: closed ?? 0 };
   }
 
   // ------------------------------------------------------------ public (unguarded routes)

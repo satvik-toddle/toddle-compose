@@ -76,7 +76,11 @@ export function DocEditor({
   // Exactly one source is enabled (the other is disabled via a falsy arg), so hooks stay unconditional.
   const docRtc = useRtcToken(shareToken ? undefined : docId);
   const linkRtc = useShareLinkRtcToken(shareToken);
-  const { data: rtc, isLoading, isError } = shareToken ? linkRtc : docRtc;
+  const { data: rtc, isLoading, isError, refetch } = shareToken ? linkRtc : docRtc;
+
+  // Kept in a ref so providerFactory (built once, memoized) always calls the latest active query's refetch.
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
 
   // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
   const paramsRef = useRef<{ token?: string }>({});
@@ -101,10 +105,15 @@ export function DocEditor({
         }
         freshDocBoundRef.current = true;
         // The CollaborationPlugin connects/disconnects the provider.
-        return new WebsocketProvider(RTC_WS_URL, id, doc, {
+        const provider = new WebsocketProvider(RTC_WS_URL, id, doc, {
           params: paramsRef.current,
           connect: false,
         });
+        // 4001 = server force-refreshed access; re-mint immediately so the reconnect uses a fresh token (or flips to the error state if revoked).
+        provider.on('connection-close', (e?: CloseEvent) => {
+          if (e?.code === 4001) void refetchRef.current?.();
+        });
+        return provider;
       },
       username: awarenessName ?? name ?? 'User',
       cursorColor: awarenessColor ?? color ?? '#5a5ae2',

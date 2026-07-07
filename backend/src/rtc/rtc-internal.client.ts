@@ -89,6 +89,17 @@ export class RtcInternalClient {
     );
   }
 
+  // Force-refresh access on a doc: kick live connections and invalidate already-minted tokens.
+  // Not best-effort — the caller (the Share modal button) surfaces failures to the user.
+  kickDoc(docId: string): Promise<{ closed?: number }> {
+    return this.call(
+      "POST",
+      `/internal/docs/${encodeURIComponent(docId)}/kick`,
+      undefined,
+      3000
+    ) as Promise<{ closed?: number }>;
+  }
+
   // If rtc-server is down, log and move on — the leftover row is orphaned, not harmful.
   async deleteDocBestEffort(docId: string): Promise<void> {
     try {

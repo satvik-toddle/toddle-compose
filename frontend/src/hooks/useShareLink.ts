@@ -49,6 +49,14 @@ export function useDeleteShareLink(docId: string) {
   });
 }
 
+// Apply access changes now: kick everyone live on the doc so they re-mint a token against current
+// permissions. No query invalidation — the effect is server-side on the RTC connections.
+export function useRefreshDocAccess(docId: string) {
+  return useMutation({
+    mutationFn: () => documentsApi.refreshAccess(docId),
+  });
+}
+
 // Global (cross-workspace) list of pages shared with the current user — for the launcher panel.
 export function useAllSharedDocuments(enabled = true) {
   return useQuery({

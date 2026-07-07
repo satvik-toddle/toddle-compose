@@ -231,6 +231,12 @@ export class DocumentsController {
     return this.shareLinks.remove(user.id, id);
   }
 
+  // Force everyone currently in the doc to re-check access now (kick live RTC + invalidate tokens).
+  @Post(":id/refresh-access")
+  refreshAccess(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.refreshAccess(user.id, id);
+  }
+
 }
 
 // parentId query → filter: omitted=undefined (no filter), ""/"null"=null (top-level), id=that doc's subdocs.

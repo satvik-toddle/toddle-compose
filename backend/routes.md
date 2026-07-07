@@ -388,6 +388,11 @@ Manage endpoints (same **manage rights** as permissions — owner / workspace `A
 - `POST /api/documents/:id/share-link/regenerate` → rotate the token (old URL dies immediately),
   keeping role/scope. `404` if no link.
 - `DELETE /api/documents/:id/share-link` → `{ ok: true }` (idempotent revoke).
+- `POST /api/documents/:id/refresh-access` → `{ ok: true, closed }` — force everyone currently in
+  the doc to re-check access **now** instead of waiting out the ~5-min RTC token TTL. Closes all live
+  RTC sockets on the doc and invalidates already-minted tokens (issued-before-now watermark on the
+  rtc-server), so each client reconnects by re-minting against current permissions; `closed` is the
+  number of sockets dropped. Same **manage rights** as the share-link endpoints.
 
 Public endpoints (**unguarded** — the token is the credential):
 - `GET /api/share-links/:token` → `{ document: { id, title, icon, type, workspaceId }, role, scope }`.

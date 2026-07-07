@@ -44,10 +44,11 @@ import { useSheetPanel } from './useSheetPanel';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
+  // Row of [sheet area | docked panel]: the panel takes layout space, so opening it
+  // shrinks the grid and keeps every column visible.
+  content: 'flex-1 min-h-0 flex',
   // Grid + the right-edge "add column" bar sit side by side; "add row" spans below.
-
-  // relative anchors the sheet panel, which overlays the full grid + add-row area.
-  content: 'relative flex-1 min-h-0 flex flex-col',
+  sheetArea: 'flex-1 min-w-0 flex flex-col',
   gridRow: 'flex flex-1 min-h-0 gap-2',
   // min-w-0 lets the grid shrink in the flex row so the add-column bar stays on screen.
   grid: 'min-h-0 min-w-0 flex-1',
@@ -118,7 +119,13 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
 
   const onCellTypeChange = (type: SheetCellType) => {
     if (!docRef.current || !rowsRef.current || !optionSetsRef.current) return;
-    setSheetCellType(docRef.current, rowsRef.current, optionSetsRef.current, selectedCellRefs, type);
+    setSheetCellType(
+      docRef.current,
+      rowsRef.current,
+      optionSetsRef.current,
+      selectedCellRefs,
+      type,
+    );
   };
 
   const onSaveDropdownOptions = (optionSet: SheetOptionSet) => {
@@ -229,44 +236,46 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   return (
     <div className={styles.shell}>
       <div className={styles.content}>
-        <div className={styles.gridRow}>
-          <div className={styles.grid}>
-            <DataGrid
-              ref={gridRef}
-              headers={headers}
-              data={rows}
-              isViewMode={!canEdit}
-              onCellEdit={onCellEdit}
-              onCellSelectionChange={setSelectedCells}
-              onAppendRowAtEnd={onAppendRowAtEnd}
-              dataGridHeight="100%"
-            />
+        <div className={styles.sheetArea}>
+          <div className={styles.gridRow}>
+            <div className={styles.grid}>
+              <DataGrid
+                ref={gridRef}
+                headers={headers}
+                data={rows}
+                isViewMode={!canEdit}
+                onCellEdit={onCellEdit}
+                onCellSelectionChange={setSelectedCells}
+                onAppendRowAtEnd={onAppendRowAtEnd}
+                dataGridHeight="100%"
+              />
+            </div>
+            {canEdit && (
+              <Tooltip dsVersion="2.0" placement="left" showArrow tooltip="Add column">
+                <button
+                  type="button"
+                  aria-label="Add column"
+                  className={cn(styles.addBar, styles.addColBar)}
+                  onClick={onAddColumn}
+                >
+                  <AddOutlined variant="subtle" />
+                </button>
+              </Tooltip>
+            )}
           </div>
           {canEdit && (
-            <Tooltip dsVersion="2.0" placement="left" showArrow tooltip="Add column">
+            <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Add row">
               <button
                 type="button"
-                aria-label="Add column"
-                className={cn(styles.addBar, styles.addColBar)}
-                onClick={onAddColumn}
+                aria-label="Add row"
+                className={cn(styles.addBar, styles.addRowBar)}
+                onClick={onAddRow}
               >
                 <AddOutlined variant="subtle" />
               </button>
             </Tooltip>
           )}
         </div>
-        {canEdit && (
-          <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Add row">
-            <button
-              type="button"
-              aria-label="Add row"
-              className={cn(styles.addBar, styles.addRowBar)}
-              onClick={onAddRow}
-            >
-              <AddOutlined variant="subtle" />
-            </button>
-          </Tooltip>
-        )}
         {canEdit && (
           <SheetPanel
             isOpen={isPanelOpen}

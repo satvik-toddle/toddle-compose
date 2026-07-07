@@ -14,11 +14,13 @@ import { SheetDropdownOptionsForm } from './SheetDropdownOptionsForm';
 import type { SheetCellType, SheetOptionSet } from './sheetModel';
 
 const styles = {
-  // Floats over the grid's right edge, Google-Sheets style — the grid keeps its size.
+  // Docked beside the grid, Google-Sheets style — opening it shrinks the grid so every column stays in the viewport instead of being covered.
   panel:
-    'absolute inset-y-0 right-0 z-10 flex w-80 flex-col rounded-2 border border-secondary bg-surface-primary-enabled shadow-elevation-3-bottom transition-[transform,visibility] duration-200 ease-in-out',
-  // 1.5rem matches the shell's p-6, so the slide-out clears the padding gutter too.
-  panelClosed: 'invisible translate-x-[calc(100%+1.5rem)]',
+    'flex shrink-0 flex-col overflow-hidden rounded-2 border border-secondary bg-surface-primary-enabled transition-[width,margin,visibility] duration-200 ease-in-out',
+  panelOpen: 'ml-2 w-80',
+  panelClosed: 'invisible ml-0 w-0',
+  // Fixed at the open width so the content clips instead of reflowing mid-animation.
+  panelContent: 'flex h-full w-80 shrink-0 flex-col',
   header: 'flex items-center justify-between gap-2 border-b border-secondary py-2 pl-4 pr-2',
   title: 'text-heading-6 text-primary',
   body: 'flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto px-4 py-3',
@@ -63,8 +65,7 @@ type SheetPanelProps = {
   onClose: () => void;
 };
 
-// Overlay for the sheet's cell-level options. Phase 1 is the shell only — the
-// cell-type and property controls land here next.
+// Docked side panel for the sheet's cell-level options.
 export function SheetPanel({
   isOpen,
   selectionLabel,
@@ -92,66 +93,68 @@ export function SheetPanel({
     <aside
       aria-label="Cell configuration"
       aria-hidden={!isOpen}
-      className={cn(styles.panel, !isOpen && styles.panelClosed)}
+      className={cn(styles.panel, isOpen ? styles.panelOpen : styles.panelClosed)}
     >
-      <header className={styles.header}>
-        <h2 className={styles.title}>Cell configuration</h2>
-        <Tooltip
-          dsVersion="2.0"
-          showArrow
-          tooltip={
-            <span className={styles.tooltip}>
-              Close
-              <ShortcutHint keys={closeShortcutKeys} />
-            </span>
-          }
-        >
-          <IconButton
+      <div className={styles.panelContent}>
+        <header className={styles.header}>
+          <h2 className={styles.title}>Cell configuration</h2>
+          <Tooltip
             dsVersion="2.0"
-            variant="neutral"
-            type="plain"
-            icon={<CloseOutlined />}
-            aria-label="Close cell configuration"
-            onClick={onClose}
-          />
-        </Tooltip>
-      </header>
-      <div className={styles.body}>
-        {selectionLabel ? (
-          <>
-            <div className={styles.rangeSection}>
-              <span className={styles.rangeLabel}>Applies to</span>
-              <span className={styles.rangeValue}>{selectionLabel}</span>
-            </div>
-            <CellTypeSelect
+            showArrow
+            tooltip={
+              <span className={styles.tooltip}>
+                Close
+                <ShortcutHint keys={closeShortcutKeys} />
+              </span>
+            }
+          >
+            <IconButton
               dsVersion="2.0"
-              label="Cell type"
-              options={SHEET_CELL_TYPE_OPTIONS}
-              value={selectedTypeOption ?? undefined}
-              onChange={(option) => option && onCellTypeChange(option.value)}
-              placeholder={cellType === 'mixed' ? 'Mixed' : 'Select cell type'}
-              isClearable={false}
-              isCreatable={false}
-              isSearchable={false}
+              variant="neutral"
+              type="plain"
+              icon={<CloseOutlined />}
+              aria-label="Close cell configuration"
+              onClick={onClose}
             />
-            {cellType === 'dropdown' && (
-              <SheetDropdownOptionsForm
-                // Remount when the target set (or a set-less selection) changes so the
-                // draft never leaks across ranges.
-                key={dropdownOptionSetId ?? `new-${selectionLabel}`}
-                optionSet={dropdownOptionSet}
-                onSave={onSaveDropdownOptions}
+          </Tooltip>
+        </header>
+        <div className={styles.body}>
+          {selectionLabel ? (
+            <>
+              <div className={styles.rangeSection}>
+                <span className={styles.rangeLabel}>Applies to</span>
+                <span className={styles.rangeValue}>{selectionLabel}</span>
+              </div>
+              <CellTypeSelect
+                dsVersion="2.0"
+                label="Cell type"
+                options={SHEET_CELL_TYPE_OPTIONS}
+                value={selectedTypeOption ?? undefined}
+                onChange={(option) => option && onCellTypeChange(option.value)}
+                placeholder={cellType === 'mixed' ? 'Mixed' : 'Select cell type'}
+                isClearable={false}
+                isCreatable={false}
+                isSearchable={false}
               />
-            )}
-          </>
-        ) : (
-          <EmptyState
-            dsVersion="2.0"
-            illustration={EmptyStateIllustrations.NoDataIllustration}
-            title="No cells selected"
-            subtitle="Select a cell or a range of cells to configure it."
-          />
-        )}
+              {cellType === 'dropdown' && (
+                <SheetDropdownOptionsForm
+                  // Remount when the target set (or a set-less selection) changes so the
+                  // draft never leaks across ranges.
+                  key={dropdownOptionSetId ?? `new-${selectionLabel}`}
+                  optionSet={dropdownOptionSet}
+                  onSave={onSaveDropdownOptions}
+                />
+              )}
+            </>
+          ) : (
+            <EmptyState
+              dsVersion="2.0"
+              illustration={EmptyStateIllustrations.NoDataIllustration}
+              title="No cells selected"
+              subtitle="Select a cell or a range of cells to configure it."
+            />
+          )}
+        </div>
       </div>
     </aside>
   );

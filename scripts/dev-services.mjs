@@ -1,8 +1,9 @@
-// Runs the three dev servers together. If any one fails, the others are killed
-// and the script exits with a message naming the culprit plus its last log lines.
+// Runs the three dev servers together; if one fails, the rest are killed and the culprit's last log lines are replayed.
 import concurrently from 'concurrently';
 
 const TAIL_LINES = 30;
+const tty = process.stderr.isTTY;
+const paint = (code, s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s);
 
 const { result, commands } = concurrently(
   [
@@ -10,41 +11,47 @@ const { result, commands } = concurrently(
     { command: 'pnpm --filter rtc-server dev', name: 'rtc', prefixColor: 'magenta' },
     { command: 'pnpm --filter frontend dev', name: 'frontend', prefixColor: 'green' },
   ],
-  { killOthers: ['failure'] },
+  { killOthersOn: ['failure'] },
 );
 
-// Keep a rolling tail of each service's output so we can replay the failing
-// service's logs after the (interleaved) live output has scrolled by.
+// Rolling per-service output tail so the failing service's logs can be replayed at the end.
 const tails = new Map(commands.map((c) => [c.name, []]));
 for (const c of commands) {
-  const record = (chunk) => {
-    const tail = tails.get(c.name);
-    tail.push(...chunk.toString().split('\n').filter((l) => l.trim() !== ''));
-    if (tail.length > TAIL_LINES) tail.splice(0, tail.length - TAIL_LINES);
+  const tail = tails.get(c.name);
+  const subscribe = (stream) => {
+    let carry = '';
+    stream.subscribe((chunk) => {
+      const lines = (carry + chunk.toString()).split('\n');
+      carry = lines.pop() ?? '';
+      tail.push(...lines.filter((l) => l.trim() !== ''));
+      if (tail.length > TAIL_LINES) tail.splice(0, tail.length - TAIL_LINES);
+    });
   };
-  c.stdout.subscribe(record);
-  c.stderr.subscribe(record);
+  subscribe(c.stdout);
+  subscribe(c.stderr);
 }
 
 result.then(
   () => process.exit(0),
   (closeEvents) => {
-    // The culprit is the service that exited non-zero on its own; the rest were
-    // killed by us (SIGTERM) or by the user's Ctrl+C (signal exits).
-    const culprit = Array.isArray(closeEvents)
-      ? closeEvents.find((e) => !e.killed && typeof e.exitCode === 'number' && e.exitCode !== 0)
-      : undefined;
+    const events = Array.isArray(closeEvents) ? closeEvents : [];
+    // Failures we didn't cause: numeric exitCode = the process exited non-zero, string exitCode = it died from a signal (e.g. SIGSEGV).
+    const failures = events.filter((e) => !e.killed && e.exitCode !== 0);
+    // When EVERY service died from an external signal at once (terminal close, kill of the group), there is no culprit to blame.
+    const externalStop = failures.length === events.length && failures.every((e) => typeof e.exitCode === 'string');
+    const culprit = externalStop ? undefined : failures[0];
     if (culprit) {
       const name = culprit.command.name;
-      console.error(`\n\x1b[31m✗ Script ended: ${name} failed to start or crashed (exit code ${culprit.exitCode}). Shut down all other services.\x1b[0m`);
+      const cause = typeof culprit.exitCode === 'number' ? `exit code ${culprit.exitCode}` : `signal ${culprit.exitCode}`;
+      console.error(`\n${paint(31, `✗ Script ended: ${name} failed to start or crashed (${cause}). Shut down all other services.`)}`);
       const tail = tails.get(name) ?? [];
       if (tail.length > 0) {
-        console.error(`\n\x1b[2m── last output from ${name} ──\x1b[0m`);
+        console.error(`\n${paint(2, `── last output from ${name} ──`)}`);
         for (const line of tail) console.error(`  ${line}`);
-        console.error(`\x1b[2m── end of ${name} output ──\x1b[0m`);
+        console.error(paint(2, `── end of ${name} output ──`));
       }
     } else {
-      console.error('\n\x1b[33m! Script ended: dev services stopped.\x1b[0m');
+      console.error(`\n${paint(33, '! Script ended: dev services stopped.')}`);
     }
     process.exit(1);
   },

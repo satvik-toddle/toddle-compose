@@ -1,14 +1,11 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { REQUIRED_ENV_KEYS } from './src/lib/env-keys';
 
-const REQUIRED_ENV_VARS = ['VITE_API_BASE_URL', 'VITE_RTC_WS_URL'] as const;
-
-// The backend runs on :4000 with a global `/api` prefix. In dev we proxy
-// `/api` to it so the SPA can use same-origin relative URLs (no CORS, no
-// hard-coded host). For non-proxied deploys set VITE_API_BASE_URL instead.
+// Both env vars are required in every mode — dev defaults are committed in .env.development, deploys set real values via build env vars.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const missing = REQUIRED_ENV_VARS.filter((name) => !env[name]);
+  const missing = REQUIRED_ENV_KEYS.filter((name) => !env[name]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
   }
@@ -25,12 +22,6 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5173,
-      proxy: {
-        '/api': {
-          target: 'http://localhost:4000',
-          changeOrigin: true,
-        },
-      },
     },
     build: {
       rollupOptions: {

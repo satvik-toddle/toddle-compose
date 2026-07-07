@@ -2,16 +2,8 @@ import { useMemo } from 'react';
 import { DocEditor as DsDocEditor, Y } from '@toddle-edu/ds-doc-editor';
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import s from '../DocEditor.module.scss';
+import { EDITOR_CONFIG, EDITOR_STYLES } from '../DocEditor';
 import { OfflineProvider } from './offlineProvider';
-
-// Mirror the live DocEditor's chrome so a snapshot reads identically (no toolbar,
-// full-width readable column) — only it's static and read-only.
-const EDITOR_CONFIG = { toolbar: { enabled: false } };
-const EDITOR_STYLES = {
-  scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
-  anchorElement: { width: '100%', maxWidth: '100%' },
-  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
-};
 
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -22,7 +14,6 @@ function base64ToBytes(b64: string): Uint8Array {
 
 type DocSnapshotViewerProps = {
   docId: string;
-  seq: number;
   // Full Yjs state at this seq (base64); empty/undefined = empty doc.
   yjsStateB64?: string;
 };
@@ -31,7 +22,7 @@ type DocSnapshotViewerProps = {
 // snapshot's Yjs state via a no-network OfflineProvider — through ds-doc-editor's
 // collaborative render path, so the historical view is byte-identical to the live
 // editor, permanently view-only. Keyed by seq at the call site → remounts per version.
-export function DocSnapshotViewer({ docId, seq, yjsStateB64 }: Readonly<DocSnapshotViewerProps>) {
+export function DocSnapshotViewer({ docId, yjsStateB64 }: Readonly<DocSnapshotViewerProps>) {
   const collab = useMemo(() => {
     const update = yjsStateB64 ? base64ToBytes(yjsStateB64) : null;
     return {
@@ -55,7 +46,7 @@ export function DocSnapshotViewer({ docId, seq, yjsStateB64 }: Readonly<DocSnaps
       username: 'History',
       cursorColor: '#5a5ae2',
     };
-  }, [docId, seq, yjsStateB64]);
+  }, [docId, yjsStateB64]);
 
   return (
     <div className={s.tcEditor}>

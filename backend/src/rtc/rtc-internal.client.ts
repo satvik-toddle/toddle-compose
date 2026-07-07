@@ -72,10 +72,15 @@ export class RtcInternalClient {
   }
 
   /** Reconstruct the doc state at a given seq (includes the sheet snapshot for SHEET docs). */
-  getVersionPreview(docId: string, seq: number): Promise<RtcVersionPreview> {
+  getVersionPreview(
+    docId: string,
+    seq: number,
+    include: RtcPreviewInclude = "all"
+  ): Promise<RtcVersionPreview> {
+    const q = include === "all" ? "" : `?include=${include}`;
     return this.call(
       "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}`
+      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}${q}`
     ) as Promise<RtcVersionPreview>;
   }
 
@@ -128,6 +133,9 @@ export type RtcSheetSnapshot = {
   colTypes: Record<string, unknown>;
 };
 
+// Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.
+export type RtcPreviewInclude = "all" | "state" | "text";
+
 export type RtcVersionPreview = {
   docId: string;
   seq: number;
@@ -135,5 +143,6 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
-  yjsStateB64: string;
+  // Absent when include='text', or when talking to an older rtc-server that predates this field.
+  yjsStateB64?: string;
 };

@@ -18,8 +18,9 @@ const FIRST_PASS_SETTLE_MS = 30_000;
 export class CompactionScheduler
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private initialTimer: NodeJS.Timeout | null = null;
   private timer: NodeJS.Timeout | null = null;
+  // Set on shutdown so an in-flight first-pass lookup or tick never re-arms the timer.
+  private stopped = false;
   // Guards against overlapping passes racing on the same doc's seq range (replaceSeqRangeWithMerged).
   private running = false;
 
@@ -33,48 +34,54 @@ export class CompactionScheduler
     return this.config.get(k, { infer: true });
   }
 
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     const interval = this.env("RTC_COMPACT_INTERVAL_MS");
     if (interval <= 0) {
       log.info("compaction scheduler disabled (RTC_COMPACT_INTERVAL_MS<=0)");
       return;
     }
-    // Persistent schedule: base the next pass on the last recorded run so a process that never survives a full interval still compacts.
-    const latest = await this.repo.getLatestCompactionRun().catch((e) => {
-      log.error("could not read latest compaction run — assuming none", e);
-      return null;
-    });
-    let delay: number;
-    if (!latest) {
-      delay = FIRST_PASS_SETTLE_MS;
-      log.info(
-        `no prior compaction run — first pass in ${Math.round(delay / 1000)}s`
-      );
-    } else {
-      // Measure from startedAt so a crashed run without finishedAt still counts as an attempt (no tight boot-loop).
-      const elapsed = Date.now() - Number(latest.startedAt);
-      if (elapsed >= interval) {
-        delay = FIRST_PASS_SETTLE_MS;
-        log.info(
-          `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 1000)}s`
-        );
-      } else {
-        delay = interval - elapsed;
-        log.info(
-          `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 60000)}m`
-        );
-      }
-    }
     log.info(`compaction scheduler armed: interval=${interval}ms`);
-    this.initialTimer = setTimeout(() => {
-      this.initialTimer = null;
-      void this.tick().finally(() => this.armInterval(interval));
-    }, delay);
-    this.initialTimer.unref?.();
+    // Fire the DB lookup WITHOUT awaiting so app.listen / WS availability never gates on it.
+    // Persistent schedule: base the first pass on the last recorded run so a process that never survives a full interval still compacts.
+    void this.repo
+      .getLatestCompactionRun()
+      .catch((e) => {
+        log.error("could not read latest compaction run — assuming none", e);
+        return null;
+      })
+      .then((latest) => {
+        if (this.stopped) return;
+        let delay: number;
+        if (!latest) {
+          delay = FIRST_PASS_SETTLE_MS;
+          log.info(
+            `no prior compaction run — first pass in ${Math.round(delay / 1000)}s`
+          );
+        } else {
+          // Measure from startedAt so a crashed run without finishedAt still counts as an attempt (no tight boot-loop).
+          const elapsed = Date.now() - Number(latest.startedAt);
+          if (elapsed >= interval) {
+            delay = FIRST_PASS_SETTLE_MS;
+            log.info(
+              `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 1000)}s`
+            );
+          } else {
+            delay = interval - elapsed;
+            log.info(
+              `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 60000)}m`
+            );
+          }
+        }
+        this.schedule(delay, interval);
+      });
   }
 
-  private armInterval(interval: number): void {
-    this.timer = setInterval(() => void this.tick(), interval);
+  // One self-re-arming timer: after each pass, schedule the next at the full interval.
+  private schedule(delay: number, interval: number): void {
+    this.timer = setTimeout(async () => {
+      await this.tick();
+      if (!this.stopped) this.schedule(interval, interval);
+    }, delay);
     this.timer.unref?.();
   }
 
@@ -112,14 +119,14 @@ export class CompactionScheduler
   }
 
   onApplicationShutdown(): void {
-    if (this.initialTimer) {
-      clearTimeout(this.initialTimer);
-      this.initialTimer = null;
-    }
+    this.stopped = true;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
-    log.info("compaction scheduler stopped");
+    // Only log when the scheduler was actually armed (a disabled scheduler never scheduled anything).
+    if (this.env("RTC_COMPACT_INTERVAL_MS") > 0) {
+      log.info("compaction scheduler stopped");
+    }
   }
 }

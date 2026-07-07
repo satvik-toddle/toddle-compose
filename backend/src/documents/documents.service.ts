@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -355,7 +356,9 @@ export class DocumentsService {
           updateCount: s.updateCount,
           totalBytes: s.totalBytes,
           noop: s.noop,
-          origin: s.origin,
+          // Distinguish a tier-2 archive snapshot from a real edit whose author no longer resolves
+          // to a user (both leave user=null, but the UI must label them differently).
+          kind: s.origin === "archive" ? ("archive" as const) : ("edit" as const),
           changedCells: s.changedCells ?? [],
           user: s.clientSub ? (byId.get(s.clientSub) ?? null) : null,
         }))
@@ -369,7 +372,13 @@ export class DocumentsService {
     if (!Number.isFinite(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    const preview = await this.rtc.getVersionPreview(docId, seq);
+    // Fetch only the slice each doc type renders: DOC binds the yjs bytes, SHEET reads the grid snapshot.
+    const isSheet = doc.type === DocumentType.SHEET;
+    const preview = await this.rtc.getVersionPreview(
+      docId,
+      seq,
+      isSheet ? "text" : "state"
+    );
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
     // Seam where DOC and SHEET data diverge.
@@ -378,12 +387,12 @@ export class DocumentsService {
         return { ...base, sheet: preview.sheet };
       case DocumentType.DOC:
       default:
-        return {
-          ...base,
-          lexicalJson: preview.lexicalJson,
-          plainText: preview.plainText,
-          yjsStateB64: preview.yjsStateB64,
-        };
+        // A DOC renders purely from the yjs state; a missing/empty field means the rtc-server
+        // predates it (deploy skew) — fail loud rather than render every version as empty.
+        if (!preview.yjsStateB64) {
+          throw new HttpException({ error: "rtc service error" }, 502);
+        }
+        return { ...base, yjsStateB64: preview.yjsStateB64 };
     }
   }
 

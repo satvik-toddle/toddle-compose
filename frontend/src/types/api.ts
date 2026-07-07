@@ -153,7 +153,8 @@ export interface DocHistorySession {
   updateCount: number;
   totalBytes: number;
   noop: boolean;
-  origin: string | null;
+  // 'archive' = a tier-2 archive snapshot (label "Archived"); 'edit' = a real edit session.
+  kind: 'archive' | 'edit';
   changedCells: Array<{ rowId: string; colId: string }>;
   user: { id: string; name: string; email: string; color: string } | null;
 }
@@ -166,15 +167,12 @@ export interface DocHistoryResponse {
 }
 
 // GET /documents/:id/history/:seq — read-only snapshot of the doc at an update seq.
-// DOC docs carry the serialized Lexical editor state; SHEET omits it.
 export interface DocSnapshot {
   docId: string;
   type: DocumentType;
   seq: number;
   headSeq: number;
-  lexicalJson?: string | null;
-  plainText?: string;
-  // DOC docs: full Yjs state at this seq (base64) for read-only rendering.
+  // DOC docs: full Yjs state at this seq (base64) for read-only rendering. SHEET docs omit it.
   yjsStateB64?: string;
 }
 

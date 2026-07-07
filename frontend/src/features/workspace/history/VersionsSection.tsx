@@ -1,11 +1,11 @@
 import { CloseOutlined } from '@toddle-edu/ds-icons';
 import { IconButton } from '@toddle-edu/ds-web';
-import { useDocHistory } from '../../../hooks/usePages';
 import { relativeTime } from '../../../lib/time';
 import { cn } from '../../../lib/cn';
 import { Avatar } from '../../../components/Avatar';
 import { PageLoader } from '../../../components/Loader';
 import { useHistoryMode } from './useHistoryMode';
+import { useVersionSelection } from './useVersionSelection';
 import type { DocHistorySession } from '../../../types/api';
 
 const styles = {
@@ -27,10 +27,11 @@ function VersionRow({
   selected,
   onSelect,
 }: Readonly<{ session: DocHistorySession; selected: boolean; onSelect: () => void }>) {
-  const name = session.user?.name ?? 'Archived';
+  const isArchive = session.kind === 'archive';
+  const name = isArchive ? 'Archived' : (session.user?.name ?? 'Unknown editor');
   const when = relativeTime(new Date(session.endedAt).toISOString());
   // Archived rows already say "Archived" as the name; repeating it in the meta line is noise.
-  const meta = session.origin === 'archive' || !session.user
+  const meta = isArchive
     ? when
     : `${when} · ${session.updateCount} edit${session.updateCount === 1 ? '' : 's'}`;
 
@@ -53,12 +54,8 @@ function VersionRow({
 // Left-panel content when a doc is in history mode: the edit-session timeline,
 // newest first. Selecting a row previews that version in the content pane.
 export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
-  const { selectedSeq, select, exit } = useHistoryMode();
-  const { data, isLoading, isError } = useDocHistory(docId);
-
-  const sessions = data?.sessions ?? [];
-  // Default to the newest version when none is explicitly selected.
-  const effectiveSeq = selectedSeq ?? sessions[0]?.lastSeq ?? null;
+  const { select, exit } = useHistoryMode();
+  const { sessions, isLoading, isError, effectiveSeq } = useVersionSelection(docId);
 
   return (
     <div>

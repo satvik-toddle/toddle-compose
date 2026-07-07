@@ -11,6 +11,12 @@ const ROWS_KEY = "rows";
 const ID_KEY = "__id";
 const COL_TYPE_KEY = "colTypes";
 
+// What the caller needs back — lets us skip the work it won't read:
+//   'all'   → everything (back-compat default)
+//   'state' → yjs bytes only (DOC render); skip lexical extraction + rawTexts
+//   'text'  → text/sheet only (SHEET render); skip the base64 full-state encode
+export type PreviewInclude = "all" | "state" | "text";
+
 export type SheetSnapshot = {
   rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
   colTypes: Record<string, unknown>;
@@ -59,7 +65,11 @@ export class VersionsService {
     private readonly extract: LexicalExtractService
   ) {}
 
-  async previewAtSeq(docId: string, seq: number): Promise<VersionPreview> {
+  async previewAtSeq(
+    docId: string,
+    seq: number,
+    include: PreviewInclude = "all"
+  ): Promise<VersionPreview> {
     const t0 = Date.now();
     const head = await this.repo.getHeadSeq(docId);
     const target = Math.max(0, Math.min(seq, head));
@@ -72,30 +82,40 @@ export class VersionsService {
     }
     const yjsState = Y.encodeStateAsUpdate(ydoc);
 
-    // Extract sheet FIRST to fix 'rows'/'colTypes' to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce 'rows' to Y.Text and break later typed reads.
+    // Extract sheet FIRST to fix 'rows'/'colTypes' to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce 'rows' to Y.Text and break later typed reads. Cheap and local, so run it in every mode.
     const sheet = extractSheet(ydoc);
 
-    const { lexicalJson, plainText: lexicalText } =
-      await this.extract.extractFromBytes(yjsState);
+    // 'state' callers (DOC render) read only the yjs bytes, so skip the CPU-heavy headless-Lexical extraction and the rawTexts coercion loop entirely.
+    let lexicalJson: string | null = null;
+    let rawTexts: Record<string, string> = {};
+    let plainText = "";
+    if (include !== "state") {
+      const extracted = await this.extract.extractFromBytes(yjsState);
+      lexicalJson = extracted.lexicalJson;
 
-    const rawTexts: Record<string, string> = {};
-    for (const key of ydoc.share.keys()) {
-      try {
-        const s = ydoc.getText(key).toString();
-        if (s.length > 0) rawTexts[key] = s;
-      } catch {
-        /* not text-coercible (e.g. the sheet's Array/Map roots) */
+      rawTexts = {};
+      for (const key of ydoc.share.keys()) {
+        try {
+          const s = ydoc.getText(key).toString();
+          if (s.length > 0) rawTexts[key] = s;
+        } catch {
+          /* not text-coercible (e.g. the sheet's Array/Map roots) */
+        }
       }
+
+      // Sheets yield empty lexical text (every session would look like a no-op), so use a canonical grid serialization; DOC docs keep lexical text.
+      plainText = sheet
+        ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
+        : extracted.plainText;
     }
 
-    // Sheets yield empty lexical text (every session would look like a no-op), so use a canonical grid serialization; DOC docs keep lexical text.
-    const plainText = sheet
-      ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-      : lexicalText;
+    // 'text' callers (SHEET render) discard the yjs bytes, so skip the base64 encode of the full state.
+    const yjsStateB64 =
+      include === "text" ? "" : Buffer.from(yjsState).toString("base64");
 
     const elapsedMs = Date.now() - t0;
     log.debug(
-      `preview '${docId}' seq=${target}/${head} json=${lexicalJson?.length ?? 0}B in ${elapsedMs}ms`
+      `preview '${docId}' seq=${target}/${head} include=${include} json=${lexicalJson?.length ?? 0}B in ${elapsedMs}ms`
     );
     return {
       docId,
@@ -107,7 +127,7 @@ export class VersionsService {
       plainText,
       rawTexts,
       sheet,
-      yjsStateB64: Buffer.from(yjsState).toString("base64"),
+      yjsStateB64,
       elapsedMs,
     };
   }

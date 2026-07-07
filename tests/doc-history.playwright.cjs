@@ -66,8 +66,10 @@ async function main() {
   ok(hist.sessions.length >= 1, `history API returned a session (got ${hist.sessions.length})`);
   const seq = hist.sessions[0]?.lastSeq;
   if (seq != null) {
+    // DOC snapshots now return only the yjs state (plainText/lexicalJson were trimmed —
+    // nothing read them); the rendered text is asserted against the editor below.
     const snap = await j(`/documents/${doc.id}/history/${seq}`, { token });
-    ok((snap.plainText || '').includes(TYPED), `snapshot API text contains typed text`);
+    ok(!!snap.yjsStateB64, `snapshot API returns yjs state for the DOC`);
   }
 
   // --- open history mode via the topbar button ---

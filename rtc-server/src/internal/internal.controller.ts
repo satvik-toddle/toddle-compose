@@ -75,12 +75,20 @@ export class InternalController {
   }
 
   @Get(":docId/versions/:seq")
-  async preview(@Param("docId") docId: string, @Param("seq") seq: string) {
+  async preview(
+    @Param("docId") docId: string,
+    @Param("seq") seq: string,
+    @Query("include") include?: string
+  ) {
     const n = Number(seq);
     if (!Number.isFinite(n) || n < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    return this.versions.previewAtSeq(docId, n);
+    const inc = include ?? "all";
+    if (inc !== "all" && inc !== "state" && inc !== "text") {
+      throw new BadRequestException("include must be 'all', 'state' or 'text'");
+    }
+    return this.versions.previewAtSeq(docId, n, inc);
   }
 
   @Get(":docId/sessions")

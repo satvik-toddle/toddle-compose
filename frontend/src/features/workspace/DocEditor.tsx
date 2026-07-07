@@ -14,8 +14,9 @@ import s from './DocEditor.module.scss';
 // Hide the editor's built-in top toolbar — formatting comes from the floating
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
-const EDITOR_CONFIG = { toolbar: { enabled: false } };
-const EDITOR_STYLES = {
+// Exported so the read-only history snapshot renders with identical chrome.
+export const EDITOR_CONFIG = { toolbar: { enabled: false } };
+export const EDITOR_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: '100%' },
   contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },

@@ -28,10 +28,10 @@ export function WorkspaceContent() {
   }
 
   if (selDoc) {
-    // History mode only applies to DOC pages (see DocActions); otherwise fall
-    // through to the normal editor view.
+    // history.active already encodes "open doc is a DOC in history mode" (see useHistoryMode);
+    // otherwise fall through to the normal editor view.
     const openDoc = docs.find((d) => d.id === selDoc);
-    if (history.active && openDoc?.type === 'DOC') {
+    if (history.active && openDoc) {
       return <DocHistoryView doc={openDoc} />;
     }
     return <PageView ctx={ctx} docs={docs} selDoc={selDoc} />;

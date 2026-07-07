@@ -4,7 +4,7 @@ import { qk } from '../lib/queryKeys';
 import { realmApi } from '../api/realm';
 
 // Per user request; 300ms is the usual default if this should feel snappier.
-export const SEARCH_DEBOUNCE_MS = 3000;
+export const SEARCH_DEBOUNCE_MS = 500;
 
 // Debounced realm member-directory search for pickers. The caller owns the raw
 // input; typed terms fire SEARCH_DEBOUNCE_MS after typing stops, while an empty

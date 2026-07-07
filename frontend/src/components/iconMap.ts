@@ -38,6 +38,8 @@ export const ICONS = {
   HelpOutlined: OutlinedIcons.HelpOutlined,
   HomeOutlined: OutlinedIcons.HomeOutlined,
   ShareOutlined: OutlinedIcons.ShareOutlined,
+  CopyOutlined: OutlinedIcons.CopyOutlined,
+  ReloadArrowOutlined: OutlinedIcons.ReloadArrowOutlined,
   FilterOutlined: OutlinedIcons.FilterOutlined,
   HamburgerOutlined: OutlinedIcons.HamburgerOutlined,
   GridOutlined: OutlinedIcons.GridOutlined,

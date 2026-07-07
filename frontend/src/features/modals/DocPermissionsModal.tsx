@@ -1,10 +1,16 @@
-import { useMemo, useState, type ComponentType } from 'react';
-import { SelectDropdown, ToggleSwitch } from '@toddle-edu/ds-web';
+import { useMemo, useState, type ComponentType, type ReactElement } from 'react';
+import {
+  Alert,
+  Avatar as DsAvatar,
+  Button as DsButton,
+  IconButton as DsIconButton,
+  SelectDropdown,
+  TextInput,
+  ToggleSwitch,
+} from '@toddle-edu/ds-web';
 import { Modal, ModalHead } from '../../components/Modal';
-import { Button } from '../../components/Button';
-import { IconButton } from '../../components/IconButton';
 import { Icon, type IconName } from '../../components/Icon';
-import { Avatar } from '../../components/Avatar';
+import { dsAvatarColor } from '../../lib/dsAvatar';
 import { RoleSelect } from '../../components/RoleSelect';
 import {
   useDocPermissions,
@@ -17,6 +23,7 @@ import {
   usePutShareLink,
   useRegenerateShareLink,
   useDeleteShareLink,
+  useRefreshDocAccess,
 } from '../../hooks/useShareLink';
 import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
 import { Loader } from '../../components/Loader';
@@ -42,7 +49,7 @@ interface MemberOption {
   value: string;
   label: string;
   subtitle: string;
-  icon: React.ReactElement;
+  icon: ReactElement;
   email: string;
 }
 
@@ -54,9 +61,15 @@ const DOC_ROLE_LABEL: Record<WorkspaceRole, string> = {
   ADMIN: 'Full access',
 };
 const INVITE_ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: DOC_ROLE_LABEL[r] }));
+// Verbs, not persona nouns — reads as a sentence after "Anyone with the link can".
+const LINK_ROLE_LABEL: Partial<Record<WorkspaceRole, string>> = {
+  READ: 'View',
+  COMMENT: 'Comment',
+  EDIT: 'Edit',
+};
 const LINK_ROLE_OPTIONS = (['READ', 'COMMENT', 'EDIT'] as WorkspaceRole[]).map((r) => ({
   value: r,
-  label: DOC_ROLE_LABEL[r],
+  label: LINK_ROLE_LABEL[r]!,
 }));
 const SCOPE_OPTIONS: { value: ShareLinkScope; label: string }[] = [
   { value: 'REALM', label: 'Anyone in the org with the link' },
@@ -74,8 +87,6 @@ const styles = {
   nm: 'flex items-center gap-1.5 text-body-s font-semibold text-primary truncate',
   sub: 'text-body-xs text-secondary truncate',
   ownerTag: 'pr-1.5 text-body-xs font-semibold text-secondary',
-  removeBtn:
-    'flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-1.5 border-0 bg-transparent hover:bg-surface-secondary-hover',
   // share-via-link block
   link: 'mt-4 pt-4 border-t border-secondary',
   linkHead: 'flex items-center gap-3',
@@ -83,13 +94,10 @@ const styles = {
   linkTxt: 'flex-1 min-w-0',
   linkT: 'text-body-s font-semibold text-primary',
   linkD: 'mt-0.5 text-body-xs text-secondary',
-  linkRow: 'mt-3.5 flex items-center gap-2',
-  linkField:
-    'flex-1 flex items-center gap-2 h-10 px-3 rounded-1.5 border border-secondary bg-surface-secondary-enabled text-body-s text-primary min-w-0',
-  url: 'flex-1 truncate',
-  permRow: 'mt-3 flex items-center gap-2 flex-wrap text-body-xs text-secondary',
-  actions: 'mt-2',
+  linkRow: 'mt-3 flex items-center gap-2',
+  permRow: 'mt-3.5 flex items-center gap-2 flex-wrap',
   warn: 'mt-2 flex items-center gap-1.5 text-body-xs text-semantic-warning',
+  alertWrap: 'mt-3',
   footNote: 'flex items-center gap-1.5 text-body-xs text-secondary',
 };
 
@@ -127,9 +135,9 @@ export function DocPermissionsModal({
           {linkOn ? 'Link sharing on' : 'Restricted'}
         </span>
         <span className="gap" />
-        <Button variant="primary" onClick={onClose}>
+        <DsButton dsVersion="2.0" variant="primary" type="fill" onClick={onClose}>
           Done
-        </Button>
+        </DsButton>
       </div>
     </Modal>
   );
@@ -139,6 +147,13 @@ const renderRole = (v: WorkspaceRole) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
     <Icon name={WS_ROLE_META[v].icon as IconName} size={14} muted />
     {DOC_ROLE_LABEL[v]}
+  </span>
+);
+
+const renderLinkRole = (v: WorkspaceRole) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+    <Icon name={WS_ROLE_META[v].icon as IconName} size={14} muted />
+    {LINK_ROLE_LABEL[v]}
   </span>
 );
 
@@ -166,7 +181,15 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
           value: u.id,
           label: u.name,
           subtitle: u.email,
-          icon: <Avatar person={{ name: u.name, color: u.color }} size={20} />,
+          icon: (
+            <DsAvatar
+              dsVersion="2.0"
+              name={u.name}
+              color={dsAvatarColor(u.color)}
+              size="xxx-small"
+              shape="circle"
+            />
+          ),
           email: u.email,
         }),
       );
@@ -213,7 +236,6 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
             placeholder="Add people by name or email"
             noOptionsText={term.trim() ? 'No matching people in this org' : 'No people to suggest'}
             loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
-            size="small"
             testId="doc-perm-users"
             error={addErrors.length > 0 ? ' ' : undefined}
           />
@@ -223,11 +245,13 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
           onChange={setRole}
           options={INVITE_ROLE_OPTIONS}
           renderValue={renderRole}
+          size="medium"
         />
-        <IconButton
-          icon="SendOutlined"
+        <DsIconButton
+          dsVersion="2.0"
           variant="primary"
           type="fill"
+          icon={<Icon name="SendOutlined" size={14} />}
           aria-label="Add people"
           disabled={selected.length === 0 || adding}
           onClick={add}
@@ -243,7 +267,13 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
       <div className={styles.lbl}>People with access</div>
       <div className={styles.people}>
         <div className={styles.prow}>
-          <Avatar person={{ name: owner.name, color: owner.color }} size={34} />
+          <DsAvatar
+            dsVersion="2.0"
+            name={owner.name}
+            color={dsAvatarColor(owner.color)}
+            size="medium"
+            shape="circle"
+          />
           <div className={styles.who}>
             <div className={styles.nm}>{owner.name}</div>
             {owner.email && <div className={styles.sub}>{owner.email}</div>}
@@ -252,7 +282,13 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
         </div>
         {grants.map((g) => (
           <div key={g.userId} className={styles.prow}>
-            <Avatar person={{ name: g.user.name, color: g.user.color }} size={34} />
+            <DsAvatar
+              dsVersion="2.0"
+              name={g.user.name}
+              color={dsAvatarColor(g.user.color)}
+              size="medium"
+              shape="circle"
+            />
             <div className={styles.who}>
               <div className={styles.nm}>{g.user.name}</div>
               <div className={styles.sub}>{g.user.email}</div>
@@ -262,15 +298,17 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
               onChange={(r) => updatePermission.mutate({ docId, userId: g.userId, role: r })}
               options={INVITE_ROLE_OPTIONS}
               renderValue={renderRole}
+              size="medium"
             />
-            <button
-              className={styles.removeBtn}
-              title="Remove access"
+            <DsIconButton
+              dsVersion="2.0"
+              variant="neutral"
+              type="plain"
+              icon={<Icon name="CloseOutlined" size={14} muted />}
+              aria-label="Remove access"
               disabled={removePermission.isPending}
               onClick={() => removePermission.mutate({ docId, userId: g.userId })}
-            >
-              <Icon name="CloseOutlined" size={14} muted />
-            </button>
+            />
           </div>
         ))}
       </div>
@@ -284,14 +322,21 @@ function LinkSection({ docId }: { docId: string }) {
   const putLink = usePutShareLink(docId);
   const regenerate = useRegenerateShareLink(docId);
   const removeLink = useDeleteShareLink(docId);
+  const refreshAccess = useRefreshDocAccess(docId);
   const linkOn = !!link;
+  // Set on any link-access change; shows the "takes up to 5 minutes / Apply now" alert until applied.
+  const [accessDirty, setAccessDirty] = useState(false);
+  const markDirty = { onSuccess: () => setAccessDirty(true) };
 
   const toggle = () => {
-    if (linkOn) removeLink.mutate();
+    // Enabling only grants new access — no one is connected via the link yet, so no alert.
+    if (linkOn) removeLink.mutate(undefined, markDirty);
     else putLink.mutate({ role: 'READ', scope: 'REALM' });
   };
-  const setScope = (scope: ShareLinkScope) => link && putLink.mutate({ role: link.role, scope });
-  const setRole = (role: WorkspaceRole) => link && putLink.mutate({ role, scope: link.scope });
+  const setScope = (scope: ShareLinkScope) =>
+    link && putLink.mutate({ role: link.role, scope }, markDirty);
+  const setRole = (role: WorkspaceRole) =>
+    link && putLink.mutate({ role, scope: link.scope }, markDirty);
   const copy = async () => {
     if (!link) return;
     await navigator.clipboard.writeText(link.url);
@@ -325,25 +370,13 @@ function LinkSection({ docId }: { docId: string }) {
 
       {link && (
         <>
-          <div className={styles.linkRow}>
-            <span className={styles.linkField}>
-              <Icon name="GlobeOutlined" size={14} muted />
-              <span className={styles.url} data-test-id="share-link-url">
-                {link.url}
-              </span>
-            </span>
-            <Button variant="primary" size="sm" icon="ShareOutlined" onClick={copy}>
-              Copy link
-            </Button>
-          </div>
-
           <div className={styles.permRow}>
-            <span>Anyone with the link can</span>
             <RoleSelect<WorkspaceRole>
               value={link.role}
               onChange={setRole}
               options={LINK_ROLE_OPTIONS}
-              renderValue={renderRole}
+              renderValue={renderLinkRole}
+              size="medium"
             />
             <div style={{ minWidth: 220 }}>
               <Select
@@ -352,10 +385,51 @@ function LinkSection({ docId }: { docId: string }) {
                 onChange={(o: { value: ShareLinkScope } | null) => o && setScope(o.value)}
                 isSearchable={false}
                 isClearable={false}
-                size="small"
                 testId="share-link-scope"
               />
             </div>
+            <DsButton
+              dsVersion="2.0"
+              variant="neutral"
+              type="outlined"
+              icon={<Icon name="ReloadArrowOutlined" size={14} />}
+              testId="share-link-regenerate"
+              disabled={regenerate.isPending}
+              onClick={() =>
+                regenerate.mutate(undefined, {
+                  onSuccess: () => {
+                    setAccessDirty(true);
+                    pushToast({ kind: 'success', message: 'New link generated' });
+                  },
+                })
+              }
+            >
+              Regenerate
+            </DsButton>
+          </div>
+
+          <div className={styles.linkRow}>
+            <div className={styles.selectWrap}>
+              {/* readOnly (not disabled) so the URL stays focusable and selectable for manual copying. */}
+              <TextInput
+                dsVersion="2.0"
+                leadingIcon={<Icon name="GlobeOutlined" size={14} muted />}
+                value={link.url}
+                readOnly
+                aria-label="Share link URL"
+                testId="share-link-url"
+                disabled={true}
+              />
+            </div>
+            <DsIconButton
+              dsVersion="2.0"
+              variant="primary"
+              type="fill"
+              icon={<Icon name="CopyOutlined" size={14} />}
+              aria-label="Copy link"
+              testId="share-link-copy"
+              onClick={copy}
+            />
           </div>
 
           {link.scope === 'ANYONE' && (
@@ -365,21 +439,41 @@ function LinkSection({ docId }: { docId: string }) {
             </div>
           )}
 
-          <div className={styles.actions}>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={regenerate.isPending}
-              onClick={() =>
-                regenerate.mutate(undefined, {
-                  onSuccess: () => pushToast({ kind: 'success', message: 'New link generated' }),
-                })
-              }
-            >
-              Regenerate link
-            </Button>
-          </div>
         </>
+      )}
+
+      {/* Outside the link-on block: turning the link off is exactly when a kick is needed. */}
+      {accessDirty && (
+        <div className={styles.alertWrap}>
+          <Alert
+            dsVersion="2.0"
+            type="warning"
+            message="Access changes can take up to 5 minutes to reach people already in the doc."
+            actionElementPosition="bottom"
+            testId="share-link-propagation-alert"
+            actionElement={
+              <DsButton
+                dsVersion="2.0"
+                variant="primary"
+                type="fill"
+                disabled={refreshAccess.isPending}
+                testId="share-link-apply-now"
+                onClick={() =>
+                  refreshAccess.mutate(undefined, {
+                    onSuccess: () => {
+                      setAccessDirty(false);
+                      pushToast({ kind: 'success', message: 'Access re-checked for everyone in this doc' });
+                    },
+                    onError: (e) =>
+                      pushToast({ kind: 'error', message: `Couldn't apply changes: ${messageOf(e)}` }),
+                  })
+                }
+              >
+                Apply now
+              </DsButton>
+            }
+          />
+        </div>
       )}
     </div>
   );

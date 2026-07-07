@@ -7,7 +7,7 @@ export type ModalTone = 'neutral' | 'brand' | 'danger';
 
 const TONE_BG: Record<ModalTone, string> = {
   neutral: 'var(--surface-secondary-enabled)',
-  brand: 'var(--red-950)',
+  brand: 'var(--surface-decorative-subtle-red)',
   danger: 'var(--surface-semantic-error)',
 };
 const TONE_ICON: Record<ModalTone, string> = {

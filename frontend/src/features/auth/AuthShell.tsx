@@ -9,7 +9,7 @@ const styles = {
   logo: 'flex h-[38px] w-[38px] items-center justify-center rounded-2.5 bg-[var(--red-950)]',
   logoImage: 'h-6 w-6',
   word: 'font-[family-name:var(--font-family-display)] text-[18px] font-extrabold tracking-[-0.01em]',
-  wordAccent: 'text-[var(--red-500)]',
+  wordAccent: 'text-[var(--brand-educator)]',
 };
 
 export function AuthShell({

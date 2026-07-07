@@ -42,7 +42,7 @@ const styles = {
   visibilityBadge:
     'inline-flex h-[22px] items-center gap-[5px] whitespace-nowrap rounded-full px-[9px] text-[11px] font-semibold',
   visibilityBadgePublic:
-    'bg-[var(--decorative-background-teal)] text-[var(--decorative-foreground-teal)] dark:bg-[rgba(0,172,138,0.18)] dark:text-[var(--teal-700)]',
+    'bg-[var(--tag-background-teal-default)] text-[var(--tag-foreground-teal)]',
   visibilityBadgePrivate: 'bg-[var(--surface-tertiary-enabled)] text-secondary [&_.ic]:opacity-60',
   signedInEmail: 'text-primary font-semibold',
 };

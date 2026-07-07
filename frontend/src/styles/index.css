@@ -9,6 +9,11 @@
                       "AvenirNextWorld", Arial, sans-serif, system-ui;
   --font-family-display: "Nunito", "AvenirNext", sans-serif;
   --font-weight-medium: 500;
+
+  /* App page canvas behind the content panels. Defined at :root so <body> (an
+     ancestor of .rbac) can resolve it — a DS semantic surface alias that flips
+     with the .dark theme on its own (light #fafafa / dark #333333). */
+  --app-bg: var(--surface-secondary-enabled);
 }
 
 html,
@@ -23,7 +28,7 @@ body {
   font-size: var(--font-size-100);
   line-height: var(--line-height-100);
   color: var(--text-primary);
-  background: var(--app-bg, #ececed);
+  background: var(--app-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

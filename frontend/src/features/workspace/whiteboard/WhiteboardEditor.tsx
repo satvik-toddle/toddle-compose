@@ -6,6 +6,15 @@ import { useThemeStore } from '../../../stores/themeStore';
 import { PageLoader } from '../../../components/Loader';
 import { useYjsTldrawStore } from './useYjsTldrawStore';
 
+// tldraw's navigation panel starts with the minimap collapsed (localStorage
+// key "minimap", true = collapsed). Seed it once so the minimap is open by
+// default; later toggles by the user still persist.
+try {
+  if (localStorage.getItem('minimap') === null) localStorage.setItem('minimap', 'false');
+} catch {
+  // storage unavailable — tldraw falls back to collapsed
+}
+
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
   canvas: 'flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',

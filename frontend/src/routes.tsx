@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './app/ProtectedRoute';
 import { RequireRealmAdmin } from './app/RequireRealmAdmin';
@@ -19,6 +20,13 @@ import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
+
+// Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
+const ZwibblerPreviewPage = lazy(() =>
+  import('./features/workspace/whiteboard/ZwibblerPreviewPage').then((m) => ({
+    default: m.ZwibblerPreviewPage,
+  })),
+);
 
 export function AppRoutes() {
   return (
@@ -55,6 +63,17 @@ export function AppRoutes() {
           </Route>
         </Route>
       </Route>
+
+      {import.meta.env.DEV && (
+        <Route
+          path="/zwibbler-preview"
+          element={
+            <Suspense fallback={null}>
+              <ZwibblerPreviewPage />
+            </Suspense>
+          }
+        />
+      )}
 
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<RootRedirect />} />

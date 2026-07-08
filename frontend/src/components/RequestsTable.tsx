@@ -14,6 +14,12 @@ import { tableStyles as t } from './tableStyles';
 import type { JoinRequest } from '../types/api';
 import type { WorkspaceRole } from '../types/roles';
 
+const styles = {
+  emptyWrap: 'flex flex-1 items-center justify-center',
+  wsName: 'inline-flex min-w-0 items-center gap-2 text-[13px] font-semibold',
+  wsNameText: 'truncate',
+};
+
 // Pending join-requests table shared by the workspace-settings modal (single
 // workspace) and the admin console (realm-wide, with a Workspace column).
 export function RequestsTable({
@@ -24,7 +30,7 @@ export function RequestsTable({
 }: {
   requests: JoinRequest[];
   isLoading?: boolean;
-  emptyText: string;
+  emptyText?: string;
   showWorkspace?: boolean;
 }) {
   const approve = useApproveRequest();
@@ -34,9 +40,11 @@ export function RequestsTable({
   if (isLoading) return <PageLoader />;
   if (requests.length === 0) {
     return (
-      <EmptyState title="No pending requests">
-        {emptyText}
-      </EmptyState>
+      <div className={styles.emptyWrap}>
+        <EmptyState title="No pending requests">
+          {emptyText}
+        </EmptyState>
+      </div>
     );
   }
 
@@ -66,9 +74,9 @@ export function RequestsTable({
             </div>
             {showWorkspace && (
               <div className={t.td}>
-                <span className="inline-flex min-w-0 items-center gap-2 text-[13px] font-semibold">
+                <span className={styles.wsName}>
                   <WorkspaceBadge id={r.workspaceId} size={24} iconSize={14} />
-                  <span className="truncate">{r.workspace?.name ?? 'Workspace'}</span>
+                  <span className={styles.wsNameText}>{r.workspace?.name ?? 'Workspace'}</span>
                 </span>
               </div>
             )}

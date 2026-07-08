@@ -8,11 +8,12 @@ import {
 import type { SheetDropdownOption, SheetOptionSet } from './sheetModel';
 
 const styles = {
-  form: 'flex flex-col gap-3',
+  form: 'flex flex-1 flex-col gap-3',
   optionsList: 'pl-4',
   multiRow: 'flex items-center justify-between gap-2',
   multiLabel: 'text-body text-primary',
-  actions: 'flex justify-end gap-2',
+  actions:
+    'sticky bottom-0 flex justify-end gap-2 border-t border-secondary bg-surface-primary-enabled py-2',
 };
 
 const MULTI_TOGGLE_LABEL_ID = 'sheet-dropdown-multi-label';

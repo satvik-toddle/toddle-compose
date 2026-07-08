@@ -68,7 +68,11 @@ export function PageRow({
     row: cn(
       'group',
       sidebarRow.base,
-      selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
+      // [&_input]: the DS TextInput pins text-body (weight 500) on its inner input,
+      // so the selected row's semibold must be forced onto it for inline rename.
+      selectedPageId === doc.id
+        ? cn(sidebarRow.selected, '[&_input]:font-semibold')
+        : sidebarRow.default,
     ),
     // Leaf pages keep the (hidden) chevron so icons stay aligned.
     chevronButton: cn('shrink-0', !hasChildren && 'invisible'),

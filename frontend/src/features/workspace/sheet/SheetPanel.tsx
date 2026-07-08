@@ -11,7 +11,7 @@ import {
   type SheetCellTypeOption,
 } from './constants';
 import { SheetDropdownOptionsForm } from './SheetDropdownOptionsForm';
-import type { SheetCellType, SheetOptionSet } from './sheetModel';
+import { isOptionSetCellType, type SheetCellType, type SheetOptionSet } from './sheetModel';
 
 const styles = {
   // Docked beside the grid, Google-Sheets style — opening it shrinks the grid so every column stays in the viewport instead of being covered.
@@ -136,7 +136,7 @@ export function SheetPanel({
                 isCreatable={false}
                 isSearchable={false}
               />
-              {cellType === 'dropdown' && (
+              {isOptionSetCellType(cellType) && (
                 <SheetDropdownOptionsForm
                   // Remount when the target set (or a set-less selection) changes so the
                   // draft never leaks across ranges.

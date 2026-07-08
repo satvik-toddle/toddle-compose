@@ -12,4 +12,5 @@ export const SHEET_CELL_TYPE_OPTIONS: readonly SheetCellTypeOption[] = [
   { label: 'Toggle', value: 'toggle' },
   { label: 'Radio', value: 'radio' },
   { label: 'Dropdown', value: 'dropdown' },
+  { label: 'Tag', value: 'tag' },
 ];

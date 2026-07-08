@@ -25,6 +25,7 @@ import {
   applySheetEdits,
   buildSheetColumns,
   formatSelectionRange,
+  isOptionSetCellType,
   saveDropdownOptions,
   setSheetCellType,
   sharedOptionSetId,
@@ -114,7 +115,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
   // The option set shared by the whole selection; null for mixed or brand-new ranges.
   // `rows` is a dep purely to re-read the live yRows after remote changes.
   const selectedOptionSetId = useMemo(() => {
-    if (selectedCellType !== 'dropdown' || !rowsRef.current) return null;
+    if (!isOptionSetCellType(selectedCellType) || !rowsRef.current) return null;
     return sharedOptionSetId(rowsRef.current, selectedCellRefs);
   }, [selectedCellType, selectedCellRefs, rows]);
 

@@ -59,26 +59,25 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
     <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
   );
 
-  // Sheet: fixed title over the grid (the grid scrolls itself).
-  if (isSheet) {
-    return (
-      <main className={styles.contentShell}>
-        <div className={styles.sheetTitle}>{titleNode}</div>
-        <Suspense fallback={<PageLoader />}>
-          <SheetEditor key={openDocId} docId={openDocId} />
-        </Suspense>
-      </main>
-    );
-  }
-
   return (
     <main className={styles.contentShell}>
-      <div className={styles.docScroll}>
-        <div className={styles.docTitle}>{titleNode}</div>
-        <Suspense fallback={<PageLoader />}>
-          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
-        </Suspense>
-      </div>
+      {isSheet ? (
+        // Sheet: fixed title over the grid (the grid scrolls itself).
+        <>
+          <div className={styles.sheetTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>
+            <SheetEditor key={openDocId} docId={openDocId} />
+          </Suspense>
+        </>
+      ) : (
+        // Keyed so scroll position (and the editor) resets per document.
+        <div key={openDocId} className={styles.docScroll}>
+          <div className={styles.docTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>
+            <DocEditor docId={openDocId} canEdit={canEdit} />
+          </Suspense>
+        </div>
+      )}
     </main>
   );
 }

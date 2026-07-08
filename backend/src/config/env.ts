@@ -22,7 +22,7 @@ export const envSchema = z.object({
   REFRESH_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(86400), // 24 h
 
   // CORS allowlist (comma-separated origins). No wildcard in production.
-  CORS_ORIGINS: z.string().default("http://localhost:5173"),
+  CORS_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173"),
 
   // --- Email verification -----------------------------------------------------
   // Public origin of the frontend; used to build the verification link emailed

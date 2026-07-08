@@ -168,7 +168,7 @@ importers:
         version: 2.3.48(esbuild@0.28.0)
       '@toddle-edu/ds-data-grid':
         specifier: 0.127.1
-        version: 0.127.1(@toddle-edu/ds-icons@1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1))(@toddle-edu/ds-web@1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17))(lodash@4.18.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 0.127.1(@toddle-edu/ds-icons@1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1))(@toddle-edu/ds-web@1.158.0(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17))(lodash@4.18.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@toddle-edu/ds-doc-editor':
         specifier: 0.10.0
         version: 0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -179,8 +179,8 @@ importers:
         specifier: 2.8.8
         version: 2.8.8
       '@toddle-edu/ds-web':
-        specifier: 1.157.4
-        version: 1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)
+        specifier: 1.158.0
+        version: 1.158.0(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1971,8 +1971,8 @@ packages:
   '@toddle-edu/ds-theme@2.8.8':
     resolution: {integrity: sha512-pxfHsrFZXsAQPW/OQh+F6i5Koik5ePKTn8RhD8q7jJnIR3zQawyg5zcoz4AbMOQYwbREiVQIXWIp22x/qQssGg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-theme/2.8.8/8a185c6f409f125c04ebdcfc608e4a11901cde16}
 
-  '@toddle-edu/ds-web@1.157.4':
-    resolution: {integrity: sha512-zIb3P2M+VPpnte8EsTbnT4KcnDmUZki99C/3TPC3mqjVcDjIv+TdfkR1IK/2i1ZH1mhcHOXuA9HvBBnwKfuqMg==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-web/1.157.4/9dbcd04e83f3d7c561e217e759d6cf71a1f1c9b8}
+  '@toddle-edu/ds-web@1.158.0':
+    resolution: {integrity: sha512-RC3+QOwBijJX4noPikngnDdjJchItZlIwbzENC71AB/pXMgya3W8zIEX0CQbt8EjzUJwYVpu05ORHVN5EPf1nQ==, tarball: https://npm.pkg.github.com/download/@toddle-edu/ds-web/1.158.0/ef64dfd5eb5783883c01a0b9c73e37edacd59e57}
 
   '@toddle-edu/react-mentions@4.4.8':
     resolution: {integrity: sha512-nWv/l9fFLHTwa8uKLfWjRCHHrQJV2HhTCF+v94hWwMaKE/Wj/4XhwGurwxi5Px/lUAMVkrJxd1TKpbjUdvfX7Q==, tarball: https://npm.pkg.github.com/download/@toddle-edu/react-mentions/4.4.8/923e4eac470a9c69bc41a3a0f1f61bed6821d4c3}
@@ -7543,10 +7543,10 @@ snapshots:
       - esbuild
       - supports-color
 
-  '@toddle-edu/ds-data-grid@0.127.1(@toddle-edu/ds-icons@1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1))(@toddle-edu/ds-web@1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17))(lodash@4.18.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@toddle-edu/ds-data-grid@0.127.1(@toddle-edu/ds-icons@1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1))(@toddle-edu/ds-web@1.158.0(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17))(lodash@4.18.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@toddle-edu/ds-icons': 1.22.1(patch_hash=zlofyfyrxrrnce2rima5ad4a6u)(react@18.3.1)
-      '@toddle-edu/ds-web': 1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)
+      '@toddle-edu/ds-web': 1.158.0(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)
       lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -7567,7 +7567,7 @@ snapshots:
       '@types/lodash': 4.17.24
       lodash: 4.18.1
 
-  '@toddle-edu/ds-web@1.157.4(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)':
+  '@toddle-edu/ds-web@1.158.0(@react-spectrum/provider@3.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@3.4.17)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@dnd-kit/modifiers': 8.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)

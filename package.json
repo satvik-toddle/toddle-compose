@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:services": "concurrently -n backend,rtc,frontend -c blue,magenta,green \"pnpm --filter backend dev\" \"pnpm --filter rtc-server dev\" \"pnpm --filter frontend dev\"",
+    "dev:services": "node scripts/dev-services.mjs",
     "dev:backend": "pnpm --filter backend dev",
     "dev:rtc": "pnpm --filter rtc-server dev",
     "dev:frontend": "pnpm --filter frontend dev",

@@ -2,18 +2,13 @@ import { useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useDocuments } from '../../../hooks/usePages';
 
-// Version-history is driven entirely by the URL: `?history=true` puts the open doc
-// into history mode (left panel = versions), and `?v=<seq>` selects which edit
-// session to preview. Keeping it in the URL makes a specific version shareable and
-// survives reloads.
+// URL-driven history: `?history=true` puts the open doc into history mode and `?v=<seq>` selects the version — kept in the URL so a version is shareable and survives reload.
 export function useHistoryMode() {
   const [params, setParams] = useSearchParams();
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const docId = params.get('doc');
 
-  // History is DOC-only (SHEET has no read-only lexical render). Resolve the open
-  // doc's type here so the invariant lives in ONE place — without it, a SHEET with
-  // ?history=true would show a versions panel beside a live, editable sheet.
+  // History is DOC-only (SHEET has no read-only lexical render); resolving the open doc here keeps that invariant in ONE place and is reused by callers (see openDoc below).
   const { data: docs } = useDocuments(workspaceId);
   const openDoc = docId ? docs?.find((d) => d.id === docId) : undefined;
   const active = params.get('history') === 'true' && openDoc?.type === 'DOC';
@@ -54,5 +49,5 @@ export function useHistoryMode() {
     [setParams],
   );
 
-  return { active, docId, selectedSeq, enter, exit, select };
+  return { active, docId, openDoc, selectedSeq, enter, exit, select };
 }

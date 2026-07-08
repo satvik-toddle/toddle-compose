@@ -47,7 +47,9 @@ export function useDocSnapshot(docId: string | undefined, seq: number | null) {
     queryKey: docId && seq != null ? qk.docSnapshot(docId, seq) : ['docHistory', '_none', 'snap'],
     queryFn: () => documentsApi.historyAt(docId as string, seq as number),
     enabled: !!docId && seq != null,
-    staleTime: Infinity, // a past snapshot is immutable
+    // Not immutable: compaction (tier-1 merge / tier-2 archive) rewrites the seq→state mapping, so a
+    // cached snapshot can go stale — short staleTime, not Infinity, or a long-lived tab diverges from a fresh load.
+    staleTime: 30_000,
   });
 }
 

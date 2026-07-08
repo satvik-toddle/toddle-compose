@@ -6,6 +6,7 @@ import { Avatar } from '../../../components/Avatar';
 import { PageLoader } from '../../../components/Loader';
 import { useHistoryMode } from './useHistoryMode';
 import { useVersionSelection } from './useVersionSelection';
+import { sidebarRowState } from '../sidebar/sidebarRowStyles';
 import type { DocHistorySession } from '../../../types/api';
 
 const styles = {
@@ -13,9 +14,10 @@ const styles = {
   heading: 'text-label-xs uppercase text-secondary',
   message: 'px-2.25 py-4 text-body-s text-secondary',
   list: 'flex flex-col gap-0.25',
-  row: 'flex w-full items-start gap-2.5 rounded-2 px-2.25 py-2 text-left focus-visible:[outline:1px_solid_var(--border-focus)]',
-  rowDefault: 'hover:bg-surface-secondary-hover',
-  rowSelected: 'bg-surface-secondary-active',
+  // Two-line row, so its own layout, but shares the sidebar's hover/selected/focus tokens.
+  row: `flex w-full items-start gap-2.5 rounded-2 px-2.25 py-2 text-left ${sidebarRowState.focus}`,
+  rowDefault: sidebarRowState.hover,
+  rowSelected: sidebarRowState.selected,
   rowBody: 'flex min-w-0 flex-col',
   name: 'truncate text-body-s font-medium text-primary',
   meta: 'truncate text-body-xs text-secondary',
@@ -29,7 +31,7 @@ function VersionRow({
 }: Readonly<{ session: DocHistorySession; selected: boolean; onSelect: () => void }>) {
   const isArchive = session.kind === 'archive';
   const name = isArchive ? 'Archived' : (session.user?.name ?? 'Unknown editor');
-  const when = relativeTime(new Date(session.endedAt).toISOString());
+  const when = relativeTime(session.endedAt);
   // Archived rows already say "Archived" as the name; repeating it in the meta line is noise.
   const meta = isArchive
     ? when

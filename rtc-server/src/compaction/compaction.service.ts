@@ -102,6 +102,8 @@ export class CompactionService {
       const minSeq = g.rows[0].seq;
       const maxSeq = g.rows[g.rows.length - 1].seq;
       const maxCreatedAt = g.rows[g.rows.length - 1].created_at;
+      // Sum (not count): a group may include already-merged rows, so carry their counts forward.
+      const mergedCount = g.rows.reduce((n, r) => n + (r.merged_count ?? 1), 0);
       try {
         const merged = this.mergeBlobs(g.rows.map((r) => r.blob));
         await this.repo.replaceSeqsWithMerged({
@@ -112,6 +114,7 @@ export class CompactionService {
           origin: "session-compacted",
           clientSub: g.clientSub,
           createdAt: maxCreatedAt,
+          mergedCount,
         });
         stats.tier1SessionsMerged += 1;
         stats.tier1RowsAfter += 1;

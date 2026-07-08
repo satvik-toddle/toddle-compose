@@ -101,7 +101,11 @@ The append-only update log for a doc. Query params (all optional):
 
 ### GET `/internal/docs/:docId/versions/:seq` — preview doc state at a seq
 Reconstructs the document by applying updates up to `:seq` and extracts its content. `:seq` must be a
-non-negative integer (`400` otherwise); `0` yields the empty document.
+non-negative integer (`400` otherwise); `0` yields the empty document. Optional `include` query param
+selects which slice to compute (skips the rest): `all` (default), `state` (yjs bytes only — DOC
+render), or `text` (sheet/text only — SHEET render); any other value is `400`. `yjsStateB64` is the
+full Yjs state (base64), present for `all`/`state` and empty for `text`; `lexicalJson`/`plainText`/
+`rawTexts` are populated only for `all`.
 `200`:
 ```json
 {
@@ -110,6 +114,7 @@ non-negative integer (`400` otherwise); `0` yields the empty document.
   "headSeq": 142,
   "appliedUpdates": 50,
   "yjsStateBytes": 2048,
+  "yjsStateB64": "AQ…",
   "lexicalJson": "{…}",
   "plainText": "Q3 roadmap…",
   "rawTexts": { "root": "Q3 roadmap…" },
@@ -163,8 +168,8 @@ Forces a checkpoint then runs compaction for one doc. Query param `tier` is **re
 | `RTC_TOKEN_AUD` | `rtc-server` | expected token audience |
 | `RTC_SESSION_GAP_MS` | `30000` | default session split gap |
 | `RTC_CHECKPOINT_INTERVAL_MS` | `300000` | checkpoint scheduler interval |
-| `RTC_COMPACT_INTERVAL_MS` | `3600000` | compaction scheduler interval |
-| `RTC_TIER1_AGE_MS` / `RTC_TIER2_AGE_MS` | 7 d / 30 d | compaction retention tiers |
+| `RTC_COMPACT_INTERVAL_MS` | `21600000` (6 h) | compaction scheduler interval |
+| `RTC_TIER1_AGE_MS` / `RTC_TIER2_AGE_MS` | 12 h / 30 d | compaction retention tiers |
 
 curl smoke test:
 ```bash

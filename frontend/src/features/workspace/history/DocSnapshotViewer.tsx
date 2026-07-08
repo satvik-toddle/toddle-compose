@@ -18,20 +18,15 @@ type DocSnapshotViewerProps = {
   yjsStateB64?: string;
 };
 
-// Renders a DOC at a past update seq. Binds a fresh Y.Doc — hydrated from the
-// snapshot's Yjs state via a no-network OfflineProvider — through ds-doc-editor's
-// collaborative render path, so the historical view is byte-identical to the live
-// editor, permanently view-only. Keyed by seq at the call site → remounts per version.
+// Renders a DOC at a past seq: a fresh Y.Doc hydrated from the snapshot via a no-network OfflineProvider, through ds-doc-editor's collab path — byte-identical to live, view-only, keyed by seq to remount per version.
 export function DocSnapshotViewer({ docId, yjsStateB64 }: Readonly<DocSnapshotViewerProps>) {
   const collab = useMemo(() => {
     const update = yjsStateB64 ? base64ToBytes(yjsStateB64) : null;
     return {
-      // MUST equal the live docId: @lexical/yjs keys the shared root by this id,
-      // and the snapshot's Yjs state stores the root under the real docId.
+      // MUST equal the live docId: @lexical/yjs keys the shared root by this id, matching the snapshot's stored root.
       id: docId,
       providerFactory: (id: string, yjsDocMap: Map<string, unknown>) => {
-        // The live editor is unmounted in history mode, but Lexical's yjsDocMap is
-        // a module singleton — discard any stale entry and bind a fresh doc.
+        // Lexical's yjsDocMap is a module singleton, so discard any stale entry and bind a fresh doc.
         const existing = yjsDocMap.get(id) as InstanceType<typeof Y.Doc> | undefined;
         if (existing) {
           existing.destroy();

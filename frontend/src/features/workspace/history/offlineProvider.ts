@@ -2,9 +2,7 @@ import { Y } from '@toddle-edu/ds-doc-editor';
 
 type Handler = (...args: unknown[]) => void;
 
-// The subset of y-protocols Awareness that Lexical's CollaborationPlugin touches
-// (getStates/getLocalState/setLocalState/on/off). In a read-only snapshot there
-// are no live peers, so every method is inert.
+// The subset of y-protocols Awareness that Lexical's CollaborationPlugin touches; inert in a read-only snapshot (no live peers).
 class NoopAwareness {
   clientID: number;
   states = new Map<number, Record<string, unknown>>();
@@ -27,12 +25,7 @@ class NoopAwareness {
   }
 }
 
-// A y-websocket-shaped provider that never opens a socket. It reproduces exactly
-// what the live server does on connect — deliver the document's state as a single
-// Yjs update — but from a static snapshot instead of the network. Applying that
-// update *after* the CollaborationPlugin has registered its observer (i.e. inside
-// connect(), on a microtask) is what drives the content into Lexical, matching the
-// live render path precisely. No socket, no room, no risk to the live document.
+// A y-websocket-shaped provider that never opens a socket: it delivers the doc's state as one Yjs update from a static snapshot, applied inside connect() on a microtask (after the plugin's observer registers) to drive content into Lexical exactly as the live path does.
 export class OfflineProvider {
   awareness: NoopAwareness;
   private handlers = new Map<string, Set<Handler>>();
@@ -60,9 +53,7 @@ export class OfflineProvider {
   }
 
   connect() {
-    // Defer to a microtask so the plugin's Yjs observer is registered before we
-    // deliver the snapshot; then announce a completed sync (doc already populated,
-    // so the plugin's empty-doc bootstrap is a no-op).
+    // Defer to a microtask so the plugin's Yjs observer registers before we deliver the snapshot, then announce a completed sync (doc already populated, so bootstrap is a no-op).
     queueMicrotask(() => {
       this.emit('status', [{ status: 'connected' }]);
       if (this.update) Y.applyUpdate(this.doc, this.update, this);

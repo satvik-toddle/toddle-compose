@@ -1,11 +1,7 @@
 import { useDocHistory } from '../../../hooks/usePages';
 import { useHistoryMode } from './useHistoryMode';
 
-// Single source of the "which version is showing" rule, shared by the versions list
-// (VersionsSection) and the snapshot pane (DocHistoryView) so they can never disagree:
-//   effectiveSeq = the ?v seq, else the newest session's lastSeq
-//   session      = the session whose lastSeq === effectiveSeq, else undefined
-//                  (undefined when ?v names a seq no session matches).
+// One source of "which version is showing", shared by VersionsSection and DocHistoryView: effectiveSeq = ?v seq else newest session's lastSeq; session = the matching session, else undefined.
 export function useVersionSelection(docId: string) {
   const { selectedSeq } = useHistoryMode();
   const { data, isLoading, isError } = useDocHistory(docId);

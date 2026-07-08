@@ -18,6 +18,7 @@ export type RtcUpdateRow = {
   origin: string | null;
   client_sub: string | null;
   created_at: number;
+  merged_count: number | null;
 };
 
 export type CompactionCandidate = {
@@ -26,6 +27,7 @@ export type CompactionCandidate = {
   origin: string | null;
   client_sub: string | null;
   created_at: number;
+  merged_count: number | null;
 };
 
 @Injectable()
@@ -176,6 +178,7 @@ export class DocRepository {
         origin: true,
         clientSub: true,
         createdAt: true,
+        mergedCount: true,
       },
     });
     return rows.map((r) => ({
@@ -184,6 +187,7 @@ export class DocRepository {
       origin: r.origin,
       client_sub: r.clientSub,
       created_at: Number(r.createdAt),
+      merged_count: r.mergedCount,
     }));
   }
 
@@ -209,6 +213,7 @@ export class DocRepository {
         origin: true,
         clientSub: true,
         createdAt: true,
+        mergedCount: true,
       },
     });
     return rows.map((r) => ({
@@ -217,6 +222,7 @@ export class DocRepository {
       origin: r.origin,
       client_sub: r.clientSub,
       created_at: Number(r.createdAt),
+      merged_count: r.mergedCount,
     }));
   }
 
@@ -285,6 +291,7 @@ export class DocRepository {
     origin: string;
     clientSub: string | null;
     createdAt: number;
+    mergedCount?: number;
   }): Promise<number> {
     return this.prisma.$transaction(async (tx) => {
       const del = await tx.rtcDocumentUpdate.deleteMany({
@@ -302,6 +309,7 @@ export class DocRepository {
           origin: args.origin,
           clientSub: args.clientSub,
           createdAt: BigInt(args.createdAt),
+          mergedCount: args.mergedCount,
         },
       });
       return del.count;

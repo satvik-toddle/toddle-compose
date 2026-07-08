@@ -356,8 +356,7 @@ export class DocumentsService {
           updateCount: s.updateCount,
           totalBytes: s.totalBytes,
           noop: s.noop,
-          // Distinguish a tier-2 archive snapshot from a real edit whose author no longer resolves
-          // to a user (both leave user=null, but the UI must label them differently).
+          // Archive snapshot vs. real edit whose author no longer resolves (both leave user=null; the UI labels them differently).
           kind: s.origin === "archive" ? ("archive" as const) : ("edit" as const),
           changedCells: s.changedCells ?? [],
           user: s.clientSub ? (byId.get(s.clientSub) ?? null) : null,
@@ -387,8 +386,7 @@ export class DocumentsService {
         return { ...base, sheet: preview.sheet };
       case DocumentType.DOC:
       default:
-        // A DOC renders purely from the yjs state; a missing/empty field means the rtc-server
-        // predates it (deploy skew) — fail loud rather than render every version as empty.
+        // A DOC renders purely from yjs state; a missing field means the rtc-server predates it (deploy skew) — fail loud rather than render every version empty.
         if (!preview.yjsStateB64) {
           throw new HttpException({ error: "rtc service error" }, 502);
         }

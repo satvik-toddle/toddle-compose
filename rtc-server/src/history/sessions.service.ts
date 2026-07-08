@@ -100,10 +100,12 @@ export class SessionsService {
       const sameSub = last && last.clientSub === u.client_sub;
       const withinGap = last && u.created_at - last.endedAt <= gapMs;
       const sameKind = last && (last.origin === "archive") === isArchive;
+      // A tier-1 merged row stands in for the raw updates it coalesced; count those, not the one row.
+      const edits = u.merged_count ?? 1;
       if (last && sameSub && withinGap && sameKind && !isArchive) {
         last.lastSeq = u.seq;
         last.endedAt = u.created_at;
-        last.updateCount += 1;
+        last.updateCount += edits;
         last.totalBytes += u.byte_len;
       } else {
         groups.push({
@@ -112,7 +114,7 @@ export class SessionsService {
           clientSub: u.client_sub,
           startedAt: u.created_at,
           endedAt: u.created_at,
-          updateCount: 1,
+          updateCount: edits,
           totalBytes: u.byte_len,
           origin: u.origin,
         });

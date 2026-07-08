@@ -19,10 +19,11 @@ export class CompactionScheduler
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private timer: NodeJS.Timeout | null = null;
-  // Set on shutdown so an in-flight first-pass lookup or tick never re-arms the timer.
+  private interval = 0;
+  // True once the scheduler is armed; gates the shutdown log (a disabled scheduler never armed).
+  private armed = false;
+  // Set on shutdown so an in-flight bootstrap never arms the timer after teardown.
   private stopped = false;
-  // Guards against overlapping passes racing on the same doc's seq range (replaceSeqRangeWithMerged).
-  private running = false;
 
   constructor(
     private readonly compaction: CompactionService,
@@ -30,68 +31,58 @@ export class CompactionScheduler
     private readonly config: ConfigService<Env, true>
   ) {}
 
-  private env<K extends keyof Env>(k: K): Env[K] {
-    return this.config.get(k, { infer: true });
-  }
-
-  onApplicationBootstrap(): void {
-    const interval = this.env("RTC_COMPACT_INTERVAL_MS");
-    if (interval <= 0) {
+  async onApplicationBootstrap(): Promise<void> {
+    this.interval = this.config.get("RTC_COMPACT_INTERVAL_MS", { infer: true });
+    if (this.interval <= 0) {
       log.info("compaction scheduler disabled (RTC_COMPACT_INTERVAL_MS<=0)");
       return;
     }
-    log.info(`compaction scheduler armed: interval=${interval}ms`);
-    // Fire the DB lookup WITHOUT awaiting so app.listen / WS availability never gates on it.
-    // Persistent schedule: base the first pass on the last recorded run so a process that never survives a full interval still compacts.
-    void this.repo
-      .getLatestCompactionRun()
-      .catch((e) => {
-        log.error("could not read latest compaction run — assuming none", e);
-        return null;
-      })
-      .then((latest) => {
-        if (this.stopped) return;
-        let delay: number;
-        if (!latest) {
-          delay = FIRST_PASS_SETTLE_MS;
-          log.info(
-            `no prior compaction run — first pass in ${Math.round(delay / 1000)}s`
-          );
-        } else {
-          // Measure from startedAt so a crashed run without finishedAt still counts as an attempt (no tight boot-loop).
-          const elapsed = Date.now() - Number(latest.startedAt);
-          if (elapsed >= interval) {
-            delay = FIRST_PASS_SETTLE_MS;
-            log.info(
-              `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 1000)}s`
-            );
-          } else {
-            delay = interval - elapsed;
-            log.info(
-              `last compaction run ${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 60000)}m`
-            );
-          }
-        }
-        this.schedule(delay, interval);
-      });
+
+    // Hard precondition: rtc_compaction_runs MUST exist (rtc schema pushed). Abort boot loudly
+    // if it can't be read, rather than silently degrading to a 30s-after-boot pass every restart.
+    let latest: Awaited<ReturnType<DocRepository["getLatestCompactionRun"]>>;
+    try {
+      latest = await this.repo.getLatestCompactionRun();
+    } catch (e) {
+      log.error(
+        "FATAL: cannot read rtc_compaction_runs — push the rtc schema (pnpm --filter @app/rtc-database exec prisma db push)",
+        e
+      );
+      throw e;
+    }
+    if (this.stopped) return;
+
+    this.armed = true;
+    log.info(`compaction scheduler armed: interval=${this.interval}ms`);
+
+    // One delay expression for every case: no prior run (elapsed=Infinity), caught up
+    // (elapsed>=interval), mid-interval, and clock step-back (negative elapsed). The settle
+    // floor protects the reconnect window; the interval cap bounds a backward clock jump.
+    const elapsed = latest ? Date.now() - Number(latest.startedAt) : Infinity;
+    const delay = Math.min(
+      this.interval,
+      Math.max(FIRST_PASS_SETTLE_MS, this.interval - elapsed)
+    );
+    log.info(
+      latest
+        ? `last compaction run ~${Math.round(elapsed / 60000)}min ago — first pass in ${Math.round(delay / 1000)}s`
+        : `no prior compaction run — first pass in ${Math.round(delay / 1000)}s`
+    );
+    this.schedule(delay);
   }
 
-  // One self-re-arming timer: after each pass, schedule the next at the full interval.
-  private schedule(delay: number, interval: number): void {
+  // One self-re-arming timer: after each pass, schedule the next at the full interval. The chain
+  // awaits tick() before re-arming, so passes never overlap (no separate running-guard needed).
+  private schedule(delay: number): void {
     this.timer = setTimeout(async () => {
       await this.tick();
-      if (!this.stopped) this.schedule(interval, interval);
+      if (!this.stopped) this.schedule(this.interval);
     }, delay);
     this.timer.unref?.();
   }
 
   private async tick(): Promise<void> {
-    if (this.running) {
-      log.warn("previous compaction pass still running — skipping this tick");
-      return;
-    }
-    this.running = true;
-    // Bookkeeping is wrapped so a DB hiccup recording the run never kills the pass itself.
+    // Bookkeeping is wrapped so a transient DB hiccup recording the run never kills the pass.
     let runId: bigint | null = null;
     try {
       runId = await this.repo.recordCompactionRunStart(Date.now());
@@ -113,8 +104,6 @@ export class CompactionScheduler
       }
     } catch (e) {
       log.error("compaction pass FAILED", e);
-    } finally {
-      this.running = false;
     }
   }
 
@@ -124,9 +113,6 @@ export class CompactionScheduler
       clearTimeout(this.timer);
       this.timer = null;
     }
-    // Only log when the scheduler was actually armed (a disabled scheduler never scheduled anything).
-    if (this.env("RTC_COMPACT_INTERVAL_MS") > 0) {
-      log.info("compaction scheduler stopped");
-    }
+    if (this.armed) log.info("compaction scheduler stopped");
   }
 }

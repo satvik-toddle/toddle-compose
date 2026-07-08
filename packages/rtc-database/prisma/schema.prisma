@@ -42,6 +42,8 @@ model RtcDocumentUpdate {
   origin     String?
   clientSub  String? @map("client_sub")
   createdAt  BigInt  @map("created_at")
+  // Raw updates coalesced into this row by tier-1 compaction (null = 1); keeps the history UI's edit count honest after a merge.
+  mergedCount Int?   @map("merged_count")
 
   @@unique([docId, seq])
   @@index([docId, seq])

@@ -301,7 +301,9 @@ Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, par
   access required; `400` if `seq` is not a non-negative integer. This is a **generic id route**: the
   server resolves the document's `type` and dispatches to the matching handler, so the payload is
   kind-specific. The response always includes `type`. For a **SHEET**, `sheet` is the reconstructed
-  grid (`{ rows, colTypes }`); for a **DOC**, `lexicalJson` + `plainText` are the rich-text content.
+  grid (`{ rows, colTypes }`); for a **DOC**, `yjsStateB64` is the full Yjs state at that seq (base64),
+  which the client binds to a read-only editor to render the snapshot. (`502` if the rtc-server is too
+  old to return `yjsStateB64` — deploy skew.)
   `200` (SHEET):
   ```json
   { "docId": "ckdo…", "type": "SHEET", "seq": 30, "headSeq": 42,
@@ -310,7 +312,7 @@ Document shape: `{ id, title, icon, type, visibility, workspaceId, folderId, par
   `200` (DOC):
   ```json
   { "docId": "ckdo…", "type": "DOC", "seq": 30, "headSeq": 42,
-    "lexicalJson": "{\"root\":{…}}", "plainText": "…" }
+    "yjsStateB64": "AQ…" }
   ```
 - `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
 - `PATCH /api/documents/:id/move` — `{ folderId?, parentId? }` → relocate. `parentId` re-parents it

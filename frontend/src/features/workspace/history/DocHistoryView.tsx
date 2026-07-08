@@ -1,11 +1,11 @@
 import { Suspense, lazy } from 'react';
 import { EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
-import { cn } from '../../../lib/cn';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
 import { useDocSnapshot } from '../../../hooks/usePages';
-import type { DocumentDto } from '../../../types/api';
+import type { DocumentDto, DocHistorySession } from '../../../types/api';
+import { PageTitle } from '../content/PageTitle';
 import { useVersionSelection } from './useVersionSelection';
 
 const DocSnapshotViewer = lazy(() =>
@@ -18,10 +18,11 @@ const styles = {
   // Read-only banner marking this as a past version (matches the doc title inset).
   banner:
     'flex-none w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
-  title: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px] text-heading-1 font-semibold text-primary',
+  // Same inset wrapper as PageView's docTitle so the reused PageTitle lines up with the live editor.
+  docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
 };
 
-type DocHistoryViewProps = { doc: DocumentDto };
+type DocHistoryViewProps = { doc: DocumentDto; workspaceId: string };
 
 function ErrorPane() {
   return (
@@ -38,20 +39,16 @@ function ErrorPane() {
   );
 }
 
-// The banner text for the selected version. `session` is undefined when ?v names a
-// seq no session matches — show a neutral label rather than a blank ' ·  · archived'.
-function bannerText(
-  session: ReturnType<typeof useVersionSelection>['session'],
-): string {
+// Banner for the selected version; neutral label when ?v names a seq no session matches.
+function bannerText(session: DocHistorySession | undefined): string {
   if (!session) return 'Viewing version';
-  const when = relativeTime(new Date(session.endedAt).toISOString());
+  const when = relativeTime(session.endedAt);
   if (session.kind === 'archive') return `Viewing version · ${when} · archived`;
   return `Viewing version · ${when} · edited by ${session.user?.name ?? 'unknown'}`;
 }
 
-// Content pane while a DOC is in history mode: the selected version's title +
-// a read-only render of its state at that update seq.
-export function DocHistoryView({ doc }: Readonly<DocHistoryViewProps>) {
+// Content pane while a DOC is in history mode: the version's title + a read-only render at that seq.
+export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProps>) {
   const {
     isLoading: sessionsLoading,
     isError: sessionsError,
@@ -78,8 +75,10 @@ export function DocHistoryView({ doc }: Readonly<DocHistoryViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      <div className={styles.title}>{doc.title || 'Untitled'}</div>
-      <div className={cn(styles.banner)}>
+      <div className={styles.docTitle}>
+        <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
+      </div>
+      <div className={styles.banner}>
         {effectiveSeq == null ? 'No versions to preview.' : bannerText(session)}
       </div>
       {effectiveSeq != null && (

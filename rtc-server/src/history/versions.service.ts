@@ -11,10 +11,7 @@ const ROWS_KEY = "rows";
 const ID_KEY = "__id";
 const COL_TYPE_KEY = "colTypes";
 
-// What the caller needs back — lets us skip the work it won't read:
-//   'all'   → everything (back-compat default)
-//   'state' → yjs bytes only (DOC render); skip lexical extraction + rawTexts
-//   'text'  → text/sheet only (SHEET render); skip the base64 full-state encode
+// Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (DOC render); 'text' = sheet snapshot only (SHEET render).
 export type PreviewInclude = "all" | "state" | "text";
 
 export type SheetSnapshot = {
@@ -82,18 +79,18 @@ export class VersionsService {
     }
     const yjsState = Y.encodeStateAsUpdate(ydoc);
 
-    // Extract sheet FIRST to fix 'rows'/'colTypes' to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce 'rows' to Y.Text and break later typed reads. Cheap and local, so run it in every mode.
+    // Extract sheet FIRST so the rawTexts getText() loop can't coerce 'rows' to Y.Text; cheap and local, so run it in every mode.
     const sheet = extractSheet(ydoc);
 
-    // 'state' callers (DOC render) read only the yjs bytes, so skip the CPU-heavy headless-Lexical extraction and the rawTexts coercion loop entirely.
+    // Only 'all' reads lexicalJson/plainText/rawTexts. 'state' (DOC render, yjs bytes only) and
+    // 'text' (SHEET render, reads only `sheet`) both skip the CPU-heavy headless-Lexical extraction.
     let lexicalJson: string | null = null;
-    let rawTexts: Record<string, string> = {};
+    const rawTexts: Record<string, string> = {};
     let plainText = "";
-    if (include !== "state") {
+    if (include === "all") {
       const extracted = await this.extract.extractFromBytes(yjsState);
       lexicalJson = extracted.lexicalJson;
 
-      rawTexts = {};
       for (const key of ydoc.share.keys()) {
         try {
           const s = ydoc.getText(key).toString();
@@ -103,7 +100,7 @@ export class VersionsService {
         }
       }
 
-      // Sheets yield empty lexical text (every session would look like a no-op), so use a canonical grid serialization; DOC docs keep lexical text.
+      // Sheets yield empty lexical text, so use a canonical grid serialization; DOC docs keep lexical text.
       plainText = sheet
         ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
         : extracted.plainText;

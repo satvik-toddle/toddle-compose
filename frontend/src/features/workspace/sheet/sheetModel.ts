@@ -150,6 +150,7 @@ function toDropdownCell(stored: unknown, optionSet: SheetOptionSet | null): Data
     isMulti: optionSet?.isMulti ?? false,
     // Options are managed from the sheet panel, not from inside the cell editor.
     addNewOptionEnabled: false,
+    checkboxAlignment: 'right',
   };
 }
 

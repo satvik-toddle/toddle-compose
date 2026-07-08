@@ -56,7 +56,8 @@ const styles = {
   addBar:
     'flex items-center justify-center rounded-2 border border-secondary text-secondary transition-colors hover:bg-surface-secondary-hover',
   addColBar: 'w-9 shrink-0',
-  addRowBar: 'h-9 mt-2',
+  // mr-11 = add-column bar width (w-9) + gridRow gap-2, so the bar ends with the grid.
+  addRowBar: 'h-9 mt-2 mr-11',
   message: 'flex-1 flex items-center justify-center text-body-s text-secondary',
 };
 

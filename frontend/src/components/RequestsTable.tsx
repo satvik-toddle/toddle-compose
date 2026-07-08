@@ -34,9 +34,11 @@ export function RequestsTable({
   if (isLoading) return <PageLoader />;
   if (requests.length === 0) {
     return (
-      <EmptyState title="No pending requests">
-        {emptyText}
-      </EmptyState>
+      <div className="flex flex-1 items-center justify-center">
+        <EmptyState title="No pending requests">
+          {emptyText}
+        </EmptyState>
+      </div>
     );
   }
 

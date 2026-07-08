@@ -27,7 +27,7 @@ import {
 } from '../../hooks/useShareLink';
 import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
 import { Loader } from '../../components/Loader';
-import { messageOf } from '../../lib/errors';
+import { messageOf, isForbidden } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLE_META, WS_ROLES } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
@@ -101,8 +101,7 @@ const styles = {
   footNote: 'flex items-center gap-1.5 text-body-xs text-secondary',
 };
 
-// Doc share modal (design 4e): add people + list who has access, then a "Share via
-// link" toggle. Link and invites are additive, layered over workspace-member access.
+// Doc share modal (design 4e): add people + list who has access, plus a "Share via link" toggle layered over workspace-member access.
 export function DocPermissionsModal({
   onClose,
   docId,
@@ -116,6 +115,10 @@ export function DocPermissionsModal({
 }) {
   const { data: link } = useShareLink(docId);
   const linkOn = !!link;
+  const refreshAccess = useRefreshDocAccess(docId);
+  // Lifted so both people-grant changes and link changes can request the "takes up to 5 minutes / Apply now" kick.
+  const [accessDirty, setAccessDirty] = useState(false);
+  const markDirty = () => setAccessDirty(true);
 
   return (
     <Modal onClose={onClose} wide>
@@ -126,8 +129,40 @@ export function DocPermissionsModal({
         onClose={onClose}
       />
       <div className="m-body">
-        <InviteSection docId={docId} owner={owner} />
-        <LinkSection docId={docId} />
+        <InviteSection docId={docId} owner={owner} onAccessChange={markDirty} />
+        <LinkSection docId={docId} onAccessChange={markDirty} />
+        {accessDirty && (
+          <div className={styles.alertWrap}>
+            <Alert
+              dsVersion="2.0"
+              type="warning"
+              message="Access changes can take up to 5 minutes to reach people already in the doc."
+              actionElementPosition="bottom"
+              testId="share-link-propagation-alert"
+              actionElement={
+                <DsButton
+                  dsVersion="2.0"
+                  variant="primary"
+                  type="fill"
+                  disabled={refreshAccess.isPending}
+                  testId="share-link-apply-now"
+                  onClick={() =>
+                    refreshAccess.mutate(undefined, {
+                      onSuccess: () => {
+                        setAccessDirty(false);
+                        pushToast({ kind: 'success', message: 'Access re-checked for everyone in this doc' });
+                      },
+                      onError: (e) =>
+                        pushToast({ kind: 'error', message: `Couldn't apply changes: ${messageOf(e)}` }),
+                    })
+                  }
+                >
+                  Apply now
+                </DsButton>
+              }
+            />
+          </div>
+        )}
       </div>
       <div className="m-foot">
         <span className={styles.footNote}>
@@ -158,14 +193,22 @@ const renderLinkRole = (v: WorkspaceRole) => (
 );
 
 // Add-people row + the "People with access" list (owner first, then grantees).
-function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
+function InviteSection({
+  docId,
+  owner,
+  onAccessChange,
+}: {
+  docId: string;
+  owner: DocOwner;
+  onAccessChange: () => void;
+}) {
   const { data: grants = [] } = useDocPermissions(docId);
   const addPermission = useAddDocPermission();
   const updatePermission = useUpdateDocPermission();
   const removePermission = useRemoveDocPermission();
 
   const [term, setTerm] = useState('');
-  const { users, isSearching } = useRealmUserSearch(term);
+  const { users, isSearching, error: searchError } = useRealmUserSearch(term);
   const [selected, setSelected] = useState<MemberOption[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
   const [adding, setAdding] = useState(false);
@@ -224,6 +267,7 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
       <div className={styles.add}>
         <div className={styles.selectWrap}>
           <Select
+            dsVersion="2.0"
             isMulti
             options={options}
             value={selected}
@@ -234,7 +278,15 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
             onSearchTextChange={setTerm}
             filterOption={null}
             placeholder="Add people by name or email"
-            noOptionsText={term.trim() ? 'No matching people in this org' : 'No people to suggest'}
+            noOptionsText={
+              searchError
+                ? isForbidden(searchError)
+                  ? "You can't search people in this org"
+                  : "Couldn't search people"
+                : term.trim()
+                  ? 'No matching people in this org'
+                  : 'No people to suggest'
+            }
             loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
             testId="doc-perm-users"
             error={addErrors.length > 0 ? ' ' : undefined}
@@ -295,7 +347,12 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
             </div>
             <RoleSelect<WorkspaceRole>
               value={g.role}
-              onChange={(r) => updatePermission.mutate({ docId, userId: g.userId, role: r })}
+              onChange={(r) =>
+                updatePermission.mutate(
+                  { docId, userId: g.userId, role: r },
+                  { onSuccess: onAccessChange },
+                )
+              }
               options={INVITE_ROLE_OPTIONS}
               renderValue={renderRole}
               size="medium"
@@ -307,7 +364,9 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
               icon={<Icon name="CloseOutlined" size={14} muted />}
               aria-label="Remove access"
               disabled={removePermission.isPending}
-              onClick={() => removePermission.mutate({ docId, userId: g.userId })}
+              onClick={() =>
+                removePermission.mutate({ docId, userId: g.userId }, { onSuccess: onAccessChange })
+              }
             />
           </div>
         ))}
@@ -317,16 +376,14 @@ function InviteSection({ docId, owner }: { docId: string; owner: DocOwner }) {
 }
 
 // "Share via link" — a toggle that reveals the link URL, scope, and link-role picker.
-function LinkSection({ docId }: { docId: string }) {
+function LinkSection({ docId, onAccessChange }: { docId: string; onAccessChange: () => void }) {
   const { data: link, isLoading } = useShareLink(docId);
   const putLink = usePutShareLink(docId);
   const regenerate = useRegenerateShareLink(docId);
   const removeLink = useDeleteShareLink(docId);
-  const refreshAccess = useRefreshDocAccess(docId);
   const linkOn = !!link;
-  // Set on any link-access change; shows the "takes up to 5 minutes / Apply now" alert until applied.
-  const [accessDirty, setAccessDirty] = useState(false);
-  const markDirty = { onSuccess: () => setAccessDirty(true) };
+  // Any link-access change requests the modal-level "takes up to 5 minutes / Apply now" alert.
+  const markDirty = { onSuccess: onAccessChange };
 
   const toggle = () => {
     // Enabling only grants new access — no one is connected via the link yet, so no alert.
@@ -380,6 +437,7 @@ function LinkSection({ docId }: { docId: string }) {
             />
             <div style={{ minWidth: 220 }}>
               <Select
+                dsVersion="2.0"
                 options={SCOPE_OPTIONS}
                 value={SCOPE_OPTIONS.find((o) => o.value === link.scope)}
                 onChange={(o: { value: ShareLinkScope } | null) => o && setScope(o.value)}
@@ -398,7 +456,7 @@ function LinkSection({ docId }: { docId: string }) {
               onClick={() =>
                 regenerate.mutate(undefined, {
                   onSuccess: () => {
-                    setAccessDirty(true);
+                    onAccessChange();
                     pushToast({ kind: 'success', message: 'New link generated' });
                   },
                 })
@@ -418,7 +476,6 @@ function LinkSection({ docId }: { docId: string }) {
                 readOnly
                 aria-label="Share link URL"
                 testId="share-link-url"
-                disabled={true}
               />
             </div>
             <DsIconButton
@@ -440,40 +497,6 @@ function LinkSection({ docId }: { docId: string }) {
           )}
 
         </>
-      )}
-
-      {/* Outside the link-on block: turning the link off is exactly when a kick is needed. */}
-      {accessDirty && (
-        <div className={styles.alertWrap}>
-          <Alert
-            dsVersion="2.0"
-            type="warning"
-            message="Access changes can take up to 5 minutes to reach people already in the doc."
-            actionElementPosition="bottom"
-            testId="share-link-propagation-alert"
-            actionElement={
-              <DsButton
-                dsVersion="2.0"
-                variant="primary"
-                type="fill"
-                disabled={refreshAccess.isPending}
-                testId="share-link-apply-now"
-                onClick={() =>
-                  refreshAccess.mutate(undefined, {
-                    onSuccess: () => {
-                      setAccessDirty(false);
-                      pushToast({ kind: 'success', message: 'Access re-checked for everyone in this doc' });
-                    },
-                    onError: (e) =>
-                      pushToast({ kind: 'error', message: `Couldn't apply changes: ${messageOf(e)}` }),
-                  })
-                }
-              >
-                Apply now
-              </DsButton>
-            }
-          />
-        </div>
       )}
     </div>
   );

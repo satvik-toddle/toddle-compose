@@ -64,7 +64,7 @@ export function SharedWithMeView() {
         {
           key: 'open',
           value: (
-            <Button dsVersion="2.0" variant="neutral" type="outlined" size="small" onClick={() => open(doc)}>
+            <Button dsVersion="2.0" variant="neutral" type="outlined" size="small" shouldStopPropagation onClick={() => open(doc)}>
               Open
             </Button>
           ),

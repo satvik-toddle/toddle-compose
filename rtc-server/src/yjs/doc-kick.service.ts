@@ -13,15 +13,19 @@ export class DocKickService {
   // docId → minimum acceptable token `iat` (epoch seconds); tokens issued before this are rejected.
   private readonly minIat = new Map<string, number>();
 
-  // True when a token was issued before the doc's kick watermark; unknown docs and iat-less tokens pass.
+  // True when a token was issued at or before the doc's kick watermark (inclusive <= closes the same-second escape); unknown docs and iat-less tokens pass.
   isRejected(docId: string, iat: number | undefined): boolean {
     const watermark = this.minIat.get(docId);
-    return watermark !== undefined && typeof iat === "number" && iat < watermark;
+    return watermark !== undefined && typeof iat === "number" && iat <= watermark;
   }
 
-  // Bump the watermark to now and close every live socket on the doc; returns the count closed.
-  kickDoc(docId: string): number {
-    this.minIat.set(docId, Math.floor(Date.now() / 1000));
+  // Bump the watermark (kickedAt: backend-stamped, same clock as token `iat`, avoiding cross-service skew; our own clock only as fallback) and close every live socket on the doc; returns the count closed.
+  kickDoc(docId: string, kickedAt?: number): number {
+    const watermark =
+      typeof kickedAt === "number" && Number.isFinite(kickedAt)
+        ? Math.floor(kickedAt)
+        : Math.floor(Date.now() / 1000);
+    this.minIat.set(docId, watermark);
     const liveDoc = ywsDocs.get(docId);
     let closed = 0;
     if (liveDoc) {

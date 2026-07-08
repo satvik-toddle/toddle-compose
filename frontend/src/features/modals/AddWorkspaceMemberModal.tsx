@@ -10,13 +10,12 @@ import { RoleRadios } from '../../components/RoleRadios';
 import { useAddWorkspaceMember } from '../../hooks/useWorkspaceMemberMutations';
 import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
 import { useRealm, useWorkspaceMembers } from '../../hooks/queries';
-import { messageOf } from '../../lib/errors';
+import { messageOf, isForbidden } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLES, WS_ROLE_META, isRealmAdmin } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
 
-// The version-switching selector's union type drops some react-select props
-// (value/onChange/filterOption); use it untyped like components/RoleSelect.tsx does.
+// The version-switching selector's union type drops some react-select props (value/onChange/filterOption); use it untyped like components/RoleSelect.tsx does.
 const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
 
 // One selectable realm user; `email` rides along for the add-member call.
@@ -41,7 +40,7 @@ export function AddWorkspaceMemberModal({
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<UserOption | null>(null);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
-  const { users, isSearching } = useRealmUserSearch(term);
+  const { users, isSearching, error: searchError } = useRealmUserSearch(term);
   // Only admins reach this modal, so the members read is authorized.
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
   const { data: realm } = useRealm();
@@ -96,17 +95,25 @@ export function AddWorkspaceMemberModal({
       <div className="m-body">
         <Field label="Person">
           <Select
+            dsVersion="2.0"
             options={options}
             value={selected}
             onChange={(opt: UserOption | null) => setSelected(opt)}
             onSearchTextChange={setTerm}
-            // Results are already server-filtered (name OR email); react-select's
-            // default label filter would wrongly drop email matches.
+            // Results are already server-filtered (name OR email); react-select's default label filter would wrongly drop email matches.
             filterOption={null}
             isSearchable
             isClearable
             placeholder="Search people…"
-            noOptionsText={term.trim() ? 'No matching people in this realm' : 'No people to suggest'}
+            noOptionsText={
+              searchError
+                ? isForbidden(searchError)
+                  ? "You can't search people in this org"
+                  : "Couldn't search people"
+                : term.trim()
+                  ? 'No matching people in this realm'
+                  : 'No people to suggest'
+            }
             loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
             size="small"
             testId="ws-member-search"

@@ -6,9 +6,7 @@ import { realmApi } from '../api/realm';
 // Per user request; 300ms is the usual default if this should feel snappier.
 export const SEARCH_DEBOUNCE_MS = 500;
 
-// Debounced realm member-directory search for pickers. The caller owns the raw
-// input; typed terms fire SEARCH_DEBOUNCE_MS after typing stops, while an empty
-// term fetches the first-20 initial list immediately.
+// Debounced realm member-directory search for pickers; typed terms fire SEARCH_DEBOUNCE_MS after typing stops, while an empty term fetches the first-20 initial list immediately.
 export function useRealmUserSearch(term: string) {
   const trimmed = term.trim();
   const [debounced, setDebounced] = useState('');
@@ -30,8 +28,7 @@ export function useRealmUserSearch(term: string) {
     staleTime: 30_000,
   });
 
-  // Spinner covers the debounce window too — with a long debounce, "typed but not
-  // yet fired" would otherwise look dead.
+  // Spinner covers the debounce window too, so a "typed but not yet fired" search doesn't look dead.
   const isSearching = trimmed !== debounced || query.isFetching;
 
   return { users: query.data ?? [], isSearching, error: query.error };

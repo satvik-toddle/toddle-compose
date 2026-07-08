@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -192,8 +193,14 @@ export class DocumentShareLinksService {
   ): Promise<AuthUser | null> {
     const user = await this.accessTokens.resolveAccessToken(authHeader);
     if (scope === "ANYONE") return user;
-    if (!user || (await this.authz.realmRole(user.id)) === null) {
+    // No authenticated user → 401 (sign in). Authenticated but not a realm member → 403 (distinct).
+    if (!user) {
       throw new UnauthorizedException("sign in to open this link");
+    }
+    if ((await this.authz.realmRole(user.id)) === null) {
+      throw new ForbiddenException(
+        "this link is limited to members of the workspace's org"
+      );
     }
     return user;
   }

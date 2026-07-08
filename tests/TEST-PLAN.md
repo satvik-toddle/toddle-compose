@@ -1,10 +1,11 @@
 # Test plan — folders, documents (workspace RBAC) + RTC
 
 Distilled from the POC's `tests/multiuser.cjs` and `tests/ui-flow.cjs`. Those were
-full-stack Puppeteer flows (login → create doc → make public → two users converge →
+full-stack Puppeteer flows (login → create doc → share it → two users converge →
 presence avatars → reload persistence). Below is the same intent expressed as the
 behaviours each layer must guarantee, so they can be covered by unit/integration
-tests without driving a browser.
+tests without driving a browser. Sharing is **per-person grants + share links only**;
+there is no doc PUBLIC/PRIVATE visibility.
 
 ## 1. Folders (backend, workspace-scoped + soft delete)
 
@@ -22,26 +23,37 @@ tests without driving a browser.
 
 ## 2. Documents (backend, workspace-scoped)
 
-- **create**: PRIVATE by default; requires EDIT; `workspaceId` + `ownerId` set;
+- **create**: requires EDIT; `workspaceId` + `ownerId` set;
   optional `folderId` must be a live folder in the same workspace.
 - **read**: owner, any workspace READ (members + workspace ADMIN + realm
   OWNER/MAINTAINER overlay), a **per-page grant** (any role, any registered user),
-  OR — when PUBLIC — any realm member. Otherwise 404 (existence hidden).
-- **write** (rename/move/visibility/delete): creator OR effective doc role ≥ min,
+  OR a valid **share link** within its scope. Otherwise 404 (existence hidden).
+- **write** (rename/move/delete): creator OR effective doc role ≥ min,
   where effective doc role = MAX(workspace role, per-page grant); else 403. So a
-  doc-ADMIN grantee can rename/move/toggle-visibility/delete; a doc-EDIT grantee can
-  rename/move but gets 403 on visibility/delete.
+  doc-ADMIN grantee can rename/move/delete; a doc-EDIT grantee can
+  rename/move but gets 403 on delete.
 - **move**: target folder must be in the document's workspace.
-- **visibility toggle**: PRIVATE↔PUBLIC flips read reach as above.
 - **per-page permissions** (`GET/POST/PATCH/DELETE /documents/:id/permissions[/:userId]`):
   manage gate = owner / effective workspace ADMIN / doc-ADMIN grantee (else 403, 404 if
   doc missing); grant by email accepts any role (READ|COMMENT|EDIT|ADMIN) but only ever
   elevates — effective doc role = max(ws role, grant), so READ/COMMENT grants mint viewer
   RTC tokens while EDIT/ADMIN mint editor; 404 unregistered email, 409 owner, 409 duplicate;
-  POST also sends a best-effort "shared with you" email; DELETE also allowed for the grantee
-  themselves (leave). No cascade to sub-pages. Grant-only users get guest workspace entry
-  with the doc list filtered to grants; `GET /documents/shared` lists grant rows
-  (doc + sharedAt + myRole) excluding owned docs.
+  grant opens exactly one doc (no realm enrollment); POST also sends a best-effort
+  "shared with you" email; DELETE also allowed for the grantee themselves (leave). No cascade
+  to sub-pages. Grant-only users get guest workspace entry with the doc list filtered to
+  grants; `GET /api/documents/shared-with-me` lists grant rows (doc + workspace + sharedAt +
+  myRole + isStarred) across all workspaces, excluding owned docs.
+- **share links** (`GET/PUT/DELETE /documents/:id/share-link`, `POST …/regenerate`,
+  `GET /share-links/:token`, `POST /share-links/:token/rtc-token`): at most one link per doc; manage
+  gate = owner / workspace ADMIN / doc-ADMIN. Scope `ANYONE` (works logged-out) vs `REALM` (signed-in
+  realm member). Opening a `REALM` link with no authenticated user → 401 ("sign in to open this
+  link"); authenticated non-member → 403 ("limited to members of the workspace's org"); unknown token
+  → constant 404. `rtc-token` mints editor for `EDIT` links, viewer for `READ`/`COMMENT`; logged-out
+  `ANYONE` visitors get a synthetic anonymous identity.
+- **refresh-access / kick** (`POST /documents/:id/refresh-access`): revoking a grant/link or rotating
+  a token **kicks** live RTC sockets and invalidates already-minted tokens — the revocation watermark
+  is stamped by the **backend** clock (same clock that mints token `iat`, so no cross-service skew)
+  and rejects any token with `iat <= watermark` (inclusive, closing the same-second escape).
 
 ## 3. Authorization core (`AuthzService`) — pure ordering
 
@@ -79,9 +91,9 @@ tests without driving a browser.
 **Backend (1–3) — Nest e2e via supertest** (boots the real AppModule against `DATABASE_URL`):
 - `backend/test/folders.e2e-spec.ts` — workspace CRUD, EDIT-to-create, READ/non-member
   denials, cycle guard, soft-delete + subtree cascade, 30-day purge window.
-- `backend/test/documents.e2e-spec.ts` — PRIVATE default, full read matrix
-  (owner/member/realm-overlay/PUBLIC/outsider), write gates (EDIT renames,
-  ADMIN/owner deletes), public toggle, and the `rtc-token` endpoint
+- `backend/test/documents.e2e-spec.ts` — full read matrix
+  (owner/member/realm-overlay/grantee/outsider), write gates (EDIT renames,
+  ADMIN/owner deletes), per-page grant + share-link access, and the `rtc-token` endpoint
   (editor/viewer/denied→403, identity claims present).
 - Run: `pnpm test`  (sources `.env`, then `pnpm --filter backend test:e2e`).
   Prereq: Postgres up + schemas pushed + seed run.

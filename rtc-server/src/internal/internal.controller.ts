@@ -125,9 +125,10 @@ export class InternalController {
   }
 
   // Force-refresh access: close all live sockets on the doc and invalidate already-minted tokens.
+  // kickedAt (optional, epoch seconds from the backend clock) becomes the revocation watermark.
   @Post(":docId/kick")
-  kick(@Param("docId") docId: string) {
-    const closed = this.docKick.kickDoc(docId);
+  kick(@Param("docId") docId: string, @Body() body?: { kickedAt?: number }) {
+    const closed = this.docKick.kickDoc(docId, body?.kickedAt);
     return { ok: true, docId, closed };
   }
 

@@ -362,9 +362,10 @@ Non-managers get `403`; a missing doc is `404`.
 - `GET /api/documents/:id/permissions` → `[{ userId, documentId, role, createdAt, user: { id, email, name, color } }]`.
   Requires manage rights.
 - `POST /api/documents/:id/permissions` — `{ email, role: "READ" | "COMMENT" | "EDIT" | "ADMIN" }` →
-  grant a role by email. Requires manage rights. Side effects: the user is ensured to be at least a
-  realm `MEMBER`, and a **"shared with you" notification email** (with a "View doc" button linking to
-  the doc) is sent to them best-effort — mail failures never fail the request. `404` unknown
+  grant a role by email. Requires manage rights. **No realm enrollment** — the grant opens exactly
+  this one doc, never realm-wide access. Side effect: a **"shared with you" notification email** (with
+  a "View doc" button linking to the doc) is sent to them best-effort — mail failures never fail the
+  request. `404` unknown
   email ("must register first") · `409` the email belongs to the doc owner · `409` the user already has a grant.
 - `PATCH /api/documents/:id/permissions/:userId` — `{ role }` (same role values) → change a grant's
   role. Requires manage rights. `404` if there's no grant for that user. No email is sent.
@@ -390,14 +391,17 @@ Manage endpoints (same **manage rights** as permissions — owner / workspace `A
 - `DELETE /api/documents/:id/share-link` → `{ ok: true }` (idempotent revoke).
 - `POST /api/documents/:id/refresh-access` → `{ ok: true, closed }` — force everyone currently in
   the doc to re-check access **now** instead of waiting out the ~5-min RTC token TTL. Closes all live
-  RTC sockets on the doc and invalidates already-minted tokens (issued-before-now watermark on the
-  rtc-server), so each client reconnects by re-minting against current permissions; `closed` is the
-  number of sockets dropped. Same **manage rights** as the share-link endpoints.
+  RTC sockets on the doc and invalidates already-minted tokens — the rtc-server watermark is stamped
+  from the backend clock (same clock that mints token `iat`, so no cross-service skew) and rejects any
+  token with `iat <= watermark` (inclusive, so a token minted in the same second is also rejected), so
+  each client reconnects by re-minting against current permissions; `closed` is the number of sockets
+  dropped. Same **manage rights** as the share-link endpoints.
 
 Public endpoints (**unguarded** — the token is the credential):
 - `GET /api/share-links/:token` → `{ document: { id, title, icon, type, workspaceId }, role, scope }`.
-  `ANYONE` scope needs no auth; `REALM` scope requires a valid access token belonging to a realm member
-  (else `401`). `404` for an unknown token (constant — never reveals whether a token existed).
+  `ANYONE` scope needs no auth; `REALM` scope requires a signed-in realm member — no authenticated
+  user → `401` ("sign in to open this link"), an authenticated non-member → `403` ("limited to members
+  of the workspace's org"). `404` for an unknown token (constant — never reveals whether a token existed).
 - `POST /api/share-links/:token/rtc-token` → `{ token, docId, role, name, color }` — mint an RTC token
   for the doc. `EDIT` link → `editor`, `READ`/`COMMENT` → `viewer`. Logged-out `ANYONE` visitors get a
   synthetic anonymous identity (random display name + presence color, echoed as `name`/`color`); an

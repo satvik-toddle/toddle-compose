@@ -3,9 +3,7 @@ import { Modal as DsModal } from '@toddle-edu/ds-web';
 import { cn } from '../lib/cn';
 
 const styles = {
-  // Collapse the wrapper to its content so the ds-web box doesn't stretch. The `tc-modal`
-  // marker stays: the global `.ReactModal__*:has(.tc-modal)` rules key on it to un-pin and
-  // center react-modal's content box — an ancestor a styles-object here can't reach.
+  // Collapse the wrapper to its content; the `tc-modal` marker stays because global `.ReactModal__*:has(.tc-modal)` rules key on it to un-pin and center react-modal's content box.
   wrap: 'block w-auto h-auto min-h-0 bg-transparent',
   shell: 'flex w-full max-w-full overflow-hidden rounded-[12px] bg-surface-primary-enabled',
   sidebar: 'flex w-[248px] flex-none flex-col border-r border-secondary bg-surface-secondary-enabled',

@@ -38,6 +38,11 @@ function uploadName(file: File | Blob, attachment?: UploadAttachment): string | 
 }
 
 async function uploadToServer(arg: UploadArg): Promise<string> {
+  // Anonymous link visitors have no access token and /uploads is auth-guarded; fail fast with a clear message (passing undefined instead would hit the editor's silent no-op default and insert a broken empty-src image).
+  if (!useAuthStore.getState().accessToken) {
+    pushToast({ kind: 'error', message: 'Sign in to upload images and files' });
+    throw new Error('uploads require sign-in');
+  }
   const file = arg instanceof Blob ? arg : arg?.file;
   if (!file) throw new Error('uploadToServer: no file provided');
   const attachment = arg instanceof Blob ? undefined : arg?.attachment;
@@ -87,6 +92,10 @@ export function DocEditor({
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
+  // Consecutive failed connects (no intervening successful connect). The rtc-server rejects invalidated tokens at the HTTP upgrade too (401 → browser close code 1006, not 4001), so a client that missed the live kick would loop on its cached token until the 4-min refetch; re-mint after 2 failures instead.
+  const failedConnectsRef = useRef(0);
+  // Dedupes the connection-error + connection-close pair that a single failed attempt emits, so one attempt counts once.
+  const attemptCountedRef = useRef(false);
 
   const collab = useMemo(() => {
     return {
@@ -109,10 +118,32 @@ export function DocEditor({
           params: paramsRef.current,
           connect: false,
         });
-        // 4001 = server force-refreshed access; re-mint immediately so the reconnect uses a fresh token (or flips to the error state if revoked).
-        provider.on('connection-close', (e?: CloseEvent) => {
-          if (e?.code === 4001) void refetchRef.current?.();
+        // A successful (re)connect clears the failure streak.
+        provider.on('status', (e?: { status?: string }) => {
+          if (e?.status === 'connecting') attemptCountedRef.current = false;
+          else if (e?.status === 'connected') failedConnectsRef.current = 0;
         });
+        provider.on('sync', (isSynced: boolean) => {
+          if (isSynced) failedConnectsRef.current = 0;
+        });
+        // 4001 = server force-refreshed access; re-mint immediately (fast path). Otherwise count this attempt once and re-mint after 2 consecutive failures (covers a re-mint rejected once for iat <= watermark within the kick's same second).
+        const onConnectFailure = (code?: number) => {
+          if (code === 4001) {
+            failedConnectsRef.current = 0;
+            attemptCountedRef.current = true;
+            void refetchRef.current?.();
+            return;
+          }
+          if (attemptCountedRef.current) return;
+          attemptCountedRef.current = true;
+          failedConnectsRef.current += 1;
+          if (failedConnectsRef.current >= 2) {
+            failedConnectsRef.current = 0;
+            void refetchRef.current?.();
+          }
+        };
+        provider.on('connection-close', (e?: CloseEvent) => onConnectFailure(e?.code));
+        provider.on('connection-error', () => onConnectFailure());
         return provider;
       },
       username: awarenessName ?? name ?? 'User',

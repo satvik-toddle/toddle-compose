@@ -259,8 +259,14 @@ export class DocumentsService {
         wsRoleByWs.set(wsId, await this.authz.effectiveWorkspaceRole(user.id, wsId))
       )
     );
+    // One batched star lookup for all returned ids so each row carries the caller's isStarred.
+    const starred = await this.starredIdSet(
+      user.id,
+      grants.map((g) => g.document.id)
+    );
     return grants.map((g) => ({
       ...g.document,
+      isStarred: starred.has(g.document.id),
       sharedAt: g.createdAt,
       myRole: this.authz.maxWorkspaceRole(wsRoleByWs.get(g.document.workspaceId) ?? null, g.role)!,
     }));

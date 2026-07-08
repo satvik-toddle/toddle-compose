@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, Button } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
@@ -39,15 +39,18 @@ function ThemeToggle() {
   );
 }
 
-// Public page for a share link. ANYONE-scope links open for anyone (logged in or
-// out); REALM-scope links require a signed-in realm member (the resolve 401s
-// otherwise). Renders a standalone collaborative editor keyed to the link token.
+// Public share-link page: ANYONE-scope opens for anyone, REALM-scope needs a signed-in realm member (401 signed-out / 403 non-member); renders a standalone collaborative editor keyed to the link token.
 export function LinkDocView() {
   const { token = '' } = useParams();
   const { data, isLoading, error } = useShareLinkResolve(token);
-  // Same query key DocEditor mints under, so this shares the cache (no extra request);
-  // carries the guest identity baked into the RTC token for awareness cursors.
+  // Same query key DocEditor mints under (shared cache, no extra request); carries the guest identity baked into the RTC token for awareness cursors.
   const { data: rtc } = useShareLinkRtcToken(token);
+  // Freeze the first minted identity for the page's lifetime: the backend re-rolls a random guest name/color on every 4-min re-mint for anonymous visitors, and these feed DocEditor's collab memo, so without freezing the cursor identity would churn (and the provider reconnect) every 4 minutes.
+  const frozenIdentity = useRef<{ name?: string; color?: string } | null>(null);
+  if (frozenIdentity.current === null && rtc?.name) {
+    frozenIdentity.current = { name: rtc.name, color: rtc.color };
+  }
+  const identity = frozenIdentity.current;
 
   if (isLoading) {
     return (
@@ -63,7 +66,22 @@ export function LinkDocView() {
   }
 
   if (error || !data) {
+    // 401 = unauthenticated on a REALM link (offer sign-in); 403 = signed in but not a
+    // member of the link's org — showing sign-in there is the dead-end loop, so omit it.
     const needsSignIn = isApiError(error) && error.statusCode === 401;
+    const forbidden = isApiError(error) && error.statusCode === 403;
+    let illustration = EmptyStateIllustrations.Error404Illustration;
+    let title = 'Link unavailable';
+    let subtitle = 'This link is invalid or has been removed.';
+    if (needsSignIn) {
+      illustration = EmptyStateIllustrations.NoFoldersIllustration;
+      title = 'Sign in to open this link';
+      subtitle = 'This link is limited to members of the workspace’s org. Sign in to continue.';
+    } else if (forbidden) {
+      illustration = EmptyStateIllustrations.NoAccessIllustration;
+      title = "You don't have access to this link";
+      subtitle = 'This link is limited to members of the workspace’s org.';
+    }
     return (
       <div className="rbac">
         <div className={cn(styles.shell, 'relative')}>
@@ -71,20 +89,7 @@ export function LinkDocView() {
             <ThemeToggle />
           </div>
           <div className={cn(styles.centered, 'flex-col gap-4')}>
-            <EmptyState
-              dsVersion="2.0"
-              illustration={
-                needsSignIn
-                  ? EmptyStateIllustrations.NoFoldersIllustration
-                  : EmptyStateIllustrations.Error404Illustration
-              }
-              title={needsSignIn ? 'Sign in to open this link' : 'Link unavailable'}
-              subtitle={
-                needsSignIn
-                  ? 'This link is limited to members of the workspace’s org. Sign in to continue.'
-                  : 'This link is invalid or has been removed.'
-              }
-            />
+            <EmptyState dsVersion="2.0" illustration={illustration} title={title} subtitle={subtitle} />
             {needsSignIn && (
               <Link to="/login">
                 <Button dsVersion="2.0" variant="primary" type="fill">
@@ -125,8 +130,8 @@ export function LinkDocView() {
                 key={doc.id}
                 docId={doc.id}
                 shareToken={token}
-                awarenessName={rtc?.name}
-                awarenessColor={rtc?.color}
+                awarenessName={identity?.name}
+                awarenessColor={identity?.color}
               />
             </Suspense>
           )}

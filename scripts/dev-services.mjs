@@ -16,24 +16,40 @@ const { result, commands } = concurrently(
 
 // Rolling per-service output tail so the failing service's logs can be replayed at the end.
 const tails = new Map(commands.map((c) => [c.name, []]));
+const flushes = [];
 for (const c of commands) {
   const tail = tails.get(c.name);
+  const push = (line) => {
+    tail.push(line);
+    if (tail.length > TAIL_LINES) tail.splice(0, tail.length - TAIL_LINES);
+  };
   const subscribe = (stream) => {
     let carry = '';
-    stream.subscribe((chunk) => {
-      const lines = (carry + chunk.toString()).split('\n');
-      carry = lines.pop() ?? '';
-      tail.push(...lines.filter((l) => l.trim() !== ''));
-      if (tail.length > TAIL_LINES) tail.splice(0, tail.length - TAIL_LINES);
+    // A fatal line written without a trailing \n stays in carry — flush it on stream end (and again before replay).
+    const flush = () => {
+      if (carry.trim() !== '') push(carry);
+      carry = '';
+    };
+    flushes.push(flush);
+    stream.subscribe({
+      next: (chunk) => {
+        const lines = (carry + chunk.toString()).split('\n');
+        carry = lines.pop() ?? '';
+        for (const line of lines) if (line.trim() !== '') push(line);
+      },
+      error: flush,
+      complete: flush,
     });
   };
   subscribe(c.stdout);
   subscribe(c.stderr);
 }
+const flushTails = () => flushes.forEach((f) => f());
 
 result.then(
   () => process.exit(0),
   (closeEvents) => {
+    flushTails();
     const events = Array.isArray(closeEvents) ? closeEvents : [];
     // Failures we didn't cause: numeric exitCode = the process exited non-zero, string exitCode = it died from a signal (e.g. SIGSEGV).
     const failures = events.filter((e) => !e.killed && e.exitCode !== 0);

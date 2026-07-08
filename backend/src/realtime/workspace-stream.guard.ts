@@ -50,14 +50,25 @@ export class WorkspaceStreamGuard implements CanActivate {
 
     const workspaceId: string = req.params.workspaceId;
     const role = await this.authz.effectiveWorkspaceRole(user.id, workspaceId);
-    // Grant-only guests may stream; accepted leak: title-level SSE for other docs (like PUBLIC metadata).
-    if (role === null && !(await this.authz.hasDocGrantInWorkspace(user.id, workspaceId))) {
-      throw new UnauthorizedException("no access to this workspace");
+    // Grant-only guests may stream, but only for docs they were granted — collect that allowlist
+    // here (also serves as the access check: no grants → no access). Members get null (see all).
+    let guestDocIds: string[] | null = null;
+    if (role === null) {
+      const granted = await this.prisma.documentPermission.findMany({
+        where: { userId: user.id, document: { workspaceId } },
+        select: { documentId: true },
+      });
+      if (granted.length === 0) {
+        throw new UnauthorizedException("no access to this workspace");
+      }
+      guestDocIds = granted.map((g) => g.documentId);
     }
 
     req.user = { ...user, activeWorkspaceId: null };
     // Surfaced so the stream self-closes at expiry instead of outliving the token.
     req.tokenExp = exp;
+    // null → full member (all events); a list → grant-only guest, filter metadata to these docs.
+    req.guestDocIds = guestDocIds;
     return true;
   }
 }

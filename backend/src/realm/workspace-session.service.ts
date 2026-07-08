@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { WorkspaceRole } from "@app/database";
 import { AuthService } from "../auth/auth.service";
 import type { AuthUser } from "../auth/current-user.decorator";
@@ -13,16 +13,12 @@ export class WorkspaceSessionService {
   ) {}
 
   async enter(user: AuthUser, workspaceId: string) {
-    const wsRole = await this.authz.effectiveWorkspaceRole(user.id, workspaceId);
     // Grant-only guests hold no workspace role but earn implicit entry scoped to their granted docs.
-    let role: WorkspaceRole = wsRole ?? "READ";
-    let guest = false;
-    if (wsRole === null) {
-      if (!(await this.authz.hasDocGrantInWorkspace(user.id, workspaceId))) {
-        throw new ForbiddenException("requires workspace role READ or higher");
-      }
-      guest = true;
-    }
+    const { role: wsRole, isGuest: guest } = await this.authz.requireWorkspaceAccess(
+      user.id,
+      workspaceId
+    );
+    const role: WorkspaceRole = wsRole ?? "READ";
     const token = await this.auth.mintAccessToken(user, {
       activeWorkspaceId: workspaceId,
     });

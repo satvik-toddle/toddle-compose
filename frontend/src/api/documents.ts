@@ -4,6 +4,7 @@ import type {
   DocumentPermission,
   DocumentShareLink,
   DocumentType,
+  PublicUser,
   ShareLinkScope,
 } from '../types/api';
 import type { WorkspaceRole } from '../types/roles';
@@ -45,6 +46,14 @@ export const documentsApi = {
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
   star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
+
+  // Doc-scoped user-directory search for the Share picker; gated on doc-manage (not realm
+  // membership) so a doc-ADMIN grantee who never joined a workspace can still find people.
+  // Blank q is omitted → the first `take` users (initial dropdown list).
+  searchGrantableUsers: (id: string, q: string, take = 20) =>
+    http.get<PublicUser[]>(
+      `/documents/${id}/grantable-users?take=${take}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+    ),
 
   // Per-page permission grants (manage from the doc's 3-dots → Permissions).
   listPermissions: (id: string) => http.get<DocumentPermission[]>(`/documents/${id}/permissions`),

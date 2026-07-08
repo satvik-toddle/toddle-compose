@@ -5,10 +5,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { WorkspaceRole } from "@app/database";
+import { Prisma, WorkspaceRole } from "@app/database";
 import type { Env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
+import { RealmService } from "../realm/realm.service";
 import { MailerService } from "../mailer/mailer.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 
@@ -22,9 +23,23 @@ export class DocumentPermissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
+    private readonly realm: RealmService,
     private readonly mailer: MailerService,
     private readonly config: ConfigService<Env, true>
   ) {}
+
+  // Doc-scoped user-directory search for the Share picker. Gated on doc-manage (not
+  // realm membership) so a doc-ADMIN grantee who never joined a workspace can still find
+  // people to grant — without exposing the directory to any authenticated user.
+  async searchGrantable(
+    actorId: string,
+    documentId: string,
+    q: string | undefined,
+    take = 20
+  ) {
+    await this.requireManage(actorId, documentId);
+    return this.realm.searchDirectory(q, take);
+  }
 
   // Explicit grants on this doc (managers only), each with the grantee's public profile.
   async list(actorId: string, documentId: string) {
@@ -59,10 +74,19 @@ export class DocumentPermissionsService {
     if (existing) throw new ConflictException("user already has a grant on this document");
 
     // Deliberately no realm enrollment: a grant opens one doc, never realm-wide access.
-    const grant = await this.prisma.documentPermission.create({
-      data: { userId: user.id, documentId, role },
-      include: { user: { select: USER_SELECT } },
-    });
+    let grant;
+    try {
+      grant = await this.prisma.documentPermission.create({
+        data: { userId: user.id, documentId, role },
+        include: { user: { select: USER_SELECT } },
+      });
+    } catch (err) {
+      // Lost a race with a concurrent add: the unique (userId, documentId) collides — surface 409, not 500.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("user already has a grant on this document");
+      }
+      throw err;
+    }
     // Notify only on add (not update/remove); the grant is committed, so never block on mail.
     this.notifyGranteeBestEffort(actor.name, doc, user, role);
     return grant;
@@ -100,10 +124,7 @@ export class DocumentPermissionsService {
 
   // Manage gate: doc owner OR effective workspace ADMIN OR a doc-ADMIN grantee; else 403 (404 if missing).
   private async requireManage(actorId: string, documentId: string) {
-    const doc = await this.loadDoc(documentId);
-    if (!doc) throw new NotFoundException("document not found");
-    await this.authz.requireDocManage(actorId, doc);
-    return doc;
+    return this.authz.requireDocManageOrThrow(actorId, documentId);
   }
 
   private async loadDoc(documentId: string) {

@@ -34,7 +34,14 @@ const ANON_COLORS = [
   "#f04c54", "#5a5ae2", "#00ac8a", "#e8653a", "#b646ee",
   "#00b0c2", "#ef4371", "#d67d00", "#6d9c00", "#a43dd7",
 ];
-const pick = <T,>(arr: T[]): T => arr[randomBytes(1)[0] % arr.length];
+// Unbiased index in [0, n): reject bytes in the non-divisible tail so no index is favored.
+const pick = <T,>(arr: T[]): T => {
+  const n = arr.length;
+  const limit = 256 - (256 % n);
+  let b = randomBytes(1)[0];
+  while (b >= limit) b = randomBytes(1)[0];
+  return arr[b % n];
+};
 const randomGuestName = () => `${pick(ANON_ADJECTIVES)} ${pick(ANON_ANIMALS)}`;
 
 // "Anyone with the link" sharing. The token IS the credential: the manage endpoints (owner /
@@ -144,8 +151,9 @@ export class DocumentShareLinksService {
         if ((await this.documents.resolveRtcRole(user.id, link.documentId)) === "editor") {
           role = "editor";
         }
-      } catch {
-        // No standing access of their own — the link role stands.
+      } catch (err) {
+        // Only "no standing access" is expected; a transient error must not silently downgrade to viewer.
+        if (!(err instanceof ForbiddenException || err instanceof NotFoundException)) throw err;
       }
     } else {
       // Anonymous visitor (ANYONE scope): synthetic, unguessable identity + random display name.
@@ -207,13 +215,7 @@ export class DocumentShareLinksService {
 
   // Same manage gate as document permissions: owner OR effective ws ADMIN OR doc-ADMIN grantee.
   private async requireManage(actorId: string, documentId: string) {
-    const doc = await this.prisma.document.findUnique({
-      where: { id: documentId },
-      select: { id: true, ownerId: true, workspaceId: true },
-    });
-    if (!doc) throw new NotFoundException("document not found");
-    await this.authz.requireDocManage(actorId, doc);
-    return doc;
+    return this.authz.requireDocManageOrThrow(actorId, documentId);
   }
 
   private toDto(link: DocumentShareLink) {

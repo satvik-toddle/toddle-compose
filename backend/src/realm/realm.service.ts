@@ -81,6 +81,13 @@ export class RealmService {
   // return the first `take` users alphabetically.
   async searchUsers(userId: string, q: string | undefined, take = 20) {
     await this.authz.requireRealmRole(userId, "MEMBER");
+    return this.searchDirectory(q, take);
+  }
+
+  // Raw user-directory query with NO authz — callers MUST gate first (realm-member for
+  // the realm picker, doc-manage for the doc picker). Same shape as the realm search:
+  // case-insensitive name/email substring, deterministic order, capped at 20 rows.
+  async searchDirectory(q: string | undefined, take = 20) {
     const query = q?.trim() ?? "";
     return this.prisma.user.findMany({
       where: query

@@ -12,7 +12,7 @@ import {
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
-import { PaginationDto } from "../realm/dto";
+import { PaginationDto, SearchRealmUsersDto } from "../realm/dto";
 import { DocumentsService } from "./documents.service";
 import { DocumentPermissionsService } from "./document-permissions.service";
 import { DocumentShareLinksService } from "./document-share-links.service";
@@ -167,6 +167,17 @@ export class DocumentsController {
   }
 
   // --- Per-page permission grants (manage from the doc's 3-dots → Permissions) ---
+
+  // Doc-scoped user search for the Share picker; requires manage rights (not realm membership),
+  // so a doc-ADMIN grantee who never joined a workspace can still find people to grant.
+  @Get(":id/grantable-users")
+  searchGrantable(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query() q: SearchRealmUsersDto
+  ) {
+    return this.permissions.searchGrantable(user.id, id, q.q, q.take);
+  }
 
   // Explicit grants on this doc; requires manage rights (owner / workspace ADMIN / doc-ADMIN grantee).
   @Get(":id/permissions")

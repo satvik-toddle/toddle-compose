@@ -1,4 +1,5 @@
 import { useMemo, useState, type ComponentType, type ReactElement } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Avatar as DsAvatar,
@@ -25,11 +26,12 @@ import {
   useDeleteShareLink,
   useRefreshDocAccess,
 } from '../../hooks/useShareLink';
-import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
+import { useGrantableUserSearch } from '../../hooks/useGrantableUserSearch';
 import { Loader } from '../../components/Loader';
 import { messageOf, isForbidden } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLE_META, WS_ROLES } from '../../lib/roles';
+import { qk } from '../../lib/queryKeys';
 import type { WorkspaceRole } from '../../types/roles';
 import type { ShareLinkScope } from '../../types/api';
 
@@ -202,13 +204,14 @@ function InviteSection({
   owner: DocOwner;
   onAccessChange: () => void;
 }) {
+  const qc = useQueryClient();
   const { data: grants = [] } = useDocPermissions(docId);
   const addPermission = useAddDocPermission();
   const updatePermission = useUpdateDocPermission();
   const removePermission = useRemoveDocPermission();
 
   const [term, setTerm] = useState('');
-  const { users, isSearching, error: searchError } = useRealmUserSearch(term);
+  const { users, isSearching, error: searchError } = useGrantableUserSearch(docId, term);
   const [selected, setSelected] = useState<MemberOption[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
   const [adding, setAdding] = useState(false);
@@ -253,6 +256,9 @@ function InviteSection({
         errors.push({ name: opt.label, message: messageOf(e) });
       }
     }
+    // Refetch the access list once for the whole batch, so it reshuffles a single time.
+    if (failed.length < selected.length)
+      qc.invalidateQueries({ queryKey: qk.docPermissions(docId) });
     setAdding(false);
     setSelected(failed);
     setAddErrors(errors);

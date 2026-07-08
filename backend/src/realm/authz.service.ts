@@ -114,6 +114,18 @@ export class AuthzService {
     return role !== null && WS_ORDER[role] >= WS_ORDER[min];
   }
 
+  // Load a doc and assert the actor can manage its sharing; 404 if missing, 403 if not a manager.
+  // Single source for the "load + manage gate" both doc-permissions and share-links need.
+  async requireDocManageOrThrow(actorId: string, documentId: string) {
+    const doc = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, title: true, ownerId: true, workspaceId: true },
+    });
+    if (!doc) throw new NotFoundException("document not found");
+    await this.requireDocManage(actorId, doc);
+    return doc;
+  }
+
   // Manage gate shared by doc permissions + share links: owner OR effective ws-ADMIN OR doc-ADMIN grantee; else 403.
   async requireDocManage(
     userId: string,
@@ -126,6 +138,20 @@ export class AuthzService {
     ]);
     if (wsRole === "ADMIN" || grant === "ADMIN") return;
     throw new ForbiddenException("requires document ADMIN to manage sharing");
+  }
+
+  // Workspace entry gate shared by the list/get/enter read paths: the effective role, or
+  // {role:null,isGuest:true} for a grant-only guest; 403 if neither member nor grantee.
+  async requireWorkspaceAccess(
+    userId: string,
+    workspaceId: string
+  ): Promise<{ role: WorkspaceRole | null; isGuest: boolean }> {
+    const role = await this.effectiveWorkspaceRole(userId, workspaceId);
+    if (role !== null) return { role, isGuest: false };
+    if (await this.hasDocGrantInWorkspace(userId, workspaceId)) {
+      return { role: null, isGuest: true };
+    }
+    throw new ForbiddenException("requires workspace role READ or higher");
   }
 
   // Whether the user holds any per-page grant on a document in this workspace (drives guest entry).

@@ -15,12 +15,12 @@ export function useDocPermissions(docId: string | undefined, enabled = true) {
   });
 }
 
+// No per-mutation invalidate: the modal adds people in a loop and invalidates the
+// list once after the whole batch settles, so the list reshuffles a single time.
 export function useAddDocPermission() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { docId: string; email: string; role: WorkspaceRole }) =>
       documentsApi.addPermission(v.docId, { email: v.email, role: v.role }),
-    onSuccess: (_p, v) => qc.invalidateQueries({ queryKey: qk.docPermissions(v.docId) }),
   });
 }
 

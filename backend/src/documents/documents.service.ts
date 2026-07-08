@@ -125,13 +125,10 @@ export class DocumentsService {
   ) {
     return trace("documents.list", async () => {
       const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-      const wsRole = await this.authz.effectiveWorkspaceRole(user.id, wsId);
+      const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
 
-      // Grant-only guest: return only their granted docs, ignoring folder/parent filters; 403 if no grant here.
+      // Grant-only guest (role null): return only their granted docs, ignoring folder/parent filters.
       if (wsRole === null) {
-        if (!(await this.authz.hasDocGrantInWorkspace(user.id, wsId))) {
-          throw new ForbiddenException("requires workspace role READ or higher");
-        }
         const granted = await this.prisma.document.findMany({
           where: { workspaceId: wsId, permissions: { some: { userId: user.id } } },
           select: this.summarySelect(),
@@ -200,13 +197,10 @@ export class DocumentsService {
     take = 100
   ) {
     const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-    const wsRole = await this.authz.effectiveWorkspaceRole(user.id, wsId);
+    const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
 
-    // Grant-only guest: scope the star join to their granted docs; 403 if no grant here.
+    // Grant-only guest (role null): scope the star join to their granted docs.
     if (wsRole === null) {
-      if (!(await this.authz.hasDocGrantInWorkspace(user.id, wsId))) {
-        throw new ForbiddenException("requires workspace role READ or higher");
-      }
       const grantedStars = await this.prisma.documentStar.findMany({
         where: {
           userId: user.id,
@@ -574,7 +568,7 @@ export class DocumentsService {
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
   async remove(userId: string, id: string) {
     return trace("documents.remove", async () => {
-      const doc = await this.requireDocWrite(userId, id, "ADMIN");
+      const doc = await this.requireDocDelete(userId, id);
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
       await this.prisma.document.delete({ where: { id } });
       for (const docId of ids) {
@@ -626,6 +620,23 @@ export class DocumentsService {
       throw new ForbiddenException(`requires workspace role ${min} or higher`);
     }
     return doc;
+  }
+
+  // Delete gate: owner OR effective workspace ADMIN only. Delete cascades the whole subtree, so
+  // it needs authority over that subtree — a per-page ADMIN grant (non-cascading by design) must
+  // NOT let a grantee wipe descendants they may not even be able to read.
+  private async requireDocDelete(userId: string, id: string) {
+    const doc = await this.loadDocRow(id);
+    if (!doc) throw new NotFoundException("document not found");
+    if (doc.owner.id === userId) return doc;
+    const [wsRole, grant] = await Promise.all([
+      this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.authz.docGrantRole(userId, id),
+    ]);
+    if (wsRole === "ADMIN") return doc;
+    // No standing access at all → 404 (hide existence); readable but not a workspace ADMIN → 403.
+    if (wsRole === null && grant === null) throw new NotFoundException("document not found");
+    throw new ForbiddenException("requires workspace ADMIN or ownership to delete");
   }
 
   // Target folder must exist in the same workspace as the document.

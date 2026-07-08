@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType, type ReactElement } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -27,8 +27,8 @@ import {
   useRefreshDocAccess,
 } from '../../hooks/useShareLink';
 import { useGrantableUserSearch } from '../../hooks/useGrantableUserSearch';
-import { Loader } from '../../components/Loader';
-import { messageOf, isForbidden } from '../../lib/errors';
+import { UserPicker, type UserOption } from '../../components/UserPicker';
+import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLE_META, WS_ROLES } from '../../lib/roles';
 import { qk } from '../../lib/queryKeys';
@@ -43,17 +43,8 @@ interface DocOwner {
   color?: string;
 }
 
-// The version-switching selector's union type drops react-select props (isMulti/value/onChange); use untyped like RoleSelect.tsx.
+// The version-switching selector's union type drops react-select props (isMulti/value/onChange); used untyped for the link-scope picker below (people picker lives in UserPicker).
 const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
-
-// One selectable realm user; `email` rides along for the grant API call.
-interface MemberOption {
-  value: string;
-  label: string;
-  subtitle: string;
-  icon: ReactElement;
-  email: string;
-}
 
 // Google-Docs-style labels for doc sharing (distinct from the workspace-role vocabulary).
 const DOC_ROLE_LABEL: Record<WorkspaceRole, string> = {
@@ -127,7 +118,7 @@ export function DocPermissionsModal({
       <ModalHead
         icon="ShareOutlined"
         title={`Share “${docTitle}”`}
-        sub="Only people you add can open it — access applies to this page only."
+        sub="Give specific people access to this page, on top of workspace members. Grants apply to this page only."
         onClose={onClose}
       />
       <div className="m-body">
@@ -212,40 +203,22 @@ function InviteSection({
 
   const [term, setTerm] = useState('');
   const { users, isSearching, error: searchError } = useGrantableUserSearch(docId, term);
-  const [selected, setSelected] = useState<MemberOption[]>([]);
+  const [selected, setSelected] = useState<UserOption[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('EDIT');
   const [adding, setAdding] = useState(false);
   const [addErrors, setAddErrors] = useState<{ name: string; message: string }[]>([]);
 
-  // Realm-wide matches except the owner (always full access) and existing grantees.
-  const options = useMemo(() => {
-    const granted = new Set(grants.map((g) => g.userId));
-    return users
-      .filter((u) => u.id !== owner.id && !granted.has(u.id))
-      .map(
-        (u): MemberOption => ({
-          value: u.id,
-          label: u.name,
-          subtitle: u.email,
-          icon: (
-            <DsAvatar
-              dsVersion="2.0"
-              name={u.name}
-              color={dsAvatarColor(u.color)}
-              size="xxx-small"
-              shape="circle"
-            />
-          ),
-          email: u.email,
-        }),
-      );
-  }, [users, grants, owner.id]);
+  // Exclude the owner (always full access) and existing grantees from the suggestions.
+  const excludeIds = useMemo(
+    () => new Set([owner.id, ...grants.map((g) => g.userId)]),
+    [owner.id, grants],
+  );
 
   const add = async () => {
     if (selected.length === 0 || adding) return;
     setAdding(true);
     setAddErrors([]);
-    const failed: MemberOption[] = [];
+    const failed: UserOption[] = [];
     const errors: { name: string; message: string }[] = [];
     // The endpoint grants one user at a time, so post the selection sequentially.
     for (const opt of selected) {
@@ -272,30 +245,32 @@ function InviteSection({
     <>
       <div className={styles.add}>
         <div className={styles.selectWrap}>
-          <Select
-            dsVersion="2.0"
+          <UserPicker
             isMulti
-            options={options}
+            users={users}
+            isSearching={isSearching}
+            searchError={searchError}
+            term={term}
+            onTermChange={setTerm}
+            excludeIds={excludeIds}
+            renderAvatar={(u) => (
+              <DsAvatar
+                dsVersion="2.0"
+                name={u.name}
+                color={dsAvatarColor(u.color)}
+                size="xxx-small"
+                shape="circle"
+              />
+            )}
             value={selected}
-            onChange={(opts: MemberOption[] | null) => {
-              setSelected(opts ?? []);
+            onChange={(opts) => {
+              setSelected(opts);
               setAddErrors([]);
             }}
-            onSearchTextChange={setTerm}
-            filterOption={null}
             placeholder="Add people by name or email"
-            noOptionsText={
-              searchError
-                ? isForbidden(searchError)
-                  ? "You can't search people in this org"
-                  : "Couldn't search people"
-                : term.trim()
-                  ? 'No matching people in this org'
-                  : 'No people to suggest'
-            }
-            loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
+            noMatchText="No matching people in this org"
             testId="doc-perm-users"
-            error={addErrors.length > 0 ? ' ' : undefined}
+            showError={addErrors.length > 0}
           />
         </div>
         <RoleSelect<WorkspaceRole>
@@ -322,22 +297,11 @@ function InviteSection({
         </div>
       ))}
 
-      <div className={styles.lbl}>People with access</div>
+      <div className={styles.lbl}>People you’ve added</div>
       <div className={styles.people}>
-        <div className={styles.prow}>
-          <DsAvatar
-            dsVersion="2.0"
-            name={owner.name}
-            color={dsAvatarColor(owner.color)}
-            size="medium"
-            shape="circle"
-          />
-          <div className={styles.who}>
-            <div className={styles.nm}>{owner.name}</div>
-            {owner.email && <div className={styles.sub}>{owner.email}</div>}
-          </div>
-          <span className={styles.ownerTag}>Owner</span>
-        </div>
+        {grants.length === 0 && (
+          <div className={styles.sub}>No one has been added yet.</div>
+        )}
         {grants.map((g) => (
           <div key={g.userId} className={styles.prow}>
             <DsAvatar

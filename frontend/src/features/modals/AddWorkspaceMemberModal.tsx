@@ -1,31 +1,18 @@
-import { useMemo, useState, type ComponentType } from 'react';
-import { SelectDropdown } from '@toddle-edu/ds-web';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Avatar';
-import { Loader } from '../../components/Loader';
 import { RoleRadios } from '../../components/RoleRadios';
+import { UserPicker, type UserOption } from '../../components/UserPicker';
 import { useAddWorkspaceMember } from '../../hooks/useWorkspaceMemberMutations';
 import { useRealmUserSearch } from '../../hooks/useRealmUserSearch';
 import { useRealm, useWorkspaceMembers } from '../../hooks/queries';
-import { messageOf, isForbidden } from '../../lib/errors';
+import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 import { WS_ROLES, WS_ROLE_META, isRealmAdmin } from '../../lib/roles';
 import type { WorkspaceRole } from '../../types/roles';
-
-// The version-switching selector's union type drops some react-select props (value/onChange/filterOption); use it untyped like components/RoleSelect.tsx does.
-const Select = SelectDropdown as unknown as ComponentType<Record<string, unknown>>;
-
-// One selectable realm user; `email` rides along for the add-member call.
-interface UserOption {
-  value: string;
-  label: string;
-  subtitle: string;
-  icon: React.ReactElement;
-  email: string;
-}
 
 export function AddWorkspaceMemberModal({
   onClose,
@@ -48,22 +35,13 @@ export function AddWorkspaceMemberModal({
   const roleChoices = isRealmAdmin(realm?.role) ? WS_ROLES : WS_ROLES.filter((r) => r !== 'ADMIN');
 
   // Realm-wide matches minus people who are already in this workspace.
-  const options = useMemo(() => {
-    const memberIds = new Set(members.map((m) => m.userId));
-    return users
-      .filter((u) => !memberIds.has(u.id))
-      .map(
-        (u): UserOption => ({
-          value: u.id,
-          label: u.name,
-          subtitle: u.email,
-          icon: <Avatar person={{ name: u.name, color: u.color }} size={20} />,
-          email: u.email,
-        }),
-      );
-  }, [users, members]);
+  const memberIds = useMemo(() => new Set(members.map((m) => m.userId)), [members]);
+  const matchCount = useMemo(
+    () => users.filter((u) => !memberIds.has(u.id)).length,
+    [users, memberIds],
+  );
 
-  const noResults = !!term.trim() && !isSearching && options.length === 0;
+  const noResults = !!term.trim() && !isSearching && matchCount === 0;
 
   // Centralised so additional states (e.g. validating, retrying) can be added here later.
   const submitButtonLabel = useMemo(() => {
@@ -94,27 +72,20 @@ export function AddWorkspaceMemberModal({
       />
       <div className="m-body">
         <Field label="Person">
-          <Select
-            dsVersion="2.0"
-            options={options}
+          <UserPicker
+            users={users}
+            isSearching={isSearching}
+            searchError={searchError}
+            term={term}
+            onTermChange={setTerm}
+            excludeIds={memberIds}
+            renderAvatar={(u) => <Avatar person={{ name: u.name, color: u.color }} size={20} />}
             value={selected}
-            onChange={(opt: UserOption | null) => setSelected(opt)}
-            onSearchTextChange={setTerm}
-            // Results are already server-filtered (name OR email); react-select's default label filter would wrongly drop email matches.
-            filterOption={null}
+            onChange={(opt) => setSelected(opt)}
+            placeholder="Search people…"
+            noMatchText="No matching people in this realm"
             isSearchable
             isClearable
-            placeholder="Search people…"
-            noOptionsText={
-              searchError
-                ? isForbidden(searchError)
-                  ? "You can't search people in this org"
-                  : "Couldn't search people"
-                : term.trim()
-                  ? 'No matching people in this realm'
-                  : 'No people to suggest'
-            }
-            loader={isSearching ? <Loader size={18} label="Searching" /> : undefined}
             size="small"
             testId="ws-member-search"
           />

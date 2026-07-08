@@ -493,7 +493,7 @@ export class DocumentsService {
 
   // Move within the workspace: parentId nests (clears folderId), folderId files, neither detaches to root.
   async move(userId: string, id: string, input: MoveDocumentInput) {
-    const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const doc = await this.requireWorkspaceDocRole(userId, id, "EDIT");
     const oldParentId = doc.parentId;
 
     if (input.parentId) {
@@ -568,7 +568,7 @@ export class DocumentsService {
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
   async remove(userId: string, id: string) {
     return trace("documents.remove", async () => {
-      const doc = await this.requireDocDelete(userId, id);
+      const doc = await this.requireWorkspaceDocRole(userId, id, "ADMIN");
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
       await this.prisma.document.delete({ where: { id } });
       for (const docId of ids) {
@@ -622,10 +622,14 @@ export class DocumentsService {
     return doc;
   }
 
-  // Delete gate: owner OR effective workspace ADMIN only. Delete cascades the whole subtree, so
-  // it needs authority over that subtree — a per-page ADMIN grant (non-cascading by design) must
-  // NOT let a grantee wipe descendants they may not even be able to read.
-  private async requireDocDelete(userId: string, id: string) {
+  // Tree/lifecycle gate for move + delete: owner OR effective workspace role >= min. These ops act
+  // on the doc's place in the workspace tree, so a per-page grant (doc-local, non-cascading) must
+  // NOT authorize restructuring or deleting within someone else's workspace.
+  private async requireWorkspaceDocRole(
+    userId: string,
+    id: string,
+    min: "EDIT" | "ADMIN"
+  ) {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
     if (doc.owner.id === userId) return doc;
@@ -633,10 +637,10 @@ export class DocumentsService {
       this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
       this.authz.docGrantRole(userId, id),
     ]);
-    if (wsRole === "ADMIN") return doc;
-    // No standing access at all → 404 (hide existence); readable but not a workspace ADMIN → 403.
+    if (this.authz.meetsWorkspaceRole(wsRole, min)) return doc;
+    // No standing access at all → 404 (hide existence); readable but under-privileged → 403.
     if (wsRole === null && grant === null) throw new NotFoundException("document not found");
-    throw new ForbiddenException("requires workspace ADMIN or ownership to delete");
+    throw new ForbiddenException(`requires workspace role ${min} or higher`);
   }
 
   // Target folder must exist in the same workspace as the document.

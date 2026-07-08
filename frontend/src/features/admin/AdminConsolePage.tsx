@@ -56,7 +56,6 @@ export function AdminConsolePage() {
           <Icon name="DashboardOutlined" size={18} muted />
           Admin console
         </div>
-        <div className={s.adCrumb}>{realm?.name ?? 'Toddle'} realm</div>
         <Button
           size="sm"
           variant="ghost"

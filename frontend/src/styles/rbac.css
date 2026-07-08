@@ -540,7 +540,7 @@
    ADMIN CONSOLE
    ============================================================ */
 /* Moved to co-located CSS Modules:
-     .ad-subbar/.ad-title/.ad-crumb → AdminConsolePage.module.scss
+     .ad-subbar/.ad-title           → AdminConsolePage.module.scss
      .ad-ws-tbl/.ad-foot            → WorkspacesTab.module.scss
      .ad-mem-tbl                    → RealmMembersTab.module.scss
      .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss

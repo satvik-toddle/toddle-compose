@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import s from './AdminConsolePage.module.scss';
 
 function Count({ n, alert }: { n?: number; alert?: boolean }) {
-  if (n == null) return null;
+  if (n == null || n === 0) return null;
   return (
     <span
       style={{

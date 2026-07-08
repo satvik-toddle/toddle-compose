@@ -21,9 +21,9 @@ const styles = {
   panelClosed: 'invisible ml-0 w-0',
   // Fixed at the open width so the content clips instead of reflowing mid-animation.
   panelContent: 'flex h-full w-80 shrink-0 flex-col',
-  header: 'flex items-center justify-between gap-2 border-b border-secondary py-2 pl-4 pr-2',
+  header: 'flex items-center justify-between gap-2 border-b border-secondary p-2',
   title: 'text-heading-6 text-primary',
-  body: 'flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto px-4 py-3',
+  body: 'flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto px-4 pt-2',
   rangeSection: 'flex flex-col gap-1',
   rangeLabel: 'text-label text-secondary',
   rangeValue: 'text-body text-primary',

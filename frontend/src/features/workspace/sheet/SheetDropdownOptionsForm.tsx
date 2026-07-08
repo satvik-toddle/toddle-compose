@@ -13,7 +13,7 @@ const styles = {
   multiRow: 'flex items-center justify-between gap-2',
   multiLabel: 'text-body text-primary',
   actions:
-    'sticky bottom-0 flex justify-end gap-2 border-t border-secondary bg-surface-primary-enabled py-2',
+    'sticky bottom-0 mt-auto flex justify-end gap-2 border-t border-secondary bg-surface-primary-enabled py-2',
 };
 
 const MULTI_TOGGLE_LABEL_ID = 'sheet-dropdown-multi-label';

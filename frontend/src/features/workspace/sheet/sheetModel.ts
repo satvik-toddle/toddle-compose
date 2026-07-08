@@ -25,7 +25,14 @@ const COLUMN_WIDTH = 160;
 export const SHEET_ROW_COUNT = 100;
 const CELL_TYPE = 'text';
 
-export const SHEET_CELL_TYPES = ['text', 'number', 'checkbox', 'toggle', 'radio', 'dropdown'] as const;
+export const SHEET_CELL_TYPES = [
+  'text',
+  'number',
+  'checkbox',
+  'toggle',
+  'radio',
+  'dropdown',
+] as const;
 export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
 
 export type SheetRows = Y.Array<Y.Map<unknown>>;
@@ -73,16 +80,48 @@ export function indexToColumnId(index: number): string {
   return label;
 }
 
-// A1-style label for the selected cells' bounding box: 'B3' or 'B3:D7'; null when
-// nothing is selected.
-export function formatSelectionRange(
-  cells: ReadonlyArray<{ row: number; col: number }>,
-): string | null {
+type SelectedCell = { row: number; col: number };
+
+const cellLabel = (cell: SelectedCell): string => `${indexToColumnId(cell.col)}${cell.row + 1}`;
+
+const runLabel = (start: SelectedCell, end: SelectedCell): string =>
+  start.row === end.row ? cellLabel(start) : `${cellLabel(start)}:${cellLabel(end)}`;
+
+// A scattered selection listed as per-column vertical runs: 'D2, F3, E5:E8, D10'.
+function formatScatteredSelection(cells: SelectedCell[]): string {
+  const sorted = [...cells].sort(
+    (first, second) => first.col - second.col || first.row - second.row,
+  );
+  const runs: string[] = [];
+  let runStart = sorted[0];
+  let previous = sorted[0];
+  for (const cell of sorted.slice(1)) {
+    const extendsRun = cell.col === previous.col && cell.row === previous.row + 1;
+    if (!extendsRun) {
+      runs.push(runLabel(runStart, previous));
+      runStart = cell;
+    }
+    previous = cell;
+  }
+  runs.push(runLabel(runStart, previous));
+  return runs.join(', ');
+}
+
+// A1-style label for the selection: 'B3' or 'B3:D7' when it forms a solid rectangle,
+// otherwise the exact scattered cells; null when nothing is selected.
+export function formatSelectionRange(cells: ReadonlyArray<SelectedCell>): string | null {
   if (cells.length === 0) return null;
-  const rows = cells.map((cell) => cell.row);
-  const cols = cells.map((cell) => cell.col);
-  const start = `${indexToColumnId(Math.min(...cols))}${Math.min(...rows) + 1}`;
-  const end = `${indexToColumnId(Math.max(...cols))}${Math.max(...rows) + 1}`;
+  const unique = [...new Map(cells.map((cell) => [`${cell.row}:${cell.col}`, cell])).values()];
+  const rows = unique.map((cell) => cell.row);
+  const cols = unique.map((cell) => cell.col);
+  const minRow = Math.min(...rows);
+  const maxRow = Math.max(...rows);
+  const minCol = Math.min(...cols);
+  const maxCol = Math.max(...cols);
+  const isSolidRectangle = unique.length === (maxRow - minRow + 1) * (maxCol - minCol + 1);
+  if (!isSolidRectangle) return formatScatteredSelection(unique);
+  const start = `${indexToColumnId(minCol)}${minRow + 1}`;
+  const end = `${indexToColumnId(maxCol)}${maxRow + 1}`;
   return start === end ? start : `${start}:${end}`;
 }
 
@@ -156,7 +195,11 @@ function toDropdownCell(stored: unknown, optionSet: SheetOptionSet | null): Data
 
 // The stored value survives type switches untouched; each type coerces it for
 // display, so switching back to text recovers the original content.
-function toGridCell(meta: SheetCellMeta | undefined, stored: unknown, yOptionSets: SheetOptionSets): DataGridCell {
+function toGridCell(
+  meta: SheetCellMeta | undefined,
+  stored: unknown,
+  yOptionSets: SheetOptionSets,
+): DataGridCell {
   const type = meta?.type ?? 'text';
   switch (type) {
     case 'number': {
@@ -249,9 +292,10 @@ export function setSheetCellType(
         yOptionSets.set(setId, { options: [], isMulti: false } satisfies SheetOptionSet);
       }
       for (const { rowId, colId } of cells) {
-        rows
-          .get(rowId)
-          ?.set(cellMetaKey(colId), { type, config: { optionSetId: setId } } satisfies SheetCellMeta);
+        rows.get(rowId)?.set(cellMetaKey(colId), {
+          type,
+          config: { optionSetId: setId },
+        } satisfies SheetCellMeta);
       }
       return;
     }
@@ -277,12 +321,10 @@ export function saveDropdownOptions(
     yOptionSets.set(setId, optionSet);
     if (optionSetId != null) return;
     for (const { rowId, colId } of cells) {
-      rows
-        .get(rowId)
-        ?.set(cellMetaKey(colId), {
-          type: 'dropdown',
-          config: { optionSetId: setId },
-        } satisfies SheetCellMeta);
+      rows.get(rowId)?.set(cellMetaKey(colId), {
+        type: 'dropdown',
+        config: { optionSetId: setId },
+      } satisfies SheetCellMeta);
     }
   });
 }

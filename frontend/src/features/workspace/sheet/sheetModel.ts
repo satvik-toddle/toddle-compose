@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import type {
   DataGridCell,
   DataGridCellEdit,
+  DataGridContextMenu,
   DataGridHeader,
   DataGridRow,
 } from '@toddle-edu/ds-data-grid';
@@ -33,14 +34,32 @@ const LETTER_A_CODE = 'A'.codePointAt(0)!;
 // base-26 (digits 1..26 = A..Z, no zero), hence the 1-based ±1.
 export function indexToColumnId(index: number): string {
   let label = '';
-  for (let position = index + 1; position > 0; position = Math.floor((position - 1) / ALPHABET_SIZE)) {
+  for (
+    let position = index + 1;
+    position > 0;
+    position = Math.floor((position - 1) / ALPHABET_SIZE)
+  ) {
     label = String.fromCodePoint(LETTER_A_CODE + ((position - 1) % ALPHABET_SIZE)) + label;
   }
   return label;
 }
 
-const readColMeta = (yColTypes: SheetColTypes, id: string): SheetColMeta | undefined =>
-  yColTypes.get(id) as SheetColMeta | undefined;
+// Inverse of indexToColumnId ('A'↔0, 'Z'↔25, 'AA'↔26).
+function columnIdToIndex(label: string): number {
+  let position = 0;
+  for (const letter of label) {
+    position = position * ALPHABET_SIZE + (letter.codePointAt(0)! - LETTER_A_CODE + 1);
+  }
+  return position - 1;
+}
+
+// Legacy docs (pre-uuid columns) store just the type string under a letter id with no
+// order; derive the order from the letter so ordering math works on those sheets too.
+function readColMeta(yColTypes: SheetColTypes, id: string): SheetColMeta | undefined {
+  const meta = yColTypes.get(id);
+  if (typeof meta === 'string') return { type: meta, order: columnIdToIndex(id) };
+  return meta as SheetColMeta | undefined;
+}
 
 // Column ids in display order. colTypes is an unordered Y.Map, so sort by each column's
 // `order`. Concurrent adds can share an order; the unique id breaks the tie so every
@@ -69,10 +88,13 @@ const findRowMap = (yRows: SheetRows, rowId: string): Y.Map<unknown> | undefined
 
 // Map the Yjs rows into ds-data-grid rows — one all-text row per Y.Map; a cell whose
 // column key is absent reads as an empty string. Cells follow `columnIds` order.
+// The same contextMenu config is shared by every cell; its onClick receives the
+// clicked cell's coordinates, so no per-cell closure is needed.
 export function readSheetRows(
   yRows: SheetRows,
   columnIds: string[],
   isEditable: boolean,
+  contextMenu?: DataGridContextMenu,
 ): DataGridRow[] {
   return yRows.toArray().map((row) => ({
     rowId: row.get(ID_KEY) as string,
@@ -81,16 +103,41 @@ export function readSheetRows(
         cellType: 'text',
         value: (row.get(id) as string | undefined) ?? '',
         isEditable,
+        contextMenu,
       }),
     ),
   }));
+}
+
+// A single cell's text; an absent key reads as empty, matching readSheetRows.
+export function readSheetCell(yRows: SheetRows, rowId: string, colId: string): string {
+  return (findRowMap(yRows, rowId)?.get(colId) as string | undefined) ?? '';
+}
+
+export function setSheetCell(
+  ydoc: Y.Doc,
+  yRows: SheetRows,
+  rowId: string,
+  colId: string,
+  value: string,
+): void {
+  const row = findRowMap(yRows, rowId);
+  if (row) ydoc.transact(() => row.set(colId, value));
+}
+
+// Clearing removes the key outright (rather than storing '') so the doc holds no
+// entry for an empty cell.
+export function clearSheetCell(ydoc: Y.Doc, yRows: SheetRows, rowId: string, colId: string): void {
+  const row = findRowMap(yRows, rowId);
+  if (row) ydoc.transact(() => row.delete(colId));
 }
 
 // Seed a brand-new sheet: A–Z text columns + SHEET_ROW_COUNT empty rows. The caller
 // guards on "synced && empty" so an existing doc's rows are never duplicated.
 export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColTypes): void {
   ydoc.transact(() => {
-    for (let i = 0; i < COLUMN_COUNT; i++) yColTypes.set(makeColumnId(), { type: CELL_TYPE, order: i });
+    for (let i = 0; i < COLUMN_COUNT; i++)
+      yColTypes.set(makeColumnId(), { type: CELL_TYPE, order: i });
     const rows = Array.from({ length: SHEET_ROW_COUNT }, () => {
       const row = new Y.Map<unknown>();
       row.set(ID_KEY, makeRowId());
@@ -121,6 +168,47 @@ export function appendSheetRow(ydoc: Y.Doc, yRows: SheetRows): string {
   return rowId;
 }
 
+const findRowIndex = (yRows: SheetRows, rowId: string): number =>
+  yRows.toArray().findIndex((row) => row.get(ID_KEY) === rowId);
+
+// Insert one empty row adjacent to the anchor row. The anchor is resolved by id
+// against live Yjs state — grid row indexes can be stale under concurrent edits.
+// Returns the new row's id, or null if the anchor row no longer exists.
+export function insertSheetRow(
+  ydoc: Y.Doc,
+  yRows: SheetRows,
+  anchorRowId: string,
+  side: 'above' | 'below',
+): string | null {
+  const anchorIndex = findRowIndex(yRows, anchorRowId);
+  if (anchorIndex === -1) return null;
+  const row = new Y.Map<unknown>();
+  const rowId = makeRowId();
+  row.set(ID_KEY, rowId);
+  const insertIndex = side === 'below' ? anchorIndex + 1 : anchorIndex;
+  ydoc.transact(() => yRows.insert(insertIndex, [row]));
+  return rowId;
+}
+
+export function clearSheetRow(ydoc: Y.Doc, yRows: SheetRows, rowId: string): void {
+  const row = findRowMap(yRows, rowId);
+  if (!row) return;
+  // Snapshot the keys first — deleting while iterating the live Y.Map is undefined.
+  const contentKeys = [...row.keys()].filter((key) => key !== ID_KEY);
+  ydoc.transact(() => {
+    for (const key of contentKeys) row.delete(key);
+  });
+}
+
+// Returns false only when the delete is refused because it would leave the sheet
+// with no rows; a row that's already gone counts as done.
+export function deleteSheetRow(ydoc: Y.Doc, yRows: SheetRows, rowId: string): boolean {
+  if (yRows.length <= 1) return false;
+  const index = findRowIndex(yRows, rowId);
+  if (index !== -1) ydoc.transact(() => yRows.delete(index, 1));
+  return true;
+}
+
 // The next column's order: one past the current highest. Two clients adding at once may
 // compute the same value — that's fine, readColumnIds tie-breaks on the unique id.
 function nextColumnOrder(yColTypes: SheetColTypes): number {
@@ -138,4 +226,58 @@ export function appendSheetColumn(ydoc: Y.Doc, yColTypes: SheetColTypes): string
   const order = nextColumnOrder(yColTypes);
   ydoc.transact(() => yColTypes.set(id, { type: CELL_TYPE, order }));
   return id;
+}
+
+// An order that sorts between two neighbours; open-ended at either edge.
+function orderBetween(leftOrder: number | undefined, rightOrder: number | undefined): number {
+  if (leftOrder == null) return (rightOrder ?? 0) - 1;
+  if (rightOrder == null) return leftOrder + 1;
+  return (leftOrder + rightOrder) / 2;
+}
+
+// Insert a text column beside the anchor column, ordered fractionally between its
+// neighbours so no other column's entry is rewritten (concurrent inserts at the same
+// spot may share an order — readColumnIds tie-breaks on the id). Returns the new
+// column's id, or null if the anchor column no longer exists.
+export function insertSheetColumn(
+  ydoc: Y.Doc,
+  yColTypes: SheetColTypes,
+  anchorColId: string,
+  side: 'left' | 'right',
+): string | null {
+  const ids = readColumnIds(yColTypes);
+  const anchorIndex = ids.indexOf(anchorColId);
+  if (anchorIndex === -1) return null;
+  const leftIndex = side === 'left' ? anchorIndex - 1 : anchorIndex;
+  const orderOf = (id: string | undefined) =>
+    id == null ? undefined : readColMeta(yColTypes, id)?.order;
+  const order = orderBetween(orderOf(ids[leftIndex]), orderOf(ids[leftIndex + 1]));
+  const id = makeColumnId();
+  ydoc.transact(() => yColTypes.set(id, { type: CELL_TYPE, order }));
+  return id;
+}
+
+// Clearing a column deletes its key from every row; the column itself stays.
+export function clearSheetColumn(ydoc: Y.Doc, yRows: SheetRows, colId: string): void {
+  ydoc.transact(() => {
+    for (const row of yRows.toArray()) row.delete(colId);
+  });
+}
+
+// Returns false only when the delete is refused because it would leave the sheet
+// with no columns; a column that's already gone counts as done. Also drops the
+// column's values from every row so no orphaned data lingers in the doc.
+export function deleteSheetColumn(
+  ydoc: Y.Doc,
+  yColTypes: SheetColTypes,
+  yRows: SheetRows,
+  colId: string,
+): boolean {
+  if (yColTypes.size <= 1) return false;
+  if (!yColTypes.has(colId)) return true;
+  ydoc.transact(() => {
+    yColTypes.delete(colId);
+    for (const row of yRows.toArray()) row.delete(colId);
+  });
+  return true;
 }

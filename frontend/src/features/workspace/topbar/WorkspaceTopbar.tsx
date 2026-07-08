@@ -6,15 +6,15 @@ import { useDocuments } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
 import type { WorkspaceCtx } from '../context';
 import { SidebarToggle } from './SidebarToggle';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { DocBreadcrumb } from './DocBreadcrumb';
 import { buildBreadcrumbTrail } from './ancestorTrail';
 import { DocActions } from './DocActions';
 
 const styles = {
-  bar: 'flex flex-none items-center justify-between h-14 pl-3 pr-4 bg-surface-primary-enabled border-b border-secondary',
+  bar: 'flex flex-none items-center justify-between h-14 pl-3 pr-4 bg-surface-primary-enabled',
   left: 'flex items-center gap-1 min-w-0',
   right: 'flex items-center gap-2',
+  divider: 'ml-1 mr-3 h-5 w-px flex-none bg-[var(--border-secondary)]',
 };
 
 export function WorkspaceTopbar({
@@ -31,18 +31,18 @@ export function WorkspaceTopbar({
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  if (!currentUser) return null;
-
   // The currently open page, if any (driven by the ?doc= query param).
   const openDocId = params.get('doc');
   const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
   const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
 
+  if (!currentUser) return null;
+
   return (
     <div className={styles.bar}>
       <div className={styles.left}>
         <SidebarToggle collapsed={sidebarCollapsed} onToggle={onToggleSidebar} />
-        <WorkspaceSwitcher ctx={ctx} />
+        {doc && <span className={styles.divider} aria-hidden />}
         {doc && <DocBreadcrumb trail={trail} workspaceId={ctx.workspaceId} />}
       </div>
       <div className={styles.right}>

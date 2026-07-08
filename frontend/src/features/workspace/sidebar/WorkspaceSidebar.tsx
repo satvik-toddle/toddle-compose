@@ -14,6 +14,7 @@ import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
 import { VersionsSection, useHistoryMode } from '../history';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from './constants';
@@ -39,6 +40,9 @@ const styles = {
   resizeKnobActive: 'opacity-100',
   // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
+  // Full-bleed row (cancels the sidebar padding) so the switcher spans edge to edge.
+  switcherRow: '-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full',
+  searchRow: 'mb-2',
   // -mx/px gives the scroll area room for the focus ring without misaligning rows.
   body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
@@ -65,7 +69,11 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
       {/* History mode swaps the whole chrome for the versions panel: no search/nav/footer. */}
       {!history.active && (
       <div className={styles.header}>
-        <div className="mb-2">
+        <div className={styles.switcherRow}>
+          <WorkspaceSwitcher ctx={ctx} />
+        </div>
+
+        <div className={styles.searchRow}>
           <SearchInput
             dsVersion="2.0"
             size="medium"

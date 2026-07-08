@@ -24,10 +24,12 @@ import {
   type SheetColTypes,
   type SheetRows,
 } from './sheetModel';
+import { createSheetCellContextMenu } from './sheetContextMenu';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
   // Grid + the right-edge "add column" bar sit side by side; "add row" spans below.
+
   gridRow: 'flex flex-1 min-h-0 gap-2',
   // min-w-0 lets the grid shrink in the flex row so the add-column bar stays on screen.
   grid: 'min-h-0 min-w-0 flex-1',
@@ -98,10 +100,13 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     rowsRef.current = yRows;
     colTypesRef.current = yColTypes;
 
+    const cellContextMenu = canEdit
+      ? createSheetCellContextMenu(ydoc, yRows, yColTypes)
+      : undefined;
     const refresh = () => {
       const ids = readColumnIds(yColTypes);
       setColumnIds(ids);
-      setRows(readSheetRows(yRows, ids, canEdit));
+      setRows(readSheetRows(yRows, ids, canEdit, cellContextMenu));
     };
     yRows.observeDeep(refresh);
     yColTypes.observe(refresh);
@@ -133,17 +138,25 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     };
   }, [docId, canEdit]);
 
-  // Scroll + select the appended row/column cell once the change lands over Yjs
-  // (re-runs on columnIds so a just-added column is in the grid's index map first).
+  // Focus the appended row/column cell once it lands over Yjs. Deferred a tick:
+  // the grid's ref API resolves colIds against internal state synced one render
+  // behind `headers`.
   useEffect(() => {
     const pending = pendingFocusRef.current;
-    const grid = gridRef.current;
-    if (!pending || !grid) return;
+    if (!pending || !gridRef.current) return;
     if (!rows.some((row) => row.rowId === pending.rowId)) return;
-    pendingFocusRef.current = null;
 
-    grid.scrollTo({ colId: pending.colId, rowId: pending.rowId });
-    grid.selection.cells({ cell: [pending.colId, pending.rowId] });
+    const timer = window.setTimeout(() => {
+      const grid = gridRef.current;
+      if (!grid || pendingFocusRef.current !== pending) return;
+      pendingFocusRef.current = null;
+      grid.scrollTo({ colId: pending.colId, rowId: pending.rowId });
+      // Twice: cells() focuses the canvas after selecting, and focusing a
+      // never-focused grid auto-selects the top-left cell over ours.
+      grid.selection.cells({ cell: [pending.colId, pending.rowId] });
+      grid.selection.cells({ cell: [pending.colId, pending.rowId] });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [rows, columnIds]);
 
   return (

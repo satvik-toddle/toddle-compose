@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Badge, SearchInput, Tooltip } from '@toddle-edu/ds-web';
+import { Alert, Badge, Button as DsButton, SearchInput, Tooltip } from '@toddle-edu/ds-web';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -35,30 +35,30 @@ const MEM_GRID = 'grid-cols-[2fr_220px_120px]';
 
 const styles = {
   wsHead: 'flex items-center gap-2.75 px-[18px] pb-4 pt-[18px]',
-  wsName: 'truncate text-body-s font-bold leading-tight',
-  wsSub: 'mt-0.5 text-label-xs text-secondary',
+  wsName: 'truncate text-body font-bold leading-tight',
+  wsSub: 'mt-0.5 text-body-s text-secondary',
   sectionLabel: 'px-5 pb-1.5 pt-1 text-label-xs uppercase text-secondary',
   dangerLabel: 'px-2.5 pb-1.5 pt-1 text-label-xs uppercase text-secondary',
   navList: 'flex flex-col gap-0.5 px-2.5',
-  navItem: 'flex h-9 items-center gap-2.5 rounded-2 px-2.5 text-body-s',
-  navItemActive: 'bg-surface-primary-enabled border border-secondary font-semibold',
-  navItemIdle: 'border border-transparent hover:bg-surface-tertiary-enabled',
-  navLabel: 'flex-1 text-left',
   dangerZone: 'mt-auto px-2.5 pb-3 pt-3',
-  dangerNav: 'flex h-9 w-full items-center gap-2.5 rounded-2 px-2.5 text-body-s text-semantic-error',
   bar: 'flex items-center gap-3 border-b border-secondary px-5.5 py-4',
   barTitle: 'text-[16px] font-bold leading-tight',
   barDesc: 'mt-1 text-body-s text-secondary',
   scroll: 'min-h-0 flex-1 overflow-auto px-5.5 py-5',
   group: 'flex flex-col gap-[18px]',
-  idCard: 'flex items-center gap-3 rounded-3 border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
+  idCard:
+    'flex items-center gap-3 rounded-3 border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
   idName: 'truncate text-body font-semibold',
   idSub: 'text-body-s text-secondary',
   statRow: 'flex gap-3',
-  statCard: 'flex-1 rounded-[11px] border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
+  statCard:
+    'flex-1 rounded-[11px] border border-secondary bg-surface-secondary-enabled px-4 py-3.5',
   statKey: 'text-label-xs font-semibold text-secondary',
   statVal: 'mt-1 font-bold tracking-tight',
   memToolbar: 'mb-3.5 flex items-center gap-2',
+  navItem: 'hover:bg-surface-secondary-hover hover:text-primary',
+  navItemActive: 'bg-surface-secondary-hover text-primary',
+  navDangerText: 'text-semantic-error'
 };
 
 export interface WorkspaceSettingsModalProps {
@@ -78,7 +78,10 @@ export function WorkspaceSettingsModal({
   const [child, setChild] = useState<Child | null>(null);
   const { data: ws } = useWorkspace(workspaceId);
   const { data: members, isLoading: membersLoading } = useWorkspaceMembers(workspaceId, isAdmin);
-  const { data: requests, isLoading: requestsLoading } = useWorkspaceJoinRequests(workspaceId, isAdmin);
+  const { data: requests, isLoading: requestsLoading } = useWorkspaceJoinRequests(
+    workspaceId,
+    isAdmin,
+  );
 
   // Prefer the live query over the prop frozen at open time, so an in-modal rename shows immediately.
   const name = ws?.name ?? workspaceName;
@@ -86,15 +89,22 @@ export function WorkspaceSettingsModal({
   const requestCount = requests?.length ?? 0;
   const closeChild = () => setChild(null);
 
-  const nav: { id: SettingsTab; icon: NavIcon; label: string; count?: number; alert?: boolean }[] = [
-    { id: 'general', icon: 'SettingsOutlined', label: 'General' },
-    ...(isAdmin
-      ? ([
-          { id: 'members', icon: 'MultipleUsersOutlined', label: 'Members', count: memberCount },
-          { id: 'requests', icon: 'BellRingOutlined', label: 'Requests', count: requestCount, alert: requestCount > 0 },
-        ] as const)
-      : []),
-  ];
+  const nav: { id: SettingsTab; icon: NavIcon; label: string; count?: number; alert?: boolean }[] =
+    [
+      { id: 'general', icon: 'SettingsOutlined', label: 'General' },
+      ...(isAdmin
+        ? ([
+            { id: 'members', icon: 'MultipleUsersOutlined', label: 'Members', count: memberCount },
+            {
+              id: 'requests',
+              icon: 'BellRingOutlined',
+              label: 'Requests',
+              count: requestCount,
+              alert: requestCount > 0,
+            },
+          ] as const)
+        : []),
+    ];
 
   const HEAD: Record<SettingsTab, { h: string; d: string }> = {
     general: { h: 'General', d: 'Name, icon and where this workspace sits in your realm.' },
@@ -137,14 +147,19 @@ export function WorkspaceSettingsModal({
       {isAdmin && (
         <div className={styles.dangerZone}>
           <div className={styles.dangerLabel}>Danger zone</div>
-          <button
-            type="button"
+          <DsButton
+            variant="neutral"
+            type="plain"
+            size="medium"
+            isFullWidth
+            isActivated={tab === 'danger'}
             onClick={() => setTab('danger')}
-            className={cn(styles.dangerNav, tab === 'danger' ? styles.navItemActive : styles.navItemIdle)}
+            icon={<Icon name="DeleteOutlined" size={16} red />}
+            rightIcon={<span aria-hidden />}
+            className={cn(tab === 'danger' ? styles.navItemActive : null)}
           >
-            <Icon name="DeleteOutlined" size={16} red />
-            <span className={styles.navLabel}>Delete workspace</span>
-          </button>
+            <span className={styles.navDangerText}>Delete workspace</span>
+          </DsButton>
         </div>
       )}
     </>
@@ -195,7 +210,11 @@ export function WorkspaceSettingsModal({
       </ModalWithSideBar>
 
       {child === 'addMember' && (
-        <AddWorkspaceMemberModal onClose={closeChild} workspaceId={workspaceId} workspaceName={name} />
+        <AddWorkspaceMemberModal
+          onClose={closeChild}
+          workspaceId={workspaceId}
+          workspaceName={name}
+        />
       )}
       {child === 'rename' && (
         <RenameWorkspaceModal
@@ -237,24 +256,32 @@ function NavItem({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <DsButton
+      className={cn(styles.navItem, active ? styles.navItemActive : null)}
+      variant="neutral"
+      type="plain"
+      size="medium"
+      isFullWidth
+      isActivated={active}
       onClick={onClick}
-      className={cn(styles.navItem, active ? styles.navItemActive : styles.navItemIdle)}
+      icon={<Icon name={icon} size={16} muted={!active} />}
+      rightIcon={
+        count != null ? (
+          <Badge
+            dsVersion="2.0"
+            type="numeric"
+            variant={alert ? 'notifications' : 'subtle'}
+            size="xxx-small"
+            value={count}
+            showZero
+          />
+        ) : (
+          <span aria-hidden />
+        )
+      }
     >
-      <Icon name={icon} size={16} muted={!active} />
-      <span className={styles.navLabel}>{label}</span>
-      {count != null && (
-        <Badge
-          dsVersion="2.0"
-          type="numeric"
-          variant={alert ? 'notifications' : 'subtle'}
-          size="xxx-small"
-          value={count}
-          showZero
-        />
-      )}
-    </button>
+      {label}
+    </DsButton>
   );
 }
 
@@ -333,7 +360,9 @@ function MembersTab({
   const adminCount = list.filter((m) => m.role === 'ADMIN').length;
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? list.filter((m) => m.user.name.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q))
+    ? list.filter(
+        (m) => m.user.name.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q),
+      )
     : list;
 
   if (isLoading) return <PageLoader />;
@@ -350,7 +379,14 @@ function MembersTab({
             onChange={setQuery}
           />
         </div>
-        <IconButton variant="primary" type="fill" icon="AddOutlined" iconSize={16} title="Add member" onClick={onAdd} />
+        <IconButton
+          variant="primary"
+          type="fill"
+          icon="AddOutlined"
+          iconSize={16}
+          title="Add member"
+          onClick={onAdd}
+        />
       </div>
       <div className={t.table}>
         <div className={cn(t.thead, MEM_GRID)}>
@@ -364,7 +400,12 @@ function MembersTab({
           return (
             <div key={m.userId} className={cn(t.trow, MEM_GRID)}>
               <div className={t.td}>
-                <PersonCell name={m.user.name} email={m.user.email} color={m.user.color} youTag={isYou} />
+                <PersonCell
+                  name={m.user.name}
+                  email={m.user.email}
+                  color={m.user.color}
+                  youTag={isYou}
+                />
               </div>
               <div className={t.td}>
                 <RoleSelect<WorkspaceRole>
@@ -377,7 +418,12 @@ function MembersTab({
               </div>
               <div className={cn(t.td, t.cellRight)}>
                 {soleAdmin ? (
-                  <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Can't remove the last admin">
+                  <Tooltip
+                    dsVersion="2.0"
+                    placement="top"
+                    showArrow
+                    tooltip="Can't remove the last admin"
+                  >
                     <span className="inline-flex opacity-40">
                       <IconButton icon="DeleteOutlined" red disabled />
                     </span>
@@ -388,7 +434,12 @@ function MembersTab({
                     red
                     title="Remove from workspace"
                     onClick={() =>
-                      onRemove({ userId: m.userId, name: m.user.name, email: m.user.email, role: m.role })
+                      onRemove({
+                        userId: m.userId,
+                        name: m.user.name,
+                        email: m.user.email,
+                        role: m.role,
+                      })
                     }
                   />
                 )}
@@ -427,7 +478,9 @@ function DangerPanel({
           variant="danger"
           size="sm"
           icon="DeleteOutlined"
-          onClick={() => openModal({ type: 'confirmDeleteWorkspace', workspaceId, name: workspaceName })}
+          onClick={() =>
+            openModal({ type: 'confirmDeleteWorkspace', workspaceId, name: workspaceName })
+          }
         >
           Delete
         </Button>

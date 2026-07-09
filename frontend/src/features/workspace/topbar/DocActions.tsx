@@ -77,20 +77,6 @@ export function DocActions({
   // Same option shape + click dispatch as the sidebar's page menu: each leaf carries its
   // own onSelect, and the create action reuses the shared Doc/Sheet submenu builder.
   const menuOptions: PageMenuOption[] = [
-    // Version history leads the menu; available to every reader (not gated by edit rights).
-    ...(showHistory
-      ? [
-          {
-            key: HISTORY_KEY,
-            label: history.active ? 'Exit version history' : 'Version history',
-            icon: <ClockRecentsOutlined size="xxx-small" variant="subtle" />,
-            onSelect: () => (history.active ? history.exit() : history.enter()),
-          },
-        ]
-      : []),
-    ...(showHistory && (canCreate || canManage)
-      ? [{ key: `${HISTORY_KEY}__divider`, isDivider: true }]
-      : []),
     ...(canCreate
       ? [
           {
@@ -112,8 +98,21 @@ export function DocActions({
           },
         ]
       : []),
-    // Divider before Delete whenever a manage group (Permissions) sits above it.
-    ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
+    // Version history sits right below Share; available to every reader (not gated by edit rights).
+    ...(showHistory
+      ? [
+          {
+            key: HISTORY_KEY,
+            label: history.active ? 'Exit version history' : 'Version history',
+            icon: <ClockRecentsOutlined size="xxx-small" variant="subtle" />,
+            onSelect: () => (history.active ? history.exit() : history.enter()),
+          },
+        ]
+      : []),
+    // Divider before Delete whenever anything sits above it.
+    ...(canManage && (canCreate || canManage || showHistory)
+      ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }]
+      : []),
     ...(canManage
       ? [
           {

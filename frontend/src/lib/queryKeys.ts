@@ -6,6 +6,7 @@ export const qk = {
   authConfig: ['authConfig'] as const,
   realm: ['realm'] as const,
   realmMembers: ['realm', 'users'] as const,
+  realmUserSearch: (q: string) => ['realm', 'users', 'search', q] as const,
   workspaces: ['workspaces'] as const,
   discoverable: ['workspaces', 'discoverable'] as const,
   myRequests: ['joinRequests', 'mine'] as const,
@@ -18,6 +19,13 @@ export const qk = {
   documents: (workspaceId: string, folderId?: string | null) =>
     ['documents', workspaceId, folderId ?? null] as const,
   starredDocuments: (workspaceId: string) => ['documents', workspaceId, 'starred'] as const, // Shares the ['documents', workspaceId] prefix so a docs invalidation also refreshes it.
+  allSharedDocuments: () => ['documents', 'shared-with-me'] as const, // Global (cross-workspace) shared list.
+  docPermissions: (docId: string) => ['documents', docId, 'permissions'] as const,
+  grantableUserSearch: (docId: string, q: string) =>
+    ['documents', docId, 'grantable-users', q] as const,
+  docShareLink: (docId: string) => ['documents', docId, 'shareLink'] as const,
+  shareLink: (token: string) => ['shareLink', token] as const, // public /link/:token resolve
+  shareLinkRtc: (token: string) => ['shareLink', token, 'rtc'] as const,
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
   docHistory: (docId: string) => ['docHistory', docId] as const,
   docSnapshot: (docId: string, seq: number, diffAgainst?: number) =>

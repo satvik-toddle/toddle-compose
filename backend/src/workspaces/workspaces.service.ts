@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, Visibility, WorkspaceRole } from "@app/database";
+import { Prisma, RealmRole, Visibility, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "../realm/active-realm.service";
 import { AuthzService } from "../realm/authz.service";
@@ -28,6 +28,8 @@ export class WorkspacesService {
   ) {}
 
   // Realm admins see all workspaces in the realm; everyone else sees only their memberships.
+  // Per-page doc grants do NOT surface the workspace here — grantees reach shared docs via
+  // "Shared with me", and get() still allows guest entry to the workspace shell.
   async list(userId: string, skip = 0, take = 50) {
     const realmRole = await this.authz.realmRole(userId);
 
@@ -38,7 +40,11 @@ export class WorkspacesService {
         skip,
         take,
       });
-      return workspaces.map((w) => ({ ...w, role: "ADMIN" as WorkspaceRole }));
+      return workspaces.map((w) => ({
+        ...w,
+        role: "ADMIN" as WorkspaceRole,
+        guest: false,
+      }));
     }
 
     const memberships = await this.prisma.workspaceMember.findMany({
@@ -48,7 +54,7 @@ export class WorkspacesService {
       skip,
       take,
     });
-    return memberships.map((m) => ({ ...m.workspace, role: m.role }));
+    return memberships.map((m) => ({ ...m.workspace, role: m.role, guest: false }));
   }
 
   /** Create a workspace; requires realm MAINTAINER+. Creator becomes workspace ADMIN. */
@@ -67,13 +73,11 @@ export class WorkspacesService {
 
   async get(userId: string, workspaceId: string) {
     return trace("workspaces.get", async () => {
-      const role = await this.authz.requireWorkspaceRole(
-        userId,
-        workspaceId,
-        "READ"
-      );
+      const { role, isGuest } = await this.authz.requireWorkspaceAccess(userId, workspaceId);
       const ws = await this.authz.getWorkspaceInRealm(workspaceId);
-      return { ...ws, role };
+      // Grant-only guest: a per-page grant earns read-only entry to the workspace shell.
+      if (isGuest) return { ...ws, role: "READ" as WorkspaceRole, guest: true };
+      return { ...ws, role: role as WorkspaceRole, guest: false };
     });
   }
 
@@ -98,13 +102,20 @@ export class WorkspacesService {
 
   async listUsers(userId: string, workspaceId: string, skip = 0, take = 50) {
     await this.authz.requireWorkspaceRole(userId, workspaceId, "READ");
-    return this.prisma.workspaceMember.findMany({
+    const members = await this.prisma.workspaceMember.findMany({
       where: { workspaceId },
       include: { user: { select: USER_SELECT } },
       orderBy: { createdAt: "asc" },
       skip,
       take,
     });
+    // Attach each member's realm role so the UI can gate admin-only controls.
+    const realmRoles = await this.prisma.realmMember.findMany({
+      where: { realmId: this.realm.id, userId: { in: members.map((m) => m.userId) } },
+      select: { userId: true, role: true },
+    });
+    const roleByUser = new Map(realmRoles.map((r) => [r.userId, r.role]));
+    return members.map((m) => ({ ...m, realmRole: roleByUser.get(m.userId) ?? null }));
   }
 
   // Adds an existing user (workspace ADMIN); also ensures realm membership (tenant boundary).
@@ -125,6 +136,19 @@ export class WorkspacesService {
       where: { workspaceId_userId: { workspaceId, userId: user.id } },
     });
     if (existing) throw new ConflictException("user is already a workspace member");
+
+    const [actorRealmRole, targetRealmRole] = await Promise.all([
+      this.authz.realmRole(actorId),
+      this.authz.realmRole(user.id),
+    ]);
+    this.assertCanManageMember({
+      actorId,
+      targetUserId: user.id,
+      actorRealmRole,
+      targetRealmRole,
+      currentWsRole: null,
+      nextWsRole: role,
+    });
 
     return this.prisma.$transaction(async (tx) => {
       await this.ensureRealmMember(tx, user.id);
@@ -288,10 +312,25 @@ export class WorkspacesService {
   ) {
     await this.authz.requireWorkspaceRole(actorId, workspaceId, "ADMIN");
 
+    // Resolve realm roles up front (independent reads) so the gate is consistent with the tx body.
+    const [actorRealmRole, targetRealmRole] = await Promise.all([
+      this.authz.realmRole(actorId),
+      this.authz.realmRole(targetUserId),
+    ]);
+
     // SERIALIZABLE so concurrent demotions can't both pass the last-admin check.
     return this.prisma.$transaction(
       async (tx) => {
         const member = await this.getMemberOrThrow(workspaceId, targetUserId, tx);
+
+        this.assertCanManageMember({
+          actorId,
+          targetUserId,
+          actorRealmRole,
+          targetRealmRole,
+          currentWsRole: member.role,
+          nextWsRole: role,
+        });
 
         if (member.role === "ADMIN" && role !== "ADMIN") {
           await this.assertNotLastAdmin(workspaceId, tx);
@@ -310,10 +349,24 @@ export class WorkspacesService {
   async removeUser(actorId: string, workspaceId: string, targetUserId: string) {
     await this.authz.requireWorkspaceRole(actorId, workspaceId, "ADMIN");
 
+    const [actorRealmRole, targetRealmRole] = await Promise.all([
+      this.authz.realmRole(actorId),
+      this.authz.realmRole(targetUserId),
+    ]);
+
     // Same race guard as updateUser: count + delete must be atomic.
     await this.prisma.$transaction(
       async (tx) => {
         const member = await this.getMemberOrThrow(workspaceId, targetUserId, tx);
+
+        this.assertCanManageMember({
+          actorId,
+          targetUserId,
+          actorRealmRole,
+          targetRealmRole,
+          currentWsRole: member.role,
+          nextWsRole: null,
+        });
 
         if (member.role === "ADMIN") await this.assertNotLastAdmin(workspaceId, tx);
 
@@ -356,6 +409,39 @@ export class WorkspacesService {
       update: {},
       create: { realmId: this.realm.id, userId, role: "MEMBER" },
     });
+  }
+
+  // Membership-management gate shared by addUser/updateUser/removeUser (rules 1-3).
+  // Realm OWNER is untouchable; MAINTAINER only by the OWNER; workspace-ADMIN
+  // grant/demote/remove is realm-admin-controlled (self-changes are exempt).
+  private assertCanManageMember(params: {
+    actorId: string;
+    targetUserId: string;
+    actorRealmRole: RealmRole | null;
+    targetRealmRole: RealmRole | null;
+    currentWsRole: WorkspaceRole | null;
+    nextWsRole: WorkspaceRole | null;
+  }) {
+    const { actorId, targetUserId, actorRealmRole, targetRealmRole, currentWsRole, nextWsRole } =
+      params;
+    const isRealmAdmin = (r: RealmRole | null) => r === "OWNER" || r === "MAINTAINER";
+
+    // Rule 1: the realm owner's membership is off-limits to everyone.
+    if (targetRealmRole === "OWNER") {
+      throw new ForbiddenException("cannot modify the realm owner's membership");
+    }
+    // Rule 2: a realm maintainer may only be managed by the realm owner.
+    if (targetRealmRole === "MAINTAINER" && actorRealmRole !== "OWNER") {
+      throw new ForbiddenException("only the realm owner may modify a realm maintainer's membership");
+    }
+    // Rule 3: granting/demoting/removing workspace ADMIN is realm-admin-controlled; self-changes are exempt.
+    const isSelf = actorId === targetUserId;
+    if (!isSelf && !isRealmAdmin(actorRealmRole)) {
+      const touchesAdmin = nextWsRole === "ADMIN" || currentWsRole === "ADMIN";
+      if (touchesAdmin) {
+        throw new ForbiddenException("only a realm admin may manage workspace admins");
+      }
+    }
   }
 
   private async assertNotLastAdmin(

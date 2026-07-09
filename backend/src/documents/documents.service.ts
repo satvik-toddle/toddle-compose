@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Visibility, DocumentType, Prisma } from "@app/database";
+import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
@@ -24,7 +24,6 @@ const SUMMARY_SELECT = {
   title: true,
   icon: true,
   type: true,
-  visibility: true,
   workspaceId: true,
   folderId: true,
   parentId: true,
@@ -127,7 +126,23 @@ export class DocumentsService {
   ) {
     return trace("documents.list", async () => {
       const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-      await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
+      const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
+
+      // Grant-only guest (role null): return only their granted docs, ignoring folder/parent filters.
+      if (wsRole === null) {
+        const granted = await this.prisma.document.findMany({
+          where: { workspaceId: wsId, permissions: { some: { userId: user.id } } },
+          select: this.summarySelect(),
+          orderBy: { updatedAt: "desc" },
+          skip,
+          take,
+        });
+        return this.attachMyRole(
+          user.id,
+          await this.attachStarred(user.id, granted),
+          new Map([[wsId, wsRole]])
+        );
+      }
 
       // A folder filter must reference a folder of THIS workspace (404 otherwise).
       if (input.folderId !== undefined) {
@@ -150,13 +165,20 @@ export class DocumentsService {
         skip,
         take,
       });
-      return this.attachStarred(user.id, docs);
+      return this.attachMyRole(
+        user.id,
+        await this.attachStarred(user.id, docs),
+        new Map([[wsId, wsRole]])
+      );
     });
   }
 
   // Direct subdocs of a document; workspace READ on the parent gates the whole list.
   async listSubdocs(userId: string, parentId: string, skip = 0, take = 100) {
-    const parent = await this.requireDocRead(userId, parentId);
+    const { doc: parent, wsRole, grant } = await this.requireDocRead(userId, parentId);
+    const isNonMember = parent.owner.id !== userId && wsRole === null;
+    // No cascade: a grant-only caller (not owner, no workspace role) sees an empty child list.
+    if (isNonMember && grant !== null) return [];
     const docs = await this.prisma.document.findMany({
       where: { parentId: parent.id },
       select: this.summarySelect(),
@@ -176,7 +198,24 @@ export class DocumentsService {
     take = 100
   ) {
     const wsId = this.resolveWorkspaceId(user, input.workspaceId);
-    await this.authz.requireWorkspaceRole(user.id, wsId, "READ");
+    const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
+
+    // Grant-only guest (role null): scope the star join to their granted docs.
+    if (wsRole === null) {
+      const grantedStars = await this.prisma.documentStar.findMany({
+        where: {
+          userId: user.id,
+          document: { workspaceId: wsId, permissions: { some: { userId: user.id } } },
+        },
+        select: { document: { select: this.summarySelect() } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      });
+      const grantedDocs = grantedStars.map((s) => ({ ...s.document, isStarred: true as const }));
+      return this.attachMyRole(user.id, grantedDocs, new Map([[wsId, wsRole]]));
+    }
+
     const stars = await this.prisma.documentStar.findMany({
       where: { userId: user.id, document: { workspaceId: wsId } },
       select: { document: { select: this.summarySelect() } },
@@ -184,16 +223,56 @@ export class DocumentsService {
       skip,
       take,
     });
-    return stars.map((s) => ({ ...s.document, isStarred: true as const }));
+    const docs = stars.map((s) => ({ ...s.document, isStarred: true as const }));
+    return this.attachMyRole(user.id, docs, new Map([[wsId, wsRole]]));
+  }
+
+  // Every doc shared with the caller across ALL workspaces (grants only, excludes owned),
+  // newest grant first — powers the launcher's global "Shared with me" view. Each row
+  // carries its workspace {id, name}, the grant date, and the caller's effective role.
+  async listAllSharedWithMe(user: AuthUser, skip = 0, take = 200) {
+    const grants = await this.prisma.documentPermission.findMany({
+      where: { userId: user.id, document: { NOT: { ownerId: user.id } } },
+      select: {
+        role: true,
+        createdAt: true,
+        document: {
+          select: {
+            ...this.summarySelect(),
+            workspace: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+    });
+    // Effective role = max(workspace role, grant); resolve each distinct workspace once, in parallel.
+    const wsRoleByWs = new Map<string, WorkspaceRole | null>();
+    await Promise.all(
+      [...new Set(grants.map((g) => g.document.workspaceId))].map(async (wsId) =>
+        wsRoleByWs.set(wsId, await this.authz.effectiveWorkspaceRole(user.id, wsId))
+      )
+    );
+    // One batched star lookup for all returned ids so each row carries the caller's isStarred.
+    const starred = await this.starredIdSet(
+      user.id,
+      grants.map((g) => g.document.id)
+    );
+    return grants.map((g) => ({
+      ...g.document,
+      isStarred: starred.has(g.document.id),
+      sharedAt: g.createdAt,
+      myRole: this.authz.maxWorkspaceRole(wsRoleByWs.get(g.document.workspaceId) ?? null, g.role)!,
+    }));
   }
 
   // Sidebar hierarchy: root ancestor expanded down the spine, each on-path node listing its children.
-  // Gated to workspace members/owner: unlike GET /:id, a PUBLIC-only realm viewer gets 404.
+  // Gated to workspace members/owner: unlike GET /:id, a grant-only viewer gets 404.
   async hierarchy(userId: string, id: string): Promise<HierarchyNode> {
-    const doc = await this.requireDocRead(userId, id);
-    if (doc.owner.id !== userId) {
-      const role = await this.authz.effectiveWorkspaceRole(userId, doc.workspaceId);
-      if (role === null) throw new NotFoundException("document not found");
+    const { doc, wsRole } = await this.requireDocRead(userId, id);
+    if (doc.owner.id !== userId && wsRole === null) {
+      throw new NotFoundException("document not found");
     }
 
     const pathIds = await this.ancestorIds(id); // root → current
@@ -245,7 +324,6 @@ export class DocumentsService {
           ownerId: user.id,
           parentId: input.parentId ?? null,
           folderId: input.parentId ? null : (input.folderId ?? null),
-          visibility: Visibility.PRIVATE,
         },
         select: this.summarySelect(),
       });
@@ -260,50 +338,62 @@ export class DocumentsService {
     });
   }
 
-  // RTC role for the token: editor for owner/EDIT+, viewer for READ/COMMENT or PUBLIC; 404/403 when no access.
+  // RTC role for the token: editor for owner/EDIT+, viewer for READ/COMMENT; 404/403 when no access.
   async resolveRtcRole(userId: string, docId: string): Promise<RtcRole> {
     const doc = await this.loadDocRow(docId);
     if (!doc) throw new NotFoundException("document not found");
 
     if (doc.owner.id === userId) return "editor";
 
-    const role = await this.authz.effectiveWorkspaceRole(userId, doc.workspaceId);
-    if (role === "ADMIN" || role === "EDIT") return "editor";
-    if (role === "READ" || role === "COMMENT") return "viewer";
+    // Effective doc role = MAX(workspace role, per-page grant) — grants only ever elevate,
+    // so a READ/COMMENT grant on top of a member's EDIT still mints an editor token.
+    const [wsRole, grant] = await Promise.all([
+      this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.authz.docGrantRole(userId, docId),
+    ]);
+    const effective = this.authz.maxWorkspaceRole(wsRole, grant);
+    if (effective === "ADMIN" || effective === "EDIT") return "editor";
+    if (effective === "READ" || effective === "COMMENT") return "viewer";
 
-    if (
-      doc.visibility === Visibility.PUBLIC &&
-      (await this.authz.realmRole(userId)) !== null
-    ) {
-      return "viewer";
-    }
     throw new ForbiddenException("no access to this document");
   }
 
   // Read a document plus its ancestor breadcrumbs; the collaborative body lives in the rtc-database, not here.
   async get(userId: string, id: string) {
-    const doc = await this.requireDocRead(userId, id);
-    const breadcrumbs = await this.buildBreadcrumbs(doc.id);
+    const { doc, wsRole, grant } = await this.requireDocRead(userId, id);
+    // Grant-only caller: collapse breadcrumbs to this doc so ancestor titles don't leak.
+    const isGrantOnly =
+      doc.owner.id !== userId && wsRole === null && grant !== null;
+    const breadcrumbs = isGrantOnly
+      ? [{ id: doc.id, title: doc.title, icon: doc.icon }]
+      : await this.buildBreadcrumbs(doc.id);
     const isStarred = await this.isStarred(userId, doc.id);
-    return { ...doc, isStarred, breadcrumbs };
+    const myRole: WorkspaceRole | null =
+      doc.owner.id === userId ? "ADMIN" : this.authz.maxWorkspaceRole(wsRole, grant);
+    return { ...doc, isStarred, breadcrumbs, myRole };
   }
 
   // Read gate shared by `get`/`listSubdocs`; 404 (not 403) so a hidden doc's existence isn't revealed.
-  private async requireDocRead(userId: string, id: string) {
+  // Returns the roles it resolved so callers never re-query them (owner short-circuits with nulls).
+  private async requireDocRead(
+    userId: string,
+    id: string
+  ): Promise<{
+    doc: NonNullable<Awaited<ReturnType<DocumentsService["loadDocRow"]>>>;
+    wsRole: WorkspaceRole | null;
+    grant: WorkspaceRole | null;
+  }> {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
 
-    if (doc.owner.id === userId) return doc;
+    if (doc.owner.id === userId) return { doc, wsRole: null, grant: null };
 
-    const role = await this.authz.effectiveWorkspaceRole(userId, doc.workspaceId);
-    if (role !== null) return doc;
-
-    if (
-      doc.visibility === Visibility.PUBLIC &&
-      (await this.authz.realmRole(userId)) !== null
-    ) {
-      return doc;
-    }
+    // Grant is fetched alongside the workspace role: it can elevate a member's effective role too.
+    const [wsRole, grant] = await Promise.all([
+      this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.authz.docGrantRole(userId, id),
+    ]);
+    if (wsRole !== null || grant !== null) return { doc, wsRole, grant };
 
     throw new NotFoundException("document not found");
   }
@@ -425,7 +515,7 @@ export class DocumentsService {
 
   // Move within the workspace: parentId nests (clears folderId), folderId files, neither detaches to root.
   async move(userId: string, id: string, input: MoveDocumentInput) {
-    const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const doc = await this.requireWorkspaceDocRole(userId, id, "EDIT");
     const oldParentId = doc.parentId;
 
     if (input.parentId) {
@@ -475,25 +565,11 @@ export class DocumentsService {
     return row;
   }
 
-  // Public/private toggle — creator or workspace ADMIN only.
-  async setVisibility(userId: string, id: string, visibility: Visibility) {
-    await this.requireDocWrite(userId, id, "ADMIN");
-    const row = await this.writeThrough(
-      this.prisma.document.update({
-        where: { id },
-        data: { visibility },
-        select: this.summarySelect(),
-      })
-    );
-    this.events.documentUpdated(row.workspaceId, row);
-    return row;
-  }
-
   // Star this document for the current user — anyone with read access can star.
   // Idempotent: upsert means re-starting an already-starred doc is a no-op, not an error.
   // Stars live outside the doc cache, so no cache work is needed here.
   async star(userId: string, id: string) {
-    const doc = await this.requireDocRead(userId, id);
+    const { doc } = await this.requireDocRead(userId, id);
     await this.prisma.documentStar.upsert({
       where: { userId_documentId: { userId, documentId: id } },
       create: { userId, documentId: id },
@@ -514,7 +590,7 @@ export class DocumentsService {
   // Delete — creator or workspace ADMIN only. Cascade-deletes the subdoc subtree; ids collected first to drop RTC rows.
   async remove(userId: string, id: string) {
     return trace("documents.remove", async () => {
-      const doc = await this.requireDocWrite(userId, id, "ADMIN");
+      const doc = await this.requireWorkspaceDocRole(userId, id, "ADMIN");
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
       await this.prisma.document.delete({ where: { id } });
       for (const docId of ids) {
@@ -543,7 +619,7 @@ export class DocumentsService {
     return wsId;
   }
 
-  // Write gate: the owner needs only workspace READ; everyone else needs at least `min` (EDIT or ADMIN).
+  // Write gate: effective doc role = MAX(workspace role, per-page grant); the owner writes on any footing, everyone else needs `min`.
   private async requireDocWrite(
     userId: string,
     id: string,
@@ -551,12 +627,42 @@ export class DocumentsService {
   ) {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
+    const [wsRole, grant] = await Promise.all([
+      this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.authz.docGrantRole(userId, id),
+    ]);
     if (doc.owner.id === userId) {
-      await this.authz.requireWorkspaceRole(userId, doc.workspaceId, "READ");
-    } else {
-      await this.authz.requireWorkspaceRole(userId, doc.workspaceId, min);
+      if (wsRole === null && grant === null) {
+        throw new ForbiddenException("requires workspace role READ or higher");
+      }
+      return doc;
+    }
+    const effective = this.authz.maxWorkspaceRole(wsRole, grant);
+    if (!this.authz.meetsWorkspaceRole(effective, min)) {
+      throw new ForbiddenException(`requires workspace role ${min} or higher`);
     }
     return doc;
+  }
+
+  // Tree/lifecycle gate for move + delete: owner OR effective workspace role >= min. These ops act
+  // on the doc's place in the workspace tree, so a per-page grant (doc-local, non-cascading) must
+  // NOT authorize restructuring or deleting within someone else's workspace.
+  private async requireWorkspaceDocRole(
+    userId: string,
+    id: string,
+    min: "EDIT" | "ADMIN"
+  ) {
+    const doc = await this.loadDocRow(id);
+    if (!doc) throw new NotFoundException("document not found");
+    if (doc.owner.id === userId) return doc;
+    const [wsRole, grant] = await Promise.all([
+      this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.authz.docGrantRole(userId, id),
+    ]);
+    if (this.authz.meetsWorkspaceRole(wsRole, min)) return doc;
+    // No standing access at all → 404 (hide existence); readable but under-privileged → 403.
+    if (wsRole === null && grant === null) throw new NotFoundException("document not found");
+    throw new ForbiddenException(`requires workspace role ${min} or higher`);
   }
 
   // Target folder must exist in the same workspace as the document.
@@ -713,6 +819,42 @@ export class DocumentsService {
       docs.map((d) => d.id)
     );
     return docs.map((d) => ({ ...d, isStarred: starred.has(d.id) }));
+  }
+
+  // Per-request overlay (never cached — per-user): myRole = owner ? ADMIN : MAX(workspace role, per-page grant).
+  private async attachMyRole<
+    T extends { id: string; workspaceId: string; owner: { id: string } },
+  >(
+    userId: string,
+    docs: T[],
+    knownWsRoles?: ReadonlyMap<string, WorkspaceRole | null>
+  ): Promise<Array<T & { myRole: WorkspaceRole | null }>> {
+    if (docs.length === 0) return [];
+    const grants = await this.prisma.documentPermission.findMany({
+      where: { userId, documentId: { in: docs.map((d) => d.id) } },
+      select: { documentId: true, role: true },
+    });
+    const grantByDoc = new Map(grants.map((g) => [g.documentId, g.role]));
+    // One workspace-role lookup per distinct workspace, in parallel; callers pass roles they already hold.
+    const wsRoleByWs = new Map<string, WorkspaceRole | null>(knownWsRoles ?? []);
+    const missing = [...new Set(docs.map((d) => d.workspaceId))].filter(
+      (wsId) => !wsRoleByWs.has(wsId)
+    );
+    await Promise.all(
+      missing.map(async (wsId) =>
+        wsRoleByWs.set(wsId, await this.authz.effectiveWorkspaceRole(userId, wsId))
+      )
+    );
+    return docs.map((d) => ({
+      ...d,
+      myRole:
+        d.owner.id === userId
+          ? "ADMIN"
+          : this.authz.maxWorkspaceRole(
+              wsRoleByWs.get(d.workspaceId) ?? null,
+              grantByDoc.get(d.id) ?? null
+            ),
+    }));
   }
 
   // Collect every node id in a hierarchy subtree (for a single batched star lookup).

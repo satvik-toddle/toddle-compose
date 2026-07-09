@@ -3,6 +3,7 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 // The editor's styles (self-contained — bundles its own antd layer).
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
+import { useShareLinkRtcToken } from '../../hooks/useShareLink';
 import { uploadFile } from '../../api/uploads';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
@@ -38,6 +39,11 @@ function uploadName(file: File | Blob, attachment?: UploadAttachment): string | 
 }
 
 async function uploadToServer(arg: UploadArg): Promise<string> {
+  // Anonymous link visitors have no access token and /uploads is auth-guarded; fail fast with a clear message (passing undefined instead would hit the editor's silent no-op default and insert a broken empty-src image).
+  if (!useAuthStore.getState().accessToken) {
+    pushToast({ kind: 'error', message: 'Sign in to upload images and files' });
+    throw new Error('uploads require sign-in');
+  }
   const file = arg instanceof Blob ? arg : arg?.file;
   if (!file) throw new Error('uploadToServer: no file provided');
   const attachment = arg instanceof Blob ? undefined : arg?.attachment;
@@ -55,17 +61,42 @@ async function uploadToServer(arg: UploadArg): Promise<string> {
 // `collab` config whose providerFactory opens a Yjs Websocket to the rtc-server
 // (room = docId). The body lives in Yjs (rtc-database) — multi-user, live, server
 // persistence. Keyed by docId at the call site → remounts per document.
-export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
+// `shareToken` (public /link/:token view) mints the RTC token via the link instead of the
+// authenticated doc endpoint; everything downstream (viewOnly, provider) is identical.
+export function DocEditor({
+  docId,
+  shareToken,
+  awarenessName,
+  awarenessColor,
+}: {
+  docId: string;
+  canEdit?: boolean;
+  shareToken?: string;
+  // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
+  awarenessName?: string;
+  awarenessColor?: string;
+}) {
   // Select primitive slices, not the user object: a token refresh replaces `user` by identity but leaves these values equal, so `collab` below stays stable instead of tearing down the live provider.
   const name = useAuthStore((s) => s.user?.name);
   const color = useAuthStore((s) => s.user?.color);
-  const { data: rtc, isLoading, isError } = useRtcToken(docId);
+  // Exactly one source is enabled (the other is disabled via a falsy arg), so hooks stay unconditional.
+  const docRtc = useRtcToken(shareToken ? undefined : docId);
+  const linkRtc = useShareLinkRtcToken(shareToken);
+  const { data: rtc, isLoading, isError, refetch } = shareToken ? linkRtc : docRtc;
+
+  // Kept in a ref so providerFactory (built once, memoized) always calls the latest active query's refetch.
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
 
   // One stable params object the provider keeps a reference to. y-websocket rebuilds the connection URL from `this.params` on every (re)connect, so mutating .token here keeps a long-lived session authing with a fresh token after a refetch (refetchOnWindowFocus past staleTime) — without recreating the provider and tearing down the live Y.Doc mid-session.
   const paramsRef = useRef<{ token?: string }>({});
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
+  // Consecutive failed connects (no intervening successful connect). The rtc-server rejects invalidated tokens at the HTTP upgrade too (401 → browser close code 1006, not 4001), so a client that missed the live kick would loop on its cached token until the 4-min refetch; re-mint after 2 failures instead.
+  const failedConnectsRef = useRef(0);
+  // Dedupes the connection-error + connection-close pair that a single failed attempt emits, so one attempt counts once.
+  const attemptCountedRef = useRef(false);
 
   const collab = useMemo(() => {
     return {
@@ -84,16 +115,43 @@ export function DocEditor({ docId }: { docId: string; canEdit?: boolean }) {
         }
         freshDocBoundRef.current = true;
         // The CollaborationPlugin connects/disconnects the provider.
-        return new WebsocketProvider(RTC_WS_URL, id, doc, {
+        const provider = new WebsocketProvider(RTC_WS_URL, id, doc, {
           params: paramsRef.current,
           connect: false,
         });
+        // A successful (re)connect clears the failure streak.
+        provider.on('status', (e?: { status?: string }) => {
+          if (e?.status === 'connecting') attemptCountedRef.current = false;
+          else if (e?.status === 'connected') failedConnectsRef.current = 0;
+        });
+        provider.on('sync', (isSynced: boolean) => {
+          if (isSynced) failedConnectsRef.current = 0;
+        });
+        // 4001 = server force-refreshed access; re-mint immediately (fast path). Otherwise count this attempt once and re-mint after 2 consecutive failures (covers a re-mint rejected once for iat <= watermark within the kick's same second).
+        const onConnectFailure = (code?: number) => {
+          if (code === 4001) {
+            failedConnectsRef.current = 0;
+            attemptCountedRef.current = true;
+            void refetchRef.current?.();
+            return;
+          }
+          if (attemptCountedRef.current) return;
+          attemptCountedRef.current = true;
+          failedConnectsRef.current += 1;
+          if (failedConnectsRef.current >= 2) {
+            failedConnectsRef.current = 0;
+            void refetchRef.current?.();
+          }
+        };
+        provider.on('connection-close', (e?: CloseEvent) => onConnectFailure(e?.code));
+        provider.on('connection-error', () => onConnectFailure());
+        return provider;
       },
-      username: name ?? 'User',
-      cursorColor: color ?? '#5a5ae2',
+      username: awarenessName ?? name ?? 'User',
+      cursorColor: awarenessColor ?? color ?? '#5a5ae2',
       shouldBootstrap: true,
     };
-  }, [docId, name, color]);
+  }, [docId, name, color, awarenessName, awarenessColor]);
 
   if (isError) {
     return (

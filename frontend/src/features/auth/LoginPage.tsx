@@ -21,6 +21,8 @@ export function LoginPage() {
   const location = useLocation();
   // Set when register redirected here (email service bypassed); account is ready to sign in.
   const registeredEmail = (location.state as { registered?: string } | null)?.registered;
+  // Where ProtectedRoute wanted to go before bouncing here (share-email deep link); back to it after sign-in.
+  const from = (location.state as { from?: string } | null)?.from;
   const login = useLogin();
   const resend = useResendVerification();
   const { data: authConfig } = useAuthConfig();
@@ -53,7 +55,7 @@ export function LoginPage() {
     e.preventDefault();
     if (isLoggingIn) return;
     setResent(false);
-    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
+    login.mutate({ email, password }, { onSuccess: () => navigate(from ?? '/') });
   };
 
   const onResend = () => {

@@ -34,11 +34,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // ../../doc-editor/packages/doc-editor/src/utils/common/operations.js
-var import_lexical6, executeAfterEventCall;
+var import_lexical, executeAfterEventCall;
 var init_operations = __esm({
   "../../doc-editor/packages/doc-editor/src/utils/common/operations.js"() {
     "use strict";
-    import_lexical6 = require("lexical");
+    import_lexical = require("lexical");
     executeAfterEventCall = (callback) => {
       setTimeout(callback, 0);
     };
@@ -169,18 +169,18 @@ function SmartPlaceholderComponent({
       const isBackspace = payload.key === "Backspace";
       const isDelete = payload.key === "Delete";
       return editor.getEditorState().read(() => {
-        const selection = (0, import_lexical7.$getSelection)();
-        if (isSelected && (0, import_lexical7.$isNodeSelection)(selection)) {
+        const selection = (0, import_lexical2.$getSelection)();
+        if (isSelected && (0, import_lexical2.$isNodeSelection)(selection)) {
           payload.preventDefault();
           editor.update(() => {
-            const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+            const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
             if (node) {
               node.remove();
             }
           });
           return true;
         }
-        if ((0, import_lexical7.$isRangeSelection)(selection) && selection.isCollapsed()) {
+        if ((0, import_lexical2.$isRangeSelection)(selection) && selection.isCollapsed()) {
           const anchorNode = selection.anchor.getNode();
           const offset = selection.anchor.offset;
           if (isBackspace && (anchorNode.getType() === "paragraph" || anchorNode.getType() === "element")) {
@@ -189,7 +189,7 @@ function SmartPlaceholderComponent({
             if (prevChild && prevChild.getKey() === nodeKey) {
               payload.preventDefault();
               editor.update(() => {
-                const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+                const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
                 if (node) {
                   node.remove();
                 }
@@ -204,7 +204,7 @@ function SmartPlaceholderComponent({
               if (nextSibling && nextSibling.getKey() === nodeKey) {
                 payload.preventDefault();
                 editor.update(() => {
-                  const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+                  const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
                   if (node) {
                     node.remove();
                   }
@@ -218,7 +218,7 @@ function SmartPlaceholderComponent({
             if (prevSibling && prevSibling.getKey() === nodeKey) {
               payload.preventDefault();
               editor.update(() => {
-                const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+                const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
                 if (node) {
                   node.remove();
                 }
@@ -232,7 +232,7 @@ function SmartPlaceholderComponent({
             if (nextChild && nextChild.getKey() === nodeKey) {
               payload.preventDefault();
               editor.update(() => {
-                const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+                const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
                 if (node) {
                   node.remove();
                 }
@@ -248,11 +248,11 @@ function SmartPlaceholderComponent({
   );
   const onClick = (0, import_react2.useCallback)(() => {
     editor.update(() => {
-      const selection = (0, import_lexical7.$getSelection)();
-      if ((0, import_lexical7.$isNodeSelection)(selection)) {
+      const selection = (0, import_lexical2.$getSelection)();
+      if ((0, import_lexical2.$isNodeSelection)(selection)) {
         selection.add(nodeKey);
       } else {
-        const node = (0, import_lexical7.$getNodeByKey)(nodeKey);
+        const node = (0, import_lexical2.$getNodeByKey)(nodeKey);
         if (node) {
           node.selectNext(0, 0);
         }
@@ -260,9 +260,9 @@ function SmartPlaceholderComponent({
     });
   }, [editor, nodeKey]);
   (0, import_react2.useEffect)(() => {
-    return (0, import_utils7.mergeRegister)(
+    return (0, import_utils2.mergeRegister)(
       editor.registerCommand(
-        import_lexical7.CLICK_COMMAND,
+        import_lexical2.CLICK_COMMAND,
         (event) => {
           if (!editor.isEditable()) {
             return false;
@@ -276,17 +276,17 @@ function SmartPlaceholderComponent({
           }
           return false;
         },
-        import_lexical7.COMMAND_PRIORITY_LOW
+        import_lexical2.COMMAND_PRIORITY_LOW
       ),
       editor.registerCommand(
-        import_lexical7.KEY_DELETE_COMMAND,
+        import_lexical2.KEY_DELETE_COMMAND,
         onDelete,
-        import_lexical7.COMMAND_PRIORITY_LOW
+        import_lexical2.COMMAND_PRIORITY_LOW
       ),
       editor.registerCommand(
-        import_lexical7.KEY_BACKSPACE_COMMAND,
+        import_lexical2.KEY_BACKSPACE_COMMAND,
         onDelete,
-        import_lexical7.COMMAND_PRIORITY_LOW
+        import_lexical2.COMMAND_PRIORITY_LOW
       )
     );
   }, [clearSelection, editor, isSelected, nodeKey, onDelete, setSelected]);
@@ -345,7 +345,7 @@ function SmartPlaceholderComponent({
     }
   );
 }
-var import_LexicalComposerContext, import_useLexicalNodeSelection, React2, import_react2, import_lexical7, import_utils7, import_jsx_runtime2, smartPlaceholderComponent_default;
+var import_LexicalComposerContext, import_useLexicalNodeSelection, React2, import_react2, import_lexical2, import_utils2, import_jsx_runtime2, smartPlaceholderComponent_default;
 var init_smartPlaceholderComponent = __esm({
   "../../doc-editor/packages/doc-editor/src/nodes/SmartPlaceholder/smartPlaceholderComponent.js"() {
     "use strict";
@@ -353,8 +353,8 @@ var init_smartPlaceholderComponent = __esm({
     import_useLexicalNodeSelection = require("@lexical/react/useLexicalNodeSelection");
     React2 = __toESM(require("react"));
     import_react2 = require("react");
-    import_lexical7 = require("lexical");
-    import_utils7 = require("@lexical/utils");
+    import_lexical2 = require("lexical");
+    import_utils2 = require("@lexical/utils");
     init_EditorPropsContext();
     init_ConversionUtils();
     import_jsx_runtime2 = require("react/jsx-runtime");
@@ -405,7 +405,7 @@ function $convertSmartPlaceholderElement(domNode) {
   };
 }
 function $createSmartPlaceholderNode(placeholder, placeholderName, style, format) {
-  return (0, import_lexical8.$applyNodeReplacement)(
+  return (0, import_lexical3.$applyNodeReplacement)(
     new SmartPlaceholderNode(
       placeholder,
       placeholderName,
@@ -418,18 +418,18 @@ function $createSmartPlaceholderNode(placeholder, placeholderName, style, format
 function $isSmartPlaceholderNode(node) {
   return node instanceof SmartPlaceholderNode;
 }
-var import_utils8, import_lexical8, React3, import_selection, import_jsx_runtime3, VALID_STYLE_KEYS, SmartPlaceholderNode, TEXT_TYPE_TO_FORMAT;
+var import_utils3, import_lexical3, React3, import_selection, import_jsx_runtime3, VALID_STYLE_KEYS, SmartPlaceholderNode, TEXT_TYPE_TO_FORMAT, node_default;
 var init_node = __esm({
   "../../doc-editor/packages/doc-editor/src/nodes/SmartPlaceholder/node.js"() {
     "use strict";
-    import_utils8 = require("@lexical/utils");
-    import_lexical8 = require("lexical");
+    import_utils3 = require("@lexical/utils");
+    import_lexical3 = require("lexical");
     React3 = __toESM(require("react"));
     init_smartPlaceholderComponent();
     import_selection = require("@lexical/selection");
     import_jsx_runtime3 = require("react/jsx-runtime");
     VALID_STYLE_KEYS = ["color", "background", "font-size"];
-    SmartPlaceholderNode = class _SmartPlaceholderNode extends import_lexical8.DecoratorNode {
+    SmartPlaceholderNode = class _SmartPlaceholderNode extends import_lexical3.DecoratorNode {
       static getType() {
         return "smart-placeholder";
       }
@@ -474,7 +474,7 @@ var init_node = __esm({
       }
       createDOM(config) {
         const element = document.createElement("span");
-        (0, import_utils8.addClassNamesToElement)(element, config.theme.smartPlaceholder);
+        (0, import_utils3.addClassNamesToElement)(element, config.theme.smartPlaceholder);
         element.setAttribute("data-node-type", "smart-placeholder");
         element.setAttribute("data-placeholder", this.__placeholder);
         element.setAttribute("data-placeholder-name", this.__placeholderName);
@@ -501,7 +501,7 @@ var init_node = __esm({
       }
       updateDOM(prevNode, dom, config) {
         if (config.theme.smartPlaceholder) {
-          (0, import_utils8.addClassNamesToElement)(dom, config.theme.smartPlaceholder);
+          (0, import_utils3.addClassNamesToElement)(dom, config.theme.smartPlaceholder);
         }
         if (prevNode.__placeholder !== this.__placeholder) {
           dom.setAttribute("data-placeholder", this.__placeholder);
@@ -619,12 +619,13 @@ var init_node = __esm({
       subscript: 32,
       superscript: 64
     };
+    node_default = SmartPlaceholderNode;
   }
 });
 
 // ../../doc-editor/packages/doc-editor/src/nodes/SmartPlaceholder/utils.js
 function $patchSmartPlaceholderStyle(styles) {
-  const selection = (0, import_lexical9.$getSelection)();
+  const selection = (0, import_lexical4.$getSelection)();
   if (!selection) {
     return;
   }
@@ -645,14 +646,14 @@ function $patchSmartPlaceholderStyle(styles) {
     });
     node.setStyle(newStyle);
   };
-  if ((0, import_lexical9.$isNodeSelection)(selection)) {
+  if ((0, import_lexical4.$isNodeSelection)(selection)) {
     const nodes = selection.getNodes();
     nodes.forEach((node) => {
       applyStylesToNode(node);
     });
     return;
   }
-  if ((0, import_lexical9.$isRangeSelection)(selection)) {
+  if ((0, import_lexical4.$isRangeSelection)(selection)) {
     const nodes = selection.getNodes();
     const processedNodes = /* @__PURE__ */ new Set();
     nodes.forEach((node) => {
@@ -676,7 +677,7 @@ function $patchSmartPlaceholderStyle(styles) {
 }
 function clearSmartPlaceholderStyle(editor, styleKeys) {
   editor.update(() => {
-    const selection = (0, import_lexical9.$getSelection)();
+    const selection = (0, import_lexical4.$getSelection)();
     if (!selection) {
       return;
     }
@@ -691,14 +692,14 @@ function clearSmartPlaceholderStyle(editor, styleKeys) {
       });
       node.setStyle(newStyle);
     };
-    if ((0, import_lexical9.$isNodeSelection)(selection)) {
+    if ((0, import_lexical4.$isNodeSelection)(selection)) {
       const nodes = selection.getNodes();
       nodes.forEach((node) => {
         clearStylesFromNode(node);
       });
       return;
     }
-    if ((0, import_lexical9.$isRangeSelection)(selection)) {
+    if ((0, import_lexical4.$isRangeSelection)(selection)) {
       const nodes = selection.getNodes();
       const processedNodes = /* @__PURE__ */ new Set();
       nodes.forEach((node) => {
@@ -722,11 +723,11 @@ function clearSmartPlaceholderStyle(editor, styleKeys) {
   });
 }
 function $getSmartPlaceholderFormat() {
-  const selection = (0, import_lexical9.$getSelection)();
+  const selection = (0, import_lexical4.$getSelection)();
   if (!selection) {
     return 0;
   }
-  if ((0, import_lexical9.$isNodeSelection)(selection)) {
+  if ((0, import_lexical4.$isNodeSelection)(selection)) {
     const nodes = selection.getNodes();
     for (const node of nodes) {
       if ($isSmartPlaceholderNode(node)) {
@@ -734,7 +735,7 @@ function $getSmartPlaceholderFormat() {
       }
     }
   }
-  if ((0, import_lexical9.$isRangeSelection)(selection)) {
+  if ((0, import_lexical4.$isRangeSelection)(selection)) {
     const nodes = selection.getNodes();
     for (const node of nodes) {
       if ($isSmartPlaceholderNode(node)) {
@@ -749,7 +750,7 @@ function $getSmartPlaceholderFormat() {
   return 0;
 }
 function $hasSmartPlaceholderFormat(formatType) {
-  const selection = (0, import_lexical9.$getSelection)();
+  const selection = (0, import_lexical4.$getSelection)();
   if (!selection) {
     return false;
   }
@@ -775,21 +776,21 @@ function $hasSmartPlaceholderFormat(formatType) {
   }
   return false;
 }
-var import_lexical9;
+var import_lexical4;
 var init_utils = __esm({
   "../../doc-editor/packages/doc-editor/src/nodes/SmartPlaceholder/utils.js"() {
     "use strict";
-    import_lexical9 = require("lexical");
+    import_lexical4 = require("lexical");
     init_node();
   }
 });
 
 // ../../doc-editor/packages/doc-editor/src/components/FontSizeControls/utils.js
-var import_lexical10, import_selection2, MIN_ALLOWED_FONT_SIZE, MAX_ALLOWED_FONT_SIZE, DEFAULT_FONT_SIZE, UpdateFontSizeType, sanitizeSizeOverride, clampToSizeOverride, getNextSizeFromOverride, calculateNextFontSize, updateFontSizeInSelection, updateFontSize, getFormattedFontSizeFromSelection;
+var import_lexical5, import_selection2, MIN_ALLOWED_FONT_SIZE, MAX_ALLOWED_FONT_SIZE, DEFAULT_FONT_SIZE, UpdateFontSizeType, sanitizeSizeOverride, clampToSizeOverride, getNextSizeFromOverride, calculateNextFontSize, updateFontSizeInSelection, updateFontSize, getFormattedFontSizeFromSelection;
 var init_utils2 = __esm({
   "../../doc-editor/packages/doc-editor/src/components/FontSizeControls/utils.js"() {
     "use strict";
-    import_lexical10 = require("lexical");
+    import_lexical5 = require("lexical");
     import_selection2 = require("@lexical/selection");
     init_utils();
     MIN_ALLOWED_FONT_SIZE = 6;
@@ -939,9 +940,9 @@ var init_utils2 = __esm({
       editor.update(() => {
         if (editor.isEditable()) {
           if (selectionToRestore) {
-            (0, import_lexical10.$setSelection)(selectionToRestore.clone());
+            (0, import_lexical5.$setSelection)(selectionToRestore.clone());
           }
-          const selection = (0, import_lexical10.$getSelection)();
+          const selection = (0, import_lexical5.$getSelection)();
           if (selection !== null) {
             (0, import_selection2.$patchStyleText)(selection, {
               "font-size": newFontSize || getNextFontSize
@@ -995,7 +996,7 @@ var init_utils2 = __esm({
         fontSize = allFontSizes[0] || "";
       }
       const selectionFontSize = selection.style ? (0, import_selection2.getStyleObjectFromCSS)(selection.style)["font-size"] : null;
-      if (allFontSizes.length === 1 && selection && (0, import_lexical10.$isRangeSelection)(selection) && selection.isCollapsed() && selectionFontSize) {
+      if (allFontSizes.length === 1 && selection && (0, import_lexical5.$isRangeSelection)(selection) && selection.isCollapsed() && selectionFontSize) {
         fontSize = selectionFontSize;
       }
       if (fontSize === "" && selectionFontSize) {
@@ -1023,12 +1024,12 @@ var init_configStore = __esm({
 });
 
 // ../../doc-editor/packages/doc-editor/src/constants/transformers/UrlLinkTransformers.js
-var import_link, import_lexical11;
+var import_link, import_lexical6;
 var init_UrlLinkTransformers = __esm({
   "../../doc-editor/packages/doc-editor/src/constants/transformers/UrlLinkTransformers.js"() {
     "use strict";
     import_link = require("@lexical/link");
-    import_lexical11 = require("lexical");
+    import_lexical6 = require("lexical");
   }
 });
 
@@ -1083,13 +1084,13 @@ var init_BlockFontSizes = __esm({
 });
 
 // ../../doc-editor/packages/doc-editor/src/constants/transformers/MarkdownTransformer.js
-var import_markdown, import_rich_text, import_lexical12, import_selection3;
+var import_markdown, import_rich_text, import_lexical7, import_selection3;
 var init_MarkdownTransformer = __esm({
   "../../doc-editor/packages/doc-editor/src/constants/transformers/MarkdownTransformer.js"() {
     "use strict";
     import_markdown = require("@lexical/markdown");
     import_rich_text = require("@lexical/rich-text");
-    import_lexical12 = require("lexical");
+    import_lexical7 = require("lexical");
     import_selection3 = require("@lexical/selection");
     init_UrlLinkTransformers();
     init_HorizontalRowTransformer();
@@ -12020,7 +12021,7 @@ var require_lodash = __commonJS({
         function valuesIn(object) {
           return object == null ? [] : baseValues(object, keysIn(object));
         }
-        function clamp3(number, lower, upper) {
+        function clamp4(number, lower, upper) {
           if (upper === undefined2) {
             upper = lower;
             lower = undefined2;
@@ -12697,7 +12698,7 @@ var require_lodash = __commonJS({
         lodash.camelCase = camelCase;
         lodash.capitalize = capitalize;
         lodash.ceil = ceil;
-        lodash.clamp = clamp3;
+        lodash.clamp = clamp4;
         lodash.clone = clone;
         lodash.cloneDeep = cloneDeep;
         lodash.cloneDeepWith = cloneDeepWith;
@@ -59548,11 +59549,11 @@ var require_innerSliderUtils = __commonJS({
     Object.defineProperty(exports2, "__esModule", {
       value: true
     });
-    exports2.clamp = clamp3;
+    exports2.clamp = clamp4;
     exports2.canUseDOM = exports2.slidesOnLeft = exports2.slidesOnRight = exports2.siblingDirection = exports2.getTotalSlides = exports2.getPostClones = exports2.getPreClones = exports2.getTrackLeft = exports2.getTrackAnimateCSS = exports2.getTrackCSS = exports2.checkSpecKeys = exports2.getSlideCount = exports2.checkNavigable = exports2.getNavigableIndexes = exports2.swipeEnd = exports2.swipeMove = exports2.swipeStart = exports2.keyHandler = exports2.changeSlide = exports2.slideHandler = exports2.initializedState = exports2.extractObject = exports2.canGoNext = exports2.getSwipeDirection = exports2.getHeight = exports2.getWidth = exports2.lazySlidesOnRight = exports2.lazySlidesOnLeft = exports2.lazyEndIndex = exports2.lazyStartIndex = exports2.getRequiredLazySlides = exports2.getOnDemandLazySlides = exports2.safePreventDefault = void 0;
     var _objectSpread2 = _interopRequireDefault(require_objectSpread2());
     var _react = _interopRequireDefault(require("react"));
-    function clamp3(number, lowerBound, upperBound) {
+    function clamp4(number, lowerBound, upperBound) {
       return Math.max(lowerBound, Math.min(number, upperBound));
     }
     var safePreventDefault = function safePreventDefault2(event) {
@@ -59704,7 +59705,7 @@ var require_innerSliderUtils = __commonJS({
       if (waitForAnimate && animating) return {};
       var animationSlide = index, finalSlide, animationLeft, finalLeft;
       var state = {}, nextState = {};
-      var targetSlide = infinite ? index : clamp3(index, 0, slideCount - 1);
+      var targetSlide = infinite ? index : clamp4(index, 0, slideCount - 1);
       if (fade) {
         if (!infinite && (index < 0 || index >= slideCount)) return {};
         if (index < 0) {
@@ -109491,12 +109492,12 @@ var init_dist = __esm({
 });
 
 // ../../doc-editor/packages/doc-editor/src/utils/nodes/MarkNodesStore.ts
-var import_react154, import_lexical15, getCommentStore, getAllMarkNodes2, makeMapIdForMarkNode, MarkNodesStore, markNodesStore, MarkNodesStore_default;
+var import_react154, import_lexical10, getCommentStore, getAllMarkNodes2, makeMapIdForMarkNode, MarkNodesStore, markNodesStore, MarkNodesStore_default;
 var init_MarkNodesStore = __esm({
   "../../doc-editor/packages/doc-editor/src/utils/nodes/MarkNodesStore.ts"() {
     "use strict";
     import_react154 = require("react");
-    import_lexical15 = require("lexical");
+    import_lexical10 = require("lexical");
     init_MarkNode();
     init_configStore();
     init_CommentUtils();
@@ -109599,11 +109600,11 @@ var init_MarkNodesStore = __esm({
         }
         const selectedMarkNode = editor.read(() => {
           const checkForText = () => {
-            const selection = (0, import_lexical15.$getSelection)();
-            if ((0, import_lexical15.$isRangeSelection)(selection)) {
+            const selection = (0, import_lexical10.$getSelection)();
+            if ((0, import_lexical10.$isRangeSelection)(selection)) {
               const anchorNode = selection.anchor.getNode();
               const commentIDs = $getMarkIDs(anchorNode, selection.anchor.offset);
-              if ((0, import_lexical15.$isTextNode)(anchorNode)) {
+              if ((0, import_lexical10.$isTextNode)(anchorNode)) {
                 if (commentIDs !== null) {
                   const parentElem = anchorNode.getParent();
                   if (!$isMarkNode(parentElem)) {
@@ -109631,7 +109632,7 @@ var init_MarkNodesStore = __esm({
           const result = checkForText();
           if (result) return result;
           if (this.__activeMarkNodeId) {
-            const markNode = (0, import_lexical15.$getNodeByKey)(this.__activeMarkNodeId);
+            const markNode = (0, import_lexical10.$getNodeByKey)(this.__activeMarkNodeId);
             const markNodeElem = editor.getElementByKey(this.__activeMarkNodeId);
             if (markNode && $isMarkNode(markNode) && markNodeElem) {
               const top = markNodeElem.getBoundingClientRect().top;
@@ -109731,13 +109732,13 @@ var init_MarkNodesStore = __esm({
             const isEnabled = ids.some((id) => threadsIdMap.has(id));
             if (isEnabled) {
               editor.update(() => {
-                (0, import_lexical15.$addUpdateTag)("historic");
+                (0, import_lexical10.$addUpdateTag)("historic");
                 enabledMarkIds.push(markNode.getKey());
                 markNode.validateHighlight(true);
               });
             } else {
               editor.update(() => {
-                (0, import_lexical15.$addUpdateTag)("historic");
+                (0, import_lexical10.$addUpdateTag)("historic");
                 markNode.validateHighlight(false);
               });
             }
@@ -109749,7 +109750,7 @@ var init_MarkNodesStore = __esm({
             const markNodeKey = editor.read(() => markNode.getKey());
             if (!enabledMarkIds.includes(markNodeKey)) {
               editor.update(() => {
-                (0, import_lexical15.$addUpdateTag)("historic");
+                (0, import_lexical10.$addUpdateTag)("historic");
                 $unwrapMarkNode(markNode);
               });
             }
@@ -117404,7 +117405,7 @@ function $convertMarkElement(domNode) {
   };
 }
 function $createMarkNode(ids = NO_IDS, isHighlighted = false, highlightType) {
-  return (0, import_lexical16.$applyNodeReplacement)(new MarkNode(ids, isHighlighted, highlightType));
+  return (0, import_lexical11.$applyNodeReplacement)(new MarkNode(ids, isHighlighted, highlightType));
 }
 function $isMarkNode(node) {
   return node instanceof MarkNode;
@@ -117438,7 +117439,7 @@ function $mergeMarkNodeWithNextSibling(node) {
   next.remove();
 }
 function $wrapSelectionInMarkNode(selection, _isBackward, id, createNode) {
-  const forwardSelection = (0, import_lexical16.$createRangeSelection)();
+  const forwardSelection = (0, import_lexical11.$createRangeSelection)();
   const [startPoint, endPoint] = selection.isBackward() ? [selection.focus, selection.anchor] : [selection.anchor, selection.focus];
   forwardSelection.anchor.set(
     startPoint.key,
@@ -117450,15 +117451,15 @@ function $wrapSelectionInMarkNode(selection, _isBackward, id, createNode) {
   let lastCreatedMarkNode;
   const nodes = forwardSelection.extract();
   for (const node of nodes) {
-    if ((0, import_lexical16.$isElementNode)(lastCreatedMarkNode) && lastCreatedMarkNode.isParentOf(node)) {
+    if ((0, import_lexical11.$isElementNode)(lastCreatedMarkNode) && lastCreatedMarkNode.isParentOf(node)) {
       continue;
     }
     let targetNode = null;
-    if ((0, import_lexical16.$isTextNode)(node)) {
+    if ((0, import_lexical11.$isTextNode)(node)) {
       targetNode = node;
     } else if ($isMarkNode(node)) {
       continue;
-    } else if (((0, import_lexical16.$isElementNode)(node) || (0, import_lexical16.$isDecoratorNode)(node)) && node.isInline()) {
+    } else if (((0, import_lexical11.$isElementNode)(node) || (0, import_lexical11.$isDecoratorNode)(node)) && node.isInline()) {
       targetNode = node;
     }
     if (targetNode !== null) {
@@ -117476,7 +117477,7 @@ function $wrapSelectionInMarkNode(selection, _isBackward, id, createNode) {
         targetNode.insertBefore(lastCreatedMarkNode);
       }
       lastCreatedMarkNode.append(targetNode);
-      (0, import_lexical16.$setSelection)(lastCreatedMarkNode.selectStart());
+      (0, import_lexical11.$setSelection)(lastCreatedMarkNode.selectStart());
     } else {
       currentNodeParent = void 0;
       lastCreatedMarkNode = void 0;
@@ -117488,7 +117489,7 @@ function $getMarkIDs(node, offset) {
   while (currentNode !== null) {
     if ($isMarkNode(currentNode)) {
       return currentNode.getIDs();
-    } else if ((0, import_lexical16.$isTextNode)(currentNode) && offset === currentNode.getTextContentSize()) {
+    } else if ((0, import_lexical11.$isTextNode)(currentNode) && offset === currentNode.getTextContentSize()) {
       const nextSibling = currentNode.getNextSibling();
       if ($isMarkNode(nextSibling)) {
         return nextSibling.getIDs();
@@ -117498,12 +117499,12 @@ function $getMarkIDs(node, offset) {
   }
   return null;
 }
-var utils, import_lexical16, NO_IDS, COMMENT_HIGHLIGHT_TYPES, MarkNode, MarkNode_default;
+var utils, import_lexical11, NO_IDS, COMMENT_HIGHLIGHT_TYPES, MarkNode, MarkNode_default;
 var init_MarkNode = __esm({
   "../../doc-editor/packages/doc-editor/src/nodes/MarkNode/index.ts"() {
     "use strict";
     utils = __toESM(require("@lexical/utils"));
-    import_lexical16 = require("lexical");
+    import_lexical11 = require("lexical");
     init_MarkNodesStore();
     init_CommentUtils();
     init_build();
@@ -117516,7 +117517,7 @@ var init_MarkNode = __esm({
       POSITIVE: "positive",
       NEUTRAL: "neutral"
     };
-    MarkNode = class _MarkNode extends import_lexical16.ElementNode {
+    MarkNode = class _MarkNode extends import_lexical11.ElementNode {
       static getType() {
         return "mark";
       }
@@ -117580,7 +117581,7 @@ var init_MarkNode = __esm({
         this.__highlightType = highlightType || null;
       }
       isHighlightValid() {
-        const editorId = (0, import_lexical16.$getEditor)()._config.namespace;
+        const editorId = (0, import_lexical11.$getEditor)()._config.namespace;
         const ids = this.getIDs();
         if (ids.length === 0) return false;
         const allHighlightTypes = /* @__PURE__ */ new Set();
@@ -117808,7 +117809,7 @@ var init_MarkNode = __esm({
             self2.__highlightType = sortedArray[0];
           }
         } else self2.__isHighlighted = false;
-        const editorId = (0, import_lexical16.$getEditor)()._config.namespace;
+        const editorId = (0, import_lexical11.$getEditor)()._config.namespace;
         const commentListType = getConfigStore(editorId)?.getCommentListType();
         if (commentListType === "RESOLVED") {
           for (const comment of associatedComments) {
@@ -118136,16 +118137,16 @@ function $createCommentIconNode(markIds = [], highlightType = null) {
 function $isCommentIconNode(node) {
   return node instanceof CommentIconNode;
 }
-var import_lexical17, import_jsx_runtime10, CommentIconNode, CommentIconNode_default;
+var import_lexical12, import_jsx_runtime10, CommentIconNode, CommentIconNode_default;
 var init_CommentIconNode = __esm({
   "../../doc-editor/packages/doc-editor/src/nodes/CommentIconNode/index.tsx"() {
     "use strict";
-    import_lexical17 = require("lexical");
+    import_lexical12 = require("lexical");
     init_CommentIcon();
     init_MarkNodesStore();
     init_CommentUtils();
     import_jsx_runtime10 = require("react/jsx-runtime");
-    CommentIconNode = class _CommentIconNode extends import_lexical17.DecoratorNode {
+    CommentIconNode = class _CommentIconNode extends import_lexical12.DecoratorNode {
       static getType() {
         return "comment-icon";
       }
@@ -118261,7 +118262,7 @@ function arraysEqual(a, b) {
   return sortedA.every((val, idx) => val === sortedB[idx]);
 }
 function $removeOrphanedIcons() {
-  const allIconNodes = (0, import_lexical18.$nodesOfType)(CommentIconNode_default);
+  const allIconNodes = (0, import_lexical13.$nodesOfType)(CommentIconNode_default);
   for (const iconNode of allIconNodes) {
     const prevSibling = iconNode.getPreviousSibling();
     if (!prevSibling || !(prevSibling instanceof MarkNode_default) || !prevSibling.isHighlightValid()) {
@@ -118280,10 +118281,10 @@ function $getActiveIds(ids) {
   return activeIds;
 }
 function $syncAllIcons() {
-  const editorId = (0, import_lexical18.$getEditor)()._config.namespace;
+  const editorId = (0, import_lexical13.$getEditor)()._config.namespace;
   const configStore = getConfigStore(editorId);
   if (configStore && !configStore.getIsCommentIconsEnabled()) {
-    const allIconNodes = (0, import_lexical18.$nodesOfType)(CommentIconNode_default);
+    const allIconNodes = (0, import_lexical13.$nodesOfType)(CommentIconNode_default);
     for (const iconNode of allIconNodes) {
       iconNode.remove();
     }
@@ -118292,13 +118293,13 @@ function $syncAllIcons() {
   $removeOrphanedIcons();
   const commentListType = configStore?.getCommentListType();
   if (commentListType === "HIDDEN") {
-    const allIconNodes = (0, import_lexical18.$nodesOfType)(CommentIconNode_default);
+    const allIconNodes = (0, import_lexical13.$nodesOfType)(CommentIconNode_default);
     for (const iconNode of allIconNodes) {
       iconNode.remove();
     }
     return;
   }
-  const allMarkNodes = (0, import_lexical18.$nodesOfType)(MarkNode_default);
+  const allMarkNodes = (0, import_lexical13.$nodesOfType)(MarkNode_default);
   const lastMarkNodeKeyForThread = /* @__PURE__ */ new Map();
   for (const markNode of allMarkNodes) {
     const ids = markNode.getIDs();
@@ -118323,13 +118324,13 @@ function $syncAllIcons() {
     }
   }
 }
-var import_react155, import_LexicalComposerContext4, import_lexical18;
+var import_react155, import_LexicalComposerContext4, import_lexical13;
 var init_AddCommentIconPlugin = __esm({
   "../../doc-editor/packages/doc-editor/src/plugins/AddCommentIconPlugin/index.tsx"() {
     "use strict";
     import_react155 = require("react");
     import_LexicalComposerContext4 = require("@lexical/react/LexicalComposerContext");
-    import_lexical18 = require("lexical");
+    import_lexical13 = require("lexical");
     init_MarkNode();
     init_CommentIconNode();
     init_EditorPropsContext();
@@ -118441,7 +118442,7 @@ function triggerOnChange() {
 function getAllMarkNodes(editor) {
   const markNodes = [];
   const entries = editor.read(() => {
-    return (0, import_utils16.$dfs)();
+    return (0, import_utils11.$dfs)();
   });
   for (const entry of entries) {
     if ($isMarkNode(entry.node)) {
@@ -118464,9 +118465,9 @@ function deleteCommentMarkNodes(editor, commentOrThread, onUpdate) {
   if (nodeKeys && nodeKeys.length > 0) {
     editor.update(
       () => {
-        (0, import_lexical19.$addUpdateTag)("historic");
+        (0, import_lexical14.$addUpdateTag)("historic");
         for (const nodeKey of nodeKeys) {
-          const node = (0, import_lexical19.$getNodeByKey)(nodeKey);
+          const node = (0, import_lexical14.$getNodeByKey)(nodeKey);
           if (!$isMarkNode(node)) {
             return;
           }
@@ -118497,9 +118498,9 @@ function validateHighlightCommentMarkNodes(editor, commentOrThread) {
   });
   if (nodeKeys && nodeKeys.length > 0) {
     editor.update(() => {
-      (0, import_lexical19.$addUpdateTag)("historic");
+      (0, import_lexical14.$addUpdateTag)("historic");
       for (const nodeKey of nodeKeys) {
-        const node = (0, import_lexical19.$getNodeByKey)(nodeKey);
+        const node = (0, import_lexical14.$getNodeByKey)(nodeKey);
         if (!$isMarkNode(node)) {
           continue;
         }
@@ -118520,7 +118521,7 @@ async function addCommentToNode({
   await new Promise((resolve) => {
     editor.update(
       () => {
-        const node = (0, import_lexical19.$getNodeByKey)(nodeKey);
+        const node = (0, import_lexical14.$getNodeByKey)(nodeKey);
         if (node) {
           const content = "";
           const comment = createComment(content);
@@ -118557,14 +118558,14 @@ async function addCommentToNode({
   });
   return idPassing;
 }
-var import_react156, import_yjs, import_utils16, import_lexical19, listeners, internalCommentIdMap, CommentStore;
+var import_react156, import_yjs, import_utils11, import_lexical14, listeners, internalCommentIdMap, CommentStore;
 var init_CommentUtils = __esm({
   "../../doc-editor/packages/doc-editor/src/utils/nodes/CommentUtils.ts"() {
     "use strict";
     import_react156 = require("react");
     import_yjs = require("yjs");
-    import_utils16 = require("@lexical/utils");
-    import_lexical19 = require("lexical");
+    import_utils11 = require("@lexical/utils");
+    import_lexical14 = require("lexical");
     init_MarkNode();
     init_esm_node();
     init_MarkNodesStore();
@@ -118889,7 +118890,7 @@ var init_CommentUtils = __esm({
         triggerOnChange();
         if (this._editor) {
           this._editor.update(() => {
-            (0, import_lexical19.$addUpdateTag)("historic");
+            (0, import_lexical14.$addUpdateTag)("historic");
             $syncAllIcons();
           });
         }
@@ -118927,7 +118928,7 @@ var init_CommentUtils = __esm({
         triggerOnChange();
         if (this._editor) {
           this._editor.update(() => {
-            (0, import_lexical19.$addUpdateTag)("historic");
+            (0, import_lexical14.$addUpdateTag)("historic");
             $syncAllIcons();
           });
         }
@@ -119021,7 +119022,7 @@ var init_CommentUtils = __esm({
         triggerOnChange();
         if (this._editor) {
           this._editor.update(() => {
-            (0, import_lexical19.$addUpdateTag)("historic");
+            (0, import_lexical14.$addUpdateTag)("historic");
             $syncAllIcons();
           });
         }
@@ -119175,901 +119176,33 @@ __export(AllNodesServer_exports, {
   AllDocEditorNodes: () => AllDocEditorNodes
 });
 module.exports = __toCommonJS(AllNodesServer_exports);
-var import_code3 = require("@lexical/code");
-var import_hashtag2 = require("@lexical/hashtag");
-var import_link5 = require("@lexical/link");
-var import_list4 = require("@lexical/list");
-var import_overflow2 = require("@lexical/overflow");
-var import_rich_text5 = require("@lexical/rich-text");
-var import_table5 = require("@lexical/table");
-var import_lexical55 = require("lexical");
 
-// ../../doc-editor/packages/doc-editor/src/nodes/CustomTableCellNode/index.js
-var import_table = require("@lexical/table");
-
-// ../../doc-editor/packages/doc-editor/src/components/FontColorPickerButton/ColorPickerGridVals.js
-var ColorPickerGridValues = [
-  [
-    { label: "blue", color: "#00C4DB" },
-    { label: "pink", color: "#FF668F" },
-    { label: "violet", color: "#7777FF" },
-    { label: "teal", color: "#00B993" },
-    { label: "yellow", color: "#FFAA00" }
-  ],
-  [
-    { label: "neutral", color: "#707070" },
-    { label: "orange", color: "#FF865D" },
-    { label: "purple", color: "#CC66FF" },
-    { label: "green", color: "#8EC80A" },
-    { label: "dark-pink", color: "#8A064C" }
-  ]
-];
-var ColorPickerGridVals_default = ColorPickerGridValues;
-
-// ../../doc-editor/packages/doc-editor/src/nodes/CustomTableCellNode/index.js
-var BORDER_TYPES = {
-  LEFT: "left",
-  RIGHT: "right",
-  TOP: "top",
-  BOTTOM: "bottom",
-  ALL: "all",
-  NONE: "none"
-};
-var DEFAULT_BORDER_COLOR = "#E6E6E6";
-var ALL_BORDERS = [
-  BORDER_TYPES.TOP,
-  BORDER_TYPES.RIGHT,
-  BORDER_TYPES.BOTTOM,
-  BORDER_TYPES.LEFT
-];
-var DEFAULT_BORDER_COLORS = {
-  top: DEFAULT_BORDER_COLOR,
-  right: DEFAULT_BORDER_COLOR,
-  bottom: DEFAULT_BORDER_COLOR,
-  left: DEFAULT_BORDER_COLOR
-};
-function $convertTableCellElement(domNode) {
-  const nodeName = domNode.nodeName.toLowerCase();
-  const tableCellNode = $createCustomTableCellNode(
-    nodeName === "th" ? import_table.TableCellHeaderStates.ROW : import_table.TableCellHeaderStates.NO_STATUS
-  );
-  const colSpan = domNode.colSpan;
-  const rowSpan = domNode.rowSpan;
-  if (colSpan > 1) tableCellNode.__colSpan = colSpan;
-  if (rowSpan > 1) tableCellNode.__rowSpan = rowSpan;
-  const width = domNode.style.width;
-  if (width) tableCellNode.__width = parseInt(width, 10);
-  const backgroundColor = domNode.style.backgroundColor;
-  if (backgroundColor) tableCellNode.__backgroundColor = backgroundColor;
-  const flattenedColors = ColorPickerGridVals_default.flatMap(
-    (row) => row.map((item) => item.color)
-  );
-  const borderTypesAttr = domNode.getAttribute("data-border-types");
-  if (borderTypesAttr) {
-    tableCellNode.__borderTypes = new Set(
-      borderTypesAttr.split("|").filter(Boolean)
-    );
-  }
-  const colorsAttr = domNode.getAttribute("data-border-colors");
-  if (colorsAttr) {
-    try {
-      const parsed = {};
-      colorsAttr.split("|").forEach((part) => {
-        const [edge, color] = part.split(":");
-        if (ALL_BORDERS.includes(edge) && flattenedColors.includes(color)) {
-          parsed[edge] = color;
-        }
-      });
-      tableCellNode.__borderColors = {
-        ...DEFAULT_BORDER_COLORS,
-        ...parsed
-      };
-    } catch {
-    }
-  }
-  const style = domNode.style.cssText;
-  tableCellNode.setStyle(style);
-  return { node: tableCellNode };
-}
-var CustomTableCellNode = class _CustomTableCellNode extends import_table.TableCellNode {
-  __borderTypes = /* @__PURE__ */ new Set();
-  __borderColors = { ...DEFAULT_BORDER_COLORS };
-  constructor(headerState, colSpan, width, key) {
-    super(headerState, colSpan, width, key);
-    this.__borderTypes = new Set(ALL_BORDERS);
-    this.__borderColors = { ...DEFAULT_BORDER_COLORS };
-  }
-  static getType() {
-    return "custom-table-cell";
-  }
-  static clone(node) {
-    const newNode = new _CustomTableCellNode(
-      node.__headerState,
-      node.__colSpan,
-      node.__width,
-      node.__key
-    );
-    newNode.__borderTypes = new Set(node.__borderTypes);
-    newNode.__borderColors = { ...node.__borderColors };
-    return newNode;
-  }
-  static importJSON(serializedNode) {
-    const node = $createCustomTableCellNode(
-      serializedNode.headerState,
-      serializedNode.colSpan,
-      serializedNode.width
-    );
-    node.__rowSpan = serializedNode.rowSpan || 1;
-    node.__backgroundColor = serializedNode.backgroundColor || null;
-    node.__borderTypes = new Set(
-      serializedNode.borderTypes ?? [...ALL_BORDERS]
-    );
-    node.__borderColors = {
-      ...DEFAULT_BORDER_COLORS,
-      ...serializedNode.borderColors || {}
-    };
-    return node;
-  }
-  exportJSON() {
-    return {
-      ...super.exportJSON(),
-      type: "custom-table-cell",
-      borderTypes: Array.from(this.__borderTypes),
-      borderColors: this.__borderColors
-    };
-  }
-  getBorderTypes() {
-    return Array.from(this.getLatest().__borderTypes);
-  }
-  setBorderTypes(types) {
-    const self2 = this.getWritable();
-    self2.__borderTypes = new Set(types);
-    return self2;
-  }
-  addBorderType(type) {
-    const self2 = this.getWritable();
-    switch (type) {
-      case BORDER_TYPES.TOP:
-      case BORDER_TYPES.RIGHT:
-      case BORDER_TYPES.BOTTOM:
-      case BORDER_TYPES.LEFT:
-        self2.__borderTypes.add(type);
-        break;
-      case BORDER_TYPES.ALL:
-        self2.__borderTypes = /* @__PURE__ */ new Set([
-          BORDER_TYPES.TOP,
-          BORDER_TYPES.BOTTOM,
-          BORDER_TYPES.LEFT,
-          BORDER_TYPES.RIGHT
-        ]);
-        break;
-      case BORDER_TYPES.NONE:
-        self2.__borderTypes = /* @__PURE__ */ new Set([type]);
-        break;
-      default:
-        break;
-    }
-    return self2;
-  }
-  setBorderColorForEdge(edge, color) {
-    const self2 = this.getWritable();
-    self2.__borderColors = { ...self2.__borderColors, [edge]: color };
-    return self2;
-  }
-  createDOM(config) {
-    const dom = super.createDOM(config);
-    dom.style = this.getStyle();
-    this.applyBorderStyles(dom);
-    if (this.__backgroundColor) {
-      dom.style.backgroundColor = this.__backgroundColor;
-    }
-    if (this.__verticalAlign) {
-      dom.style.verticalAlign = this.__verticalAlign;
-    }
-    return dom;
-  }
-  updateDOM(prevNode, dom, config) {
-    const updated = super.updateDOM(prevNode, dom, config);
-    const prevKey = Array.from(prevNode.__borderTypes).join("|") + JSON.stringify(prevNode.__borderColors);
-    const nextKey = Array.from(this.__borderTypes).join("|") + JSON.stringify(this.__borderColors);
-    let internalUpdated = false;
-    if (prevKey !== nextKey) {
-      this.applyBorderStyles(dom);
-      internalUpdated = true;
-    }
-    if (prevNode.__backgroundColor !== prevNode.__backgroundColor) {
-      dom.style.backgroundColor = this.__backgroundColor || "";
-      internalUpdated = true;
-    }
-    if (prevNode.__verticalAlign !== this.__verticalAlign) {
-      dom.style.verticalAlign = this.__verticalAlign;
-      internalUpdated = true;
-    }
-    return updated || internalUpdated;
-  }
-  exportDOM(editor) {
-    const { element } = super.exportDOM(editor);
-    if (element) {
-      element.setAttribute(
-        "data-border-types",
-        Array.from(this.__borderTypes).join("|")
-      );
-      element.setAttribute(
-        "data-border-colors",
-        Object.keys(this.__borderColors).map((key) => `${key}:${this.__borderColors[key]}`).join("|")
-      );
-      this.applyBorderStyles(element);
-    }
-    return { element };
-  }
-  static importDOM() {
-    return {
-      td: () => ({
-        conversion: $convertTableCellElement,
-        priority: 1
-      }),
-      th: () => ({
-        conversion: $convertTableCellElement,
-        priority: 1
-      })
-    };
-  }
-  applyBorderStyles(dom) {
-    const types = this.__borderTypes;
-    const c = this.__borderColors;
-    const has = (t2) => types.has(t2);
-    dom.style.border = "none";
-    if (types.size === 0) return;
-    if (has(BORDER_TYPES.TOP) && has(BORDER_TYPES.RIGHT) && has(BORDER_TYPES.BOTTOM) && has(BORDER_TYPES.LEFT)) {
-      dom.style.borderTop = `1px solid ${c.top}`;
-      dom.style.borderRight = `1px solid ${c.right}`;
-      dom.style.borderBottom = `1px solid ${c.bottom}`;
-      dom.style.borderLeft = `1px solid ${c.left}`;
-      return;
-    }
-    if (has(BORDER_TYPES.TOP)) dom.style.borderTop = `1px solid ${c.top}`;
-    if (has(BORDER_TYPES.RIGHT)) dom.style.borderRight = `1px solid ${c.right}`;
-    if (has(BORDER_TYPES.BOTTOM))
-      dom.style.borderBottom = `1px solid ${c.bottom}`;
-    if (has(BORDER_TYPES.LEFT)) dom.style.borderLeft = `1px solid ${c.left}`;
-  }
-};
-function $createCustomTableCellNode(headerState, colSpan, width) {
-  return new CustomTableCellNode(headerState, colSpan, width);
-}
-function $isCustomTableCellNode(node) {
-  return node instanceof CustomTableCellNode;
-}
-var CustomTableCellNodeReplacement = {
-  replace: import_table.TableCellNode,
-  with: (node) => {
-    const newNode = new CustomTableCellNode(
-      node.__headerState,
-      node.__colSpan,
-      node.__width
-    );
-    newNode.__rowSpan = node.__rowSpan;
-    newNode.__backgroundColor = node.__backgroundColor;
-    newNode.__borderTypes = new Set(ALL_BORDERS);
-    newNode.__borderColors = { ...DEFAULT_BORDER_COLORS };
-    return newNode;
-  }
-};
-
-// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutItemNode.js
-var import_utils2 = require("@lexical/utils");
-var import_lexical2 = require("lexical");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutContainerNode.js
-var import_utils = require("@lexical/utils");
-var import_lexical = require("lexical");
-var TOTAL_GRID_UNITS = 20;
-function parseTemplateColumns(templateColumns) {
-  if (!templateColumns) return [];
-  return templateColumns.trim().split(/\s+/).map((part) => {
-    const match = part.match(/^(\d*\.?\d+)/);
-    return match ? parseFloat(match[1]) : 1;
-  });
-}
-function $convertLayoutContainerElement(domNode) {
-  const template = domNode.getAttribute("data-lexical-layout-template");
-  if (!template) {
-    return null;
-  }
-  const containerNode = $createLayoutContainerNode(template);
-  return { node: containerNode };
-}
-var LayoutContainerNode = class _LayoutContainerNode extends import_lexical.ElementNode {
-  constructor(templateColumns, key) {
-    super(key);
-    this.__templateColumns = templateColumns;
-  }
-  static getType() {
-    return "layout-container";
-  }
-  static clone(node) {
-    return new _LayoutContainerNode(node.__templateColumns, node.__key);
-  }
-  createDOM(config) {
-    const dom = document.createElement("div");
-    dom.style.display = "grid";
-    dom.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
-    if (typeof config.theme.layoutContainer === "string") {
-      (0, import_utils.addClassNamesToElement)(dom, config.theme.layoutContainer);
-    }
-    dom.setAttribute("data-lexical-layout-container", "true");
-    dom.setAttribute("data-lexical-layout-container-version", "2");
-    dom.setAttribute("data-lexical-layout-template", this.__templateColumns);
-    return dom;
-  }
-  exportDOM() {
-    const element = document.createElement("div");
-    element.style.display = "grid";
-    element.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
-    element.setAttribute("data-lexical-layout-container", "true");
-    element.setAttribute(
-      "data-lexical-layout-template",
-      this.__templateColumns
-    );
-    return { element };
-  }
-  updateDOM(prevNode, dom) {
-    if (dom.style.gridTemplateColumns !== `repeat(${TOTAL_GRID_UNITS},1fr)`) {
-      dom.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
-    }
-    return false;
-  }
-  static importDOM() {
-    return {
-      div: (domNode) => {
-        if (!domNode.hasAttribute("data-lexical-layout-container")) {
-          return null;
-        }
-        return {
-          conversion: $convertLayoutContainerElement,
-          priority: 2
-        };
-      }
-    };
-  }
-  static importJSON(json) {
-    return $createLayoutContainerNode().updateFromJSON(json);
-  }
-  updateFromJSON(serializedNode) {
-    return super.updateFromJSON(serializedNode).setTemplateColumns(serializedNode.templateColumns);
-  }
-  isShadowRoot() {
-    return true;
-  }
-  canBeEmpty() {
-    return false;
-  }
-  exportJSON() {
-    return {
-      ...super.exportJSON(),
-      templateColumns: this.__templateColumns
-    };
-  }
-  getTemplateColumns() {
-    return this.getLatest().__templateColumns;
-  }
-  setTemplateColumns(templateColumns) {
-    const self2 = this.getWritable();
-    self2.__templateColumns = templateColumns;
-    return self2;
-  }
-};
-function normalizeTemplateString(templateColumns) {
-  if (!templateColumns) return "";
-  const values = parseTemplateColumns(templateColumns);
-  if (!values.length) return "";
-  const total = values.reduce((a, b) => a + b, 0);
-  const scaled = values.map(
-    (v) => Math.max(1, Math.round(v / total * TOTAL_GRID_UNITS))
-  );
-  let diff = scaled.reduce((a, b) => a + b, 0) - TOTAL_GRID_UNITS;
-  if (diff !== 0 && scaled.length) {
-    scaled[scaled.length - 1] = Math.max(1, scaled[scaled.length - 1] - diff);
-  }
-  return scaled.map((s) => `${s}fr`).join(" ");
-}
-function $createLayoutContainerNode(templateColumns = "") {
-  const normalized = normalizeTemplateString(templateColumns);
-  return new LayoutContainerNode(normalized);
-}
-
-// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutItemNode.js
-function getItemsCountFromTemplate(template) {
-  if (!template) return 0;
-  return template.trim().split(/\s+/).filter(Boolean).length;
-}
-function computeColumnGroupForIndex(index, itemsCount) {
-  if (itemsCount <= 0) return "";
-  const totalUnits = TOTAL_GRID_UNITS;
-  const baseSpan = Math.floor(totalUnits / itemsCount);
-  const remainder = totalUnits - baseSpan * itemsCount;
-  let cursor = 1;
-  for (let i = 0; i <= index; i++) {
-    let span = baseSpan;
-    if (span < 1) span = 1;
-    if (i < remainder) span += 1;
-    if (i === index) {
-      let end = cursor + span;
-      if (end > totalUnits + 1) end = totalUnits + 1;
-      return `${cursor} / ${end}`;
-    }
-    cursor += span;
-  }
-  return "";
-}
-function $convertLayoutItemElement(domNode) {
-  let dataGridColumn = domNode.getAttribute("data-grid-column") || domNode.style.gridColumn || "";
-  if (!dataGridColumn) {
-    const parent = domNode.parentElement;
-    if (parent && parent.hasAttribute("data-lexical-layout-container")) {
-      const template = parent.getAttribute("data-lexical-layout-template");
-      const itemsCount = getItemsCountFromTemplate(template);
-      const siblings = Array.from(
-        parent.querySelectorAll(`:scope > div[data-lexical-layout-item="true"]`)
-      );
-      const index = siblings.indexOf(domNode);
-      if (index >= 0 && index < itemsCount) {
-        dataGridColumn = computeColumnGroupForIndex(index, itemsCount);
-      }
-    }
-  }
-  return { node: $createLayoutItemNode(dataGridColumn) };
-}
-function $isEmptyLayoutItemNode(node) {
-  if (!$isLayoutItemNode(node) || node.getChildrenSize() !== 1) {
-    return false;
-  }
-  const firstChild = node.getFirstChild();
-  return (0, import_lexical2.$isParagraphNode)(firstChild) && firstChild.isEmpty();
-}
-var LayoutItemNode = class _LayoutItemNode extends import_lexical2.ElementNode {
-  constructor(dataGridColumn = "", key) {
-    super(key);
-    this.__dataGridColumn = dataGridColumn;
-  }
-  static getType() {
-    return "layout-item";
-  }
-  static clone(node) {
-    return new _LayoutItemNode(node.__dataGridColumn, node.__key);
-  }
-  createDOM(config) {
-    const dom = document.createElement("div");
-    dom.setAttribute("data-lexical-layout-item", "true");
-    if (this.__dataGridColumn) {
-      dom.style.gridColumn = this.__dataGridColumn;
-      dom.setAttribute("data-grid-column", this.__dataGridColumn);
-    }
-    if (typeof config.theme.layoutItem === "string") {
-      (0, import_utils2.addClassNamesToElement)(dom, config.theme.layoutItem);
-    }
-    return dom;
-  }
-  updateDOM(prevNode, dom) {
-    if (prevNode.__dataGridColumn !== this.__dataGridColumn) {
-      if (this.__dataGridColumn) {
-        dom.style.gridColumn = this.__dataGridColumn;
-        dom.setAttribute("data-grid-column", this.__dataGridColumn);
-      } else {
-        dom.style.removeProperty("grid-column");
-        dom.removeAttribute("data-grid-column");
-      }
-    }
-    return false;
-  }
-  exportDOM() {
-    const element = document.createElement("div");
-    element.setAttribute("data-lexical-layout-item", "true");
-    if (this.__dataGridColumn) {
-      element.style.gridColumn = this.__dataGridColumn;
-      element.setAttribute("data-grid-column", this.__dataGridColumn);
-    }
-    return { element };
-  }
-  collapseAtStart() {
-    const parent = this.getParentOrThrow();
-    if (this.is(parent.getFirstChild()) && parent.getChildren().every($isEmptyLayoutItemNode)) {
-      parent.remove();
-      return true;
-    }
-    return false;
-  }
-  static importDOM() {
-    return {
-      div: (domNode) => {
-        if (!domNode.hasAttribute("data-lexical-layout-item")) {
-          return null;
-        }
-        return {
-          conversion: $convertLayoutItemElement,
-          priority: 2
-        };
-      }
-    };
-  }
-  static importJSON(serializedNode) {
-    return $createLayoutItemNode(
-      serializedNode.dataGridColumn || ""
-    ).updateFromJSON(serializedNode);
-  }
-  exportJSON() {
-    return {
-      ...super.exportJSON(),
-      type: "layout-item",
-      dataGridColumn: this.__dataGridColumn
-    };
-  }
-  isShadowRoot() {
-    return true;
-  }
-  getDataGridColumn() {
-    return this.getLatest().__dataGridColumn;
-  }
-  setDataGridColumn(value) {
-    const self2 = this.getWritable();
-    self2.__dataGridColumn = value;
-    return self2;
-  }
-};
-function $createLayoutItemNode(dataGridColumn = "") {
-  return new LayoutItemNode(dataGridColumn);
-}
-function $isLayoutItemNode(node) {
-  return node instanceof LayoutItemNode;
-}
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContainerNode.js
-var import_utils3 = require("@lexical/utils");
-var import_lexical3 = require("lexical");
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleUtils.js
-function setDomHiddenUntilFound(dom) {
-  dom.hidden = "until-found";
-}
-function domOnBeforeMatch(dom, callback) {
-  dom.onbeforematch = callback;
-}
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContainerNode.js
-function $convertDetailsElement(domNode) {
-  const isOpen = domNode.open !== void 0 ? domNode.open : true;
-  const node = $createCollapsibleContainerNode(isOpen);
-  return {
-    node
-  };
-}
-var CollapsibleContainerNode = class _CollapsibleContainerNode extends import_lexical3.ElementNode {
-  constructor(open, key) {
-    super(key);
-    this.__open = open;
-  }
-  static getType() {
-    return "collapsible-container";
-  }
-  static clone(node) {
-    return new _CollapsibleContainerNode(node.__open, node.__key);
-  }
-  isShadowRoot() {
-    return true;
-  }
-  collapseAtStart() {
-    const nodesToInsert = [];
-    for (const child of this.getChildren()) {
-      if ((0, import_lexical3.$isElementNode)(child)) {
-        nodesToInsert.push(...child.getChildren());
-      }
-    }
-    const caret = (0, import_lexical3.$rewindSiblingCaret)((0, import_lexical3.$getSiblingCaret)(this, "previous"));
-    caret.splice(1, nodesToInsert);
-    const [firstChild] = nodesToInsert;
-    if (firstChild) {
-      firstChild.selectStart().deleteCharacter(true);
-    }
-    return true;
-  }
-  createDOM(config, editor) {
-    let dom;
-    if (import_utils3.IS_CHROME) {
-      dom = document.createElement("div");
-      if (this.__open) {
-        dom.setAttribute("open", "");
-      }
-    } else {
-      const detailsDom = document.createElement("details");
-      detailsDom.open = this.__open;
-      detailsDom.addEventListener("toggle", () => {
-        const open = editor.getEditorState().read(() => this.getOpen());
-        if (open !== detailsDom.open) {
-          editor.update(() => this.toggleOpen());
-        }
-      });
-      dom = detailsDom;
-    }
-    dom.classList.add("Collapsible__container");
-    return dom;
-  }
-  updateDOM(prevNode, dom) {
-    const currentOpen = this.__open;
-    if (prevNode.__open !== currentOpen) {
-      if (import_utils3.IS_CHROME) {
-        const contentDom = dom.children[1];
-        if (!(0, import_lexical3.isHTMLElement)(contentDom)) {
-          throw new Error("Expected contentDom to be an HTMLElement");
-        }
-        if (currentOpen) {
-          dom.setAttribute("open", "");
-          contentDom.hidden = false;
-        } else {
-          dom.removeAttribute("open");
-          setDomHiddenUntilFound(contentDom);
-        }
-      } else {
-        dom.open = this.__open;
-      }
-    }
-    return false;
-  }
-  static importDOM() {
-    return {
-      details: () => {
-        return {
-          conversion: $convertDetailsElement,
-          priority: 1
-        };
-      }
-    };
-  }
-  static importJSON(serializedNode) {
-    return $createCollapsibleContainerNode(serializedNode.open).updateFromJSON(
-      serializedNode
-    );
-  }
-  exportDOM() {
-    const element = document.createElement("details");
-    element.classList.add("Collapsible__container");
-    element.setAttribute("open", this.__open.toString());
-    return { element };
-  }
-  exportJSON() {
-    return {
-      ...super.exportJSON(),
-      open: this.__open
-    };
-  }
-  setOpen(open) {
-    const writable = this.getWritable();
-    writable.__open = open;
-  }
-  getOpen() {
-    return this.getLatest().__open;
-  }
-  toggleOpen() {
-    this.setOpen(!this.getOpen());
-  }
-};
-function $createCollapsibleContainerNode(isOpen) {
-  return new CollapsibleContainerNode(isOpen);
-}
-function $isCollapsibleContainerNode(node) {
-  return node instanceof CollapsibleContainerNode;
-}
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleTitleNode.js
-var import_utils5 = require("@lexical/utils");
-var import_lexical5 = require("lexical");
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContentNode.js
-var import_utils4 = require("@lexical/utils");
-var import_lexical4 = require("lexical");
-function $convertCollapsibleContentElement() {
-  const node = $createCollapsibleContentNode();
-  return {
-    node
-  };
-}
-var CollapsibleContentNode = class _CollapsibleContentNode extends import_lexical4.ElementNode {
-  static getType() {
-    return "collapsible-content";
-  }
-  static clone(node) {
-    return new _CollapsibleContentNode(node.__key);
-  }
-  createDOM(config, editor) {
-    const dom = document.createElement("div");
-    dom.classList.add("Collapsible__content");
-    if (import_utils4.IS_CHROME) {
-      editor.getEditorState().read(() => {
-        const containerNode = this.getParentOrThrow();
-        if (!$isCollapsibleContainerNode(containerNode)) {
-          throw new Error(
-            "Expected parent node to be a CollapsibleContainerNode"
-          );
-        }
-        if (!containerNode.__open) {
-          setDomHiddenUntilFound(dom);
-        }
-      });
-      domOnBeforeMatch(dom, () => {
-        editor.update(() => {
-          const containerNode = this.getParentOrThrow().getLatest();
-          if (!$isCollapsibleContainerNode(containerNode)) {
-            throw new Error(
-              "Expected parent node to be a CollapsibleContainerNode"
-            );
-          }
-          if (!containerNode.__open) {
-            containerNode.toggleOpen();
-          }
-        });
-      });
-    }
-    return dom;
-  }
-  updateDOM() {
-    return false;
-  }
-  static importDOM() {
-    return {
-      div: (domNode) => {
-        if (!domNode.hasAttribute("data-lexical-collapsible-content")) {
-          return null;
-        }
-        return {
-          conversion: $convertCollapsibleContentElement,
-          priority: 2
-        };
-      }
-    };
-  }
-  exportDOM() {
-    const element = document.createElement("div");
-    element.classList.add("Collapsible__content");
-    element.setAttribute("data-lexical-collapsible-content", "true");
-    return { element };
-  }
-  static importJSON(serializedNode) {
-    return $createCollapsibleContentNode().updateFromJSON(serializedNode);
-  }
-  isShadowRoot() {
-    return true;
-  }
-};
-function $createCollapsibleContentNode() {
-  return new CollapsibleContentNode();
-}
-function $isCollapsibleContentNode(node) {
-  return node instanceof CollapsibleContentNode;
-}
-
-// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleTitleNode.js
-function $convertSummaryElement() {
-  const node = $createCollapsibleTitleNode();
-  return {
-    node
-  };
-}
-var CollapsibleTitleNode = class _CollapsibleTitleNode extends import_lexical5.ElementNode {
-  static getType() {
-    return "collapsible-title";
-  }
-  static clone(node) {
-    return new _CollapsibleTitleNode(node.__key);
-  }
-  createDOM(config, editor) {
-    const dom = document.createElement("summary");
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", "10");
-    svg.setAttribute("height", "6");
-    svg.setAttribute("viewBox", "0 0 10 6");
-    svg.setAttribute("fill", "none");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute(
-      "d",
-      "M5.44213 5.05806L8.93324 1.56694C9.32697 1.17321 9.04812 0.500001 8.4913 0.500001L1.50907 0.5C0.952251 0.5 0.673395 1.17321 1.06712 1.56694L4.55824 5.05806C4.80232 5.30213 5.19805 5.30213 5.44213 5.05806Z"
-    );
-    path.setAttribute("fill", "currentColor");
-    svg.classList.add("Collapsible__caret");
-    svg.appendChild(path);
-    dom.appendChild(svg);
-    dom.classList.add("Collapsible__title");
-    if (import_utils5.IS_CHROME) {
-      svg.addEventListener("click", () => {
-        editor.update(() => {
-          const collapsibleContainer = this.getLatest().getParentOrThrow();
-          if (!$isCollapsibleContainerNode(collapsibleContainer)) {
-            throw new Error(
-              "Expected parent node to be a CollapsibleContainerNode"
-            );
-          }
-          collapsibleContainer.toggleOpen();
-        });
-      });
-    }
-    return dom;
-  }
-  updateDOM() {
-    return false;
-  }
-  static importDOM() {
-    return {
-      summary: () => {
-        return {
-          conversion: $convertSummaryElement,
-          priority: 1
-        };
-      }
-    };
-  }
-  static importJSON(serializedNode) {
-    return $createCollapsibleTitleNode().updateFromJSON(serializedNode);
-  }
-  static transform() {
-    return (node) => {
-      if (!$isCollapsibleTitleNode(node)) {
-        throw new Error("node is not a CollapsibleTitleNode");
-      }
-      if (node.isEmpty()) {
-        node.remove();
-      }
-    };
-  }
-  insertNewAfter(_14, restoreSelection = true) {
-    const containerNode = this.getParentOrThrow();
-    if (!$isCollapsibleContainerNode(containerNode)) {
-      throw new Error(
-        "CollapsibleTitleNode expects to be child of CollapsibleContainerNode"
-      );
-    }
-    if (containerNode.getOpen()) {
-      const contentNode = this.getNextSibling();
-      if (!$isCollapsibleContentNode(contentNode)) {
-        throw new Error(
-          "CollapsibleTitleNode expects to have CollapsibleContentNode sibling"
-        );
-      }
-      const firstChild = contentNode.getFirstChild();
-      if ((0, import_lexical5.$isElementNode)(firstChild)) {
-        return firstChild;
-      } else {
-        const paragraph = (0, import_lexical5.$createParagraphNode)();
-        contentNode.append(paragraph);
-        return paragraph;
-      }
-    } else {
-      const paragraph = (0, import_lexical5.$createParagraphNode)();
-      containerNode.insertAfter(paragraph, restoreSelection);
-      return paragraph;
-    }
-  }
-};
-function $createCollapsibleTitleNode() {
-  return new CollapsibleTitleNode();
-}
-function $isCollapsibleTitleNode(node) {
-  return node instanceof CollapsibleTitleNode;
-}
+// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
+var import_code2 = require("@lexical/code");
+var import_hashtag = require("@lexical/hashtag");
+var import_link4 = require("@lexical/link");
+var import_list3 = require("@lexical/list");
+var import_overflow = require("@lexical/overflow");
+var import_LexicalHorizontalRuleNode3 = require("@lexical/react/LexicalHorizontalRuleNode");
+var import_rich_text4 = require("@lexical/rich-text");
+var import_table4 = require("@lexical/table");
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageNode.js
-var import_lexical54 = require("lexical");
-var React201 = __toESM(require("react"));
+var import_lexical44 = require("lexical");
+var React198 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageComponent.js
-var import_LexicalComposerContext29 = require("@lexical/react/LexicalComposerContext");
-var import_useLexicalEditable3 = require("@lexical/react/useLexicalEditable");
-var import_useLexicalNodeSelection4 = require("@lexical/react/useLexicalNodeSelection");
-var import_utils31 = require("@lexical/utils");
-var import_lexical53 = require("lexical");
-var React200 = __toESM(require("react"));
-var import_react201 = require("react");
+var import_LexicalComposerContext28 = require("@lexical/react/LexicalComposerContext");
+var import_useLexicalEditable2 = require("@lexical/react/useLexicalEditable");
+var import_useLexicalNodeSelection3 = require("@lexical/react/useLexicalNodeSelection");
+var import_utils24 = require("@lexical/utils");
+var import_lexical43 = require("lexical");
+var React197 = __toESM(require("react"));
+var import_react199 = require("react");
 var import_react_dom7 = require("react-dom");
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageResizeHandlers.js
-var import_utils6 = require("@lexical/utils");
+var import_utils = require("@lexical/utils");
 var React = __toESM(require("react"));
 var import_react = require("react");
 var import_jsx_runtime = require("react/jsx-runtime");
@@ -120162,7 +119295,7 @@ function ImageResizer({
     if (image !== null && controlWrapper !== null) {
       event.preventDefault();
       const { width, height } = image.getBoundingClientRect();
-      const zoom = (0, import_utils6.calculateZoomLevel)(image);
+      const zoom = (0, import_utils.calculateZoomLevel)(image);
       const positioning = positioningRef.current;
       positioning.startWidth = width;
       positioning.startHeight = height;
@@ -120188,7 +119321,7 @@ function ImageResizer({
     const isHorizontal = positioning.direction & (Direction.east | Direction.west);
     const isVertical = positioning.direction & (Direction.south | Direction.north);
     if (image !== null && positioning.isResizing) {
-      const zoom = (0, import_utils6.calculateZoomLevel)(image);
+      const zoom = (0, import_utils.calculateZoomLevel)(image);
       if (isHorizontal && isVertical) {
         let diff = Math.floor(positioning.startX - event.clientX / zoom);
         diff = positioning.direction & Direction.east ? -diff : diff;
@@ -128397,7 +127530,7 @@ CropModalSelector.displayName = "CropModal";
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageLinkPreview.js
 init_dist();
 var import_LexicalComposerContext2 = require("@lexical/react/LexicalComposerContext");
-var import_lexical13 = require("lexical");
+var import_lexical8 = require("lexical");
 init_EditorPropsContext();
 
 // ../../doc-editor/packages/doc-editor/src/hooks/useLanguage.ts
@@ -129655,7 +128788,7 @@ var ImageLinkPreview = ({ linkUrl, testId, nodeKey }) => {
       }
     });
     editor.update(() => {
-      const currentNode = (0, import_lexical13.$getNodeByKey)(nodeKey);
+      const currentNode = (0, import_lexical8.$getNodeByKey)(nodeKey);
       try {
         new URL(urlDataRef.current);
         currentNode.setLink(urlDataRef.current);
@@ -129721,7 +128854,7 @@ var ImageLinkPreview = ({ linkUrl, testId, nodeKey }) => {
               icon: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(DeleteOutlined_default, {}),
               onClick: () => {
                 editor.update(() => {
-                  const imageNode = (0, import_lexical13.$getNodeByKey)(nodeKey);
+                  const imageNode = (0, import_lexical8.$getNodeByKey)(nodeKey);
                   imageNode.setLink(null);
                 });
               },
@@ -129742,7 +128875,7 @@ var ImageLinkPreview_default = ImageLinkPreview;
 var import_LexicalComposerContext3 = require("@lexical/react/LexicalComposerContext");
 var import_react151 = require("react");
 init_EditorPropsContext();
-var import_lexical14 = require("lexical");
+var import_lexical9 = require("lexical");
 var React148 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/useSuspenseImage.js
@@ -129944,14 +129077,14 @@ function LazyImageViewer({
     (e) => {
       if (e.target.value) {
         editor.update(() => {
-          const node = (0, import_lexical14.$getNodeByKey)(nodeKey);
+          const node = (0, import_lexical9.$getNodeByKey)(nodeKey);
           if ($isImageNode(node)) {
             node.setCaption(e.target.value);
           }
         });
       } else {
         editor.update(() => {
-          const node = (0, import_lexical14.$getNodeByKey)(nodeKey);
+          const node = (0, import_lexical9.$getNodeByKey)(nodeKey);
           if ($isImageNode(node)) {
             node.setCaption(void 0);
             node.setShowCaption(false);
@@ -129988,11 +129121,11 @@ function LazyImageViewer({
           "data-latex": latex,
           onClick: () => {
             editor.update(() => {
-              const imageNode = (0, import_lexical14.$getNodeByKey)(nodeKey);
+              const imageNode = (0, import_lexical9.$getNodeByKey)(nodeKey);
               if (!$isImageNode(imageNode)) return;
-              const nodeSelection = (0, import_lexical14.$createNodeSelection)();
+              const nodeSelection = (0, import_lexical9.$createNodeSelection)();
               nodeSelection.add(nodeKey);
-              (0, import_lexical14.$setSelection)(nodeSelection);
+              (0, import_lexical9.$setSelection)(nodeSelection);
             });
             setIsImageSelected(true);
           },
@@ -130320,7 +129453,7 @@ function useLazyMediaLoad({ wrapperRef, tag, src }) {
 }
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageFloatingOptions.js
-var import_react199 = __toESM(require("react"));
+var import_react197 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/components/DropDown/DocEditorDropdown.js
 var import_react153 = __toESM(require("react"));
@@ -130468,8 +129601,8 @@ var DocEditorDropdown = ({
 var DocEditorDropdown_default = DocEditorDropdown;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageFloatingOptions.js
-var import_LexicalComposerContext28 = require("@lexical/react/LexicalComposerContext");
-var import_lexical52 = require("lexical");
+var import_LexicalComposerContext27 = require("@lexical/react/LexicalComposerContext");
+var import_lexical42 = require("lexical");
 init_dist();
 init_CommentUtils();
 init_EditorPropsContext();
@@ -130501,7 +129634,7 @@ function useEditorDraggableAsPerDropdownBodyConfig() {
 init_operations();
 
 // ../../doc-editor/packages/doc-editor/src/constants/commands/customLexicalCommands.js
-var import_lexical20 = require("lexical");
+var import_lexical15 = require("lexical");
 var CustomLexicalCommands = {
   OPEN_IMAGE_UPLOAD_COMMAND: "OPEN-IMAGE-UPLOAD-COMMAND",
   OPEN_LINK_ADD_COMMAND: "OPEN-LINK-ADD-COMMAND",
@@ -130509,28 +129642,28 @@ var CustomLexicalCommands = {
   OPEN_EMOJI_DROPDOWN_COMMAND: "OPEN-EMOJI-DROPDOWN-COMMAND",
   INSERT_LAYOUT_COMMAND: "INSERT-LAYOUT-COMMAND",
   UPDATE_LAYOUT_COMMAND: "UPDATE-LAYOUT-COMMAND",
-  INSERT_COLLAPSIBLE_CONTAINER_COMMAND: (0, import_lexical20.createCommand)(
+  INSERT_COLLAPSIBLE_CONTAINER_COMMAND: (0, import_lexical15.createCommand)(
     "INSERT-COLLAPSIBLE-CONTAINER-COMMAND"
   ),
   INSERT_IMAGE_COMMAND: "INSERT-IMAGE-COMMAND",
   INSERT_EMBED_MEDIA_COMMAND: "INSERT-EMBED-MEDIA-COMMAND",
   REPLACE_EMBED_MEDIA_COMMAND: "REPLACE-EMBED-MEDIA-COMMAND",
   ADD_EMBED_MEDIA_COMMAND: "ADD-EMBED-MEDIA-COMMAND",
-  INSERT_COMMENT_AT_SELECTION: (0, import_lexical20.createCommand)("INSERT-COMMENT-AT-SELECTION"),
-  REPLACE_IMAGE_COMMAND: (0, import_lexical20.createCommand)("REPLACE-IMAGE-COMMAND"),
-  INSERT_SMART_PLACEHOLDER_COMMAND: (0, import_lexical20.createCommand)(
+  INSERT_COMMENT_AT_SELECTION: (0, import_lexical15.createCommand)("INSERT-COMMENT-AT-SELECTION"),
+  REPLACE_IMAGE_COMMAND: (0, import_lexical15.createCommand)("REPLACE-IMAGE-COMMAND"),
+  INSERT_SMART_PLACEHOLDER_COMMAND: (0, import_lexical15.createCommand)(
     "INSERT-SMART-PLACEHOLDER-COMMAND"
   ),
-  INSERT_FILE_MEDIA_COMMAND: (0, import_lexical20.createCommand)("INSERT-FILE-MEDIA-COMMAND"),
-  CREATE_CODE_BLOCK_COMMAND: (0, import_lexical20.createCommand)("CREATE-CODE-BLOCK-COMMAND"),
-  REPLACE_INLINE_COMMENT_WITH_COMMENT: (0, import_lexical20.createCommand)(
+  INSERT_FILE_MEDIA_COMMAND: (0, import_lexical15.createCommand)("INSERT-FILE-MEDIA-COMMAND"),
+  CREATE_CODE_BLOCK_COMMAND: (0, import_lexical15.createCommand)("CREATE-CODE-BLOCK-COMMAND"),
+  REPLACE_INLINE_COMMENT_WITH_COMMENT: (0, import_lexical15.createCommand)(
     "REPLACE_INLINE-COMMENT-WITH-COMMENT"
   ),
-  CREATE_INLINE_COMMENT: (0, import_lexical20.createCommand)("CREATE_INLINE_COMMENT"),
-  UPDATE_INLINE_COMMENT: (0, import_lexical20.createCommand)("UPDATE_INLINE_COMMENT"),
-  DELETE_INLINE_COMMENT: (0, import_lexical20.createCommand)("DELETE_INLINE_COMMENT"),
-  RESOLVE_INLINE_COMMENT: (0, import_lexical20.createCommand)("RESOLVE_INLINE_COMMENT"),
-  DELETE_COMMENT_COMMAND: (0, import_lexical20.createCommand)("DELETE_COMMENT_COMMAND")
+  CREATE_INLINE_COMMENT: (0, import_lexical15.createCommand)("CREATE_INLINE_COMMENT"),
+  UPDATE_INLINE_COMMENT: (0, import_lexical15.createCommand)("UPDATE_INLINE_COMMENT"),
+  DELETE_INLINE_COMMENT: (0, import_lexical15.createCommand)("DELETE_INLINE_COMMENT"),
+  RESOLVE_INLINE_COMMENT: (0, import_lexical15.createCommand)("RESOLVE_INLINE_COMMENT"),
+  DELETE_COMMENT_COMMAND: (0, import_lexical15.createCommand)("DELETE_COMMENT_COMMAND")
 };
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageFloatingOptions.js
@@ -130538,7 +129671,7 @@ init_dist();
 init_dist();
 
 // ../../doc-editor/packages/doc-editor/src/plugins/ToolbarPlugin/index.js
-var import_LexicalComposerContext27 = require("@lexical/react/LexicalComposerContext");
+var import_LexicalComposerContext26 = require("@lexical/react/LexicalComposerContext");
 
 // ../../doc-editor/packages/doc-editor/src/components/Tooltip/index.js
 var import_react158 = __toESM(require("react"));
@@ -130569,20 +129702,20 @@ var Tooltip2 = ({
 var Tooltip_default = Tooltip2;
 
 // ../../doc-editor/packages/doc-editor/src/plugins/ToolbarPlugin/index.js
-var import_react198 = __toESM(require("react"));
+var import_react196 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/components/SelectionTypeProvider/useSelectionTypeProvider.js
 var import_react160 = require("react");
 
 // ../../doc-editor/packages/doc-editor/src/components/SelectionTypeProvider/index.js
 var import_react159 = __toESM(require("react"));
-var import_lexical21 = require("lexical");
+var import_lexical16 = require("lexical");
 var import_jsx_runtime12 = require("react/jsx-runtime");
 var SelectionTypeContext = (0, import_react159.createContext)();
 
 // ../../doc-editor/packages/doc-editor/src/components/SelectionTypeProvider/useSelectionTypeProvider.js
-var import_lexical22 = require("lexical");
-var import_utils17 = require("@lexical/utils");
+var import_lexical17 = require("lexical");
+var import_utils12 = require("@lexical/utils");
 var import_list = require("@lexical/list");
 var import_rich_text2 = require("@lexical/rich-text");
 var import_code = require("@lexical/code");
@@ -130590,7 +129723,7 @@ var import_LexicalComposerContext6 = require("@lexical/react/LexicalComposerCont
 init_utils();
 init_operations();
 var determineAlignment = (element) => {
-  if ((0, import_lexical22.$isElementNode)(element)) {
+  if ((0, import_lexical17.$isElementNode)(element)) {
     return element.getFormatType() || "left";
   }
   return "left";
@@ -130638,9 +129771,9 @@ var useSelectionType = (docContainerRef) => {
   }, [docContainerRef, setDocEditorContainerWidth]);
   const updateToolbar = (0, import_react160.useCallback)(() => {
     editor.getEditorState().read(() => {
-      const selection = (0, import_lexical22.$getSelection)();
+      const selection = (0, import_lexical17.$getSelection)();
       setSelection(selection);
-      if ((0, import_lexical22.$isRangeSelection)(selection)) {
+      if ((0, import_lexical17.$isRangeSelection)(selection)) {
         setTextFormat({
           isBold: selection.hasFormat("bold"),
           isItalic: selection.hasFormat("italic"),
@@ -130649,14 +129782,14 @@ var useSelectionType = (docContainerRef) => {
           isCode: selection.hasFormat("code")
         });
         const anchorNode = selection.anchor.getNode();
-        let element = anchorNode.getKey() === "root" ? anchorNode : (0, import_utils17.$findMatchingParent)(anchorNode, (e) => {
+        let element = anchorNode.getKey() === "root" ? anchorNode : (0, import_utils12.$findMatchingParent)(anchorNode, (e) => {
           const parent = e.getParent();
-          return parent !== null && (0, import_lexical22.$isRootOrShadowRoot)(parent);
+          return parent !== null && (0, import_lexical17.$isRootOrShadowRoot)(parent);
         }) || anchorNode.getTopLevelElementOrThrow();
         setAlignment(determineAlignment(element));
         setBlockType(determineBlockType(element));
         setCurrentNodeKey(element?.getKey());
-      } else if ((0, import_lexical22.$isNodeSelection)(selection)) {
+      } else if ((0, import_lexical17.$isNodeSelection)(selection)) {
         const nodes = selection.getNodes();
         if (nodes.length > 1) return;
         const node = nodes[0];
@@ -130683,8 +129816,8 @@ var useSelectionType = (docContainerRef) => {
   ]);
   const handleEditorUpdate = (0, import_react160.useCallback)(() => {
     editor.read(() => {
-      const selection = (0, import_lexical22.$getSelection)();
-      if ((0, import_lexical22.$isRangeSelection)(selection)) {
+      const selection = (0, import_lexical17.$getSelection)();
+      if ((0, import_lexical17.$isRangeSelection)(selection)) {
         setFontFormatting((prev) => ({
           ...prev,
           uppercase: selection.hasFormat("uppercase"),
@@ -130698,9 +129831,9 @@ var useSelectionType = (docContainerRef) => {
     });
   }, [editor, setFontFormatting]);
   (0, import_react160.useEffect)(() => {
-    return (0, import_utils17.mergeRegister)(
+    return (0, import_utils12.mergeRegister)(
       editor.registerCommand(
-        import_lexical22.SELECTION_CHANGE_COMMAND,
+        import_lexical17.SELECTION_CHANGE_COMMAND,
         () => {
           executeAfterEventCall(updateToolbar, 0);
           return false;
@@ -130708,7 +129841,7 @@ var useSelectionType = (docContainerRef) => {
         4
       ),
       editor.registerCommand(
-        import_lexical22.UNDO_COMMAND,
+        import_lexical17.UNDO_COMMAND,
         () => {
           executeAfterEventCall(updateToolbar, 0);
           return false;
@@ -130716,7 +129849,7 @@ var useSelectionType = (docContainerRef) => {
         4
       ),
       editor.registerCommand(
-        import_lexical22.REDO_COMMAND,
+        import_lexical17.REDO_COMMAND,
         () => {
           executeAfterEventCall(updateToolbar, 0);
           return false;
@@ -130775,7 +129908,7 @@ function closeAllSlashMenus() {
 var SlashMenuStoreInstance = new SlashMenuStore();
 
 // ../../doc-editor/packages/doc-editor/src/plugins/ToolbarPlugin/ToolbarComponents.js
-var import_react197 = __toESM(require("react"));
+var import_react195 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/components/AIButton/index.js
 var import_react163 = __toESM(require("react"));
@@ -130810,7 +129943,7 @@ var useAIStreaming = () => {
 };
 
 // ../../doc-editor/packages/doc-editor/src/utils/handleAiButtonClick/index.js
-var import_lexical23 = require("lexical");
+var import_lexical18 = require("lexical");
 
 // ../../doc-editor/packages/doc-editor/src/utils/menuUtils/index.js
 var import_react162 = __toESM(require("react"));
@@ -130984,28 +130117,28 @@ function handleAiButtonClick({
   triggerSource
 }) {
   editor.update(() => {
-    let selection = (0, import_lexical23.$getSelection)();
+    let selection = (0, import_lexical18.$getSelection)();
     let wasAutoSelected = false;
     if (triggerSource === aiTriggers.SPARKLE_BTN && (!selection || selection.isCollapsed())) {
-      const root = (0, import_lexical23.$getRoot)();
+      const root = (0, import_lexical18.$getRoot)();
       if (root.getTextContentSize() > 0) {
         const firstChild = root.getFirstChild();
         const lastChild = root.getLastChild();
         if (firstChild && lastChild) {
-          const rangeSelection = (0, import_lexical23.$createRangeSelection)();
+          const rangeSelection = (0, import_lexical18.$createRangeSelection)();
           rangeSelection.anchor.set(firstChild.getKey(), 0, "element");
           rangeSelection.focus.set(
             lastChild.getKey(),
             lastChild.getChildrenSize(),
             "element"
           );
-          (0, import_lexical23.$setSelection)(rangeSelection);
+          (0, import_lexical18.$setSelection)(rangeSelection);
           selection = rangeSelection;
           wasAutoSelected = true;
         }
       }
     }
-    const selectedText = (0, import_lexical23.$isRangeSelection)(selection) ? selection.getTextContent() : "";
+    const selectedText = (0, import_lexical18.$isRangeSelection)(selection) ? selection.getTextContent() : "";
     const textContext = {
       preCursor: "",
       postCursor: ""
@@ -131095,7 +130228,7 @@ var AIButton_default = AIButton;
 // ../../doc-editor/packages/doc-editor/src/components/UndoButton/UndoButton.js
 var import_react164 = __toESM(require("react"));
 var import_LexicalComposerContext8 = require("@lexical/react/LexicalComposerContext");
-var import_lexical24 = require("lexical");
+var import_lexical19 = require("lexical");
 var import_react165 = require("react");
 
 // ../../doc-editor/packages/doc-editor/src/assets/icons/BackArrowOutlined.js
@@ -131793,7 +130926,7 @@ var UndoButton = ({ testId }) => {
   const editorProps = useEditorProps();
   (0, import_react165.useEffect)(() => {
     return editor.registerCommand(
-      import_lexical24.CAN_UNDO_COMMAND,
+      import_lexical19.CAN_UNDO_COMMAND,
       (payload) => {
         setCanUndo(payload);
         return false;
@@ -131811,7 +130944,7 @@ var UndoButton = ({ testId }) => {
       size: "small",
       disabled: !canUndo || editorProps.props.readOnly,
       onClick: () => {
-        editor.dispatchCommand(import_lexical24.UNDO_COMMAND, void 0);
+        editor.dispatchCommand(import_lexical19.UNDO_COMMAND, void 0);
       },
       "aria-label": t2("common:undo", true),
       testId
@@ -131822,7 +130955,7 @@ var UndoButton_default = UndoButton;
 
 // ../../doc-editor/packages/doc-editor/src/components/RedoButton/RedoButton.tsx
 var import_LexicalComposerContext9 = require("@lexical/react/LexicalComposerContext");
-var import_lexical25 = require("lexical");
+var import_lexical20 = require("lexical");
 var import_react166 = require("react");
 init_dist();
 init_EditorPropsContext();
@@ -131834,7 +130967,7 @@ var RedoButton = ({ testId }) => {
   const editorProps = useEditorProps();
   (0, import_react166.useEffect)(() => {
     return editor.registerCommand(
-      import_lexical25.CAN_REDO_COMMAND,
+      import_lexical20.CAN_REDO_COMMAND,
       (payload) => {
         setCanRedo(payload);
         return false;
@@ -131852,7 +130985,7 @@ var RedoButton = ({ testId }) => {
       size: "small",
       disabled: !canRedo || !!editorProps.props?.readOnly,
       onClick: () => {
-        editor.dispatchCommand(import_lexical25.REDO_COMMAND, void 0);
+        editor.dispatchCommand(import_lexical20.REDO_COMMAND, void 0);
       },
       "aria-label": t2("common:redo", true),
       testId
@@ -131867,14 +131000,288 @@ var import_LexicalHorizontalRuleNode2 = require("@lexical/react/LexicalHorizonta
 init_dist();
 init_dist();
 var import_table2 = require("@lexical/table");
-var import_lexical27 = require("lexical");
+var import_lexical22 = require("lexical");
 var import_LexicalComposerContext10 = require("@lexical/react/LexicalComposerContext");
 init_EditorPropsContext();
 init_operations();
 
 // ../../doc-editor/packages/doc-editor/src/components/InsertBlockComponent/utils.js
-var import_lexical26 = require("lexical");
+var import_lexical21 = require("lexical");
 init_configStore();
+
+// ../../doc-editor/packages/doc-editor/src/nodes/CustomTableCellNode/index.js
+var import_table = require("@lexical/table");
+
+// ../../doc-editor/packages/doc-editor/src/components/FontColorPickerButton/ColorPickerGridVals.js
+var ColorPickerGridValues = [
+  [
+    { label: "blue", color: "#00C4DB" },
+    { label: "pink", color: "#FF668F" },
+    { label: "violet", color: "#7777FF" },
+    { label: "teal", color: "#00B993" },
+    { label: "yellow", color: "#FFAA00" }
+  ],
+  [
+    { label: "neutral", color: "#707070" },
+    { label: "orange", color: "#FF865D" },
+    { label: "purple", color: "#CC66FF" },
+    { label: "green", color: "#8EC80A" },
+    { label: "dark-pink", color: "#8A064C" }
+  ]
+];
+var ColorPickerGridVals_default = ColorPickerGridValues;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/CustomTableCellNode/index.js
+var BORDER_TYPES = {
+  LEFT: "left",
+  RIGHT: "right",
+  TOP: "top",
+  BOTTOM: "bottom",
+  ALL: "all",
+  NONE: "none"
+};
+var DEFAULT_BORDER_COLOR = "#E6E6E6";
+var ALL_BORDERS = [
+  BORDER_TYPES.TOP,
+  BORDER_TYPES.RIGHT,
+  BORDER_TYPES.BOTTOM,
+  BORDER_TYPES.LEFT
+];
+var DEFAULT_BORDER_COLORS = {
+  top: DEFAULT_BORDER_COLOR,
+  right: DEFAULT_BORDER_COLOR,
+  bottom: DEFAULT_BORDER_COLOR,
+  left: DEFAULT_BORDER_COLOR
+};
+function $convertTableCellElement(domNode) {
+  const nodeName = domNode.nodeName.toLowerCase();
+  const tableCellNode = $createCustomTableCellNode(
+    nodeName === "th" ? import_table.TableCellHeaderStates.ROW : import_table.TableCellHeaderStates.NO_STATUS
+  );
+  const colSpan = domNode.colSpan;
+  const rowSpan = domNode.rowSpan;
+  if (colSpan > 1) tableCellNode.__colSpan = colSpan;
+  if (rowSpan > 1) tableCellNode.__rowSpan = rowSpan;
+  const width = domNode.style.width;
+  if (width) tableCellNode.__width = parseInt(width, 10);
+  const backgroundColor = domNode.style.backgroundColor;
+  if (backgroundColor) tableCellNode.__backgroundColor = backgroundColor;
+  const flattenedColors = ColorPickerGridVals_default.flatMap(
+    (row) => row.map((item) => item.color)
+  );
+  const borderTypesAttr = domNode.getAttribute("data-border-types");
+  if (borderTypesAttr) {
+    tableCellNode.__borderTypes = new Set(
+      borderTypesAttr.split("|").filter(Boolean)
+    );
+  }
+  const colorsAttr = domNode.getAttribute("data-border-colors");
+  if (colorsAttr) {
+    try {
+      const parsed = {};
+      colorsAttr.split("|").forEach((part) => {
+        const [edge, color] = part.split(":");
+        if (ALL_BORDERS.includes(edge) && flattenedColors.includes(color)) {
+          parsed[edge] = color;
+        }
+      });
+      tableCellNode.__borderColors = {
+        ...DEFAULT_BORDER_COLORS,
+        ...parsed
+      };
+    } catch {
+    }
+  }
+  const style = domNode.style.cssText;
+  tableCellNode.setStyle(style);
+  return { node: tableCellNode };
+}
+var CustomTableCellNode = class _CustomTableCellNode extends import_table.TableCellNode {
+  __borderTypes = /* @__PURE__ */ new Set();
+  __borderColors = { ...DEFAULT_BORDER_COLORS };
+  constructor(headerState, colSpan, width, key) {
+    super(headerState, colSpan, width, key);
+    this.__borderTypes = new Set(ALL_BORDERS);
+    this.__borderColors = { ...DEFAULT_BORDER_COLORS };
+  }
+  static getType() {
+    return "custom-table-cell";
+  }
+  static clone(node) {
+    const newNode = new _CustomTableCellNode(
+      node.__headerState,
+      node.__colSpan,
+      node.__width,
+      node.__key
+    );
+    newNode.__borderTypes = new Set(node.__borderTypes);
+    newNode.__borderColors = { ...node.__borderColors };
+    return newNode;
+  }
+  static importJSON(serializedNode) {
+    const node = $createCustomTableCellNode(
+      serializedNode.headerState,
+      serializedNode.colSpan,
+      serializedNode.width
+    );
+    node.__rowSpan = serializedNode.rowSpan || 1;
+    node.__backgroundColor = serializedNode.backgroundColor || null;
+    node.__borderTypes = new Set(
+      serializedNode.borderTypes ?? [...ALL_BORDERS]
+    );
+    node.__borderColors = {
+      ...DEFAULT_BORDER_COLORS,
+      ...serializedNode.borderColors || {}
+    };
+    return node;
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      type: "custom-table-cell",
+      borderTypes: Array.from(this.__borderTypes),
+      borderColors: this.__borderColors
+    };
+  }
+  getBorderTypes() {
+    return Array.from(this.getLatest().__borderTypes);
+  }
+  setBorderTypes(types) {
+    const self2 = this.getWritable();
+    self2.__borderTypes = new Set(types);
+    return self2;
+  }
+  addBorderType(type) {
+    const self2 = this.getWritable();
+    switch (type) {
+      case BORDER_TYPES.TOP:
+      case BORDER_TYPES.RIGHT:
+      case BORDER_TYPES.BOTTOM:
+      case BORDER_TYPES.LEFT:
+        self2.__borderTypes.add(type);
+        break;
+      case BORDER_TYPES.ALL:
+        self2.__borderTypes = /* @__PURE__ */ new Set([
+          BORDER_TYPES.TOP,
+          BORDER_TYPES.BOTTOM,
+          BORDER_TYPES.LEFT,
+          BORDER_TYPES.RIGHT
+        ]);
+        break;
+      case BORDER_TYPES.NONE:
+        self2.__borderTypes = /* @__PURE__ */ new Set([type]);
+        break;
+      default:
+        break;
+    }
+    return self2;
+  }
+  setBorderColorForEdge(edge, color) {
+    const self2 = this.getWritable();
+    self2.__borderColors = { ...self2.__borderColors, [edge]: color };
+    return self2;
+  }
+  createDOM(config) {
+    const dom = super.createDOM(config);
+    dom.style = this.getStyle();
+    this.applyBorderStyles(dom);
+    if (this.__backgroundColor) {
+      dom.style.backgroundColor = this.__backgroundColor;
+    }
+    if (this.__verticalAlign) {
+      dom.style.verticalAlign = this.__verticalAlign;
+    }
+    return dom;
+  }
+  updateDOM(prevNode, dom, config) {
+    const updated = super.updateDOM(prevNode, dom, config);
+    const prevKey = Array.from(prevNode.__borderTypes).join("|") + JSON.stringify(prevNode.__borderColors);
+    const nextKey = Array.from(this.__borderTypes).join("|") + JSON.stringify(this.__borderColors);
+    let internalUpdated = false;
+    if (prevKey !== nextKey) {
+      this.applyBorderStyles(dom);
+      internalUpdated = true;
+    }
+    if (prevNode.__backgroundColor !== prevNode.__backgroundColor) {
+      dom.style.backgroundColor = this.__backgroundColor || "";
+      internalUpdated = true;
+    }
+    if (prevNode.__verticalAlign !== this.__verticalAlign) {
+      dom.style.verticalAlign = this.__verticalAlign;
+      internalUpdated = true;
+    }
+    return updated || internalUpdated;
+  }
+  exportDOM(editor) {
+    const { element } = super.exportDOM(editor);
+    if (element) {
+      element.setAttribute(
+        "data-border-types",
+        Array.from(this.__borderTypes).join("|")
+      );
+      element.setAttribute(
+        "data-border-colors",
+        Object.keys(this.__borderColors).map((key) => `${key}:${this.__borderColors[key]}`).join("|")
+      );
+      this.applyBorderStyles(element);
+    }
+    return { element };
+  }
+  static importDOM() {
+    return {
+      td: () => ({
+        conversion: $convertTableCellElement,
+        priority: 1
+      }),
+      th: () => ({
+        conversion: $convertTableCellElement,
+        priority: 1
+      })
+    };
+  }
+  applyBorderStyles(dom) {
+    const types = this.__borderTypes;
+    const c = this.__borderColors;
+    const has = (t2) => types.has(t2);
+    dom.style.border = "none";
+    if (types.size === 0) return;
+    if (has(BORDER_TYPES.TOP) && has(BORDER_TYPES.RIGHT) && has(BORDER_TYPES.BOTTOM) && has(BORDER_TYPES.LEFT)) {
+      dom.style.borderTop = `1px solid ${c.top}`;
+      dom.style.borderRight = `1px solid ${c.right}`;
+      dom.style.borderBottom = `1px solid ${c.bottom}`;
+      dom.style.borderLeft = `1px solid ${c.left}`;
+      return;
+    }
+    if (has(BORDER_TYPES.TOP)) dom.style.borderTop = `1px solid ${c.top}`;
+    if (has(BORDER_TYPES.RIGHT)) dom.style.borderRight = `1px solid ${c.right}`;
+    if (has(BORDER_TYPES.BOTTOM))
+      dom.style.borderBottom = `1px solid ${c.bottom}`;
+    if (has(BORDER_TYPES.LEFT)) dom.style.borderLeft = `1px solid ${c.left}`;
+  }
+};
+function $createCustomTableCellNode(headerState, colSpan, width) {
+  return new CustomTableCellNode(headerState, colSpan, width);
+}
+function $isCustomTableCellNode(node) {
+  return node instanceof CustomTableCellNode;
+}
+var CustomTableCellNodeReplacement = {
+  replace: import_table.TableCellNode,
+  with: (node) => {
+    const newNode = new CustomTableCellNode(
+      node.__headerState,
+      node.__colSpan,
+      node.__width
+    );
+    newNode.__rowSpan = node.__rowSpan;
+    newNode.__backgroundColor = node.__backgroundColor;
+    newNode.__borderTypes = new Set(ALL_BORDERS);
+    newNode.__borderColors = { ...DEFAULT_BORDER_COLORS };
+    return newNode;
+  }
+};
+
+// ../../doc-editor/packages/doc-editor/src/components/InsertBlockComponent/utils.js
 var BLOCK_TYPES_NOTALLOWED = {
   image: [""],
   video: [""],
@@ -131887,7 +131294,7 @@ var BLOCK_TYPES_NOTALLOWED = {
 var checkBlockInsertion = (editor, nodeKey, type, editorId) => {
   const nonValidTypes = BLOCK_TYPES_NOTALLOWED[type];
   return editor.getEditorState().read(() => {
-    let currentNode = (0, import_lexical26.$getNodeByKey)(nodeKey);
+    let currentNode = (0, import_lexical21.$getNodeByKey)(nodeKey);
     let innerValidState = true;
     let currentDepthObj = {
       table: 0
@@ -132014,7 +131421,7 @@ var InsertBlockComponent = (props) => {
   const insertionValidObj = (0, import_react168.useMemo)(() => {
     const editorId = editorProps?.props?.editorId;
     const isSelectionRange = editor.read(() => {
-      return (0, import_lexical27.$isRangeSelection)(selection) && !selection?.isCollapsed();
+      return (0, import_lexical22.$isRangeSelection)(selection) && !selection?.isCollapsed();
     });
     if (!currentNodeKey || currentNodeKey === "root" || isSelectionRange) {
       return { ...DEFAULT_VALID };
@@ -132315,7 +131722,7 @@ var InsertBlockComponent = (props) => {
 var InsertBlockComponent_default = InsertBlockComponent;
 
 // ../../doc-editor/packages/doc-editor/src/components/HeadingDropdown/index.js
-var import_react185 = __toESM(require("react"));
+var import_react170 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/constants/mappings/LexicalBlockMapping.js
 var import_react169 = __toESM(require("react"));
@@ -132428,84 +131835,1205 @@ var LexicalBlockMapping = (t2) => ({
 init_dist();
 
 // ../../doc-editor/packages/doc-editor/src/utils/toolbarUtils/index.js
-var import_lexical43 = require("lexical");
-var import_list3 = require("@lexical/list");
+var import_lexical24 = require("lexical");
+var import_list2 = require("@lexical/list");
 var import_selection5 = require("@lexical/selection");
-var import_table4 = require("@lexical/table");
-var import_utils24 = require("@lexical/utils");
-var import_rich_text4 = require("@lexical/rich-text");
-var import_LexicalDecoratorBlockNode2 = require("@lexical/react/LexicalDecoratorBlockNode");
+var import_table3 = require("@lexical/table");
+var import_utils15 = require("@lexical/utils");
+var import_rich_text3 = require("@lexical/rich-text");
+var import_LexicalDecoratorBlockNode = require("@lexical/react/LexicalDecoratorBlockNode");
 init_BlockFontSizes();
 
 // ../../doc-editor/packages/doc-editor/src/utils/editorUtils.js/index.js
 var import_selection4 = require("@lexical/selection");
-var import_lexical42 = require("lexical");
+var import_lexical23 = require("lexical");
+init_MarkNode();
+init_theme();
+init_node();
+var CSS_TO_STYLES = /* @__PURE__ */ new Map();
+function $patchStyle(target, patch) {
+  if (!((0, import_lexical23.$isRangeSelection)(target) ? target.isCollapsed() : (0, import_lexical23.$isTextNode)(target) || (0, import_lexical23.$isElementNode)(target))) {
+    throw `$patchStyle must only be called with a TextNode, ElementNode, or collapsed RangeSelection`;
+  }
+  const prevStyles = (0, import_selection4.getStyleObjectFromCSS)(
+    (0, import_lexical23.$isRangeSelection)(target) ? target.style : (0, import_lexical23.$isTextNode)(target) ? target.getStyle() : target.getTextStyle()
+  );
+  const newStyles = Object.entries(patch).reduce(
+    (styles, [key, value]) => {
+      if (typeof value === "function") {
+        styles[key] = value(prevStyles[key], target);
+      } else if (value === null) {
+        delete styles[key];
+      } else {
+        styles[key] = value;
+      }
+      return styles;
+    },
+    {
+      ...prevStyles
+    }
+  );
+  const newCSSText = (0, import_selection4.getCSSFromStyleObject)(newStyles);
+  if ((0, import_lexical23.$isRangeSelection)(target) || (0, import_lexical23.$isTextNode)(target)) {
+    target.setStyle(newCSSText);
+  } else {
+    target.setTextStyle(newCSSText);
+  }
+  CSS_TO_STYLES.set(newCSSText, newStyles);
+}
 
-// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
-var import_code2 = require("@lexical/code");
-var import_hashtag = require("@lexical/hashtag");
-var import_link2 = require("@lexical/link");
-var import_list2 = require("@lexical/list");
-var import_overflow = require("@lexical/overflow");
-var import_LexicalHorizontalRuleNode3 = require("@lexical/react/LexicalHorizontalRuleNode");
-var import_rich_text3 = require("@lexical/rich-text");
-var import_table3 = require("@lexical/table");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeNode.js
-var import_LexicalDecoratorBlockNode = require("@lexical/react/LexicalDecoratorBlockNode");
-var React175 = __toESM(require("react"));
-
-// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeComponent.js
-var import_LexicalBlockWithAlignableContents = require("@lexical/react/LexicalBlockWithAlignableContents");
-var React174 = __toESM(require("react"));
-var import_useLexicalNodeSelection2 = require("@lexical/react/useLexicalNodeSelection");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeResizeHandlers.js
-var import_utils20 = require("@lexical/utils");
-var React173 = __toESM(require("react"));
-var import_react170 = require("react");
-var import_jsx_runtime35 = require("react/jsx-runtime");
-var Direction2 = {
-  east: 1 << 0,
-  north: 1 << 3,
-  south: 1 << 1,
-  west: 1 << 2
+// ../../doc-editor/packages/doc-editor/src/utils/toolbarUtils/index.js
+var clearAllFormatting = (activeEditor) => {
+  activeEditor.update(() => {
+    const selection = (0, import_lexical24.$getSelection)();
+    if ((0, import_lexical24.$isRangeSelection)(selection)) {
+      const anchor = selection.anchor;
+      const focus = selection.focus;
+      const nodes = selection.getNodes();
+      if (anchor.key === focus.key && anchor.offset === focus.offset) {
+        return;
+      }
+      const isBackward = selection.isBackward();
+      const startPoint = isBackward ? focus : anchor;
+      const endPoint = isBackward ? anchor : focus;
+      nodes.forEach((node, idx) => {
+        if ((0, import_lexical24.$isTextNode)(node)) {
+          let textNode = node;
+          if (idx === 0 && startPoint.offset !== 0) {
+            textNode = textNode.splitText(startPoint.offset)[1] || textNode;
+          }
+          if (idx === nodes.length - 1) {
+            const splitOffset = nodes.length === 1 && startPoint.offset !== 0 ? endPoint.offset - startPoint.offset : endPoint.offset;
+            textNode = textNode.splitText(splitOffset)[0] || textNode;
+          }
+          if (textNode.__style !== "") {
+            textNode.setStyle("");
+          }
+          if (textNode.__format !== 0) {
+            textNode.setFormat(0);
+            (0, import_utils15.$getNearestBlockElementAncestorOrThrow)(textNode).setFormat("");
+          }
+          node = textNode;
+        } else if ((0, import_rich_text3.$isHeadingNode)(node) || (0, import_rich_text3.$isQuoteNode)(node)) {
+          node.replace((0, import_lexical24.$createParagraphNode)(), true);
+        } else if ((0, import_LexicalDecoratorBlockNode.$isDecoratorBlockNode)(node)) {
+          node.setFormat("");
+        }
+      });
+    }
+  });
+};
+var clearFormatting = (editor, fontStyle) => {
+  editor.update(() => {
+    const selection = (0, import_lexical24.$getSelection)();
+    let anchorKey, anchorOffset, focusKey, focusOffset, isBackward;
+    if ((0, import_lexical24.$isRangeSelection)(selection)) {
+      anchorKey = selection.anchor.key;
+      anchorOffset = selection.anchor.offset;
+      focusKey = selection.focus.key;
+      focusOffset = selection.focus.offset;
+      isBackward = selection.isBackward();
+    }
+    if ((0, import_lexical24.$isRangeSelection)(selection) || (0, import_table3.$isTableSelection)(selection)) {
+      const anchor = selection.anchor;
+      const focus = selection.focus;
+      const nodes = selection.getNodes();
+      const extractedNodes = selection.extract();
+      if (anchor.key === focus.key && anchor.offset === focus.offset) {
+        return;
+      }
+      const isRangeBackward = (0, import_lexical24.$isRangeSelection)(selection) ? selection.isBackward() : false;
+      const startPoint = isRangeBackward ? focus : anchor;
+      const endPoint = isRangeBackward ? anchor : focus;
+      const isClearAll = !Array.isArray(fontStyle);
+      nodes.forEach((node, idx) => {
+        if ((0, import_lexical24.$isTextNode)(node)) {
+          let textNode = node;
+          if (idx === 0 && startPoint.offset !== 0) {
+            textNode = textNode.splitText(startPoint.offset)[1] || textNode;
+          }
+          if (idx === nodes.length - 1) {
+            const splitOffset = nodes.length === 1 && startPoint.offset !== 0 ? endPoint.offset - startPoint.offset : endPoint.offset;
+            textNode = textNode.splitText(splitOffset)[0] || textNode;
+          }
+          const extractedTextNode = extractedNodes[0];
+          if (nodes.length === 1 && (0, import_lexical24.$isTextNode)(extractedTextNode)) {
+            textNode = extractedTextNode;
+          }
+          if (isClearAll) {
+            if (textNode.__style !== "") {
+              textNode.setStyle("");
+            }
+            if (textNode.__format !== 0) {
+              textNode.setFormat(0);
+            }
+          } else if (textNode.__style) {
+            const styleObj = Object.fromEntries(
+              textNode.__style.split(";").map((s) => {
+                const [k, v] = s.split(":").map((str) => str?.trim());
+                return [k, v];
+              }).filter(([k]) => k)
+            );
+            fontStyle.forEach((prop) => {
+              delete styleObj[prop];
+            });
+            const updatedStyle = Object.entries(styleObj).map(([k, v]) => `${k}: ${v}`).join("; ");
+            textNode.setStyle(updatedStyle);
+          }
+          const nearestBlockElement = (0, import_utils15.$getNearestBlockElementAncestorOrThrow)(textNode);
+          if (isClearAll) {
+            if (nearestBlockElement.__format !== 0) {
+              nearestBlockElement.setFormat("");
+            }
+            if (nearestBlockElement.__indent !== 0) {
+              nearestBlockElement.setIndent(0);
+            }
+          }
+        } else if ((0, import_rich_text3.$isHeadingNode)(node) || (0, import_rich_text3.$isQuoteNode)(node)) {
+          if (isClearAll) {
+            node.replace((0, import_lexical24.$createParagraphNode)(), true);
+          }
+        } else if ((0, import_LexicalDecoratorBlockNode.$isDecoratorBlockNode)(node)) {
+          if (isClearAll) {
+            node.setFormat("");
+          }
+        }
+      });
+    }
+    if (anchorKey && focusKey) {
+      try {
+        const anchorNode = (0, import_lexical24.$getNodeByKey)(anchorKey);
+        const focusNode = (0, import_lexical24.$getNodeByKey)(focusKey);
+        if ((0, import_lexical24.$isTextNode)(anchorNode) && (0, import_lexical24.$isTextNode)(focusNode)) {
+          const anchorSize = anchorNode.getTextContentSize();
+          const focusSize = focusNode.getTextContentSize();
+          const safeAnchorOffset = Math.min(anchorOffset, anchorSize);
+          const safeFocusOffset = Math.min(focusOffset, focusSize);
+          const newSelection = (0, import_lexical24.$createRangeSelection)();
+          if (isBackward) {
+            newSelection.setTextNodeRange(
+              focusNode,
+              safeFocusOffset,
+              anchorNode,
+              safeAnchorOffset
+            );
+          } else {
+            newSelection.setTextNodeRange(
+              anchorNode,
+              safeAnchorOffset,
+              focusNode,
+              safeFocusOffset
+            );
+          }
+          (0, import_lexical24.$setSelection)(newSelection);
+        }
+      } catch {
+      }
+    }
+  });
+};
+var keyDownCallback = (cb) => {
+  window.addEventListener("keydown", cb, true);
+  return () => {
+    window.removeEventListener("keydown", cb, true);
+  };
+};
+var $collectTextNodesFromBlocks = (blockNodes) => {
+  const textNodes = [];
+  const walk = (node) => {
+    if ((0, import_lexical24.$isTextNode)(node)) {
+      textNodes.push(node);
+      return;
+    }
+    if ((0, import_lexical24.$isElementNode)(node)) {
+      node.getChildren().forEach(walk);
+    }
+  };
+  blockNodes.forEach((block) => block.getChildren().forEach(walk));
+  return textNodes;
+};
+var $applyFontSizeToBlocks = (blockNodes, fontSize) => {
+  $collectTextNodesFromBlocks(blockNodes).forEach((textNode) => {
+    $patchStyle(textNode, { "font-size": fontSize });
+  });
+};
+var $isLeafBlock = (node) => {
+  if (!(0, import_lexical24.$isElementNode)(node) || node.isInline()) return false;
+  const first = node.getFirstChild();
+  return first === null || (0, import_lexical24.$isLineBreakNode)(first) || (0, import_lexical24.$isTextNode)(first) || first.isInline();
+};
+var $firstLeafBlock = (node) => {
+  let current = node;
+  while ((0, import_lexical24.$isElementNode)(current) && !$isLeafBlock(current)) {
+    const child = current.getFirstChild();
+    if (!child) break;
+    current = child;
+  }
+  return current;
+};
+var $lastLeafBlock = (node) => {
+  let current = node;
+  while ((0, import_lexical24.$isElementNode)(current) && !$isLeafBlock(current)) {
+    const child = current.getLastChild();
+    if (!child) break;
+    current = child;
+  }
+  return current;
+};
+var $buildBlockSelection = (targetNodeKey) => {
+  const node = (0, import_lexical24.$getNodeByKey)(targetNodeKey);
+  if (!node) return null;
+  const firstBlock = $firstLeafBlock(node);
+  const lastBlock = $lastLeafBlock(node);
+  if (!(0, import_lexical24.$isElementNode)(firstBlock) || !(0, import_lexical24.$isElementNode)(lastBlock)) return null;
+  const selection = (0, import_lexical24.$createRangeSelection)();
+  selection.anchor.set(firstBlock.getKey(), 0, "element");
+  selection.focus.set(
+    lastBlock.getKey(),
+    lastBlock.getChildrenSize(),
+    "element"
+  );
+  return selection;
+};
+var $setBlocksTypeAndCollectKeys = (editor, nodeFactory, targetNodeKey) => new Promise((resolve) => {
+  editor.update(() => {
+    (0, import_lexical24.$addUpdateTag)("historic");
+    const selection = targetNodeKey ? $buildBlockSelection(targetNodeKey) : (0, import_lexical24.$getSelection)();
+    const newNodeKeys = [];
+    (0, import_selection5.$setBlocksType)(selection, nodeFactory, (prevNode, newNode) => {
+      newNode.setFormat(prevNode.getFormatType());
+      newNodeKeys.push(newNode.getKey());
+    });
+    resolve(newNodeKeys);
+  });
+});
+var $formatBlockType = async (editor, nodeFactory, fontSizeTag, editorId, targetNodeKey) => {
+  const newNodeKeys = await $setBlocksTypeAndCollectKeys(
+    editor,
+    nodeFactory,
+    targetNodeKey
+  );
+  if (!newNodeKeys || newNodeKeys.length === 0) return;
+  editor.update(() => {
+    const blockNodes = newNodeKeys.map((key) => (0, import_lexical24.$getNodeByKey)(key));
+    const fontSize = getBlockFontSizes(fontSizeTag, editorId);
+    $applyFontSizeToBlocks(blockNodes, fontSize);
+  });
+};
+var $formatParagraph = (editor, editorId, targetNodeKey) => $formatBlockType(
+  editor,
+  () => (0, import_lexical24.$createParagraphNode)(),
+  "p",
+  editorId,
+  targetNodeKey
+);
+var $formatHeading = (editor, blockType, editorId, targetNodeKey) => $formatBlockType(
+  editor,
+  () => (0, import_rich_text3.$createHeadingNode)(blockType),
+  blockType,
+  editorId,
+  targetNodeKey
+);
+var $formatQuote = (editor, editorId, targetNodeKey) => $formatBlockType(
+  editor,
+  () => (0, import_rich_text3.$createQuoteNode)(),
+  "quote",
+  editorId,
+  targetNodeKey
+);
+var $insertListWithSelection = (editor, command, targetNodeKey) => {
+  if (!targetNodeKey) {
+    editor.dispatchCommand(command, void 0);
+    return;
+  }
+  editor.update(() => {
+    const selection = $buildBlockSelection(targetNodeKey);
+    if (selection) (0, import_lexical24.$setSelection)(selection);
+  });
+  editor.dispatchCommand(command, void 0);
+  editor.update(() => {
+    const selection = (0, import_lexical24.$getSelection)();
+    if ((0, import_lexical24.$isRangeSelection)(selection) && !selection.isCollapsed()) {
+      selection.focus.set(
+        selection.anchor.key,
+        selection.anchor.offset,
+        selection.anchor.type
+      );
+    }
+  });
+};
+var $handleBlockTypeChange = async (editor, blockType, editorId, targetNodeKey) => {
+  switch (blockType) {
+    case "paragraph":
+      await $formatParagraph(editor, editorId, targetNodeKey);
+      break;
+    case "h1":
+    case "h2":
+    case "h3":
+    case "h4":
+    case "h5":
+    case "h6":
+      await $formatHeading(editor, blockType, editorId, targetNodeKey);
+      break;
+    case "quote":
+      await $formatQuote(editor, editorId, targetNodeKey);
+      break;
+    case "bullet":
+      $insertListWithSelection(
+        editor,
+        import_list2.INSERT_UNORDERED_LIST_COMMAND,
+        targetNodeKey
+      );
+      break;
+    case "number":
+      $insertListWithSelection(
+        editor,
+        import_list2.INSERT_ORDERED_LIST_COMMAND,
+        targetNodeKey
+      );
+      break;
+    case "check":
+      $insertListWithSelection(
+        editor,
+        import_list2.INSERT_CHECK_LIST_COMMAND,
+        targetNodeKey
+      );
+      break;
+    default:
+      break;
+  }
 };
 
-// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeComponent.js
-var import_react171 = require("react");
+// ../../doc-editor/packages/doc-editor/src/components/HeadingDropdown/index.js
 var import_LexicalComposerContext11 = require("@lexical/react/LexicalComposerContext");
-var import_lexical28 = require("lexical");
-var import_useLexicalEditable = require("@lexical/react/useLexicalEditable");
+init_EditorPropsContext();
+var import_jsx_runtime35 = require("react/jsx-runtime");
+var FILTER_KEY_MAPPING = {
+  h1: "heading1",
+  h2: "heading2",
+  h3: "heading3",
+  h4: "heading4",
+  h5: "heading5",
+  h6: "heading6",
+  bullet: "listBullet",
+  number: "listNumbered",
+  check: "listCheck",
+  quote: "quote"
+};
+var ICON_BY_KEY = {
+  paragraph: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(TextTOutlined_default, {}),
+  h1: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingOneOutlined_default, {}),
+  h2: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingTwoOutlined_default, {}),
+  h3: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingThreeOutlined_default, {}),
+  h4: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingFourOutlined_default, { width: 16, height: 16 }),
+  h5: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingFiveOutlined_default, { width: 16, height: 16 }),
+  h6: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(HeadingSixOutlined_default, { width: 16, height: 16 }),
+  bullet: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ListBulletedOutlined_default, {}),
+  number: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ListNumberedOutlined_default, {}),
+  check: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ChecklistOutlined_default, {}),
+  quote: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ChatQuoteOutlined_default, {})
+};
+var I18N_KEY_BY_KEY = {
+  paragraph: "common:paragraph",
+  h1: "common:heading1",
+  h2: "common:heading2",
+  h3: "common:heading3",
+  h4: "common:heading4",
+  h5: "common:heading5",
+  h6: "common:heading6",
+  bullet: "common:bulletList",
+  number: "common:numberList",
+  check: "common:checkList",
+  quote: "common:quote"
+};
+var TEST_ID_SUFFIX_BY_KEY = {
+  paragraph: "p",
+  h1: "h1",
+  h2: "h2",
+  h3: "h3",
+  h4: "h4",
+  h5: "h5",
+  h6: "h6",
+  bullet: "bulleted-list",
+  number: "numbered-list",
+  check: "checklist",
+  quote: "quote"
+};
+var useHeadingDropdownOptions = ({
+  isCustom,
+  onChange,
+  testId
+} = {}) => {
+  const [editor] = (0, import_LexicalComposerContext11.useLexicalComposerContext)();
+  const editorProps = useEditorProps();
+  const { setBlockType } = useSelectionTypeProvider_default();
+  const t2 = useLanguage_default();
+  const filteredBlockItems = (0, import_react170.useMemo)(() => {
+    return Object.entries(LexicalBlockMapping(t2)).filter(([key]) => {
+      const filterKey = FILTER_KEY_MAPPING[key];
+      return !editorProps.props.nodesDisabled?.[filterKey];
+    });
+  }, [t2, editorProps.props.nodesDisabled]);
+  const triggerTestId = `ds-de-toolbar-text-format-${testId}`;
+  return (0, import_react170.useMemo)(() => {
+    return filteredBlockItems.map(([key]) => ({
+      key,
+      label: t2(I18N_KEY_BY_KEY[key], true),
+      icon: ICON_BY_KEY[key],
+      customTestId: `${triggerTestId}-${TEST_ID_SUFFIX_BY_KEY[key]}-button`,
+      onClick: (e) => {
+        setBlockType(key);
+        if (isCustom) {
+          if (onChange) {
+            const domEvent = e?.domEvent ?? e;
+            onChange(domEvent, { blockType: key });
+          }
+        } else {
+          $handleBlockTypeChange(editor, key, editorProps.props.editorId);
+        }
+      }
+    }));
+  }, [
+    filteredBlockItems,
+    t2,
+    triggerTestId,
+    setBlockType,
+    isCustom,
+    onChange,
+    editor,
+    editorProps.props.editorId
+  ]);
+};
+var HeadingDropDown = (parentProps) => {
+  const editorProps = useEditorProps();
+  const { blockType, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
+  const t2 = useLanguage_default();
+  const formattedBlockType = (0, import_react170.useMemo)(() => {
+    if (parentProps.isCustom) {
+      return parentProps.blockType;
+    } else {
+      return blockType;
+    }
+  }, [blockType, parentProps.blockType, parentProps.isCustom]);
+  const triggerTestId = `ds-de-toolbar-text-format-${parentProps.testId}`;
+  const options = useHeadingDropdownOptions({
+    isCustom: parentProps.isCustom,
+    onChange: parentProps.onChange,
+    testId: parentProps.testId
+  });
+  if (options.length === 0) {
+    return null;
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+    DocEditorDropdown_default,
+    {
+      testId: triggerTestId,
+      containerRef: parentProps.anchorElem,
+      position: parentProps.position,
+      disabled: editorProps.props.readOnly,
+      options,
+      registerScrollBlock: parentProps.registerScrollBlock,
+      className: "ds-de-dropdown-min-size",
+      onVisibleChange: (isVisible) => {
+        if (handleFloatingMenuBlocked && parentProps.isFloatingMenuBlocked) {
+          handleFloatingMenuBlocked("toolbar-dropdown-heading", isVisible);
+        }
+      },
+      trigger: ({ isVisible, childTriggerRef }) => {
+        const currentKey = ICON_BY_KEY[formattedBlockType] ? formattedBlockType : "paragraph";
+        return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+          FilterLabelButtonSelector,
+          {
+            dsVersion: "2.0",
+            variant: "neutral",
+            type: "plain",
+            size: "small",
+            icon: ICON_BY_KEY[currentKey],
+            label: parentProps.isIconOnly ? "" : t2(I18N_KEY_BY_KEY[currentKey], true),
+            isActivated: isVisible,
+            ref: childTriggerRef,
+            testId: `${triggerTestId}-dropdown`,
+            className: parentProps.className
+          }
+        );
+      }
+    }
+  ) });
+};
+var HeadingDropdown_default = HeadingDropDown;
+
+// ../../doc-editor/packages/doc-editor/src/components/TextPositioningButton/index.js
+var import_react171 = __toESM(require("react"));
+init_dist();
+var import_lexical25 = require("lexical");
+var import_LexicalComposerContext12 = require("@lexical/react/LexicalComposerContext");
 init_EditorPropsContext();
 var import_jsx_runtime36 = require("react/jsx-runtime");
+var ALIGNMENT_ICON_BY_KEY = {
+  left: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignLeftOutlined_default, {}),
+  center: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignCenterOutlined_default, {}),
+  right: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignRightOutlined_default, {}),
+  justify: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignJustifiedOutlined_default, {})
+};
+var TextPositioningButton = (props) => {
+  const [editor] = (0, import_LexicalComposerContext12.useLexicalComposerContext)();
+  const { alignment, setAlignment, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
+  const editorProps = useEditorProps();
+  const t2 = useLanguage_default();
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react171.useState)(false);
+  const triggerTestId = "ds-de-toolbar-text-align" + (props.testId ? `-${props.testId}` : "");
+  const tick = /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TickLargeOutlined_default2, { size: "xxx-small" });
+  const dispatchAlignment = (key) => {
+    editor.dispatchCommand(import_lexical25.FORMAT_ELEMENT_COMMAND, key);
+    setAlignment(key);
+  };
+  const options = (0, import_react171.useMemo)(
+    () => [
+      {
+        key: "left",
+        label: t2("common:leftAlign", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignLeftOutlined_default, {}),
+        suffix: alignment === "left" ? tick : void 0,
+        customTestId: `${triggerTestId}-left-button`,
+        onClick: () => dispatchAlignment("left")
+      },
+      {
+        key: "center",
+        label: t2("common:centerAlign", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignCenterOutlined_default, {}),
+        suffix: alignment === "center" ? tick : void 0,
+        customTestId: `${triggerTestId}-center-button`,
+        onClick: () => dispatchAlignment("center")
+      },
+      {
+        key: "right",
+        label: t2("common:rightAlign", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignRightOutlined_default, {}),
+        suffix: alignment === "right" ? tick : void 0,
+        customTestId: `${triggerTestId}-right-button`,
+        onClick: () => dispatchAlignment("right")
+      },
+      {
+        key: "justify",
+        label: t2("common:justify", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignJustifiedOutlined_default, {}),
+        suffix: alignment === "justify" ? tick : void 0,
+        customTestId: `${triggerTestId}-justify-button`,
+        onClick: () => dispatchAlignment("justify")
+      },
+      { key: "alignment-divider", isDivider: true },
+      {
+        key: "outdent",
+        label: t2("common:outdent", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextOutdentOutlined_default, {}),
+        customTestId: `${triggerTestId}-outdent-button`,
+        onClick: () => editor.dispatchCommand(import_lexical25.OUTDENT_CONTENT_COMMAND, void 0)
+      },
+      {
+        key: "indent",
+        label: t2("common:indent", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextIndentOutlined_default, {}),
+        customTestId: `${triggerTestId}-indent-button`,
+        onClick: () => editor.dispatchCommand(import_lexical25.INDENT_CONTENT_COMMAND, void 0)
+      }
+    ],
+    [alignment, editor, t2, triggerTestId]
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+    DocEditorDropdown_default,
+    {
+      testId: triggerTestId,
+      containerRef: props.anchorElem,
+      disabled: editorProps.props.readOnly,
+      options,
+      registerScrollBlock: props.registerScrollBlock,
+      className: "ds-de-dropdown-min-size",
+      onVisibleChange: (isVisible) => {
+        setIsDropdownOpen(isVisible);
+        if (handleFloatingMenuBlocked && props.isFloatingMenuBlocked) {
+          handleFloatingMenuBlocked(
+            "toolbar-dropdown-text-position",
+            isVisible
+          );
+        }
+      },
+      trigger: ({ isVisible, childTriggerRef }) => /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+        Tooltip_default,
+        {
+          tooltip: getPlatformTooltip("TEXT_ALIGNMENT", t2),
+          isHidden: isDropdownOpen,
+          children: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+            FilterLabelButtonSelector,
+            {
+              dsVersion: "2.0",
+              variant: "neutral",
+              type: "plain",
+              size: "small",
+              label: "",
+              "aria-label": t2("common:textAlignmentOptions", true),
+              icon: ALIGNMENT_ICON_BY_KEY[alignment] ?? /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(TextAlignLeftOutlined_default, {}),
+              isActivated: isVisible,
+              ref: childTriggerRef,
+              testId: `${triggerTestId}-dropdown`
+            }
+          )
+        }
+      )
+    }
+  );
+};
+var TextPositioningButton_default = TextPositioningButton;
 
-// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeNode.js
+// ../../doc-editor/packages/doc-editor/src/components/TextStyleFormattingButton/TextStyleFormattingButton.js
+var import_LexicalComposerContext13 = require("@lexical/react/LexicalComposerContext");
+var import_react172 = __toESM(require("react"));
+var import_lexical26 = require("lexical");
+init_dist();
+init_EditorPropsContext();
 var import_jsx_runtime37 = require("react/jsx-runtime");
+var SINGLE_FORMAT_ICON = {
+  uppercase: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextUppercaseOutlined_default, { width: 16, height: 16 }),
+  lowercase: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextLowercaseOutlined_default, { width: 16, height: 16 }),
+  capitalize: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextOutlined_default, {}),
+  strikethrough: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(StrikethroughOutlined_default, { width: 16, height: 16 }),
+  subscript: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(SubscriptOutlined_default, { width: 16, height: 16 }),
+  superscript: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(SuperscriptOutlined_default, { width: 16, height: 16 })
+};
+var TextStyleFormattingButton = ({
+  anchorElem,
+  testId,
+  isFloatingMenuBlocked,
+  registerScrollBlock = false
+}) => {
+  const [editor] = (0, import_LexicalComposerContext13.useLexicalComposerContext)();
+  const editorProps = useEditorProps();
+  const t2 = useLanguage_default();
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react172.useState)(false);
+  const { fontFormatting, selection, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
+  const selectedFormats = (0, import_react172.useMemo)(() => {
+    const ans = [];
+    for (const key in fontFormatting) {
+      if (fontFormatting[key]) {
+        ans.push(key);
+      }
+    }
+    return ans;
+  }, [fontFormatting]);
+  const isSelectionDisabled = (0, import_react172.useMemo)(() => {
+    return !(selection && (0, import_lexical26.$isRangeSelection)(selection));
+  }, [selection]);
+  const tick = /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TickLargeOutlined_default2, { size: "xxx-small" });
+  const dispatchFormat = (key) => {
+    editor.dispatchCommand(import_lexical26.FORMAT_TEXT_COMMAND, key);
+  };
+  const isStrikethroughEnabled = !editorProps.props?.textFormattingDisabled?.strikethrough;
+  const options = (0, import_react172.useMemo)(
+    () => [
+      {
+        key: "lowercase",
+        label: t2("common:lowercase", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextLowercaseOutlined_default, { width: 16, height: 16 }),
+        suffix: fontFormatting.lowercase ? tick : void 0,
+        customTestId: `${testId}-lowercase-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => dispatchFormat("lowercase")
+      },
+      {
+        key: "uppercase",
+        label: t2("common:uppercase", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextUppercaseOutlined_default, { width: 16, height: 16 }),
+        suffix: fontFormatting.uppercase ? tick : void 0,
+        customTestId: `${testId}-uppercase-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => dispatchFormat("uppercase")
+      },
+      {
+        key: "capitalize",
+        label: t2("common:capitalize", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextOutlined_default, { size: "xxx-small" }),
+        suffix: fontFormatting.capitalize ? tick : void 0,
+        customTestId: `${testId}-capitalize-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => dispatchFormat("capitalize")
+      },
+      ...isStrikethroughEnabled ? [
+        {
+          key: "strikethrough",
+          label: t2("common:strikethrough", true),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(StrikethroughOutlined_default, { width: 16, height: 16 }),
+          suffix: fontFormatting.strikethrough ? tick : void 0,
+          customTestId: `${testId}-strikethrough-button`,
+          disabled: isSelectionDisabled,
+          onClick: () => dispatchFormat("strikethrough")
+        }
+      ] : [],
+      {
+        key: "subscript",
+        label: t2("common:subscript", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(SubscriptOutlined_default, { width: 16, height: 16 }),
+        suffix: fontFormatting.subscript ? tick : void 0,
+        customTestId: `${testId}-subscript-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => dispatchFormat("subscript")
+      },
+      {
+        key: "superscript",
+        label: t2("common:superscript", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(SuperscriptOutlined_default, { width: 16, height: 16 }),
+        suffix: fontFormatting.superscript ? tick : void 0,
+        customTestId: `${testId}-superscript-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => dispatchFormat("superscript")
+      },
+      { key: "text-style-divider", isDivider: true },
+      {
+        key: "clear-formatting",
+        label: t2("common:clearFormatting", true),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(EraserOutlined_default, { size: "xxx-small" }),
+        customTestId: `${testId}-clear-formatting-button`,
+        disabled: isSelectionDisabled,
+        onClick: () => clearAllFormatting(editor)
+      }
+    ],
+    [
+      editor,
+      t2,
+      testId,
+      fontFormatting,
+      isSelectionDisabled,
+      isStrikethroughEnabled
+    ]
+  );
+  const triggerIcon = selectedFormats.length === 1 ? SINGLE_FORMAT_ICON[selectedFormats[0]] : /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextOutlined_default, {});
+  return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+    DocEditorDropdown_default,
+    {
+      testId,
+      containerRef: anchorElem,
+      disabled: editorProps.props.readOnly,
+      options,
+      registerScrollBlock,
+      className: "ds-de-dropdown-min-size",
+      onVisibleChange: (isVisible) => {
+        setIsDropdownOpen(isVisible);
+        if (handleFloatingMenuBlocked && isFloatingMenuBlocked) {
+          handleFloatingMenuBlocked("toolbar-dropdown-text-format", isVisible);
+        }
+      },
+      trigger: ({ isVisible, childTriggerRef }) => /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+        Tooltip_default,
+        {
+          tooltip: getPlatformTooltip("TEXT_STYLE", t2),
+          isHidden: isDropdownOpen,
+          children: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+            FilterLabelButtonSelector,
+            {
+              dsVersion: "2.0",
+              variant: "neutral",
+              type: "plain",
+              size: "small",
+              label: "",
+              "aria-label": t2("common:fontStyleOptions", true),
+              icon: triggerIcon ?? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TextOutlined_default, {}),
+              isActivated: isVisible,
+              ref: childTriggerRef,
+              testId: `${testId}-dropdown`
+            }
+          )
+        }
+      )
+    }
+  );
+};
+var TextStyleFormattingButton_default = TextStyleFormattingButton;
+
+// ../../doc-editor/packages/doc-editor/src/components/FontSizeControls/FontSizeControls.js
+var import_react174 = __toESM(require("react"));
+var import_react175 = require("react");
+var import_LexicalComposerContext14 = require("@lexical/react/LexicalComposerContext");
+var import_lexical27 = require("lexical");
+init_utils2();
+var import_utils17 = require("@lexical/utils");
+init_EditorPropsContext();
+
+// ../../doc-editor/packages/doc-editor/src/components/Stepper/index.js
+var import_react173 = __toESM(require("react"));
+init_dist();
+var import_jsx_runtime38 = require("react/jsx-runtime");
+var Stepper = ({
+  value,
+  onChange,
+  onIncrement,
+  onDecrement,
+  onKeyDown,
+  onBlur,
+  min,
+  max,
+  options,
+  onOptionSelect,
+  disabled,
+  testId,
+  decrementTooltip,
+  incrementTooltip,
+  inputTooltip,
+  decrementAriaLabel,
+  incrementAriaLabel,
+  inputAriaLabel,
+  containerRef
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react173.useState)(false);
+  const numericValue = value === "" ? NaN : Number(value);
+  const isDecrementDisabled = disabled || typeof min === "number" && !isNaN(numericValue) && numericValue <= min;
+  const isIncrementDisabled = disabled || typeof max === "number" && !isNaN(numericValue) && numericValue >= max;
+  const handleInputChange = (0, import_react173.useCallback)(
+    (e) => {
+      const filtered = e.target.value.replace(/[^0-9]/g, "");
+      onChange(filtered);
+    },
+    [onChange]
+  );
+  const handleOptionClick = (0, import_react173.useCallback)(
+    (option, closeDropdown) => {
+      if (onOptionSelect) {
+        onOptionSelect(option);
+      } else {
+        onChange(String(option));
+      }
+      if (closeDropdown) closeDropdown();
+    },
+    [onOptionSelect, onChange]
+  );
+  const decrementButton = /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    IconButtonSelector,
+    {
+      dsVersion: "2.0",
+      variant: "neutral",
+      type: "plain",
+      size: "x-small",
+      onClick: onDecrement,
+      disabled: isDecrementDisabled,
+      icon: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MinusOutlined_default2, {}),
+      "aria-label": decrementAriaLabel,
+      testId: `${testId}-decrease`
+    }
+  );
+  const incrementButton = /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    IconButtonSelector,
+    {
+      dsVersion: "2.0",
+      variant: "neutral",
+      type: "plain",
+      size: "x-small",
+      onClick: onIncrement,
+      disabled: isIncrementDisabled,
+      icon: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(AddOutlined_default, {}),
+      "aria-label": incrementAriaLabel,
+      testId: `${testId}-increase`
+    }
+  );
+  const renderInput = () => /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { className: "ds-de-stepper-input", children: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    TextInputSelector,
+    {
+      dsVersion: "2.0",
+      size: "small",
+      value,
+      onChange: handleInputChange,
+      onKeyDown,
+      onBlur,
+      disabled,
+      testId,
+      "aria-label": inputAriaLabel,
+      id: `${testId}-input`,
+      type: "text",
+      inputMode: "numeric"
+    }
+  ) });
+  const stepperMenuOptions = (0, import_react173.useMemo)(
+    () => (options ?? []).map((option) => ({
+      key: String(option),
+      label: String(option),
+      customTestId: `${testId}-${option}-button`,
+      onClick: () => handleOptionClick(option)
+    })),
+    [options, testId, handleOptionClick]
+  );
+  const renderInputWithDropdown = () => /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    DocEditorDropdown_default,
+    {
+      className: "ds-de-stepper-dropdown",
+      testId,
+      disabled,
+      containerRef,
+      position: "bottom-center",
+      visible: isDropdownOpen,
+      onVisibleChange: setIsDropdownOpen,
+      options: stepperMenuOptions,
+      trigger: () => /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Tooltip_default, { tooltip: inputTooltip, isHidden: isDropdownOpen, children: renderInput() })
+    }
+  );
+  const inputSection = options ? renderInputWithDropdown() : renderInput();
+  return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { className: "ds-de-stepper", children: [
+    decrementTooltip ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Tooltip_default, { tooltip: decrementTooltip, className: "flex", children: decrementButton }) : decrementButton,
+    inputSection,
+    incrementTooltip ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(Tooltip_default, { tooltip: incrementTooltip, className: "flex", children: incrementButton }) : incrementButton
+  ] });
+};
+var Stepper_default = Stepper;
+
+// ../../doc-editor/packages/doc-editor/src/components/FontSizeControls/FontSizeControls.js
+init_node();
+var import_jsx_runtime39 = require("react/jsx-runtime");
+var SIZE_OPTIONS = [
+  "6",
+  "8",
+  "10",
+  "12",
+  "16",
+  "20",
+  "24",
+  "28",
+  "32",
+  "36",
+  "48",
+  "62",
+  "72"
+];
+var FontSizeControls = (props) => {
+  const t2 = useLanguage_default();
+  const { testId, selectionRef } = props;
+  const editorProps = useEditorProps();
+  const [editor] = (0, import_LexicalComposerContext14.useLexicalComposerContext)();
+  const getRestoreSelection = (0, import_react175.useCallback)(
+    () => selectionRef ? selectionRef.current : null,
+    [selectionRef]
+  );
+  const FORMATTED_DEFAULT_SIZE = (0, import_react174.useMemo)(() => {
+    return !isNaN(parseInt(editorProps.props.fontSize)) ? parseInt(editorProps.props.fontSize) : DEFAULT_FONT_SIZE;
+  }, [editorProps.props.fontSize]);
+  const normalizedOverride = (0, import_react174.useMemo)(
+    () => sanitizeSizeOverride(editorProps.props.fontSizeOverride),
+    [editorProps.props.fontSizeOverride]
+  );
+  const clampMode = (0, import_react174.useMemo)(
+    () => editorProps.props.fontSizeClampMode === "strict" ? "strict" : "loose",
+    [editorProps.props.fontSizeClampMode]
+  );
+  const dropdownOptions = (0, import_react174.useMemo)(() => {
+    if (normalizedOverride) return normalizedOverride.map(String);
+    return SIZE_OPTIONS;
+  }, [normalizedOverride]);
+  const inputMin = normalizedOverride ? normalizedOverride[0] : MIN_ALLOWED_FONT_SIZE;
+  const inputMax = normalizedOverride ? normalizedOverride[normalizedOverride.length - 1] : MAX_ALLOWED_FONT_SIZE;
+  const [inputValue, setInputValue] = (0, import_react174.useState)(FORMATTED_DEFAULT_SIZE);
+  const [inputChangeFlag, setInputChangeFlag] = (0, import_react174.useState)(false);
+  const selectionProps = useSelectionTypeProvider_default();
+  (0, import_react175.useEffect)(() => {
+    const intVal = parseInt(inputValue);
+    if (inputValue === "") {
+      selectionProps.setFontSize(DEFAULT_FONT_SIZE);
+    } else if (isNaN(intVal)) {
+      selectionProps.setFontSize(DEFAULT_FONT_SIZE);
+    } else {
+      selectionProps.setFontSize(intVal);
+    }
+  }, [inputValue, selectionProps]);
+  const handleFontIncrease = (0, import_react175.useCallback)(() => {
+    const restore = getRestoreSelection();
+    if (normalizedOverride) {
+      const current = inputValue === "" ? normalizedOverride[0] : Number(inputValue);
+      const next = getNextSizeFromOverride(
+        current,
+        UpdateFontSizeType.increment,
+        normalizedOverride
+      );
+      setInputValue(String(next));
+      updateFontSizeInSelection(editor, `${next}px`, null, restore);
+      return;
+    }
+    updateFontSize(editor, UpdateFontSizeType.increment, inputValue, restore);
+  }, [editor, inputValue, normalizedOverride, getRestoreSelection]);
+  const handleFontDecrease = (0, import_react175.useCallback)(() => {
+    const restore = getRestoreSelection();
+    if (normalizedOverride) {
+      const current = inputValue === "" ? normalizedOverride[normalizedOverride.length - 1] : Number(inputValue);
+      const next = getNextSizeFromOverride(
+        current,
+        UpdateFontSizeType.decrement,
+        normalizedOverride
+      );
+      setInputValue(String(next));
+      updateFontSizeInSelection(editor, `${next}px`, null, restore);
+      return;
+    }
+    updateFontSize(editor, UpdateFontSizeType.decrement, inputValue, restore);
+  }, [editor, inputValue, normalizedOverride, getRestoreSelection]);
+  const updateFontSizeByInputValue = (0, import_react175.useCallback)(
+    (inputValueNumber) => {
+      const numericValue = Number(inputValueNumber);
+      let updatedFontSize;
+      if (normalizedOverride) {
+        updatedFontSize = clampToSizeOverride(
+          numericValue,
+          normalizedOverride,
+          clampMode
+        );
+      } else if (numericValue > MAX_ALLOWED_FONT_SIZE) {
+        updatedFontSize = MAX_ALLOWED_FONT_SIZE;
+      } else if (numericValue < MIN_ALLOWED_FONT_SIZE) {
+        updatedFontSize = MIN_ALLOWED_FONT_SIZE;
+      } else {
+        updatedFontSize = numericValue;
+      }
+      setInputValue(String(updatedFontSize));
+      updateFontSizeInSelection(
+        editor,
+        String(updatedFontSize) + "px",
+        null,
+        getRestoreSelection()
+      );
+      setInputChangeFlag(false);
+    },
+    [editor, normalizedOverride, clampMode, getRestoreSelection]
+  );
+  const handleKeyPress = (e) => {
+    const inputValueNumber = Number(inputValue);
+    if (e.key === "Tab") {
+      return;
+    }
+    if (["e", "E", "+", "-"].includes(e.key) || isNaN(inputValueNumber)) {
+      e.preventDefault();
+      setInputValue("");
+      return;
+    }
+    setInputChangeFlag(true);
+    if (e.key === "Enter" || e.key === "Escape") {
+      e.preventDefault();
+      updateFontSizeByInputValue(inputValueNumber);
+    }
+  };
+  const handleInputBlur = () => {
+    if (inputValue !== "" && inputChangeFlag) {
+      const inputValueNumber = Number(inputValue);
+      updateFontSizeByInputValue(inputValueNumber);
+    }
+  };
+  (0, import_react175.useEffect)(() => {
+    const handleButtonPress = (e) => {
+      if (e.metaKey && e.shiftKey && e.key === ",") {
+        handleFontDecrease();
+      } else if (e.metaKey && e.shiftKey && e.key === ".") {
+        handleFontIncrease();
+      }
+    };
+    return keyDownCallback(handleButtonPress);
+  }, [editor, handleFontDecrease, handleFontIncrease]);
+  const $updateToolbar = (0, import_react175.useCallback)(() => {
+    const selection = (0, import_lexical27.$getSelection)();
+    if ((0, import_lexical27.$isRangeSelection)(selection)) {
+      let selectedSize = getFormattedFontSizeFromSelection(selection);
+      if (selectedSize !== "" && selectedSize.trim() !== "inherit") {
+        selectedSize = Number(selectedSize.replaceAll("px", ""));
+        setInputValue(selectedSize);
+      } else if (selectedSize === "inherit") {
+        setInputValue(FORMATTED_DEFAULT_SIZE);
+      } else {
+        setInputValue(selectedSize);
+      }
+    } else if ((0, import_lexical27.$isNodeSelection)(selection)) {
+      const nodes = selection.getNodes();
+      let defaultNodeFontSize = FORMATTED_DEFAULT_SIZE;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if ($isSmartPlaceholderNode(node)) {
+          const nodeStyles = node.getStyle();
+          const fontSizeStyle = nodeStyles["font-size"]?.replace?.("px", "") || FORMATTED_DEFAULT_SIZE;
+          defaultNodeFontSize = Math.max(
+            parseInt(fontSizeStyle),
+            defaultNodeFontSize
+          );
+        }
+      }
+      setInputValue(defaultNodeFontSize);
+    }
+  }, [FORMATTED_DEFAULT_SIZE]);
+  (0, import_react175.useEffect)(() => {
+    return (0, import_utils17.mergeRegister)(
+      editor.registerCommand(
+        import_lexical27.SELECTION_CHANGE_COMMAND,
+        () => {
+          $updateToolbar();
+          return false;
+        },
+        import_lexical27.COMMAND_PRIORITY_CRITICAL
+      ),
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          $updateToolbar();
+        });
+      })
+    );
+  }, [editor, $updateToolbar]);
+  return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(
+    Stepper_default,
+    {
+      testId,
+      value: inputValue,
+      onChange: setInputValue,
+      onIncrement: handleFontIncrease,
+      onDecrement: handleFontDecrease,
+      onKeyDown: handleKeyPress,
+      onBlur: handleInputBlur,
+      min: inputMin,
+      max: inputMax,
+      options: dropdownOptions,
+      onOptionSelect: updateFontSizeByInputValue,
+      disabled: editorProps.props.readOnly,
+      containerRef: props.anchorElem,
+      decrementTooltip: getPlatformTooltip("TEXT_SIZE_DECREASE", t2),
+      incrementTooltip: getPlatformTooltip("TEXT_SIZE_INCREASE", t2),
+      inputTooltip: getPlatformTooltip("TEXT_SIZE", t2),
+      decrementAriaLabel: t2("common:decreaseFontSize", true),
+      incrementAriaLabel: t2("common:increaseFontSize", true),
+      inputAriaLabel: t2("common:fontSize", true)
+    }
+  );
+};
+var FontSizeControls_default = FontSizeControls;
+
+// ../../doc-editor/packages/doc-editor/src/components/TextToLinkButton/TextToLinkButton.js
+var import_react189 = __toESM(require("react"));
+var import_react190 = require("react");
+var import_LexicalComposerContext23 = require("@lexical/react/LexicalComposerContext");
+var import_lexical38 = require("lexical");
+var import_link3 = require("@lexical/link");
+var import_selection7 = require("@lexical/selection");
+
+// ../../doc-editor/packages/doc-editor/src/utils/conversion/linkNode.js
+var import_link2 = require("@lexical/link");
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaNode.js
-var import_lexical37 = require("lexical");
-var React187 = __toESM(require("react"));
+var import_lexical36 = require("lexical");
+var React189 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaComponent.js
-var import_LexicalComposerContext19 = require("@lexical/react/LexicalComposerContext");
-var import_useLexicalEditable2 = require("@lexical/react/useLexicalEditable");
-var import_useLexicalNodeSelection3 = require("@lexical/react/useLexicalNodeSelection");
-var import_utils22 = require("@lexical/utils");
-var import_lexical36 = require("lexical");
-var React186 = __toESM(require("react"));
-var import_react184 = require("react");
+var import_LexicalComposerContext22 = require("@lexical/react/LexicalComposerContext");
+var import_useLexicalEditable = require("@lexical/react/useLexicalEditable");
+var import_useLexicalNodeSelection2 = require("@lexical/react/useLexicalNodeSelection");
+var import_utils19 = require("@lexical/utils");
+var import_lexical35 = require("lexical");
+var React188 = __toESM(require("react"));
+var import_react188 = require("react");
 var import_react_dom6 = require("react-dom");
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaResizeHandlers.js
-var import_utils21 = require("@lexical/utils");
-var React176 = __toESM(require("react"));
-var import_react172 = require("react");
-var import_jsx_runtime38 = require("react/jsx-runtime");
+var import_utils18 = require("@lexical/utils");
+var React178 = __toESM(require("react"));
+var import_react176 = require("react");
+var import_jsx_runtime40 = require("react/jsx-runtime");
 function clamp2(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
-var Direction3 = {
+var Direction2 = {
   east: 1 << 0,
   north: 1 << 3,
   south: 1 << 1,
@@ -132519,12 +133047,12 @@ function EmbedMediaResize({
   editor,
   testId
 }) {
-  const controlWrapperRef = (0, import_react172.useRef)(null);
-  const userSelect = (0, import_react172.useRef)({
+  const controlWrapperRef = (0, import_react176.useRef)(null);
+  const userSelect = (0, import_react176.useRef)({
     priority: "",
     value: "default"
   });
-  const positioningRef = (0, import_react172.useRef)({
+  const positioningRef = (0, import_react176.useRef)({
     currentHeight: 0,
     currentWidth: 0,
     direction: 0,
@@ -132541,9 +133069,9 @@ function EmbedMediaResize({
   const minHeight = 50;
   const maxHeight = 2e3;
   const setStartCursor = (direction) => {
-    const ew = direction === Direction3.east || direction === Direction3.west;
-    const ns = direction === Direction3.north || direction === Direction3.south;
-    const nwse = direction & Direction3.north && direction & Direction3.west || direction & Direction3.south && direction & Direction3.east;
+    const ew = direction === Direction2.east || direction === Direction2.west;
+    const ns = direction === Direction2.north || direction === Direction2.south;
+    const nwse = direction & Direction2.north && direction & Direction2.west || direction & Direction2.south && direction & Direction2.east;
     const cursorDir = ew ? "ew" : ns ? "ns" : nwse ? "nwse" : "nesw";
     if (editorRootElement !== null) {
       editorRootElement.style.setProperty(
@@ -132593,7 +133121,7 @@ function EmbedMediaResize({
     if (image !== null && controlWrapper !== null) {
       event.preventDefault();
       const { width, height } = image.getBoundingClientRect();
-      const zoom = (0, import_utils21.calculateZoomLevel)(image);
+      const zoom = (0, import_utils18.calculateZoomLevel)(image);
       const positioning = positioningRef.current;
       positioning.startWidth = width;
       positioning.startHeight = height;
@@ -132616,13 +133144,13 @@ function EmbedMediaResize({
   const handlePointerMove = (event) => {
     const image = iframeRef.current;
     const positioning = positioningRef.current;
-    const isHorizontal = positioning.direction & (Direction3.east | Direction3.west);
-    const isVertical = positioning.direction & (Direction3.south | Direction3.north);
+    const isHorizontal = positioning.direction & (Direction2.east | Direction2.west);
+    const isVertical = positioning.direction & (Direction2.south | Direction2.north);
     if (image !== null && positioning.isResizing) {
-      const zoom = (0, import_utils21.calculateZoomLevel)(image);
+      const zoom = (0, import_utils18.calculateZoomLevel)(image);
       if (isHorizontal && isVertical) {
         let diff = Math.floor(positioning.startX - event.clientX / zoom);
-        diff = positioning.direction & Direction3.east ? -diff : diff;
+        diff = positioning.direction & Direction2.east ? -diff : diff;
         const inlineWidth = clamp2(
           positioning.startWidth + diff,
           minWidth,
@@ -132640,7 +133168,7 @@ function EmbedMediaResize({
         positioning.currentWidth = displayedWidth;
       } else if (isVertical) {
         let diff = Math.floor(positioning.startY - event.clientY / zoom);
-        diff = positioning.direction & Direction3.south ? -diff : diff;
+        diff = positioning.direction & Direction2.south ? -diff : diff;
         const height = clamp2(
           positioning.startHeight + diff,
           minHeight,
@@ -132650,7 +133178,7 @@ function EmbedMediaResize({
         positioning.currentHeight = height;
       } else {
         let diff = Math.floor(positioning.startX - event.clientX / zoom);
-        diff = positioning.direction & Direction3.east ? -diff : diff;
+        diff = positioning.direction & Direction2.east ? -diff : diff;
         const width = clamp2(
           positioning.startWidth + diff,
           minWidth,
@@ -132683,83 +133211,83 @@ function EmbedMediaResize({
       document.removeEventListener("pointerup", handlePointerUp);
     }
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { ref: controlWrapperRef, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("div", { ref: controlWrapperRef, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-t",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.north);
+          handlePointerDown(event, Direction2.north);
         },
         "data-test-id": `${testId}-ne`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-b",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.south);
+          handlePointerDown(event, Direction2.south);
         },
         "data-test-id": `${testId}-se`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-l",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.west);
+          handlePointerDown(event, Direction2.west);
         },
         "data-test-id": `${testId}-sw`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-r",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.east);
+          handlePointerDown(event, Direction2.east);
         },
         "data-test-id": `${testId}-nw`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-rt",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.east | Direction3.north);
+          handlePointerDown(event, Direction2.east | Direction2.north);
         },
         "data-test-id": `${testId}-nw`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-rb",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.east | Direction3.south);
+          handlePointerDown(event, Direction2.east | Direction2.south);
         },
         "data-test-id": `${testId}-nw`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-lt",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.west | Direction3.north);
+          handlePointerDown(event, Direction2.west | Direction2.north);
         },
         "data-test-id": `${testId}-nw`
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
       "div",
       {
         className: "ds-de-embed-resizer ds-de-embed-resizer-lb",
         onPointerDown: (event) => {
-          handlePointerDown(event, Direction3.west | Direction3.south);
+          handlePointerDown(event, Direction2.west | Direction2.south);
         },
         "data-test-id": `${testId}-nw`
       }
@@ -132777,15 +133305,15 @@ var convertBytesToStr = (bytes) => {
 };
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedViewer.js
-var import_react179 = __toESM(require("react"));
+var import_react183 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/DefaultEmbed.js
-var import_LexicalComposerContext12 = require("@lexical/react/LexicalComposerContext");
-var import_lexical29 = require("lexical");
-var React177 = __toESM(require("react"));
-var import_react173 = require("react");
+var import_LexicalComposerContext15 = require("@lexical/react/LexicalComposerContext");
+var import_lexical28 = require("lexical");
+var React179 = __toESM(require("react"));
+var import_react177 = require("react");
 init_EditorPropsContext();
-var import_jsx_runtime39 = require("react/jsx-runtime");
+var import_jsx_runtime41 = require("react/jsx-runtime");
 var DefaultEmbed = ({
   className,
   src,
@@ -132797,13 +133325,13 @@ var DefaultEmbed = ({
   mayLoad = true,
   onMediaLoaded
 }) => {
-  const [editor] = (0, import_LexicalComposerContext12.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext15.useLexicalComposerContext)();
   const editorProps = useEditorProps();
   const iframeOverride = getElementOverride(
     editorProps.props.overrideElements,
     "iframe"
   );
-  const formattedUrl = (0, import_react173.useMemo)(() => {
+  const formattedUrl = (0, import_react177.useMemo)(() => {
     try {
       const url = new URL(src);
       const host = url.hostname;
@@ -132878,7 +133406,7 @@ var DefaultEmbed = ({
       return src;
     }
   }, [src]);
-  return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(import_jsx_runtime39.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(import_jsx_runtime41.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
     "iframe",
     {
       className: className || void 0,
@@ -132890,7 +133418,7 @@ var DefaultEmbed = ({
       height,
       onClick: () => {
         editor.update(() => {
-          (0, import_lexical29.$setSelection)(null);
+          (0, import_lexical28.$setSelection)(null);
         });
       },
       onLoad: onMediaLoaded,
@@ -132906,11 +133434,11 @@ var DefaultEmbed = ({
 var DefaultEmbed_default = DefaultEmbed;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/ImageEmbed.js
-var import_react174 = __toESM(require("react"));
-var import_LexicalComposerContext13 = require("@lexical/react/LexicalComposerContext");
-var import_lexical30 = require("lexical");
+var import_react178 = __toESM(require("react"));
+var import_LexicalComposerContext16 = require("@lexical/react/LexicalComposerContext");
+var import_lexical29 = require("lexical");
 init_EditorPropsContext();
-var import_jsx_runtime40 = require("react/jsx-runtime");
+var import_jsx_runtime42 = require("react/jsx-runtime");
 var ImageEmbed = ({
   className,
   src,
@@ -132920,14 +133448,63 @@ var ImageEmbed = ({
   mayLoad = true,
   onMediaLoaded
 }) => {
-  const [editor] = (0, import_LexicalComposerContext13.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext16.useLexicalComposerContext)();
   const editorProps = useEditorProps();
   const imgOverride = getElementOverride(
     editorProps.props.overrideElements,
     "img"
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(import_jsx_runtime40.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(import_jsx_runtime42.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(
     "img",
+    {
+      className: className || void 0,
+      src: mayLoad ? src : void 0,
+      draggable: "false",
+      "data-test-id": testId,
+      ref: iframeRef,
+      style: {
+        width: "100%",
+        height: "100%"
+      },
+      onClick: () => {
+        editor.update(() => {
+          (0, import_lexical29.$setSelection)(null);
+        });
+      },
+      onLoad: onMediaLoaded,
+      onError: onMediaLoaded,
+      alt: src,
+      "data-copy-hover": "true",
+      "data-copy-id": nodeKey,
+      ...imgOverride
+    }
+  ) });
+};
+var ImageEmbed_default = ImageEmbed;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/VideoEmbed.js
+var import_react179 = __toESM(require("react"));
+var import_LexicalComposerContext17 = require("@lexical/react/LexicalComposerContext");
+var import_lexical30 = require("lexical");
+init_EditorPropsContext();
+var import_jsx_runtime43 = require("react/jsx-runtime");
+var VideoEmbed = ({
+  className,
+  src,
+  testId,
+  iframeRef,
+  nodeKey,
+  mayLoad = true,
+  onMediaLoaded
+}) => {
+  const [editor] = (0, import_LexicalComposerContext17.useLexicalComposerContext)();
+  const editorProps = useEditorProps();
+  const videoOverride = getElementOverride(
+    editorProps.props.overrideElements,
+    "video"
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(import_jsx_runtime43.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+    "video",
     {
       className: className || void 0,
       src: mayLoad ? src : void 0,
@@ -132943,55 +133520,6 @@ var ImageEmbed = ({
           (0, import_lexical30.$setSelection)(null);
         });
       },
-      onLoad: onMediaLoaded,
-      onError: onMediaLoaded,
-      alt: src,
-      "data-copy-hover": "true",
-      "data-copy-id": nodeKey,
-      ...imgOverride
-    }
-  ) });
-};
-var ImageEmbed_default = ImageEmbed;
-
-// ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/VideoEmbed.js
-var import_react175 = __toESM(require("react"));
-var import_LexicalComposerContext14 = require("@lexical/react/LexicalComposerContext");
-var import_lexical31 = require("lexical");
-init_EditorPropsContext();
-var import_jsx_runtime41 = require("react/jsx-runtime");
-var VideoEmbed = ({
-  className,
-  src,
-  testId,
-  iframeRef,
-  nodeKey,
-  mayLoad = true,
-  onMediaLoaded
-}) => {
-  const [editor] = (0, import_LexicalComposerContext14.useLexicalComposerContext)();
-  const editorProps = useEditorProps();
-  const videoOverride = getElementOverride(
-    editorProps.props.overrideElements,
-    "video"
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(import_jsx_runtime41.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
-    "video",
-    {
-      className: className || void 0,
-      src: mayLoad ? src : void 0,
-      draggable: "false",
-      "data-test-id": testId,
-      ref: iframeRef,
-      style: {
-        width: "100%",
-        height: "100%"
-      },
-      onClick: () => {
-        editor.update(() => {
-          (0, import_lexical31.$setSelection)(null);
-        });
-      },
       onLoadedData: onMediaLoaded,
       onError: onMediaLoaded,
       controls: true,
@@ -133004,16 +133532,16 @@ var VideoEmbed = ({
 var VideoEmbed_default = VideoEmbed;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/NonViewMimeViewer.js
-var import_react176 = __toESM(require("react"));
-var import_LexicalComposerContext15 = require("@lexical/react/LexicalComposerContext");
-var import_lexical32 = require("lexical");
+var import_react180 = __toESM(require("react"));
+var import_LexicalComposerContext18 = require("@lexical/react/LexicalComposerContext");
+var import_lexical31 = require("lexical");
 init_dist();
 init_ConversionUtils();
-var import_jsx_runtime42 = require("react/jsx-runtime");
+var import_jsx_runtime44 = require("react/jsx-runtime");
 var NonViewMimeViewer = (props) => {
   const t2 = useLanguage_default();
-  const [editor] = (0, import_LexicalComposerContext15.useLexicalComposerContext)();
-  const IconElem = (0, import_react176.useMemo)(() => {
+  const [editor] = (0, import_LexicalComposerContext18.useLexicalComposerContext)();
+  const IconElem = (0, import_react180.useMemo)(() => {
     if (props.mimeType === "application/zip" || props.src.match(/\.zip$/)) {
       return ZipFileOutlined_default;
     } else if (props.mimeType === "application/pdf" || props.src.match(/\.pdf$/)) {
@@ -133025,7 +133553,7 @@ var NonViewMimeViewer = (props) => {
     }
     return ZipFileOutlined_default;
   }, [props.mimeType, props.src]);
-  return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(import_jsx_runtime42.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(import_jsx_runtime44.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
     "div",
     {
       className: "ds-de-nonViewMimeViewer",
@@ -133038,23 +133566,23 @@ var NonViewMimeViewer = (props) => {
       },
       onClick: () => {
         editor.update(() => {
-          (0, import_lexical32.$setSelection)(null);
+          (0, import_lexical31.$setSelection)(null);
         });
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", { className: "ds-de-detail-wrapper", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(IconElem, {}),
-          /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("span", { children: props.filename })
+        /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("div", { className: "ds-de-detail-wrapper", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(IconElem, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", { children: props.filename })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("div", { className: "ds-de-action-wrapper", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("div", { className: "ds-de-data-size", children: convertBytesToStr(props.filesize) }),
-          /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("div", { className: "ds-de-action-wrapper", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { className: "ds-de-data-size", children: convertBytesToStr(props.filesize) }),
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
             IconButtonSelector,
             {
               variant: "neutral",
               type: "plain",
               dsVersion: "2.0",
-              icon: /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(DownloadOutlined_default, {}),
+              icon: /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(DownloadOutlined_default, {}),
               size: "small",
               tooltip: t2("common:download"),
               "aria-label": t2("common:undo"),
@@ -133075,16 +133603,16 @@ var NonViewMimeViewer_default = NonViewMimeViewer;
 init_ConversionUtils();
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/MediaViewer.js
-var import_react177 = __toESM(require("react"));
-var import_LexicalComposerContext16 = require("@lexical/react/LexicalComposerContext");
-var import_lexical33 = require("lexical");
+var import_react181 = __toESM(require("react"));
+var import_LexicalComposerContext19 = require("@lexical/react/LexicalComposerContext");
+var import_lexical32 = require("lexical");
 init_dist();
 init_EditorPropsContext();
 init_ConversionUtils();
-var import_jsx_runtime43 = require("react/jsx-runtime");
+var import_jsx_runtime45 = require("react/jsx-runtime");
 var MediaViewer = (props) => {
   const t2 = useLanguage_default();
-  const [editor] = (0, import_LexicalComposerContext16.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext19.useLexicalComposerContext)();
   const editorProps = useEditorProps();
   const attachment = {
     url: extractOriginalUrl(props.src),
@@ -133097,34 +133625,34 @@ var MediaViewer = (props) => {
     },
     id: props.nodeKey
   };
-  const IconElem = (0, import_react177.useMemo)(() => {
+  const IconElem = (0, import_react181.useMemo)(() => {
     if (props.mimeType === "application/zip" || props.src.match(/\.zip$/)) {
       return ZipFileOutlined_default;
     } else if (props.mimeType === "application/pdf" || props.src.match(/\.pdf$/)) {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(PdfColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(PdfColored_default, {}) });
     } else if (props.mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(SlidesColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(SlidesColored_default, {}) });
     } else if (props.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(PageSquareColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(PageSquareColored_default, {}) });
     } else if (props.mimeType.includes("video/")) {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(VideoColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(VideoColored_default, {}) });
     } else if (props.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || props.filename.endsWith(".xlsx") || props.filename.endsWith(".xls")) {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(SheetsColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(SheetsColored_default, {}) });
     } else if (props.mimeType.includes("image/")) {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ImageColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ImageColored_default, {}) });
     } else if (props.mimeType.includes("audio/")) {
-      return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(AudioColored_default, {}) });
+      return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(AudioColored_default, {}) });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ZipFileColored_default, {}) });
+    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-file-icons", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ZipFileColored_default, {}) });
   }, [props.filename, props.mimeType, props.src]);
   const DeleteEmbed = () => {
     editor.update(() => {
-      const node = (0, import_lexical33.$getNodeByKey)(props.nodeKey);
+      const node = (0, import_lexical32.$getNodeByKey)(props.nodeKey);
       if (node) {
         const parent = node.getParent();
         node.remove();
         if (parent && parent.isEmpty()) {
-          const paragraph = (0, import_lexical33.$createParagraphNode)();
+          const paragraph = (0, import_lexical32.$createParagraphNode)();
           parent.append(paragraph);
           paragraph.select();
         } else if (parent) {
@@ -133146,7 +133674,7 @@ var MediaViewer = (props) => {
       }
     });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(import_jsx_runtime43.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(import_jsx_runtime45.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)(
     "div",
     {
       className: "ds-de-file-viewer",
@@ -133159,24 +133687,24 @@ var MediaViewer = (props) => {
       "data-delete-id": props.nodeKey,
       ref: props.iframeRef,
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", { className: "ds-de-file-viewer-details", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-icon-wrapper", children: IconElem }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", { className: "ds-de-file-data", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "text-body line-clamp-1", children: props.filename }),
-            /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", { className: "text-body-s text-secondary line-clamp-1", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", { className: "ds-de-file-viewer-details", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-icon-wrapper", children: IconElem }),
+          /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", { className: "ds-de-file-data", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "text-body line-clamp-1", children: props.filename }),
+            /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("div", { className: "text-body-s text-secondary line-clamp-1", children: [
               "File (",
               convertBytesToStr(props.filesize),
               ")"
             ] })
           ] })
         ] }),
-        editorProps.props.viewOnly || props.readOnly ? null : /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className: "ds-de-action-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+        editorProps.props.viewOnly || props.readOnly ? null : /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("div", { className: "ds-de-action-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(
           IconButtonSelector,
           {
             variant: "neutral",
             type: "plain",
             dsVersion: "2.0",
-            icon: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(import_jsx_runtime43.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(DeleteOutlined_default, { size: "xxx-small", variant: "subtle" }) }),
+            icon: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(import_jsx_runtime45.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(DeleteOutlined_default, { size: "xxx-small", variant: "subtle" }) }),
             size: "medium",
             tooltip: t2("common:delete"),
             "aria-label": t2("common:delete"),
@@ -133191,11 +133719,11 @@ var MediaViewer = (props) => {
 var MediaViewer_default = MediaViewer;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/AudioEmbed.js
-var import_react178 = __toESM(require("react"));
-var import_LexicalComposerContext17 = require("@lexical/react/LexicalComposerContext");
-var import_lexical34 = require("lexical");
+var import_react182 = __toESM(require("react"));
+var import_LexicalComposerContext20 = require("@lexical/react/LexicalComposerContext");
+var import_lexical33 = require("lexical");
 init_EditorPropsContext();
-var import_jsx_runtime44 = require("react/jsx-runtime");
+var import_jsx_runtime46 = require("react/jsx-runtime");
 var AudioEmbed = ({
   className,
   src,
@@ -133205,13 +133733,13 @@ var AudioEmbed = ({
   mayLoad = true,
   onMediaLoaded
 }) => {
-  const [editor] = (0, import_LexicalComposerContext17.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext20.useLexicalComposerContext)();
   const editorProps = useEditorProps();
   const audioOverride = getElementOverride(
     editorProps.props.overrideElements,
     "audio"
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(import_jsx_runtime44.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(import_jsx_runtime46.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
     "audio",
     {
       className: className || void 0,
@@ -133225,7 +133753,7 @@ var AudioEmbed = ({
       },
       onClick: () => {
         editor.update(() => {
-          (0, import_lexical34.$setSelection)(null);
+          (0, import_lexical33.$setSelection)(null);
         });
       },
       onLoadedData: onMediaLoaded,
@@ -133241,7 +133769,7 @@ var AudioEmbed = ({
 var AudioEmbed_default = AudioEmbed;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedViewer.js
-var import_jsx_runtime45 = require("react/jsx-runtime");
+var import_jsx_runtime47 = require("react/jsx-runtime");
 var URL_IMAGE_REGEX = /https?:\/\/.*\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/g;
 var URL_VIDEO_REGEX = /https?:\/\/.*\.(mp4|webm|ogg|mov|avi|mkv|flv|wmv)(\?.*)?$/g;
 var NON_VIEW_MIME_TYPES_REGEX = /https?:\/\/.*\.(zip)(\?.*)?$/g;
@@ -133266,13 +133794,13 @@ var EmbedViewer = ({ src, mimeType = "", isMediaComp, compProps }) => {
   const isOfficeType = src.match(OFFICE_TYPES_REGEX)?.[0];
   const isAudio = src.match(URL_AUDIO_REGEX)?.[0] || mimeType?.includes("audio");
   if (isMediaComp) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(MediaViewer_default, { ...compProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(MediaViewer_default, { ...compProps });
   }
   if (isNonViewMimeType) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(NonViewMimeViewer_default, { ...compProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(NonViewMimeViewer_default, { ...compProps });
   }
   if (isOfficeType) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
       DefaultEmbed_default,
       {
         ...{
@@ -133284,43 +133812,43 @@ var EmbedViewer = ({ src, mimeType = "", isMediaComp, compProps }) => {
     );
   }
   if (isImage) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(ImageEmbed_default, { ...compProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(ImageEmbed_default, { ...compProps });
   }
   if (isVideo) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(VideoEmbed_default, { ...compProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(VideoEmbed_default, { ...compProps });
   }
   if (isAudio) {
-    return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(AudioEmbed_default, { ...compProps });
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(AudioEmbed_default, { ...compProps });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(DefaultEmbed_default, { ...compProps });
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(DefaultEmbed_default, { ...compProps });
 };
 var EmbedViewer_default = EmbedViewer;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/FloatingOptionsContainer.js
-var import_react181 = __toESM(require("react"));
+var import_react185 = __toESM(require("react"));
 var import_react_dom5 = require("react-dom");
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaFloatingOptions.js
-var import_react180 = __toESM(require("react"));
+var import_react184 = __toESM(require("react"));
 init_dist();
-var import_LexicalComposerContext18 = require("@lexical/react/LexicalComposerContext");
-var import_lexical35 = require("lexical");
+var import_LexicalComposerContext21 = require("@lexical/react/LexicalComposerContext");
+var import_lexical34 = require("lexical");
 init_dist();
 init_EditorPropsContext();
 init_ConversionUtils();
 init_operations();
-var import_jsx_runtime46 = require("react/jsx-runtime");
+var import_jsx_runtime48 = require("react/jsx-runtime");
 var EmbedMediaFloatingOptions = (props) => {
-  const [editor] = (0, import_LexicalComposerContext18.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext21.useLexicalComposerContext)();
   const { testId } = props;
   const t2 = useLanguage_default();
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react180.useState)(false);
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react184.useState)(false);
   const editorProps = useEditorProps();
   const draggableContainerRef = useEditorDraggableAsPerDropdownBodyConfig();
-  const TheatreMode = (0, import_react180.useMemo)(() => {
+  const TheatreMode = (0, import_react184.useMemo)(() => {
     return editorProps?.props.TheatreMode || null;
   }, [editorProps?.props.TheatreMode]);
-  const isValidTheatreMode = (0, import_react180.useMemo)(() => {
+  const isValidTheatreMode = (0, import_react184.useMemo)(() => {
     return props.filename && props.mimeType && TheatreMode && props.src;
   }, [props.filename, props.mimeType, props.src, TheatreMode]);
   const attachment = {
@@ -133337,21 +133865,21 @@ var EmbedMediaFloatingOptions = (props) => {
   const DeleteEmbed = () => {
     executeAfterEventCall(() => {
       editor.update(() => {
-        (0, import_lexical35.$setSelection)(null);
-        const node = (0, import_lexical35.$getNodeByKey)(props.nodeKey);
+        (0, import_lexical34.$setSelection)(null);
+        const node = (0, import_lexical34.$getNodeByKey)(props.nodeKey);
         if (!node) return;
         const parent = node.getParent();
         const sibling = node.getPreviousSibling() ?? node.getNextSibling();
         node.remove();
         if (parent && parent.isEmpty()) {
-          const paragraph = (0, import_lexical35.$createParagraphNode)();
+          const paragraph = (0, import_lexical34.$createParagraphNode)();
           parent.append(paragraph);
           paragraph.select();
         } else if (sibling) {
-          if ((0, import_lexical35.$isDecoratorNode)(sibling)) {
-            const ns = (0, import_lexical35.$createNodeSelection)();
+          if ((0, import_lexical34.$isDecoratorNode)(sibling)) {
+            const ns = (0, import_lexical34.$createNodeSelection)();
             ns.add(sibling.getKey());
-            (0, import_lexical35.$setSelection)(ns);
+            (0, import_lexical34.$setSelection)(ns);
           } else if (typeof sibling.selectStart === "function") {
             sibling.selectStart();
           }
@@ -133373,19 +133901,19 @@ var EmbedMediaFloatingOptions = (props) => {
       }
     });
   };
-  const dropdownOptions = (0, import_react180.useMemo)(() => {
+  const dropdownOptions = (0, import_react184.useMemo)(() => {
     const items = [
       {
         key: "replace",
         label: t2("common:replace", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(ReplaceOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(ReplaceOutlined_default, { size: "xxx-small" }),
         customTestId: `${testId}-replace-button`,
         onClick: () => replaceEmbed()
       },
       {
         key: "view-original",
         label: t2("common:viewOriginal", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(ArrowOutOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(ArrowOutOutlined_default, { size: "xxx-small" }),
         customTestId: `${testId}-view-original-button`,
         onClick: () => window.open(props.src)
       }
@@ -133394,7 +133922,7 @@ var EmbedMediaFloatingOptions = (props) => {
       items.push({
         key: "preview",
         label: t2("common:preview", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(CornersOutOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(CornersOutOutlined_default, { size: "xxx-small" }),
         customTestId: `${testId}-preview-button`,
         onClick: () => handleTheatreMode()
       });
@@ -133402,14 +133930,14 @@ var EmbedMediaFloatingOptions = (props) => {
     items.push({
       key: "delete",
       label: t2("common:delete", true),
-      icon: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(DeleteOutlined_default, { size: "xxx-small" }),
+      icon: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(DeleteOutlined_default, { size: "xxx-small" }),
       customTestId: `${testId}-delete-button`,
       isDestructive: true,
       onClick: () => DeleteEmbed()
     });
     return items;
   }, [t2, testId, isValidTheatreMode, props.src]);
-  (0, import_react180.useEffect)(() => {
+  (0, import_react184.useEffect)(() => {
     if (!isDropdownOpen) {
       props.onChangeState(false);
       return void 0;
@@ -133418,13 +133946,13 @@ var EmbedMediaFloatingOptions = (props) => {
     return () => props.onChangeState(false);
   }, [isDropdownOpen]);
   if ((props.isReadOnly || props.isCommentView) && isValidTheatreMode) {
-    return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { className: "ds-de-floating-embed-options-container", children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { className: "ds-de-floating-embed-options", children: isValidTheatreMode && /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-floating-embed-options-container", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-floating-embed-options", children: isValidTheatreMode && /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(CornersOutOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(CornersOutOutlined_default, { size: "xxx-small" }),
         size: "small",
         testId,
         onClick: handleTheatreMode
@@ -133434,7 +133962,7 @@ var EmbedMediaFloatingOptions = (props) => {
   if (props.isReadOnly || props.isCommentView) {
     return null;
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(import_jsx_runtime46.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { className: "ds-de-floating-embed-options-container", children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { className: "ds-de-floating-embed-options", children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(import_jsx_runtime48.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-floating-embed-options-container", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-floating-embed-options", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
     DocEditorDropdown_default,
     {
       position: "bottom-left",
@@ -133445,24 +133973,24 @@ var EmbedMediaFloatingOptions = (props) => {
       options: dropdownOptions,
       registerScrollBlock: true,
       trigger: ({ isVisible }) => {
-        return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
           "button",
           {
             type: "button",
             className: `ds-de-table-cell-action-button ${isVisible ? "bg-surface-primary-hover" : ""}`,
             "data-test-id": `${testId}-dropdown-button`,
-            children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(SettingsOutlined_default, { size: "xxx-small" })
+            children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(SettingsOutlined_default, { size: "xxx-small" })
           }
         );
       }
     }
   ) }) }) });
 };
-var MemoEmbedMediaFloatingOptions = import_react180.default.memo(EmbedMediaFloatingOptions);
+var MemoEmbedMediaFloatingOptions = import_react184.default.memo(EmbedMediaFloatingOptions);
 var EmbedMediaFloatingOptions_default = MemoEmbedMediaFloatingOptions;
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/FloatingOptionsContainer.js
-var import_jsx_runtime47 = require("react/jsx-runtime");
+var import_jsx_runtime49 = require("react/jsx-runtime");
 var FloatingOptionsContainer = ({
   src,
   nodeKey,
@@ -133476,8 +134004,8 @@ var FloatingOptionsContainer = ({
   isReadOnly,
   isCommentView
 }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(import_jsx_runtime47.Fragment, { children: (isSelected || isDropdownOpen.current === true) && !isResizing ? (0, import_react_dom5.createPortal)(
-    /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(import_jsx_runtime49.Fragment, { children: (isSelected || isDropdownOpen.current === true) && !isResizing ? (0, import_react_dom5.createPortal)(
+    /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
       EmbedMediaFloatingOptions_default,
       {
         nodeKey,
@@ -133502,7 +134030,7 @@ init_EditorPropsContext();
 init_configStore();
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaStore.js
-var import_react182 = require("react");
+var import_react186 = require("react");
 var LastValidSrcMap = /* @__PURE__ */ new Map();
 var EmbedMediaStoreClass = class {
   constructor() {
@@ -133559,10 +134087,10 @@ var EmbedMediaStoreClass = class {
 };
 var EmbedMediaStore = new EmbedMediaStoreClass();
 function useEmbedMediaStore(nodeKey) {
-  const [isUploading, setIsUploading] = (0, import_react182.useState)(
+  const [isUploading, setIsUploading] = (0, import_react186.useState)(
     () => EmbedMediaStore.get(nodeKey)
   );
-  (0, import_react182.useEffect)(() => {
+  (0, import_react186.useEffect)(() => {
     setIsUploading(EmbedMediaStore.get(nodeKey));
     const unsubscribe = EmbedMediaStore.subscribe(nodeKey, (newIsUploading) => {
       setIsUploading(newIsUploading);
@@ -133573,7 +134101,7 @@ function useEmbedMediaStore(nodeKey) {
 }
 
 // ../../doc-editor/packages/doc-editor/src/nodes/UploadRegistry/UploadRegistry.js
-var import_react183 = require("react");
+var import_react187 = require("react");
 var REGISTRY_MAP_NAME = "tde-upload-registry";
 var UploadRegistryClass = class {
   constructor() {
@@ -133685,8 +134213,8 @@ var UploadRegistryClass = class {
 };
 var UploadRegistry = new UploadRegistryClass();
 function useUploadRegistry(uploadId) {
-  const [, setTick] = (0, import_react183.useState)(0);
-  (0, import_react183.useEffect)(() => {
+  const [, setTick] = (0, import_react187.useState)(0);
+  (0, import_react187.useEffect)(() => {
     if (!uploadId) return void 0;
     setTick((t2) => t2 + 1);
     return UploadRegistry.subscribe(uploadId, () => setTick((t2) => t2 + 1));
@@ -133696,7 +134224,7 @@ function useUploadRegistry(uploadId) {
 }
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaComponent.js
-var import_jsx_runtime48 = require("react/jsx-runtime");
+var import_jsx_runtime50 = require("react/jsx-runtime");
 function EmbedMediaComponent({
   src: srcProp,
   uploadId,
@@ -133715,21 +134243,21 @@ function EmbedMediaComponent({
   const resolvedUploadSrc = useUploadRegistry(uploadId);
   const src = resolvedUploadSrc || srcProp;
   const t2 = useLanguage_default();
-  const iframeRef = (0, import_react184.useRef)(null);
-  const buttonRef = (0, import_react184.useRef)(null);
-  const divRef = (0, import_react184.useRef)(null);
-  const [isSelected, setSelected, clearSelection] = (0, import_useLexicalNodeSelection3.useLexicalNodeSelection)(nodeKey);
-  const [editor] = (0, import_LexicalComposerContext19.useLexicalComposerContext)();
-  const [selection, setSelection] = (0, import_react184.useState)(null);
-  const activeEditorRef = (0, import_react184.useRef)(null);
-  const isEditable = (0, import_useLexicalEditable2.useLexicalEditable)();
-  const [isResizing, setIsResizing] = (0, import_react184.useState)(false);
-  const [isHovering, setIsHovering] = (0, import_react184.useState)(false);
-  const [isCurrentNodeSelectedOnly, setIsCurrentNodeSelectedOnly] = (0, import_react184.useState)(false);
-  const unMountRef = (0, import_react184.useRef)(false);
-  const isDropdownOpen = (0, import_react184.useRef)(null);
+  const iframeRef = (0, import_react188.useRef)(null);
+  const buttonRef = (0, import_react188.useRef)(null);
+  const divRef = (0, import_react188.useRef)(null);
+  const [isSelected, setSelected, clearSelection] = (0, import_useLexicalNodeSelection2.useLexicalNodeSelection)(nodeKey);
+  const [editor] = (0, import_LexicalComposerContext22.useLexicalComposerContext)();
+  const [selection, setSelection] = (0, import_react188.useState)(null);
+  const activeEditorRef = (0, import_react188.useRef)(null);
+  const isEditable = (0, import_useLexicalEditable.useLexicalEditable)();
+  const [isResizing, setIsResizing] = (0, import_react188.useState)(false);
+  const [isHovering, setIsHovering] = (0, import_react188.useState)(false);
+  const [isCurrentNodeSelectedOnly, setIsCurrentNodeSelectedOnly] = (0, import_react188.useState)(false);
+  const unMountRef = (0, import_react188.useRef)(false);
+  const isDropdownOpen = (0, import_react188.useRef)(null);
   const editorProps = useEditorProps();
-  const mediaTag = (0, import_react184.useMemo)(() => {
+  const mediaTag = (0, import_react188.useMemo)(() => {
     if (!src) return "iframe";
     if (src.match(URL_IMAGE_REGEX) || mimeType?.includes("image")) return "img";
     if (src.match(URL_VIDEO_REGEX) || mimeType?.includes("video"))
@@ -133744,11 +134272,11 @@ function EmbedMediaComponent({
     src
   });
   const { isUploading } = useEmbedMediaStore(nodeKey);
-  const $onEnter = (0, import_react184.useCallback)(
+  const $onEnter = (0, import_react188.useCallback)(
     (event) => {
-      const latestSelection = (0, import_lexical36.$getSelection)();
+      const latestSelection = (0, import_lexical35.$getSelection)();
       const buttonElem = buttonRef.current;
-      if (isSelected && (0, import_lexical36.$isNodeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
+      if (isSelected && (0, import_lexical35.$isNodeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
         if (buttonElem !== null && buttonElem !== document.activeElement) {
           event.preventDefault();
           buttonElem.focus();
@@ -133759,10 +134287,10 @@ function EmbedMediaComponent({
     },
     [isSelected]
   );
-  const $onEscape = (0, import_react184.useCallback)(
+  const $onEscape = (0, import_react188.useCallback)(
     (event) => {
       if (buttonRef.current === event.target) {
-        (0, import_lexical36.$setSelection)(null);
+        (0, import_lexical35.$setSelection)(null);
         editor.update(() => {
           setSelected(true);
           const parentRootElement = editor.getRootElement();
@@ -133776,7 +134304,7 @@ function EmbedMediaComponent({
     },
     [editor, setSelected]
   );
-  const onClick = (0, import_react184.useCallback)(
+  const onClick = (0, import_react188.useCallback)(
     (payload) => {
       const event = payload;
       if (isResizing) {
@@ -133795,18 +134323,18 @@ function EmbedMediaComponent({
     },
     [isResizing, setSelected, isSelected, clearSelection]
   );
-  (0, import_react184.useEffect)(() => {
+  (0, import_react188.useEffect)(() => {
     unMountRef.current = false;
     return () => {
       unMountRef.current = true;
     };
   }, []);
-  (0, import_react184.useEffect)(() => {
-    const unregister = (0, import_utils22.mergeRegister)(
+  (0, import_react188.useEffect)(() => {
+    const unregister = (0, import_utils19.mergeRegister)(
       editor.registerUpdateListener(({ editorState }) => {
         if (unMountRef.current) return;
-        const updatedSelection = editorState.read(() => (0, import_lexical36.$getSelection)());
-        if ((0, import_lexical36.$isNodeSelection)(updatedSelection)) {
+        const updatedSelection = editorState.read(() => (0, import_lexical35.$getSelection)());
+        if ((0, import_lexical35.$isNodeSelection)(updatedSelection)) {
           setSelection(updatedSelection);
           editor.read(() => {
             const nodes = updatedSelection.getNodes();
@@ -133827,16 +134355,16 @@ function EmbedMediaComponent({
         }
       }),
       editor.registerCommand(
-        import_lexical36.SELECTION_CHANGE_COMMAND,
+        import_lexical35.SELECTION_CHANGE_COMMAND,
         (_14, activeEditor) => {
           activeEditorRef.current = activeEditor;
           return false;
         },
-        import_lexical36.COMMAND_PRIORITY_LOW
+        import_lexical35.COMMAND_PRIORITY_LOW
       ),
-      editor.registerCommand(import_lexical36.CLICK_COMMAND, onClick, import_lexical36.COMMAND_PRIORITY_LOW),
+      editor.registerCommand(import_lexical35.CLICK_COMMAND, onClick, import_lexical35.COMMAND_PRIORITY_LOW),
       editor.registerCommand(
-        import_lexical36.DRAGSTART_COMMAND,
+        import_lexical35.DRAGSTART_COMMAND,
         (event) => {
           if (event.target === iframeRef.current) {
             event.preventDefault();
@@ -133844,13 +134372,13 @@ function EmbedMediaComponent({
           }
           return false;
         },
-        import_lexical36.COMMAND_PRIORITY_LOW
+        import_lexical35.COMMAND_PRIORITY_LOW
       ),
-      editor.registerCommand(import_lexical36.KEY_ENTER_COMMAND, $onEnter, import_lexical36.COMMAND_PRIORITY_LOW),
+      editor.registerCommand(import_lexical35.KEY_ENTER_COMMAND, $onEnter, import_lexical35.COMMAND_PRIORITY_LOW),
       editor.registerCommand(
-        import_lexical36.KEY_ESCAPE_COMMAND,
+        import_lexical35.KEY_ESCAPE_COMMAND,
         $onEscape,
-        import_lexical36.COMMAND_PRIORITY_LOW
+        import_lexical35.COMMAND_PRIORITY_LOW
       )
     );
     return () => {
@@ -133866,7 +134394,7 @@ function EmbedMediaComponent({
     onClick,
     setSelected
   ]);
-  const draggable = isSelected && (0, import_lexical36.$isNodeSelection)(selection);
+  const draggable = isSelected && (0, import_lexical35.$isNodeSelection)(selection);
   const onResizeStart = () => {
     setIsResizing(true);
   };
@@ -133875,18 +134403,18 @@ function EmbedMediaComponent({
       setIsResizing(false);
     }, 200);
     editor.update(() => {
-      const node = (0, import_lexical36.$getNodeByKey)(nodeKey);
+      const node = (0, import_lexical35.$getNodeByKey)(nodeKey);
       if ($isEmbedMediaNode(node)) {
         node.setWidthAndHeight(nextWidth, nextHeight);
       }
     });
   };
   const isFocused = (isSelected || isResizing || isDropdownOpen.current) && isEditable;
-  const isDefaultNode = (0, import_react184.useMemo)(() => {
+  const isDefaultNode = (0, import_react188.useMemo)(() => {
     const isNonViewMimeType = src?.match(NON_VIEW_MIME_TYPES_REGEX)?.[0];
     return !isNonViewMimeType && !isMediaComp;
   }, [isMediaComp, src]);
-  const isImageOptionsShown = (0, import_react184.useMemo)(() => {
+  const isImageOptionsShown = (0, import_react188.useMemo)(() => {
     return (isFocused || isHovering) && iframeRef.current && divRef.current;
   }, [isFocused, isHovering]);
   const isEditorValid = editorProps.props.editorType === EditorVariantTypes.DocEditor;
@@ -133894,11 +134422,11 @@ function EmbedMediaComponent({
     return null;
   }
   if (isUploading && isMediaComp) {
-    return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-embed-file-container", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-file-viewer", draggable: "false", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", { className: "ds-de-file-viewer-details", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-icon-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-loader-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-loader-md" }) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", { className: "ds-de-file-data", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "text-body line-clamp-1", children: filename }),
-        /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", { className: "text-body-s text-secondary line-clamp-1", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-embed-file-container", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-file-viewer", draggable: "false", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", { className: "ds-de-file-viewer-details", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-icon-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-loader-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-loader-md" }) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", { className: "ds-de-file-data", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "text-body line-clamp-1", children: filename }),
+        /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", { className: "text-body-s text-secondary line-clamp-1", children: [
           "File (",
           convertBytesToStr(filesize),
           ")"
@@ -133907,18 +134435,18 @@ function EmbedMediaComponent({
     ] }) }) }) });
   }
   if (isUploading) {
-    return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", { className: "ds-de-embed-container ds-de-embed-container--uploading", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)("div", { className: "ds-de-detail-wrapper", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-loader-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-loader-md" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("span", { className: "line-clamp-1", children: filename })
+    return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", { className: "ds-de-embed-container ds-de-embed-container--uploading", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("div", { className: "ds-de-detail-wrapper", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-loader-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-loader-md" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("span", { className: "line-clamp-1", children: filename })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-data-size", children: convertBytesToStr(filesize) })
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-data-size", children: convertBytesToStr(filesize) })
     ] }) });
   }
   if (!src) {
-    return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className: "ds-de-embed-container ds-de-embed-container--error", children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("span", { children: t2("common:errorInEmbed", true) }) }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("div", { className: "ds-de-embed-container ds-de-embed-container--error", children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("span", { children: t2("common:errorInEmbed", true) }) }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(import_react184.Suspense, { fallback: null, children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(import_jsx_runtime48.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(import_react188.Suspense, { fallback: null, children: /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(import_jsx_runtime50.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)(
     "div",
     {
       className: `${isMediaComp ? "ds-de-embed-file-container" : "ds-de-embed-container"} ${isFocused || isEditable && (isHovering || isCurrentNodeSelectedOnly) ? "ds-de-embed-container--focused" : ""} ${isResizing ? "ds-de-frame-resizing" : ""}`,
@@ -133938,14 +134466,14 @@ function EmbedMediaComponent({
         height: isDefaultNode ? height : "auto"
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(
           EmbedViewer_default,
           {
             src,
             mimeType,
             isMediaComp,
             compProps: {
-              className: isFocused ? `focused ${(0, import_lexical36.$isNodeSelection)(selection) ? "draggable" : ""}` : null,
+              className: isFocused ? `focused ${(0, import_lexical35.$isNodeSelection)(selection) ? "draggable" : ""}` : null,
               nodeKey,
               src,
               iframeRef,
@@ -133969,7 +134497,7 @@ function EmbedMediaComponent({
             }
           }
         ),
-        !isMediaComp && isEditorValid && /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
+        !isMediaComp && isEditorValid && /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(
           FloatingOptionsContainer_default,
           {
             isDropdownOpen,
@@ -133986,7 +134514,7 @@ function EmbedMediaComponent({
           }
         ),
         isEditable && isImageOptionsShown && isDefaultNode ? (0, import_react_dom6.createPortal)(
-          /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime50.jsx)(
             EmbedMediaResize,
             {
               iframeRef: divRef,
@@ -134004,7 +134532,7 @@ function EmbedMediaComponent({
 }
 
 // ../../doc-editor/packages/doc-editor/src/nodes/EmbedNode/EmbedMediaNode.js
-var import_jsx_runtime49 = require("react/jsx-runtime");
+var import_jsx_runtime51 = require("react/jsx-runtime");
 function normalizeEmbedDimension(value) {
   if (value == null || value === "") return value;
   return /^\d+(\.\d+)?$/.test(value) ? `${Math.round(parseFloat(value))}px` : value;
@@ -134092,7 +134620,7 @@ var formatCssValue = (value) => {
   }
   return "100%";
 };
-var EmbedMediaNode = class _EmbedMediaNode extends import_lexical37.DecoratorNode {
+var EmbedMediaNode = class _EmbedMediaNode extends import_lexical36.DecoratorNode {
   __src;
   __maxWidth;
   __width;
@@ -134283,7 +134811,7 @@ var EmbedMediaNode = class _EmbedMediaNode extends import_lexical37.DecoratorNod
     if (finalSrc) LastValidSrcMap.set(this.__key, finalSrc);
     else finalSrc = LastValidSrcMap.get(this.__key);
     if (!finalSrc) finalSrc = EmbedMediaStore.getUrl(this.getKey());
-    return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(
       EmbedMediaComponent,
       {
         src: finalSrc,
@@ -134313,7 +134841,7 @@ function $createEmbedMediaNode({
   uploadId,
   key
 }) {
-  return (0, import_lexical37.$applyNodeReplacement)(
+  return (0, import_lexical36.$applyNodeReplacement)(
     new EmbedMediaNode(
       src,
       maxWidth,
@@ -134332,1218 +134860,25 @@ function $isEmbedMediaNode(node) {
   return node instanceof EmbedMediaNode;
 }
 
-// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
-init_MarkNode();
-
-// ../../doc-editor/packages/doc-editor/src/nodes/DiffMarkNode/index.ts
-var utils2 = __toESM(require("@lexical/utils"));
-var import_lexical38 = require("lexical");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentNode/index.ts
-var utils3 = __toESM(require("@lexical/utils"));
-var import_lexical39 = require("lexical");
-var import_utils23 = require("@lexical/utils");
-init_MarkNode();
-
-// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
-var import_lexical41 = require("lexical");
-init_node();
-
-// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/index.tsx
-var import_lexical40 = require("lexical");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/InlineCommentChip.tsx
-init_theme();
-var import_jsx_runtime50 = require("react/jsx-runtime");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/index.tsx
-var import_jsx_runtime51 = require("react/jsx-runtime");
-
-// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
-init_CommentIconNode();
-
-// ../../doc-editor/packages/doc-editor/src/utils/editorUtils.js/index.js
-init_MarkNode();
-init_theme();
-init_node();
-var CSS_TO_STYLES = /* @__PURE__ */ new Map();
-function $patchStyle(target, patch) {
-  if (!((0, import_lexical42.$isRangeSelection)(target) ? target.isCollapsed() : (0, import_lexical42.$isTextNode)(target) || (0, import_lexical42.$isElementNode)(target))) {
-    throw `$patchStyle must only be called with a TextNode, ElementNode, or collapsed RangeSelection`;
-  }
-  const prevStyles = (0, import_selection4.getStyleObjectFromCSS)(
-    (0, import_lexical42.$isRangeSelection)(target) ? target.style : (0, import_lexical42.$isTextNode)(target) ? target.getStyle() : target.getTextStyle()
-  );
-  const newStyles = Object.entries(patch).reduce(
-    (styles, [key, value]) => {
-      if (typeof value === "function") {
-        styles[key] = value(prevStyles[key], target);
-      } else if (value === null) {
-        delete styles[key];
-      } else {
-        styles[key] = value;
-      }
-      return styles;
-    },
-    {
-      ...prevStyles
-    }
-  );
-  const newCSSText = (0, import_selection4.getCSSFromStyleObject)(newStyles);
-  if ((0, import_lexical42.$isRangeSelection)(target) || (0, import_lexical42.$isTextNode)(target)) {
-    target.setStyle(newCSSText);
-  } else {
-    target.setTextStyle(newCSSText);
-  }
-  CSS_TO_STYLES.set(newCSSText, newStyles);
-}
-
-// ../../doc-editor/packages/doc-editor/src/utils/toolbarUtils/index.js
-var clearAllFormatting = (activeEditor) => {
-  activeEditor.update(() => {
-    const selection = (0, import_lexical43.$getSelection)();
-    if ((0, import_lexical43.$isRangeSelection)(selection)) {
-      const anchor = selection.anchor;
-      const focus = selection.focus;
-      const nodes = selection.getNodes();
-      if (anchor.key === focus.key && anchor.offset === focus.offset) {
-        return;
-      }
-      const isBackward = selection.isBackward();
-      const startPoint = isBackward ? focus : anchor;
-      const endPoint = isBackward ? anchor : focus;
-      nodes.forEach((node, idx) => {
-        if ((0, import_lexical43.$isTextNode)(node)) {
-          let textNode = node;
-          if (idx === 0 && startPoint.offset !== 0) {
-            textNode = textNode.splitText(startPoint.offset)[1] || textNode;
-          }
-          if (idx === nodes.length - 1) {
-            const splitOffset = nodes.length === 1 && startPoint.offset !== 0 ? endPoint.offset - startPoint.offset : endPoint.offset;
-            textNode = textNode.splitText(splitOffset)[0] || textNode;
-          }
-          if (textNode.__style !== "") {
-            textNode.setStyle("");
-          }
-          if (textNode.__format !== 0) {
-            textNode.setFormat(0);
-            (0, import_utils24.$getNearestBlockElementAncestorOrThrow)(textNode).setFormat("");
-          }
-          node = textNode;
-        } else if ((0, import_rich_text4.$isHeadingNode)(node) || (0, import_rich_text4.$isQuoteNode)(node)) {
-          node.replace((0, import_lexical43.$createParagraphNode)(), true);
-        } else if ((0, import_LexicalDecoratorBlockNode2.$isDecoratorBlockNode)(node)) {
-          node.setFormat("");
-        }
-      });
-    }
-  });
-};
-var clearFormatting = (editor, fontStyle) => {
-  editor.update(() => {
-    const selection = (0, import_lexical43.$getSelection)();
-    let anchorKey, anchorOffset, focusKey, focusOffset, isBackward;
-    if ((0, import_lexical43.$isRangeSelection)(selection)) {
-      anchorKey = selection.anchor.key;
-      anchorOffset = selection.anchor.offset;
-      focusKey = selection.focus.key;
-      focusOffset = selection.focus.offset;
-      isBackward = selection.isBackward();
-    }
-    if ((0, import_lexical43.$isRangeSelection)(selection) || (0, import_table4.$isTableSelection)(selection)) {
-      const anchor = selection.anchor;
-      const focus = selection.focus;
-      const nodes = selection.getNodes();
-      const extractedNodes = selection.extract();
-      if (anchor.key === focus.key && anchor.offset === focus.offset) {
-        return;
-      }
-      const isRangeBackward = (0, import_lexical43.$isRangeSelection)(selection) ? selection.isBackward() : false;
-      const startPoint = isRangeBackward ? focus : anchor;
-      const endPoint = isRangeBackward ? anchor : focus;
-      const isClearAll = !Array.isArray(fontStyle);
-      nodes.forEach((node, idx) => {
-        if ((0, import_lexical43.$isTextNode)(node)) {
-          let textNode = node;
-          if (idx === 0 && startPoint.offset !== 0) {
-            textNode = textNode.splitText(startPoint.offset)[1] || textNode;
-          }
-          if (idx === nodes.length - 1) {
-            const splitOffset = nodes.length === 1 && startPoint.offset !== 0 ? endPoint.offset - startPoint.offset : endPoint.offset;
-            textNode = textNode.splitText(splitOffset)[0] || textNode;
-          }
-          const extractedTextNode = extractedNodes[0];
-          if (nodes.length === 1 && (0, import_lexical43.$isTextNode)(extractedTextNode)) {
-            textNode = extractedTextNode;
-          }
-          if (isClearAll) {
-            if (textNode.__style !== "") {
-              textNode.setStyle("");
-            }
-            if (textNode.__format !== 0) {
-              textNode.setFormat(0);
-            }
-          } else if (textNode.__style) {
-            const styleObj = Object.fromEntries(
-              textNode.__style.split(";").map((s) => {
-                const [k, v] = s.split(":").map((str) => str?.trim());
-                return [k, v];
-              }).filter(([k]) => k)
-            );
-            fontStyle.forEach((prop) => {
-              delete styleObj[prop];
-            });
-            const updatedStyle = Object.entries(styleObj).map(([k, v]) => `${k}: ${v}`).join("; ");
-            textNode.setStyle(updatedStyle);
-          }
-          const nearestBlockElement = (0, import_utils24.$getNearestBlockElementAncestorOrThrow)(textNode);
-          if (isClearAll) {
-            if (nearestBlockElement.__format !== 0) {
-              nearestBlockElement.setFormat("");
-            }
-            if (nearestBlockElement.__indent !== 0) {
-              nearestBlockElement.setIndent(0);
-            }
-          }
-        } else if ((0, import_rich_text4.$isHeadingNode)(node) || (0, import_rich_text4.$isQuoteNode)(node)) {
-          if (isClearAll) {
-            node.replace((0, import_lexical43.$createParagraphNode)(), true);
-          }
-        } else if ((0, import_LexicalDecoratorBlockNode2.$isDecoratorBlockNode)(node)) {
-          if (isClearAll) {
-            node.setFormat("");
-          }
-        }
-      });
-    }
-    if (anchorKey && focusKey) {
-      try {
-        const anchorNode = (0, import_lexical43.$getNodeByKey)(anchorKey);
-        const focusNode = (0, import_lexical43.$getNodeByKey)(focusKey);
-        if ((0, import_lexical43.$isTextNode)(anchorNode) && (0, import_lexical43.$isTextNode)(focusNode)) {
-          const anchorSize = anchorNode.getTextContentSize();
-          const focusSize = focusNode.getTextContentSize();
-          const safeAnchorOffset = Math.min(anchorOffset, anchorSize);
-          const safeFocusOffset = Math.min(focusOffset, focusSize);
-          const newSelection = (0, import_lexical43.$createRangeSelection)();
-          if (isBackward) {
-            newSelection.setTextNodeRange(
-              focusNode,
-              safeFocusOffset,
-              anchorNode,
-              safeAnchorOffset
-            );
-          } else {
-            newSelection.setTextNodeRange(
-              anchorNode,
-              safeAnchorOffset,
-              focusNode,
-              safeFocusOffset
-            );
-          }
-          (0, import_lexical43.$setSelection)(newSelection);
-        }
-      } catch {
-      }
-    }
-  });
-};
-var keyDownCallback = (cb) => {
-  window.addEventListener("keydown", cb, true);
-  return () => {
-    window.removeEventListener("keydown", cb, true);
-  };
-};
-var $collectTextNodesFromBlocks = (blockNodes) => {
-  const textNodes = [];
-  const walk = (node) => {
-    if ((0, import_lexical43.$isTextNode)(node)) {
-      textNodes.push(node);
-      return;
-    }
-    if ((0, import_lexical43.$isElementNode)(node)) {
-      node.getChildren().forEach(walk);
-    }
-  };
-  blockNodes.forEach((block) => block.getChildren().forEach(walk));
-  return textNodes;
-};
-var $applyFontSizeToBlocks = (blockNodes, fontSize) => {
-  $collectTextNodesFromBlocks(blockNodes).forEach((textNode) => {
-    $patchStyle(textNode, { "font-size": fontSize });
-  });
-};
-var $isLeafBlock = (node) => {
-  if (!(0, import_lexical43.$isElementNode)(node) || node.isInline()) return false;
-  const first = node.getFirstChild();
-  return first === null || (0, import_lexical43.$isLineBreakNode)(first) || (0, import_lexical43.$isTextNode)(first) || first.isInline();
-};
-var $firstLeafBlock = (node) => {
-  let current = node;
-  while ((0, import_lexical43.$isElementNode)(current) && !$isLeafBlock(current)) {
-    const child = current.getFirstChild();
-    if (!child) break;
-    current = child;
-  }
-  return current;
-};
-var $lastLeafBlock = (node) => {
-  let current = node;
-  while ((0, import_lexical43.$isElementNode)(current) && !$isLeafBlock(current)) {
-    const child = current.getLastChild();
-    if (!child) break;
-    current = child;
-  }
-  return current;
-};
-var $buildBlockSelection = (targetNodeKey) => {
-  const node = (0, import_lexical43.$getNodeByKey)(targetNodeKey);
-  if (!node) return null;
-  const firstBlock = $firstLeafBlock(node);
-  const lastBlock = $lastLeafBlock(node);
-  if (!(0, import_lexical43.$isElementNode)(firstBlock) || !(0, import_lexical43.$isElementNode)(lastBlock)) return null;
-  const selection = (0, import_lexical43.$createRangeSelection)();
-  selection.anchor.set(firstBlock.getKey(), 0, "element");
-  selection.focus.set(
-    lastBlock.getKey(),
-    lastBlock.getChildrenSize(),
-    "element"
-  );
-  return selection;
-};
-var $setBlocksTypeAndCollectKeys = (editor, nodeFactory, targetNodeKey) => new Promise((resolve) => {
-  editor.update(() => {
-    (0, import_lexical43.$addUpdateTag)("historic");
-    const selection = targetNodeKey ? $buildBlockSelection(targetNodeKey) : (0, import_lexical43.$getSelection)();
-    const newNodeKeys = [];
-    (0, import_selection5.$setBlocksType)(selection, nodeFactory, (prevNode, newNode) => {
-      newNode.setFormat(prevNode.getFormatType());
-      newNodeKeys.push(newNode.getKey());
-    });
-    resolve(newNodeKeys);
-  });
-});
-var $formatBlockType = async (editor, nodeFactory, fontSizeTag, editorId, targetNodeKey) => {
-  const newNodeKeys = await $setBlocksTypeAndCollectKeys(
-    editor,
-    nodeFactory,
-    targetNodeKey
-  );
-  if (!newNodeKeys || newNodeKeys.length === 0) return;
-  editor.update(() => {
-    const blockNodes = newNodeKeys.map((key) => (0, import_lexical43.$getNodeByKey)(key));
-    const fontSize = getBlockFontSizes(fontSizeTag, editorId);
-    $applyFontSizeToBlocks(blockNodes, fontSize);
-  });
-};
-var $formatParagraph = (editor, editorId, targetNodeKey) => $formatBlockType(
-  editor,
-  () => (0, import_lexical43.$createParagraphNode)(),
-  "p",
-  editorId,
-  targetNodeKey
-);
-var $formatHeading = (editor, blockType, editorId, targetNodeKey) => $formatBlockType(
-  editor,
-  () => (0, import_rich_text4.$createHeadingNode)(blockType),
-  blockType,
-  editorId,
-  targetNodeKey
-);
-var $formatQuote = (editor, editorId, targetNodeKey) => $formatBlockType(
-  editor,
-  () => (0, import_rich_text4.$createQuoteNode)(),
-  "quote",
-  editorId,
-  targetNodeKey
-);
-var $insertListWithSelection = (editor, command, targetNodeKey) => {
-  if (!targetNodeKey) {
-    editor.dispatchCommand(command, void 0);
-    return;
-  }
-  editor.update(() => {
-    const selection = $buildBlockSelection(targetNodeKey);
-    if (selection) (0, import_lexical43.$setSelection)(selection);
-  });
-  editor.dispatchCommand(command, void 0);
-  editor.update(() => {
-    const selection = (0, import_lexical43.$getSelection)();
-    if ((0, import_lexical43.$isRangeSelection)(selection) && !selection.isCollapsed()) {
-      selection.focus.set(
-        selection.anchor.key,
-        selection.anchor.offset,
-        selection.anchor.type
-      );
-    }
-  });
-};
-var $handleBlockTypeChange = async (editor, blockType, editorId, targetNodeKey) => {
-  switch (blockType) {
-    case "paragraph":
-      await $formatParagraph(editor, editorId, targetNodeKey);
-      break;
-    case "h1":
-    case "h2":
-    case "h3":
-    case "h4":
-    case "h5":
-    case "h6":
-      await $formatHeading(editor, blockType, editorId, targetNodeKey);
-      break;
-    case "quote":
-      await $formatQuote(editor, editorId, targetNodeKey);
-      break;
-    case "bullet":
-      $insertListWithSelection(
-        editor,
-        import_list3.INSERT_UNORDERED_LIST_COMMAND,
-        targetNodeKey
-      );
-      break;
-    case "number":
-      $insertListWithSelection(
-        editor,
-        import_list3.INSERT_ORDERED_LIST_COMMAND,
-        targetNodeKey
-      );
-      break;
-    case "check":
-      $insertListWithSelection(
-        editor,
-        import_list3.INSERT_CHECK_LIST_COMMAND,
-        targetNodeKey
-      );
-      break;
-    default:
-      break;
-  }
-};
-
-// ../../doc-editor/packages/doc-editor/src/components/HeadingDropdown/index.js
-var import_LexicalComposerContext20 = require("@lexical/react/LexicalComposerContext");
-init_EditorPropsContext();
-var import_jsx_runtime52 = require("react/jsx-runtime");
-var FILTER_KEY_MAPPING = {
-  h1: "heading1",
-  h2: "heading2",
-  h3: "heading3",
-  h4: "heading4",
-  h5: "heading5",
-  h6: "heading6",
-  bullet: "listBullet",
-  number: "listNumbered",
-  check: "listCheck",
-  quote: "quote"
-};
-var ICON_BY_KEY = {
-  paragraph: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(TextTOutlined_default, {}),
-  h1: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingOneOutlined_default, {}),
-  h2: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingTwoOutlined_default, {}),
-  h3: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingThreeOutlined_default, {}),
-  h4: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingFourOutlined_default, { width: 16, height: 16 }),
-  h5: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingFiveOutlined_default, { width: 16, height: 16 }),
-  h6: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(HeadingSixOutlined_default, { width: 16, height: 16 }),
-  bullet: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(ListBulletedOutlined_default, {}),
-  number: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(ListNumberedOutlined_default, {}),
-  check: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(ChecklistOutlined_default, {}),
-  quote: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(ChatQuoteOutlined_default, {})
-};
-var I18N_KEY_BY_KEY = {
-  paragraph: "common:paragraph",
-  h1: "common:heading1",
-  h2: "common:heading2",
-  h3: "common:heading3",
-  h4: "common:heading4",
-  h5: "common:heading5",
-  h6: "common:heading6",
-  bullet: "common:bulletList",
-  number: "common:numberList",
-  check: "common:checkList",
-  quote: "common:quote"
-};
-var TEST_ID_SUFFIX_BY_KEY = {
-  paragraph: "p",
-  h1: "h1",
-  h2: "h2",
-  h3: "h3",
-  h4: "h4",
-  h5: "h5",
-  h6: "h6",
-  bullet: "bulleted-list",
-  number: "numbered-list",
-  check: "checklist",
-  quote: "quote"
-};
-var useHeadingDropdownOptions = ({
-  isCustom,
-  onChange,
-  testId
-} = {}) => {
-  const [editor] = (0, import_LexicalComposerContext20.useLexicalComposerContext)();
-  const editorProps = useEditorProps();
-  const { setBlockType } = useSelectionTypeProvider_default();
-  const t2 = useLanguage_default();
-  const filteredBlockItems = (0, import_react185.useMemo)(() => {
-    return Object.entries(LexicalBlockMapping(t2)).filter(([key]) => {
-      const filterKey = FILTER_KEY_MAPPING[key];
-      return !editorProps.props.nodesDisabled?.[filterKey];
-    });
-  }, [t2, editorProps.props.nodesDisabled]);
-  const triggerTestId = `ds-de-toolbar-text-format-${testId}`;
-  return (0, import_react185.useMemo)(() => {
-    return filteredBlockItems.map(([key]) => ({
-      key,
-      label: t2(I18N_KEY_BY_KEY[key], true),
-      icon: ICON_BY_KEY[key],
-      customTestId: `${triggerTestId}-${TEST_ID_SUFFIX_BY_KEY[key]}-button`,
-      onClick: (e) => {
-        setBlockType(key);
-        if (isCustom) {
-          if (onChange) {
-            const domEvent = e?.domEvent ?? e;
-            onChange(domEvent, { blockType: key });
-          }
-        } else {
-          $handleBlockTypeChange(editor, key, editorProps.props.editorId);
-        }
-      }
-    }));
-  }, [
-    filteredBlockItems,
-    t2,
-    triggerTestId,
-    setBlockType,
-    isCustom,
-    onChange,
-    editor,
-    editorProps.props.editorId
-  ]);
-};
-var HeadingDropDown = (parentProps) => {
-  const editorProps = useEditorProps();
-  const { blockType, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
-  const t2 = useLanguage_default();
-  const formattedBlockType = (0, import_react185.useMemo)(() => {
-    if (parentProps.isCustom) {
-      return parentProps.blockType;
-    } else {
-      return blockType;
-    }
-  }, [blockType, parentProps.blockType, parentProps.isCustom]);
-  const triggerTestId = `ds-de-toolbar-text-format-${parentProps.testId}`;
-  const options = useHeadingDropdownOptions({
-    isCustom: parentProps.isCustom,
-    onChange: parentProps.onChange,
-    testId: parentProps.testId
-  });
-  if (options.length === 0) {
-    return null;
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime52.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
-    DocEditorDropdown_default,
-    {
-      testId: triggerTestId,
-      containerRef: parentProps.anchorElem,
-      position: parentProps.position,
-      disabled: editorProps.props.readOnly,
-      options,
-      registerScrollBlock: parentProps.registerScrollBlock,
-      className: "ds-de-dropdown-min-size",
-      onVisibleChange: (isVisible) => {
-        if (handleFloatingMenuBlocked && parentProps.isFloatingMenuBlocked) {
-          handleFloatingMenuBlocked("toolbar-dropdown-heading", isVisible);
-        }
-      },
-      trigger: ({ isVisible, childTriggerRef }) => {
-        const currentKey = ICON_BY_KEY[formattedBlockType] ? formattedBlockType : "paragraph";
-        return /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
-          FilterLabelButtonSelector,
-          {
-            dsVersion: "2.0",
-            variant: "neutral",
-            type: "plain",
-            size: "small",
-            icon: ICON_BY_KEY[currentKey],
-            label: parentProps.isIconOnly ? "" : t2(I18N_KEY_BY_KEY[currentKey], true),
-            isActivated: isVisible,
-            ref: childTriggerRef,
-            testId: `${triggerTestId}-dropdown`,
-            className: parentProps.className
-          }
-        );
-      }
-    }
-  ) });
-};
-var HeadingDropdown_default = HeadingDropDown;
-
-// ../../doc-editor/packages/doc-editor/src/components/TextPositioningButton/index.js
-var import_react186 = __toESM(require("react"));
-init_dist();
-var import_lexical44 = require("lexical");
-var import_LexicalComposerContext21 = require("@lexical/react/LexicalComposerContext");
-init_EditorPropsContext();
-var import_jsx_runtime53 = require("react/jsx-runtime");
-var ALIGNMENT_ICON_BY_KEY = {
-  left: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignLeftOutlined_default, {}),
-  center: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignCenterOutlined_default, {}),
-  right: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignRightOutlined_default, {}),
-  justify: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignJustifiedOutlined_default, {})
-};
-var TextPositioningButton = (props) => {
-  const [editor] = (0, import_LexicalComposerContext21.useLexicalComposerContext)();
-  const { alignment, setAlignment, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
-  const editorProps = useEditorProps();
-  const t2 = useLanguage_default();
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react186.useState)(false);
-  const triggerTestId = "ds-de-toolbar-text-align" + (props.testId ? `-${props.testId}` : "");
-  const tick = /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TickLargeOutlined_default2, { size: "xxx-small" });
-  const dispatchAlignment = (key) => {
-    editor.dispatchCommand(import_lexical44.FORMAT_ELEMENT_COMMAND, key);
-    setAlignment(key);
-  };
-  const options = (0, import_react186.useMemo)(
-    () => [
-      {
-        key: "left",
-        label: t2("common:leftAlign", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignLeftOutlined_default, {}),
-        suffix: alignment === "left" ? tick : void 0,
-        customTestId: `${triggerTestId}-left-button`,
-        onClick: () => dispatchAlignment("left")
-      },
-      {
-        key: "center",
-        label: t2("common:centerAlign", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignCenterOutlined_default, {}),
-        suffix: alignment === "center" ? tick : void 0,
-        customTestId: `${triggerTestId}-center-button`,
-        onClick: () => dispatchAlignment("center")
-      },
-      {
-        key: "right",
-        label: t2("common:rightAlign", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignRightOutlined_default, {}),
-        suffix: alignment === "right" ? tick : void 0,
-        customTestId: `${triggerTestId}-right-button`,
-        onClick: () => dispatchAlignment("right")
-      },
-      {
-        key: "justify",
-        label: t2("common:justify", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignJustifiedOutlined_default, {}),
-        suffix: alignment === "justify" ? tick : void 0,
-        customTestId: `${triggerTestId}-justify-button`,
-        onClick: () => dispatchAlignment("justify")
-      },
-      { key: "alignment-divider", isDivider: true },
-      {
-        key: "outdent",
-        label: t2("common:outdent", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextOutdentOutlined_default, {}),
-        customTestId: `${triggerTestId}-outdent-button`,
-        onClick: () => editor.dispatchCommand(import_lexical44.OUTDENT_CONTENT_COMMAND, void 0)
-      },
-      {
-        key: "indent",
-        label: t2("common:indent", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextIndentOutlined_default, {}),
-        customTestId: `${triggerTestId}-indent-button`,
-        onClick: () => editor.dispatchCommand(import_lexical44.INDENT_CONTENT_COMMAND, void 0)
-      }
-    ],
-    [alignment, editor, t2, triggerTestId]
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
-    DocEditorDropdown_default,
-    {
-      testId: triggerTestId,
-      containerRef: props.anchorElem,
-      disabled: editorProps.props.readOnly,
-      options,
-      registerScrollBlock: props.registerScrollBlock,
-      className: "ds-de-dropdown-min-size",
-      onVisibleChange: (isVisible) => {
-        setIsDropdownOpen(isVisible);
-        if (handleFloatingMenuBlocked && props.isFloatingMenuBlocked) {
-          handleFloatingMenuBlocked(
-            "toolbar-dropdown-text-position",
-            isVisible
-          );
-        }
-      },
-      trigger: ({ isVisible, childTriggerRef }) => /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
-        Tooltip_default,
-        {
-          tooltip: getPlatformTooltip("TEXT_ALIGNMENT", t2),
-          isHidden: isDropdownOpen,
-          children: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
-            FilterLabelButtonSelector,
-            {
-              dsVersion: "2.0",
-              variant: "neutral",
-              type: "plain",
-              size: "small",
-              label: "",
-              "aria-label": t2("common:textAlignmentOptions", true),
-              icon: ALIGNMENT_ICON_BY_KEY[alignment] ?? /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAlignLeftOutlined_default, {}),
-              isActivated: isVisible,
-              ref: childTriggerRef,
-              testId: `${triggerTestId}-dropdown`
-            }
-          )
-        }
-      )
-    }
-  );
-};
-var TextPositioningButton_default = TextPositioningButton;
-
-// ../../doc-editor/packages/doc-editor/src/components/TextStyleFormattingButton/TextStyleFormattingButton.js
-var import_LexicalComposerContext22 = require("@lexical/react/LexicalComposerContext");
-var import_react187 = __toESM(require("react"));
-var import_lexical45 = require("lexical");
-init_dist();
-init_EditorPropsContext();
-var import_jsx_runtime54 = require("react/jsx-runtime");
-var SINGLE_FORMAT_ICON = {
-  uppercase: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextUppercaseOutlined_default, { width: 16, height: 16 }),
-  lowercase: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextLowercaseOutlined_default, { width: 16, height: 16 }),
-  capitalize: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextOutlined_default, {}),
-  strikethrough: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(StrikethroughOutlined_default, { width: 16, height: 16 }),
-  subscript: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(SubscriptOutlined_default, { width: 16, height: 16 }),
-  superscript: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(SuperscriptOutlined_default, { width: 16, height: 16 })
-};
-var TextStyleFormattingButton = ({
-  anchorElem,
-  testId,
-  isFloatingMenuBlocked,
-  registerScrollBlock = false
-}) => {
-  const [editor] = (0, import_LexicalComposerContext22.useLexicalComposerContext)();
-  const editorProps = useEditorProps();
-  const t2 = useLanguage_default();
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react187.useState)(false);
-  const { fontFormatting, selection, handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
-  const selectedFormats = (0, import_react187.useMemo)(() => {
-    const ans = [];
-    for (const key in fontFormatting) {
-      if (fontFormatting[key]) {
-        ans.push(key);
-      }
-    }
-    return ans;
-  }, [fontFormatting]);
-  const isSelectionDisabled = (0, import_react187.useMemo)(() => {
-    return !(selection && (0, import_lexical45.$isRangeSelection)(selection));
-  }, [selection]);
-  const tick = /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TickLargeOutlined_default2, { size: "xxx-small" });
-  const dispatchFormat = (key) => {
-    editor.dispatchCommand(import_lexical45.FORMAT_TEXT_COMMAND, key);
-  };
-  const isStrikethroughEnabled = !editorProps.props?.textFormattingDisabled?.strikethrough;
-  const options = (0, import_react187.useMemo)(
-    () => [
-      {
-        key: "lowercase",
-        label: t2("common:lowercase", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextLowercaseOutlined_default, { width: 16, height: 16 }),
-        suffix: fontFormatting.lowercase ? tick : void 0,
-        customTestId: `${testId}-lowercase-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => dispatchFormat("lowercase")
-      },
-      {
-        key: "uppercase",
-        label: t2("common:uppercase", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextUppercaseOutlined_default, { width: 16, height: 16 }),
-        suffix: fontFormatting.uppercase ? tick : void 0,
-        customTestId: `${testId}-uppercase-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => dispatchFormat("uppercase")
-      },
-      {
-        key: "capitalize",
-        label: t2("common:capitalize", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextOutlined_default, { size: "xxx-small" }),
-        suffix: fontFormatting.capitalize ? tick : void 0,
-        customTestId: `${testId}-capitalize-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => dispatchFormat("capitalize")
-      },
-      ...isStrikethroughEnabled ? [
-        {
-          key: "strikethrough",
-          label: t2("common:strikethrough", true),
-          icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(StrikethroughOutlined_default, { width: 16, height: 16 }),
-          suffix: fontFormatting.strikethrough ? tick : void 0,
-          customTestId: `${testId}-strikethrough-button`,
-          disabled: isSelectionDisabled,
-          onClick: () => dispatchFormat("strikethrough")
-        }
-      ] : [],
-      {
-        key: "subscript",
-        label: t2("common:subscript", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(SubscriptOutlined_default, { width: 16, height: 16 }),
-        suffix: fontFormatting.subscript ? tick : void 0,
-        customTestId: `${testId}-subscript-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => dispatchFormat("subscript")
-      },
-      {
-        key: "superscript",
-        label: t2("common:superscript", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(SuperscriptOutlined_default, { width: 16, height: 16 }),
-        suffix: fontFormatting.superscript ? tick : void 0,
-        customTestId: `${testId}-superscript-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => dispatchFormat("superscript")
-      },
-      { key: "text-style-divider", isDivider: true },
-      {
-        key: "clear-formatting",
-        label: t2("common:clearFormatting", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(EraserOutlined_default, { size: "xxx-small" }),
-        customTestId: `${testId}-clear-formatting-button`,
-        disabled: isSelectionDisabled,
-        onClick: () => clearAllFormatting(editor)
-      }
-    ],
-    [
-      editor,
-      t2,
-      testId,
-      fontFormatting,
-      isSelectionDisabled,
-      isStrikethroughEnabled
-    ]
-  );
-  const triggerIcon = selectedFormats.length === 1 ? SINGLE_FORMAT_ICON[selectedFormats[0]] : /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextOutlined_default, {});
-  return /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
-    DocEditorDropdown_default,
-    {
-      testId,
-      containerRef: anchorElem,
-      disabled: editorProps.props.readOnly,
-      options,
-      registerScrollBlock,
-      className: "ds-de-dropdown-min-size",
-      onVisibleChange: (isVisible) => {
-        setIsDropdownOpen(isVisible);
-        if (handleFloatingMenuBlocked && isFloatingMenuBlocked) {
-          handleFloatingMenuBlocked("toolbar-dropdown-text-format", isVisible);
-        }
-      },
-      trigger: ({ isVisible, childTriggerRef }) => /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
-        Tooltip_default,
-        {
-          tooltip: getPlatformTooltip("TEXT_STYLE", t2),
-          isHidden: isDropdownOpen,
-          children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
-            FilterLabelButtonSelector,
-            {
-              dsVersion: "2.0",
-              variant: "neutral",
-              type: "plain",
-              size: "small",
-              label: "",
-              "aria-label": t2("common:fontStyleOptions", true),
-              icon: triggerIcon ?? /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TextOutlined_default, {}),
-              isActivated: isVisible,
-              ref: childTriggerRef,
-              testId: `${testId}-dropdown`
-            }
-          )
-        }
-      )
-    }
-  );
-};
-var TextStyleFormattingButton_default = TextStyleFormattingButton;
-
-// ../../doc-editor/packages/doc-editor/src/components/FontSizeControls/FontSizeControls.js
-var import_react189 = __toESM(require("react"));
-var import_react190 = require("react");
-var import_LexicalComposerContext23 = require("@lexical/react/LexicalComposerContext");
-var import_lexical46 = require("lexical");
-init_utils2();
-var import_utils26 = require("@lexical/utils");
-init_EditorPropsContext();
-
-// ../../doc-editor/packages/doc-editor/src/components/Stepper/index.js
-var import_react188 = __toESM(require("react"));
-init_dist();
-var import_jsx_runtime55 = require("react/jsx-runtime");
-var Stepper = ({
-  value,
-  onChange,
-  onIncrement,
-  onDecrement,
-  onKeyDown,
-  onBlur,
-  min,
-  max,
-  options,
-  onOptionSelect,
-  disabled,
-  testId,
-  decrementTooltip,
-  incrementTooltip,
-  inputTooltip,
-  decrementAriaLabel,
-  incrementAriaLabel,
-  inputAriaLabel,
-  containerRef
-}) => {
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react188.useState)(false);
-  const numericValue = value === "" ? NaN : Number(value);
-  const isDecrementDisabled = disabled || typeof min === "number" && !isNaN(numericValue) && numericValue <= min;
-  const isIncrementDisabled = disabled || typeof max === "number" && !isNaN(numericValue) && numericValue >= max;
-  const handleInputChange = (0, import_react188.useCallback)(
-    (e) => {
-      const filtered = e.target.value.replace(/[^0-9]/g, "");
-      onChange(filtered);
-    },
-    [onChange]
-  );
-  const handleOptionClick = (0, import_react188.useCallback)(
-    (option, closeDropdown) => {
-      if (onOptionSelect) {
-        onOptionSelect(option);
-      } else {
-        onChange(String(option));
-      }
-      if (closeDropdown) closeDropdown();
-    },
-    [onOptionSelect, onChange]
-  );
-  const decrementButton = /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
-    IconButtonSelector,
-    {
-      dsVersion: "2.0",
-      variant: "neutral",
-      type: "plain",
-      size: "x-small",
-      onClick: onDecrement,
-      disabled: isDecrementDisabled,
-      icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(MinusOutlined_default2, {}),
-      "aria-label": decrementAriaLabel,
-      testId: `${testId}-decrease`
-    }
-  );
-  const incrementButton = /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
-    IconButtonSelector,
-    {
-      dsVersion: "2.0",
-      variant: "neutral",
-      type: "plain",
-      size: "x-small",
-      onClick: onIncrement,
-      disabled: isIncrementDisabled,
-      icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(AddOutlined_default, {}),
-      "aria-label": incrementAriaLabel,
-      testId: `${testId}-increase`
-    }
-  );
-  const renderInput = () => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("div", { className: "ds-de-stepper-input", children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
-    TextInputSelector,
-    {
-      dsVersion: "2.0",
-      size: "small",
-      value,
-      onChange: handleInputChange,
-      onKeyDown,
-      onBlur,
-      disabled,
-      testId,
-      "aria-label": inputAriaLabel,
-      id: `${testId}-input`,
-      type: "text",
-      inputMode: "numeric"
-    }
-  ) });
-  const stepperMenuOptions = (0, import_react188.useMemo)(
-    () => (options ?? []).map((option) => ({
-      key: String(option),
-      label: String(option),
-      customTestId: `${testId}-${option}-button`,
-      onClick: () => handleOptionClick(option)
-    })),
-    [options, testId, handleOptionClick]
-  );
-  const renderInputWithDropdown = () => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
-    DocEditorDropdown_default,
-    {
-      className: "ds-de-stepper-dropdown",
-      testId,
-      disabled,
-      containerRef,
-      position: "bottom-center",
-      visible: isDropdownOpen,
-      onVisibleChange: setIsDropdownOpen,
-      options: stepperMenuOptions,
-      trigger: () => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: inputTooltip, isHidden: isDropdownOpen, children: renderInput() })
-    }
-  );
-  const inputSection = options ? renderInputWithDropdown() : renderInput();
-  return /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("div", { className: "ds-de-stepper", children: [
-    decrementTooltip ? /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: decrementTooltip, className: "flex", children: decrementButton }) : decrementButton,
-    inputSection,
-    incrementTooltip ? /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: incrementTooltip, className: "flex", children: incrementButton }) : incrementButton
-  ] });
-};
-var Stepper_default = Stepper;
-
-// ../../doc-editor/packages/doc-editor/src/components/FontSizeControls/FontSizeControls.js
-init_node();
-var import_jsx_runtime56 = require("react/jsx-runtime");
-var SIZE_OPTIONS = [
-  "6",
-  "8",
-  "10",
-  "12",
-  "16",
-  "20",
-  "24",
-  "28",
-  "32",
-  "36",
-  "48",
-  "62",
-  "72"
-];
-var FontSizeControls = (props) => {
-  const t2 = useLanguage_default();
-  const { testId, selectionRef } = props;
-  const editorProps = useEditorProps();
-  const [editor] = (0, import_LexicalComposerContext23.useLexicalComposerContext)();
-  const getRestoreSelection = (0, import_react190.useCallback)(
-    () => selectionRef ? selectionRef.current : null,
-    [selectionRef]
-  );
-  const FORMATTED_DEFAULT_SIZE = (0, import_react189.useMemo)(() => {
-    return !isNaN(parseInt(editorProps.props.fontSize)) ? parseInt(editorProps.props.fontSize) : DEFAULT_FONT_SIZE;
-  }, [editorProps.props.fontSize]);
-  const normalizedOverride = (0, import_react189.useMemo)(
-    () => sanitizeSizeOverride(editorProps.props.fontSizeOverride),
-    [editorProps.props.fontSizeOverride]
-  );
-  const clampMode = (0, import_react189.useMemo)(
-    () => editorProps.props.fontSizeClampMode === "strict" ? "strict" : "loose",
-    [editorProps.props.fontSizeClampMode]
-  );
-  const dropdownOptions = (0, import_react189.useMemo)(() => {
-    if (normalizedOverride) return normalizedOverride.map(String);
-    return SIZE_OPTIONS;
-  }, [normalizedOverride]);
-  const inputMin = normalizedOverride ? normalizedOverride[0] : MIN_ALLOWED_FONT_SIZE;
-  const inputMax = normalizedOverride ? normalizedOverride[normalizedOverride.length - 1] : MAX_ALLOWED_FONT_SIZE;
-  const [inputValue, setInputValue] = (0, import_react189.useState)(FORMATTED_DEFAULT_SIZE);
-  const [inputChangeFlag, setInputChangeFlag] = (0, import_react189.useState)(false);
-  const selectionProps = useSelectionTypeProvider_default();
-  (0, import_react190.useEffect)(() => {
-    const intVal = parseInt(inputValue);
-    if (inputValue === "") {
-      selectionProps.setFontSize(DEFAULT_FONT_SIZE);
-    } else if (isNaN(intVal)) {
-      selectionProps.setFontSize(DEFAULT_FONT_SIZE);
-    } else {
-      selectionProps.setFontSize(intVal);
-    }
-  }, [inputValue, selectionProps]);
-  const handleFontIncrease = (0, import_react190.useCallback)(() => {
-    const restore = getRestoreSelection();
-    if (normalizedOverride) {
-      const current = inputValue === "" ? normalizedOverride[0] : Number(inputValue);
-      const next = getNextSizeFromOverride(
-        current,
-        UpdateFontSizeType.increment,
-        normalizedOverride
-      );
-      setInputValue(String(next));
-      updateFontSizeInSelection(editor, `${next}px`, null, restore);
-      return;
-    }
-    updateFontSize(editor, UpdateFontSizeType.increment, inputValue, restore);
-  }, [editor, inputValue, normalizedOverride, getRestoreSelection]);
-  const handleFontDecrease = (0, import_react190.useCallback)(() => {
-    const restore = getRestoreSelection();
-    if (normalizedOverride) {
-      const current = inputValue === "" ? normalizedOverride[normalizedOverride.length - 1] : Number(inputValue);
-      const next = getNextSizeFromOverride(
-        current,
-        UpdateFontSizeType.decrement,
-        normalizedOverride
-      );
-      setInputValue(String(next));
-      updateFontSizeInSelection(editor, `${next}px`, null, restore);
-      return;
-    }
-    updateFontSize(editor, UpdateFontSizeType.decrement, inputValue, restore);
-  }, [editor, inputValue, normalizedOverride, getRestoreSelection]);
-  const updateFontSizeByInputValue = (0, import_react190.useCallback)(
-    (inputValueNumber) => {
-      const numericValue = Number(inputValueNumber);
-      let updatedFontSize;
-      if (normalizedOverride) {
-        updatedFontSize = clampToSizeOverride(
-          numericValue,
-          normalizedOverride,
-          clampMode
-        );
-      } else if (numericValue > MAX_ALLOWED_FONT_SIZE) {
-        updatedFontSize = MAX_ALLOWED_FONT_SIZE;
-      } else if (numericValue < MIN_ALLOWED_FONT_SIZE) {
-        updatedFontSize = MIN_ALLOWED_FONT_SIZE;
-      } else {
-        updatedFontSize = numericValue;
-      }
-      setInputValue(String(updatedFontSize));
-      updateFontSizeInSelection(
-        editor,
-        String(updatedFontSize) + "px",
-        null,
-        getRestoreSelection()
-      );
-      setInputChangeFlag(false);
-    },
-    [editor, normalizedOverride, clampMode, getRestoreSelection]
-  );
-  const handleKeyPress = (e) => {
-    const inputValueNumber = Number(inputValue);
-    if (e.key === "Tab") {
-      return;
-    }
-    if (["e", "E", "+", "-"].includes(e.key) || isNaN(inputValueNumber)) {
-      e.preventDefault();
-      setInputValue("");
-      return;
-    }
-    setInputChangeFlag(true);
-    if (e.key === "Enter" || e.key === "Escape") {
-      e.preventDefault();
-      updateFontSizeByInputValue(inputValueNumber);
-    }
-  };
-  const handleInputBlur = () => {
-    if (inputValue !== "" && inputChangeFlag) {
-      const inputValueNumber = Number(inputValue);
-      updateFontSizeByInputValue(inputValueNumber);
-    }
-  };
-  (0, import_react190.useEffect)(() => {
-    const handleButtonPress = (e) => {
-      if (e.metaKey && e.shiftKey && e.key === ",") {
-        handleFontDecrease();
-      } else if (e.metaKey && e.shiftKey && e.key === ".") {
-        handleFontIncrease();
-      }
-    };
-    return keyDownCallback(handleButtonPress);
-  }, [editor, handleFontDecrease, handleFontIncrease]);
-  const $updateToolbar = (0, import_react190.useCallback)(() => {
-    const selection = (0, import_lexical46.$getSelection)();
-    if ((0, import_lexical46.$isRangeSelection)(selection)) {
-      let selectedSize = getFormattedFontSizeFromSelection(selection);
-      if (selectedSize !== "" && selectedSize.trim() !== "inherit") {
-        selectedSize = Number(selectedSize.replaceAll("px", ""));
-        setInputValue(selectedSize);
-      } else if (selectedSize === "inherit") {
-        setInputValue(FORMATTED_DEFAULT_SIZE);
-      } else {
-        setInputValue(selectedSize);
-      }
-    } else if ((0, import_lexical46.$isNodeSelection)(selection)) {
-      const nodes = selection.getNodes();
-      let defaultNodeFontSize = FORMATTED_DEFAULT_SIZE;
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        if ($isSmartPlaceholderNode(node)) {
-          const nodeStyles = node.getStyle();
-          const fontSizeStyle = nodeStyles["font-size"]?.replace?.("px", "") || FORMATTED_DEFAULT_SIZE;
-          defaultNodeFontSize = Math.max(
-            parseInt(fontSizeStyle),
-            defaultNodeFontSize
-          );
-        }
-      }
-      setInputValue(defaultNodeFontSize);
-    }
-  }, [FORMATTED_DEFAULT_SIZE]);
-  (0, import_react190.useEffect)(() => {
-    return (0, import_utils26.mergeRegister)(
-      editor.registerCommand(
-        import_lexical46.SELECTION_CHANGE_COMMAND,
-        () => {
-          $updateToolbar();
-          return false;
-        },
-        import_lexical46.COMMAND_PRIORITY_CRITICAL
-      ),
-      editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
-          $updateToolbar();
-        });
-      })
-    );
-  }, [editor, $updateToolbar]);
-  return /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(
-    Stepper_default,
-    {
-      testId,
-      value: inputValue,
-      onChange: setInputValue,
-      onIncrement: handleFontIncrease,
-      onDecrement: handleFontDecrease,
-      onKeyDown: handleKeyPress,
-      onBlur: handleInputBlur,
-      min: inputMin,
-      max: inputMax,
-      options: dropdownOptions,
-      onOptionSelect: updateFontSizeByInputValue,
-      disabled: editorProps.props.readOnly,
-      containerRef: props.anchorElem,
-      decrementTooltip: getPlatformTooltip("TEXT_SIZE_DECREASE", t2),
-      incrementTooltip: getPlatformTooltip("TEXT_SIZE_INCREASE", t2),
-      inputTooltip: getPlatformTooltip("TEXT_SIZE", t2),
-      decrementAriaLabel: t2("common:decreaseFontSize", true),
-      incrementAriaLabel: t2("common:increaseFontSize", true),
-      inputAriaLabel: t2("common:fontSize", true)
-    }
-  );
-};
-var FontSizeControls_default = FontSizeControls;
-
-// ../../doc-editor/packages/doc-editor/src/components/TextToLinkButton/TextToLinkButton.js
-var import_react191 = __toESM(require("react"));
-var import_react192 = require("react");
-var import_LexicalComposerContext24 = require("@lexical/react/LexicalComposerContext");
-var import_lexical48 = require("lexical");
-var import_link4 = require("@lexical/link");
-var import_selection7 = require("@lexical/selection");
-
 // ../../doc-editor/packages/doc-editor/src/utils/conversion/linkNode.js
-var import_link3 = require("@lexical/link");
-var import_lexical47 = require("lexical");
+var import_lexical37 = require("lexical");
 var import_selection6 = require("@lexical/selection");
-var import_utils27 = require("@lexical/utils");
+var import_utils20 = require("@lexical/utils");
 init_MarkNode();
 init_utils2();
 var $selectionContainsLink = (selection) => {
-  if (!(0, import_lexical47.$isRangeSelection)(selection)) return false;
-  return selection.getNodes().some((n2) => (0, import_link3.$isLinkNode)(n2) || !!(0, import_utils27.$findMatchingParent)(n2, import_link3.$isLinkNode));
+  if (!(0, import_lexical37.$isRangeSelection)(selection)) return false;
+  return selection.getNodes().some((n2) => (0, import_link2.$isLinkNode)(n2) || !!(0, import_utils20.$findMatchingParent)(n2, import_link2.$isLinkNode));
 };
 var $isLinkNodeValidForSelection = (selection) => {
-  if (!(0, import_lexical47.$isRangeSelection)(selection)) return false;
+  if (!(0, import_lexical37.$isRangeSelection)(selection)) return false;
   if (selection.isCollapsed()) return true;
   const nodes = selection.getNodes();
-  if (nodes.some(import_lexical47.$isDecoratorNode)) return false;
+  if (nodes.some(import_lexical37.$isDecoratorNode)) return false;
   const hasMark = nodes.some($isMarkNode);
   if (hasMark) {
     const hasTextOutsideMark = nodes.some(
-      (n2) => (0, import_lexical47.$isTextNode)(n2) && !(0, import_utils27.$findMatchingParent)(n2, $isMarkNode)
+      (n2) => (0, import_lexical37.$isTextNode)(n2) && !(0, import_utils20.$findMatchingParent)(n2, $isMarkNode)
     );
     if (hasTextOutsideMark) return false;
   }
@@ -135553,7 +134888,7 @@ var $isLinkNodeValidForSelection = (selection) => {
 // ../../doc-editor/packages/doc-editor/src/components/TextToLinkButton/TextToLinkButton.js
 init_dist();
 init_EditorPropsContext();
-var import_jsx_runtime57 = require("react/jsx-runtime");
+var import_jsx_runtime52 = require("react/jsx-runtime");
 function getSelectedNode(selection) {
   const anchor = selection.anchor;
   const focus = selection.focus;
@@ -135571,27 +134906,27 @@ function getSelectedNode(selection) {
 }
 var TextToLinkButton = ({ testId }) => {
   const t2 = useLanguage_default();
-  const [isLink, setIsLink] = (0, import_react192.useState)(false);
-  const [isDisabledBySelection, setIsDisabledBySelection] = (0, import_react192.useState)(false);
-  const [editor] = (0, import_LexicalComposerContext24.useLexicalComposerContext)();
+  const [isLink, setIsLink] = (0, import_react190.useState)(false);
+  const [isDisabledBySelection, setIsDisabledBySelection] = (0, import_react190.useState)(false);
+  const [editor] = (0, import_LexicalComposerContext23.useLexicalComposerContext)();
   const editorProps = useEditorProps();
-  const { blockType } = (0, import_react192.useContext)(SelectionTypeContext);
+  const { blockType } = (0, import_react190.useContext)(SelectionTypeContext);
   const isInsideCodeBlock = blockType === "code";
-  (0, import_react192.useEffect)(() => {
+  (0, import_react190.useEffect)(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         try {
-          const selection = (0, import_lexical48.$getSelection)();
+          const selection = (0, import_lexical38.$getSelection)();
           if (!selection) {
             setIsLink(false);
             setIsDisabledBySelection(false);
             return;
           }
           if (!selection.anchor || !selection.anchor.getNode) return;
-          if (!(0, import_lexical48.$isRangeSelection)(selection) || selection.isCollapsed()) {
+          if (!(0, import_lexical38.$isRangeSelection)(selection) || selection.isCollapsed()) {
             const node = getSelectedNode(selection);
             const parent = node.getParent();
-            setIsLink((0, import_link4.$isLinkNode)(parent) || (0, import_link4.$isLinkNode)(node));
+            setIsLink((0, import_link3.$isLinkNode)(parent) || (0, import_link3.$isLinkNode)(node));
             setIsDisabledBySelection(false);
             return;
           }
@@ -135605,13 +134940,13 @@ var TextToLinkButton = ({ testId }) => {
       });
     });
   }, [editor]);
-  const handleLink = (0, import_react192.useCallback)(() => {
+  const handleLink = (0, import_react190.useCallback)(() => {
     if (isInsideCodeBlock) return;
     closeAllSlashMenus();
     editor.update(() => {
       if (!isLink) {
-        const selection = (0, import_lexical48.$getSelection)();
-        if ((0, import_lexical48.$isRangeSelection)(selection)) {
+        const selection = (0, import_lexical38.$getSelection)();
+        if ((0, import_lexical38.$isRangeSelection)(selection)) {
           if (selection.isCollapsed()) {
             editor.dispatchCommand(
               CustomLexicalCommands.OPEN_LINK_ADD_COMMAND,
@@ -135626,11 +134961,11 @@ var TextToLinkButton = ({ testId }) => {
           }
         }
       } else {
-        editor.dispatchCommand(import_link4.TOGGLE_LINK_COMMAND, null);
+        editor.dispatchCommand(import_link3.TOGGLE_LINK_COMMAND, null);
       }
     });
   }, [editor, isLink, isInsideCodeBlock, editorProps?.props?.editorId]);
-  (0, import_react192.useEffect)(() => {
+  (0, import_react190.useEffect)(() => {
     const handleButtonPress = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
         handleLink(e);
@@ -135638,13 +134973,13 @@ var TextToLinkButton = ({ testId }) => {
     };
     return keyDownCallback(handleButtonPress);
   }, [editor, handleLink]);
-  return /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(import_jsx_runtime57.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("TEXT_TO_LINK", t2), children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(import_jsx_runtime52.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("TEXT_TO_LINK", t2), children: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(
     IconButtonSelector,
     {
       variant: "neutral",
       type: "plain",
       dsVersion: "2.0",
-      icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(LinkSimpleOutlined_default, { variant: "default" }),
+      icon: /* @__PURE__ */ (0, import_jsx_runtime52.jsx)(LinkSimpleOutlined_default, { variant: "default" }),
       onClick: handleLink,
       isActivated: isLink,
       size: "small",
@@ -135657,31 +134992,31 @@ var TextToLinkButton = ({ testId }) => {
 var TextToLinkButton_default = TextToLinkButton;
 
 // ../../doc-editor/packages/doc-editor/src/components/FontColorPickerButton/FontColorPickerButton.js
-var import_react193 = require("react");
-var import_LexicalComposerContext25 = require("@lexical/react/LexicalComposerContext");
-var import_lexical49 = require("lexical");
+var import_react191 = require("react");
+var import_LexicalComposerContext24 = require("@lexical/react/LexicalComposerContext");
+var import_lexical39 = require("lexical");
 var import_selection8 = require("@lexical/selection");
-var import_react194 = __toESM(require("react"));
+var import_react192 = __toESM(require("react"));
 init_dist();
 init_EditorPropsContext();
 init_utils();
-var import_jsx_runtime58 = require("react/jsx-runtime");
+var import_jsx_runtime53 = require("react/jsx-runtime");
 var DEFAULT_FONT_COLOR = "#000000";
 var scrollBlockerIdCounter2 = 0;
-var FontColorTrigger = import_react194.default.forwardRef(function FontColorTrigger2({ isOpen, fontColor, testId, tooltipLabel, ...rest }, ref) {
-  return /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(Tooltip_default, { tooltip: tooltipLabel, isHidden: isOpen, children: /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(
+var FontColorTrigger = import_react192.default.forwardRef(function FontColorTrigger2({ isOpen, fontColor, testId, tooltipLabel, ...rest }, ref) {
+  return /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(Tooltip_default, { tooltip: tooltipLabel, isHidden: isOpen, children: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
     "button",
     {
       ref,
       ...rest,
       className: `ds-de-font-color-trigger-parent ${isOpen ? "bg-surface-primary-hover" : ""}`,
       "data-test-id": `${testId}-dropdown-button`,
-      children: /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", { className: "ds-de-font-color-trigger", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime58.jsxs)("div", { className: "icon", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(TextAMediumOutlined_default, { size: "xxx-small" }),
-          /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("span", { className: "underline", style: { "--font-color": fontColor } })
+      children: /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", { className: "ds-de-font-color-trigger", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime53.jsxs)("div", { className: "icon", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(TextAMediumOutlined_default, { size: "xxx-small" }),
+          /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("span", { className: "underline", style: { "--font-color": fontColor } })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime58.jsx)("div", { className: "caret caret-down", children: /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(CaretDownFilled_default2, { size: "xxx-small", variant: "subtle" }) })
+        /* @__PURE__ */ (0, import_jsx_runtime53.jsx)("div", { className: "caret caret-down", children: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(CaretDownFilled_default2, { size: "xxx-small", variant: "subtle" }) })
       ] })
     }
   ) });
@@ -135692,24 +135027,24 @@ var FontColorPickerButton = ({
   isFloatingMenuBlocked,
   registerScrollBlock = false
 }) => {
-  const [editor] = (0, import_LexicalComposerContext25.useLexicalComposerContext)();
-  const [fontColor, setFontColor] = (0, import_react193.useState)(DEFAULT_FONT_COLOR);
-  const fontColorRef = (0, import_react193.useRef)(null);
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react193.useState)(false);
+  const [editor] = (0, import_LexicalComposerContext24.useLexicalComposerContext)();
+  const [fontColor, setFontColor] = (0, import_react191.useState)(DEFAULT_FONT_COLOR);
+  const fontColorRef = (0, import_react191.useRef)(null);
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react191.useState)(false);
   const editorProps = useEditorProps();
   const t2 = useLanguage_default();
   const { handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
-  const scrollBlockerId = (0, import_react193.useMemo)(
+  const scrollBlockerId = (0, import_react191.useMemo)(
     () => `font-color-picker-${++scrollBlockerIdCounter2}`,
     []
   );
-  const handleUpdate = (0, import_react193.useCallback)(
+  const handleUpdate = (0, import_react191.useCallback)(
     (newFontColor) => {
       setFontColor(newFontColor);
       fontColorRef.current = newFontColor;
       editor.update(() => {
-        const selection = (0, import_lexical49.$getSelection)();
-        if ((0, import_lexical49.$isRangeSelection)(selection)) {
+        const selection = (0, import_lexical39.$getSelection)();
+        if ((0, import_lexical39.$isRangeSelection)(selection)) {
           (0, import_selection8.$patchStyleText)(selection, {
             color: `${newFontColor}`
           });
@@ -135722,7 +135057,7 @@ var FontColorPickerButton = ({
     },
     [editor]
   );
-  const setDropdownVisibility = (0, import_react193.useCallback)(
+  const setDropdownVisibility = (0, import_react191.useCallback)(
     (visible) => {
       setIsDropdownOpen(visible);
       if (handleFloatingMenuBlocked && isFloatingMenuBlocked) {
@@ -135731,7 +135066,7 @@ var FontColorPickerButton = ({
     },
     [handleFloatingMenuBlocked, isFloatingMenuBlocked]
   );
-  const handleColorChange = (0, import_react193.useCallback)(
+  const handleColorChange = (0, import_react191.useCallback)(
     ({ color }) => {
       if (!color) {
         clearFormatting(editor, ["color"]);
@@ -135744,12 +135079,12 @@ var FontColorPickerButton = ({
     },
     [editor, handleUpdate, setDropdownVisibility]
   );
-  (0, import_react193.useEffect)(() => {
+  (0, import_react191.useEffect)(() => {
     if (!registerScrollBlock) return void 0;
     editorProps?._setScrollBlocker?.(scrollBlockerId, isDropdownOpen);
     return void 0;
   }, [isDropdownOpen, registerScrollBlock, scrollBlockerId, editorProps]);
-  (0, import_react193.useEffect)(() => {
+  (0, import_react191.useEffect)(() => {
     return () => {
       if (registerScrollBlock) {
         editorProps?._setScrollBlocker?.(scrollBlockerId, false);
@@ -135764,10 +135099,10 @@ var FontColorPickerButton = ({
     );
     return match ? match[1] : DEFAULT_FONT_COLOR;
   };
-  const getFontColorFromSelection = (0, import_react193.useCallback)(() => {
+  const getFontColorFromSelection = (0, import_react191.useCallback)(() => {
     editor.getEditorState().read(() => {
-      const selection = (0, import_lexical49.$getSelection)();
-      if ((0, import_lexical49.$isRangeSelection)(selection) || (0, import_lexical49.$isNodeSelection)(selection)) {
+      const selection = (0, import_lexical39.$getSelection)();
+      if ((0, import_lexical39.$isRangeSelection)(selection) || (0, import_lexical39.$isNodeSelection)(selection)) {
         const nodes = selection.getNodes();
         const colors3 = nodes.map((node) => {
           let style = node.getStyle?.();
@@ -135782,17 +135117,17 @@ var FontColorPickerButton = ({
       }
     });
   }, [editor]);
-  (0, import_react193.useEffect)(() => {
+  (0, import_react191.useEffect)(() => {
     const unregister = editor.registerUpdateListener(() => {
       getFontColorFromSelection();
     });
     return () => unregister();
   }, [editor, getFontColorFromSelection]);
-  const getPopupContainer = (0, import_react193.useCallback)(() => {
+  const getPopupContainer = (0, import_react191.useCallback)(() => {
     if (anchorElem instanceof HTMLElement) return anchorElem;
     return anchorElem?.current ?? document.body;
   }, [anchorElem]);
-  return /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
     ColorPickerV3,
     {
       label: "",
@@ -135806,7 +135141,7 @@ var FontColorPickerButton = ({
       onColorChange: handleColorChange,
       getPopupContainer,
       "aria-label": t2("common:textColor", true),
-      children: /* @__PURE__ */ (0, import_jsx_runtime58.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime53.jsx)(
         FontColorTrigger,
         {
           isOpen: isDropdownOpen,
@@ -135821,9 +135156,9 @@ var FontColorPickerButton = ({
 var FontColorPickerButton_default = FontColorPickerButton;
 
 // ../../doc-editor/packages/doc-editor/src/components/FontHighlighterButton/FontHighlighterButton.js
-var import_react195 = require("react");
-var import_LexicalComposerContext26 = require("@lexical/react/LexicalComposerContext");
-var import_react196 = __toESM(require("react"));
+var import_react193 = require("react");
+var import_LexicalComposerContext25 = require("@lexical/react/LexicalComposerContext");
+var import_react194 = __toESM(require("react"));
 
 // ../../doc-editor/packages/doc-editor/src/components/FontHighlighterButton/FontHighlightGridVals.js
 var FontHighlightGridValues = [
@@ -135845,7 +135180,7 @@ var FontHighlightGridValues = [
 var FontHighlightGridVals_default = FontHighlightGridValues;
 
 // ../../doc-editor/packages/doc-editor/src/components/FontHighlighterButton/FontHighlighterButton.js
-var import_lexical50 = require("lexical");
+var import_lexical40 = require("lexical");
 var import_selection9 = require("@lexical/selection");
 init_dist();
 init_EditorPropsContext();
@@ -135881,7 +135216,7 @@ var areColorEqual = (color1, color2) => {
 
 // ../../doc-editor/packages/doc-editor/src/components/FontHighlighterButton/FontHighlighterButton.js
 init_utils();
-var import_jsx_runtime59 = require("react/jsx-runtime");
+var import_jsx_runtime54 = require("react/jsx-runtime");
 var DEFAULT_FONT_COLOR2 = "rgb(255,196,0)";
 var FontHighlighterButton = ({
   anchorElem,
@@ -135889,20 +135224,20 @@ var FontHighlighterButton = ({
   isFloatingMenuBlocked,
   registerScrollBlock = false
 }) => {
-  const [editor] = (0, import_LexicalComposerContext26.useLexicalComposerContext)();
-  const [fontColor, setFontColor] = (0, import_react195.useState)(DEFAULT_FONT_COLOR2);
-  const fontColorRef = (0, import_react195.useRef)(null);
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react195.useState)(false);
+  const [editor] = (0, import_LexicalComposerContext25.useLexicalComposerContext)();
+  const [fontColor, setFontColor] = (0, import_react193.useState)(DEFAULT_FONT_COLOR2);
+  const fontColorRef = (0, import_react193.useRef)(null);
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react193.useState)(false);
   const editorProps = useEditorProps();
   const t2 = useLanguage_default();
   const { handleFloatingMenuBlocked } = useSelectionTypeProvider_default();
-  const handleUpdate = (0, import_react195.useCallback)(
+  const handleUpdate = (0, import_react193.useCallback)(
     (newFontColor) => {
       setFontColor(newFontColor);
       fontColorRef.current = newFontColor;
       editor.update(() => {
-        const selection = (0, import_lexical50.$getSelection)();
-        if ((0, import_lexical50.$isRangeSelection)(selection)) {
+        const selection = (0, import_lexical40.$getSelection)();
+        if ((0, import_lexical40.$isRangeSelection)(selection)) {
           (0, import_selection9.$patchStyleText)(selection, {
             background: `${newFontColor}`
           });
@@ -135915,7 +135250,7 @@ var FontHighlighterButton = ({
     },
     [editor]
   );
-  const setDropdownVisibility = (0, import_react195.useCallback)(
+  const setDropdownVisibility = (0, import_react193.useCallback)(
     (visible) => {
       setIsDropdownOpen(visible);
       if (handleFloatingMenuBlocked && isFloatingMenuBlocked) {
@@ -135932,10 +135267,10 @@ var FontHighlighterButton = ({
     );
     return match ? match[1] : DEFAULT_FONT_COLOR2;
   };
-  const getFontColorFromSelection = (0, import_react195.useCallback)(() => {
+  const getFontColorFromSelection = (0, import_react193.useCallback)(() => {
     editor.getEditorState().read(() => {
-      const selection = (0, import_lexical50.$getSelection)();
-      if ((0, import_lexical50.$isRangeSelection)(selection) || (0, import_lexical50.$isNodeSelection)(selection)) {
+      const selection = (0, import_lexical40.$getSelection)();
+      if ((0, import_lexical40.$isRangeSelection)(selection) || (0, import_lexical40.$isNodeSelection)(selection)) {
         const nodes = selection.getNodes();
         const colors3 = nodes.map((node) => {
           let style = node.getStyle?.();
@@ -135950,26 +135285,26 @@ var FontHighlighterButton = ({
       }
     });
   }, [editor]);
-  (0, import_react195.useEffect)(() => {
+  (0, import_react193.useEffect)(() => {
     const unregister = editor.registerUpdateListener(() => {
       getFontColorFromSelection();
     });
     return () => unregister();
   }, [editor, getFontColorFromSelection]);
   const FontColorDropDownChildren = ({ onClose }) => {
-    return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", { className: "ds-de-dropdownOverlay-small ds-de-dropdown-override", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", { className: "ds-de-dropdownOverlay-small ds-de-dropdown-override", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
         "div",
         {
           className: "ds-de-padding-x ds-de-padding-t ds-de-default-list-col",
           style: {
             paddingBottom: "4px"
           },
-          children: FontHighlightGridVals_default.map((colors3, i1) => /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", { className: "ds-de-color-grid", children: colors3.map((color, i2) => /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+          children: FontHighlightGridVals_default.map((colors3, i1) => /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("div", { className: "ds-de-color-grid", children: colors3.map((color, i2) => /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
             "div",
             {
               className: "ds-de-color-grid-cell-wrapper",
-              children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+              children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
                 "button",
                 {
                   className: "ds-de-color-grid-cell",
@@ -135982,7 +135317,7 @@ var FontHighlighterButton = ({
                     onClose?.();
                   },
                   "data-test-id": `${testId}-${color.label}`,
-                  children: areColorEqual(fontColor, color.color) ? /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", { className: "selected-btn", children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(TickSmallOutlined_default2, { size: "xxx-small" }) }) : null
+                  children: areColorEqual(fontColor, color.color) ? /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", { className: "selected-btn", children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(TickSmallOutlined_default2, { size: "xxx-small" }) }) : null
                 }
               )
             },
@@ -135990,8 +135325,8 @@ var FontHighlighterButton = ({
           )) }, i1))
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", { className: "ds-de-hr" }),
-      /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", { className: "pb-1 ds-de-default-list-col", children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("span", { className: "ds-de-hr" }),
+      /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("div", { className: "pb-1 ds-de-default-list-col", children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
         ButtonSelector,
         {
           dsVersion: "2.0",
@@ -135999,7 +135334,7 @@ var FontHighlighterButton = ({
           type: "plain",
           size: "small",
           isFullWidth: true,
-          icon: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(MinusSquareOutlined_default, { width: 16, height: 16 }),
+          icon: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(MinusSquareOutlined_default, { width: 16, height: 16 }),
           onClick: () => {
             clearFormatting(editor, ["background"]);
             clearSmartPlaceholderStyle(editor, ["background"]);
@@ -136011,7 +135346,7 @@ var FontHighlighterButton = ({
       ) })
     ] });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
     DocEditorDropdown_default,
     {
       testId,
@@ -136020,20 +135355,20 @@ var FontHighlighterButton = ({
       registerScrollBlock,
       onVisibleChange: setDropdownVisibility,
       disabled: editorProps.props.readOnly,
-      trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+      trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
         Tooltip_default,
         {
           tooltip: t2("common:highlightColor", true),
           isHidden: isDropdownOpen,
-          children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+          children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
             "button",
             {
               className: `ds-de-font-highlight-trigger-parent ${isVisible ? "bg-surface-primary-hover" : ""}`,
               "data-test-id": `${testId}-dropdown-button`,
-              children: /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", { className: "ds-de-font-highlight-trigger", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)("div", { className: "icon", children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(HighlighterOutlined_default, { width: 16, height: 16 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+              children: /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", { className: "ds-de-font-highlight-trigger", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime54.jsxs)("div", { className: "icon", children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(HighlighterOutlined_default, { width: 16, height: 16 }),
+                  /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
                     "span",
                     {
                       className: "underline",
@@ -136041,13 +135376,13 @@ var FontHighlighterButton = ({
                     }
                   )
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", { className: "caret caret-down", children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(CaretDownFilled_default2, { size: "xxx-small", variant: "subtle" }) })
+                /* @__PURE__ */ (0, import_jsx_runtime54.jsx)("div", { className: "caret caret-down", children: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(CaretDownFilled_default2, { size: "xxx-small", variant: "subtle" }) })
               ] })
             }
           )
         }
       ),
-      overlay: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
+      overlay: /* @__PURE__ */ (0, import_jsx_runtime54.jsx)(
         FontColorDropDownChildren,
         {
           onClose: () => setDropdownVisibility(false)
@@ -136069,19 +135404,19 @@ function isAIEnabled(props) {
 }
 
 // ../../doc-editor/packages/doc-editor/src/utils/getSelectedTextContent/index.js
-var import_lexical51 = require("lexical");
+var import_lexical41 = require("lexical");
 function getSelectedTextContent(editor) {
   if (!editor) {
     return "";
   }
   return editor.getEditorState().read(() => {
-    const selection = (0, import_lexical51.$getSelection)();
-    return (0, import_lexical51.$isRangeSelection)(selection) ? selection.getTextContent() : "";
+    const selection = (0, import_lexical41.$getSelection)();
+    return (0, import_lexical41.$isRangeSelection)(selection) ? selection.getTextContent() : "";
   });
 }
 
 // ../../doc-editor/packages/doc-editor/src/plugins/ToolbarPlugin/ToolbarComponents.js
-var import_jsx_runtime60 = require("react/jsx-runtime");
+var import_jsx_runtime55 = require("react/jsx-runtime");
 var INSERT_MENU_FILTER_KEYS = [
   "divider",
   "table",
@@ -136359,7 +135694,7 @@ toolbarComponents.registerAll([
     group: "ai",
     componentPriority: 0,
     isVisible: isAIAvailable,
-    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       AIButton_default,
       {
         testId: testId ? `${testId}-ai` : "ds-de-toolbar-ai"
@@ -136373,7 +135708,7 @@ toolbarComponents.registerAll([
     width: 28,
     group: "history",
     componentPriority: 0,
-    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       UndoButton_default,
       {
         testId: testId ? `${testId}-undo` : "ds-de-toolbar-undo"
@@ -136387,7 +135722,7 @@ toolbarComponents.registerAll([
     width: 28,
     group: "history",
     componentPriority: 1,
-    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       RedoButton_default,
       {
         testId: testId ? `${testId}-redo` : "ds-de-toolbar-redo"
@@ -136402,7 +135737,7 @@ toolbarComponents.registerAll([
     group: "insert",
     componentPriority: 0,
     isVisible: hasInsertMenuItems,
-    render: ({ docContainerRef, scrollableContainer }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ docContainerRef, scrollableContainer }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       InsertBlockComponent_default,
       {
         anchorElem: docContainerRef,
@@ -136418,7 +135753,7 @@ toolbarComponents.registerAll([
     group: "insert",
     componentPriority: 1,
     isVisible: hasHeadingItems,
-    render: ({ docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       HeadingDropdown_default,
       {
         anchorElem: docContainerRef,
@@ -136434,7 +135769,7 @@ toolbarComponents.registerAll([
     width: 66,
     group: "alignment",
     componentPriority: 0,
-    render: ({ docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       TextPositioningButton_default,
       {
         anchorElem: docContainerRef,
@@ -136449,7 +135784,7 @@ toolbarComponents.registerAll([
     width: 66,
     group: "alignment",
     componentPriority: 1,
-    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       TextStyleFormattingButton_default,
       {
         testId: testId ? `${testId}-text-style` : "ds-de-toolbar-text-style",
@@ -136465,7 +135800,7 @@ toolbarComponents.registerAll([
     width: 100,
     group: "fontSize",
     componentPriority: 0,
-    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       FontSizeControls_default,
       {
         testId: testId ? `${testId}-text-size` : "ds-de-toolbar-text-size",
@@ -136481,13 +135816,13 @@ toolbarComponents.registerAll([
     group: "textStyle",
     componentPriority: 0,
     isVisible: isTextFormatEnabled("bold"),
-    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("BOLD", t2), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("BOLD", t2), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(TextBoldOutlined_default, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(TextBoldOutlined_default, {}),
         onClick: () => formatText("bold", editor),
         isActivated: textFormat.isBold,
         size: "small",
@@ -136504,13 +135839,13 @@ toolbarComponents.registerAll([
     group: "textStyle",
     componentPriority: 1,
     isVisible: isTextFormatEnabled("italic"),
-    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("ITALICS", t2), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("ITALICS", t2), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(ItalicsOutlined_default, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(ItalicsOutlined_default, {}),
         onClick: () => formatText("italic", editor),
         isActivated: textFormat.isItalic,
         size: "small",
@@ -136527,13 +135862,13 @@ toolbarComponents.registerAll([
     group: "textStyle",
     componentPriority: 2,
     isVisible: isTextFormatEnabled("underline"),
-    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("UNDERLINE", t2), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ textFormat, formatText, editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("UNDERLINE", t2), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(TextUnderlinedOutlined_default, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(TextUnderlinedOutlined_default, {}),
         onClick: () => formatText("underline", editor),
         isActivated: textFormat.isUnderline,
         size: "small",
@@ -136550,7 +135885,7 @@ toolbarComponents.registerAll([
     group: "colors",
     componentPriority: 0,
     isVisible: isTextFormatEnabled("color"),
-    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       FontColorPickerButton_default,
       {
         testId: testId ? `${testId}-text-color` : "ds-de-toolbar-text-color",
@@ -136567,7 +135902,7 @@ toolbarComponents.registerAll([
     group: "colors",
     componentPriority: 1,
     isVisible: isTextFormatEnabled("background"),
-    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId, docContainerRef }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       FontHighlighterButton_default,
       {
         testId: testId ? `${testId}-text-highlight` : "ds-de-toolbar-text-highlight",
@@ -136584,13 +135919,13 @@ toolbarComponents.registerAll([
     group: "extras",
     componentPriority: 0,
     isVisible: isCodeBlockEnabled,
-    render: ({ editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: t2("common:codeBlock", true), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: t2("common:codeBlock", true), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(CodeBlockOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(CodeBlockOutlined_default, { size: "xxx-small" }),
         onClick: () => {
           editor.dispatchCommand(
             CustomLexicalCommands.CREATE_CODE_BLOCK_COMMAND,
@@ -136611,13 +135946,13 @@ toolbarComponents.registerAll([
     group: "extras",
     componentPriority: 1,
     isVisible: hasMathsEditor,
-    render: ({ editorProps, t: t2, testId, editor }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: t2("common:mathsEquation", true), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ editorProps, t: t2, testId, editor }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: t2("common:mathsEquation", true), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(RootCrossOutlined_default, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(RootCrossOutlined_default, {}),
         onClick: () => {
           if (editorProps.props.mathsEditorConfig.setIsMathsEditorOpen) {
             closeAllSlashMenus();
@@ -136643,7 +135978,7 @@ toolbarComponents.registerAll([
     group: "linkAndComment",
     componentPriority: 0,
     isVisible: isLinkEnabled,
-    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       TextToLinkButton_default,
       {
         testId: testId ? `${testId}-link` : "ds-de-toolbar-link"
@@ -136658,13 +135993,13 @@ toolbarComponents.registerAll([
     group: "linkAndComment",
     componentPriority: 1,
     isVisible: ({ editorProps }) => !editorProps.props?.commentConfig?.isDisabled,
-    render: ({ editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("COMMENT", t2), children: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
+    render: ({ editor, editorProps, t: t2, testId }) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(Tooltip_default, { tooltip: getPlatformTooltip("COMMENT", t2), children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(
       IconButtonSelector,
       {
         variant: "neutral",
         type: "plain",
         dsVersion: "2.0",
-        icon: /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(CommentCircleLeftOutlined_default, {}),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(CommentCircleLeftOutlined_default, {}),
         onClick: (e) => {
           editor.dispatchCommand(
             CustomLexicalCommands.INSERT_COMMENT_AT_SELECTION,
@@ -136690,22 +136025,22 @@ var ALL_TOOLBAR_COMPONENTS = ALL_TOOLBAR_COMPONENTS_MAP.map(
 var TOOLBAR_SECTIONS = ToolbarComponents_default.getToolbarSections();
 
 // ../../doc-editor/packages/doc-editor/src/plugins/ToolbarPlugin/index.js
-var import_jsx_runtime61 = require("react/jsx-runtime");
-var Divider2 = ({ width = 1, height = 24 }) => /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", { className: `ds-de-divider`, style: { width, height } });
+var import_jsx_runtime56 = require("react/jsx-runtime");
+var Divider2 = ({ width = 1, height = 24 }) => /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("div", { className: `ds-de-divider`, style: { width, height } });
 var DropdownComponent = ({ collapsedComponents }) => {
-  return /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", { className: "ds-de-toolbar-extended ds-de-dropdown-override", children: /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("div", { className: "ds-de-toolbar-responsiveness", children: collapsedComponents }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("div", { className: "ds-de-toolbar-extended ds-de-dropdown-override", children: /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("div", { className: "ds-de-toolbar-responsiveness", children: collapsedComponents }) });
 };
-var TRIGGER_ICON = /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "currentColor", children: [
-  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("circle", { cx: "3", cy: "8", r: "1.5" }),
-  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("circle", { cx: "8", cy: "8", r: "1.5" }),
-  /* @__PURE__ */ (0, import_jsx_runtime61.jsx)("circle", { cx: "13", cy: "8", r: "1.5" })
+var TRIGGER_ICON = /* @__PURE__ */ (0, import_jsx_runtime56.jsxs)("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "currentColor", children: [
+  /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("circle", { cx: "3", cy: "8", r: "1.5" }),
+  /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("circle", { cx: "8", cy: "8", r: "1.5" }),
+  /* @__PURE__ */ (0, import_jsx_runtime56.jsx)("circle", { cx: "13", cy: "8", r: "1.5" })
 ] });
-var MemoDropdownComponent = import_react198.default.memo(DropdownComponent);
-var MemoDropdown = import_react198.default.memo(
+var MemoDropdownComponent = import_react196.default.memo(DropdownComponent);
+var MemoDropdown = import_react196.default.memo(
   ({ collapsedComponents, docContainerRef, t: t2, handleFloatingMenuBlocked }) => {
     if (collapsedComponents.length === 0) return null;
     const optionsLabel = t2("common:options", true);
-    return /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(
       DocEditorDropdown_default,
       {
         testId: "toolbar-dropdown",
@@ -136717,7 +136052,7 @@ var MemoDropdown = import_react198.default.memo(
             handleFloatingMenuBlocked("toolbar-dropdown", isVisible);
           }
         },
-        trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+        trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(
           IconButtonSelector,
           {
             variant: "neutral",
@@ -136730,7 +136065,7 @@ var MemoDropdown = import_react198.default.memo(
             isActivated: isVisible
           }
         ),
-        overlay: /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(MemoDropdownComponent, { collapsedComponents })
+        overlay: /* @__PURE__ */ (0, import_jsx_runtime56.jsx)(MemoDropdownComponent, { collapsedComponents })
       }
     );
   },
@@ -136746,30 +136081,30 @@ var MemoDropdown = import_react198.default.memo(
 MemoDropdown.displayName = "MemoDropdown";
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageFloatingOptions.js
-var import_jsx_runtime62 = require("react/jsx-runtime");
+var import_jsx_runtime57 = require("react/jsx-runtime");
 var ImageFloatingOptions = (props) => {
-  const [editor] = (0, import_LexicalComposerContext28.useLexicalComposerContext)();
+  const [editor] = (0, import_LexicalComposerContext27.useLexicalComposerContext)();
   const t2 = useLanguage_default();
-  const commentStore = (0, import_react199.useMemo)(() => new CommentStore(editor), [editor]);
+  const commentStore = (0, import_react197.useMemo)(() => new CommentStore(editor), [editor]);
   const { testId } = props;
   const editorProps = useEditorProps();
-  const urlDataRef = (0, import_react199.useRef)("");
-  const dropdownContinerRef = (0, import_react199.useRef)(null);
-  const [isImageUploadValid, setIsImageUploadValid] = (0, import_react199.useState)(false);
-  const [isReplaceDropdownOpen, setIsReplaceDropdownOpen] = (0, import_react199.useState)(false);
-  const [isOptionsDropdownOpen, setIsOptionsDropdownOpen] = (0, import_react199.useState)(false);
+  const urlDataRef = (0, import_react197.useRef)("");
+  const dropdownContinerRef = (0, import_react197.useRef)(null);
+  const [isImageUploadValid, setIsImageUploadValid] = (0, import_react197.useState)(false);
+  const [isReplaceDropdownOpen, setIsReplaceDropdownOpen] = (0, import_react197.useState)(false);
+  const [isOptionsDropdownOpen, setIsOptionsDropdownOpen] = (0, import_react197.useState)(false);
   const draggableContainerRef = useEditorDraggableAsPerDropdownBodyConfig();
-  const isCaptionEnabled = (0, import_react199.useMemo)(() => {
+  const isCaptionEnabled = (0, import_react197.useMemo)(() => {
     return editorProps.props?.nodeConfig?.image?.caption;
   }, [editorProps.props?.nodeConfig?.image?.caption]);
   const DeleteImage = () => {
     editor.update(() => {
-      const node = (0, import_lexical52.$getNodeByKey)(props.nodeKey);
+      const node = (0, import_lexical42.$getNodeByKey)(props.nodeKey);
       if (node) {
         const parent = node.getParent();
         node.remove();
         if (parent && parent.isEmpty()) {
-          const paragraph = (0, import_lexical52.$createParagraphNode)();
+          const paragraph = (0, import_lexical42.$createParagraphNode)();
           parent.append(paragraph);
           paragraph.select();
         } else if (parent) {
@@ -136784,7 +136119,7 @@ var ImageFloatingOptions = (props) => {
   const setShowCaption = () => {
     if (props.showCaption === true) {
       editor.update(() => {
-        const node = (0, import_lexical52.$getNodeByKey)(props.nodeKey);
+        const node = (0, import_lexical42.$getNodeByKey)(props.nodeKey);
         if ($isImageNode(node)) {
           node.setCaption(void 0);
           node.setShowCaption(false);
@@ -136793,7 +136128,7 @@ var ImageFloatingOptions = (props) => {
     } else {
       editor.update(
         () => {
-          const node = (0, import_lexical52.$getNodeByKey)(props.nodeKey);
+          const node = (0, import_lexical42.$getNodeByKey)(props.nodeKey);
           if ($isImageNode(node)) {
             node.setShowCaption(true);
           }
@@ -136821,13 +136156,13 @@ var ImageFloatingOptions = (props) => {
     });
   };
   const AddLinkComponent = () => {
-    (0, import_react199.useEffect)(() => {
+    (0, import_react197.useEffect)(() => {
       if (props.link) urlDataRef.current = props.link;
     }, []);
     const handleChange = (e) => {
       urlDataRef.current = e.target.value;
     };
-    return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)("div", { className: "ds-de-image-link-dialogue", children: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime57.jsx)("div", { className: "ds-de-image-link-dialogue", children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
       TextInputSelector,
       {
         dsVersion: "2.0",
@@ -136846,7 +136181,7 @@ var ImageFloatingOptions = (props) => {
       }
     });
     editor.update(() => {
-      const currentNode = (0, import_lexical52.$getNodeByKey)(props.nodeKey);
+      const currentNode = (0, import_lexical42.$getNodeByKey)(props.nodeKey);
       try {
         new URL(urlDataRef.current);
         currentNode.setLink(urlDataRef.current);
@@ -136891,13 +136226,13 @@ var ImageFloatingOptions = (props) => {
       }
     });
   };
-  const replaceOptions = (0, import_react199.useMemo)(() => {
+  const replaceOptions = (0, import_react197.useMemo)(() => {
     const linkEnabled = editorProps.props.nodeConfig?.image?.linkEnabled;
     const items = [
       {
         key: "image-from-device",
         label: t2("common:fromDevice", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(UploadOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(UploadOutlined_default, { size: "xxx-small" }),
         customTestId: `${testId}-replace-upload-device-button`,
         onClick: () => editor.dispatchCommand(
           CustomLexicalCommands.OPEN_IMAGE_UPLOAD_COMMAND,
@@ -136909,7 +136244,7 @@ var ImageFloatingOptions = (props) => {
       items.push({
         key: "image-by-url",
         label: t2("common:byUrl", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(LinkSimpleOutlined_default, { variant: "subtle", size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(LinkSimpleOutlined_default, { variant: "subtle", size: "xxx-small" }),
         customTestId: `${testId}-replace-upload-url-button`,
         onClick: () => editor.dispatchCommand(
           CustomLexicalCommands.OPEN_IMAGE_UPLOAD_COMMAND,
@@ -136925,13 +136260,13 @@ var ImageFloatingOptions = (props) => {
     t2,
     testId
   ]);
-  const settingsOptions = (0, import_react199.useMemo)(() => {
+  const settingsOptions = (0, import_react197.useMemo)(() => {
     const items = [];
     if (isCaptionEnabled) {
       items.push({
         key: "caption-toggle",
         label: props.showCaption ? t2("common:removeCaption", true) : t2("common:addCaption", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(TwoLinesOutlined_default, { size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(TwoLinesOutlined_default, { size: "xxx-small" }),
         customTestId: `${testId}-replace-button`,
         onClick: () => setShowCaption()
       });
@@ -136940,7 +136275,7 @@ var ImageFloatingOptions = (props) => {
       items.push({
         key: "link",
         label: props.link ? t2("common:editLink", true) : t2("common:addLink", true),
-        icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(LinkSimpleOutlined_default, { variant: "subtle", size: "xxx-small" }),
+        icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(LinkSimpleOutlined_default, { variant: "subtle", size: "xxx-small" }),
         customTestId: `${testId}-add-link-button`,
         onClick: () => handleLink()
       });
@@ -136948,7 +136283,7 @@ var ImageFloatingOptions = (props) => {
     items.push({
       key: "delete",
       label: t2("common:delete", true),
-      icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(DeleteOutlined_default, { size: "xxx-small" }),
+      icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(DeleteOutlined_default, { size: "xxx-small" }),
       customTestId: `${testId}-delete-button`,
       isDestructive: true,
       onClick: () => DeleteImage()
@@ -136962,7 +136297,7 @@ var ImageFloatingOptions = (props) => {
     testId,
     editorProps.props?.nodesDisabled?.link
   ]);
-  const handleDocClick = (0, import_react199.useCallback)(
+  const handleDocClick = (0, import_react197.useCallback)(
     (e) => {
       const insideImage = props.containerRef?.current && props.containerRef.current.contains(e.target);
       const insideDropdownOverlay = e.target instanceof Element && !!e.target.closest(".ds-de-doc-editor-dropdown");
@@ -136974,7 +136309,7 @@ var ImageFloatingOptions = (props) => {
     },
     [props]
   );
-  (0, import_react199.useEffect)(() => {
+  (0, import_react197.useEffect)(() => {
     document.addEventListener("click", handleDocClick, true);
     return () => {
       document.removeEventListener("click", handleDocClick, true);
@@ -136984,17 +136319,17 @@ var ImageFloatingOptions = (props) => {
     const isValid = await fetch(url).then(() => true).catch(() => false);
     setIsImageUploadValid(isValid);
   };
-  (0, import_react199.useEffect)(() => {
+  (0, import_react197.useEffect)(() => {
     checkImageUploadValidity(props.originalSrc);
   }, [props.originalSrc]);
-  return /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime57.jsxs)(
     "div",
     {
       className: "ds-de-floating-image-options-container",
       id: "image-floating-options",
       ref: dropdownContinerRef,
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
           DocEditorDropdown_default,
           {
             containerRef: draggableContainerRef,
@@ -137003,13 +136338,13 @@ var ImageFloatingOptions = (props) => {
             visible: isReplaceDropdownOpen,
             onVisibleChange: setIsReplaceDropdownOpen,
             options: replaceOptions,
-            trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(Tooltip_default, { tooltip: t2("common:replace", true), children: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+            trigger: ({ isVisible }) => /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(Tooltip_default, { tooltip: t2("common:replace", true), children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
               IconButtonSelector,
               {
                 variant: "neutral",
                 type: "plain",
                 dsVersion: "2.0",
-                icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(ReplaceOutlined_default, { size: "xxx-small" }),
+                icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(ReplaceOutlined_default, { size: "xxx-small" }),
                 size: "small",
                 tooltip: t2("common:replaceImage"),
                 testId,
@@ -137020,17 +136355,17 @@ var ImageFloatingOptions = (props) => {
             ) })
           }
         ),
-        editorProps.props.nodeConfig.image.crop && /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+        editorProps.props.nodeConfig.image.crop && /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
           Tooltip_default,
           {
             tooltip: !isImageUploadValid ? t2("common:imageUrlNotSupportedForCrop", true) : t2("common:cropImage", true),
-            children: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
               IconButtonSelector,
               {
                 variant: "neutral",
                 type: "plain",
                 dsVersion: "2.0",
-                icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(CropOutlined_default, { size: "xxx-small" }),
+                icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(CropOutlined_default, { size: "xxx-small" }),
                 size: "small",
                 tooltip: "comment image",
                 testId,
@@ -137043,13 +136378,13 @@ var ImageFloatingOptions = (props) => {
             )
           }
         ),
-        editorProps.props.nodeConfig.image.comments && !editorProps.props?.commentConfig?.isDisabled && /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(Tooltip_default, { tooltip: t2("common:addComment", true), children: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+        editorProps.props.nodeConfig.image.comments && !editorProps.props?.commentConfig?.isDisabled && /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(Tooltip_default, { tooltip: t2("common:addComment", true), children: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
           IconButtonSelector,
           {
             variant: "neutral",
             type: "plain",
             dsVersion: "2.0",
-            icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(CommentAddOutlined_default, { size: "xxx-small" }),
+            icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(CommentAddOutlined_default, { size: "xxx-small" }),
             size: "small",
             tooltip: t2("common:commentImage"),
             testId,
@@ -137061,8 +136396,8 @@ var ImageFloatingOptions = (props) => {
             }
           }
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(Divider2, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(Divider2, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
           DocEditorDropdown_default,
           {
             position: "bottom-left",
@@ -137073,13 +136408,13 @@ var ImageFloatingOptions = (props) => {
             options: settingsOptions,
             registerScrollBlock: true,
             trigger: ({ isVisible }) => {
-              return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+              return /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(
                 IconButtonSelector,
                 {
                   variant: "neutral",
                   type: "plain",
                   dsVersion: "2.0",
-                  icon: /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(DotsHorizontalOutlined_default, { size: "xxx-small" }),
+                  icon: /* @__PURE__ */ (0, import_jsx_runtime57.jsx)(DotsHorizontalOutlined_default, { size: "xxx-small" }),
                   size: "small",
                   tooltip: t2("common:settings"),
                   testId,
@@ -137095,7 +136430,7 @@ var ImageFloatingOptions = (props) => {
     }
   );
 };
-var MemoImageFloatingOptions = import_react199.default.memo(
+var MemoImageFloatingOptions = import_react197.default.memo(
   ImageFloatingOptions,
   (prevProps, nextProps) => {
     return prevProps.nodeKey === nextProps.nodeKey && prevProps.showCaption === nextProps.showCaption;
@@ -137104,20 +136439,20 @@ var MemoImageFloatingOptions = import_react199.default.memo(
 var ImageFloatingOptions_default = MemoImageFloatingOptions;
 
 // ../../doc-editor/packages/doc-editor/src/context/UploadTrackerContext.tsx
-var import_react200 = require("react");
-var import_jsx_runtime63 = require("react/jsx-runtime");
-var UploadTrackerContext = (0, import_react200.createContext)({
+var import_react198 = require("react");
+var import_jsx_runtime58 = require("react/jsx-runtime");
+var UploadTrackerContext = (0, import_react198.createContext)({
   startUpload: (_uploadId) => {
   },
   endUpload: (_uploadId) => {
   }
 });
-var useUploadTracker = () => (0, import_react200.useContext)(UploadTrackerContext);
+var useUploadTracker = () => (0, import_react198.useContext)(UploadTrackerContext);
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageComponent.js
 init_esm_node();
-var import_jsx_runtime64 = require("react/jsx-runtime");
-var RIGHT_CLICK_IMAGE_COMMAND = (0, import_lexical53.createCommand)(
+var import_jsx_runtime59 = require("react/jsx-runtime");
+var RIGHT_CLICK_IMAGE_COMMAND = (0, import_lexical43.createCommand)(
   "RIGHT_CLICK_IMAGE_COMMAND"
 );
 function ImageComponent({
@@ -137139,34 +136474,34 @@ function ImageComponent({
   const resolvedUploadSrc = useUploadRegistry(uploadId);
   const src = resolvedUploadSrc || srcProp;
   const t2 = useLanguage_default();
-  const imageRef = (0, import_react201.useRef)(null);
-  const buttonRef = (0, import_react201.useRef)(null);
-  const divRef = (0, import_react201.useRef)(null);
-  const [isSelected, setSelected, clearSelection] = (0, import_useLexicalNodeSelection4.useLexicalNodeSelection)(nodeKey);
-  const [editor] = (0, import_LexicalComposerContext29.useLexicalComposerContext)();
-  const [selection, setSelection] = (0, import_react201.useState)(null);
-  const activeEditorRef = (0, import_react201.useRef)(null);
-  const [isLoadError, setIsLoadError] = (0, import_react201.useState)(false);
-  const isEditable = (0, import_useLexicalEditable3.useLexicalEditable)();
-  const [isResizing, setIsResizing] = (0, import_react201.useState)(false);
+  const imageRef = (0, import_react199.useRef)(null);
+  const buttonRef = (0, import_react199.useRef)(null);
+  const divRef = (0, import_react199.useRef)(null);
+  const [isSelected, setSelected, clearSelection] = (0, import_useLexicalNodeSelection3.useLexicalNodeSelection)(nodeKey);
+  const [editor] = (0, import_LexicalComposerContext28.useLexicalComposerContext)();
+  const [selection, setSelection] = (0, import_react199.useState)(null);
+  const activeEditorRef = (0, import_react199.useRef)(null);
+  const [isLoadError, setIsLoadError] = (0, import_react199.useState)(false);
+  const isEditable = (0, import_useLexicalEditable2.useLexicalEditable)();
+  const [isResizing, setIsResizing] = (0, import_react199.useState)(false);
   const editorProps = useEditorProps();
-  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react201.useState)(false);
-  const [isUploading, setIsUploading] = (0, import_react201.useState)(false);
-  const [isUploadImageBlocked, setIsUploadImageBlocked] = (0, import_react201.useState)(false);
-  const [isSelectionImageOnly, setIsSelectionImageOnly] = (0, import_react201.useState)();
+  const [isDropdownOpen, setIsDropdownOpen] = (0, import_react199.useState)(false);
+  const [isUploading, setIsUploading] = (0, import_react199.useState)(false);
+  const [isUploadImageBlocked, setIsUploadImageBlocked] = (0, import_react199.useState)(false);
+  const [isSelectionImageOnly, setIsSelectionImageOnly] = (0, import_react199.useState)();
   const { startUpload, endUpload } = useUploadTracker();
-  const [selectedImage, setSelectedImage] = (0, import_react201.useState)(null);
-  const [showCropper, setShowCropper] = (0, import_react201.useState)(false);
-  const [crossOrigin, setCrossOrigin] = (0, import_react201.useState)(
+  const [selectedImage, setSelectedImage] = (0, import_react199.useState)(null);
+  const [showCropper, setShowCropper] = (0, import_react199.useState)(false);
+  const [crossOrigin, setCrossOrigin] = (0, import_react199.useState)(
     getCrossOrigin(src, editorProps.props.allowURLWithCredentials)
   );
-  const unMountRef = (0, import_react201.useRef)(false);
-  const prevSrcRef = (0, import_react201.useRef)(src);
-  const $onEnter = (0, import_react201.useCallback)(
+  const unMountRef = (0, import_react199.useRef)(false);
+  const prevSrcRef = (0, import_react199.useRef)(src);
+  const $onEnter = (0, import_react199.useCallback)(
     (event) => {
-      const latestSelection = (0, import_lexical53.$getSelection)();
+      const latestSelection = (0, import_lexical43.$getSelection)();
       const buttonElem = buttonRef.current;
-      if (isSelected && (0, import_lexical53.$isNodeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
+      if (isSelected && (0, import_lexical43.$isNodeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
         if (buttonElem !== null && buttonElem !== document.activeElement) {
           event.preventDefault();
           buttonElem.focus();
@@ -137177,10 +136512,10 @@ function ImageComponent({
     },
     [isSelected]
   );
-  const $onEscape = (0, import_react201.useCallback)(
+  const $onEscape = (0, import_react199.useCallback)(
     (event) => {
       if (buttonRef.current === event.target) {
-        (0, import_lexical53.$setSelection)(null);
+        (0, import_lexical43.$setSelection)(null);
         editor.update(() => {
           setSelected(true);
           const parentRootElement = editor.getRootElement();
@@ -137194,7 +136529,7 @@ function ImageComponent({
     },
     [editor, setSelected]
   );
-  const onClick = (0, import_react201.useCallback)(
+  const onClick = (0, import_react199.useCallback)(
     (payload) => {
       const event = payload;
       if (isResizing) {
@@ -137213,31 +136548,31 @@ function ImageComponent({
     },
     [isResizing, setSelected, isSelected, clearSelection]
   );
-  const onRightClick = (0, import_react201.useCallback)(
+  const onRightClick = (0, import_react199.useCallback)(
     (event) => {
       editor.getEditorState().read(() => {
-        const latestSelection = (0, import_lexical53.$getSelection)();
+        const latestSelection = (0, import_lexical43.$getSelection)();
         const domElement = event.target;
-        if (domElement.tagName === "IMG" && (0, import_lexical53.$isRangeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
+        if (domElement.tagName === "IMG" && (0, import_lexical43.$isRangeSelection)(latestSelection) && latestSelection.getNodes().length === 1) {
           editor.dispatchCommand(RIGHT_CLICK_IMAGE_COMMAND, event);
         }
       });
     },
     [editor]
   );
-  (0, import_react201.useEffect)(() => {
+  (0, import_react199.useEffect)(() => {
     unMountRef.current = false;
     return () => {
       unMountRef.current = true;
     };
   }, []);
-  (0, import_react201.useEffect)(() => {
+  (0, import_react199.useEffect)(() => {
     const rootElement = editor.getRootElement();
-    const unregister = (0, import_utils31.mergeRegister)(
+    const unregister = (0, import_utils24.mergeRegister)(
       editor.registerUpdateListener(({ editorState }) => {
         if (unMountRef.current) return;
-        const updatedSelection = editorState.read(() => (0, import_lexical53.$getSelection)());
-        if ((0, import_lexical53.$isNodeSelection)(updatedSelection)) {
+        const updatedSelection = editorState.read(() => (0, import_lexical43.$getSelection)());
+        if ((0, import_lexical43.$isNodeSelection)(updatedSelection)) {
           setSelection(updatedSelection);
         } else {
           setSelection(null);
@@ -137258,21 +136593,21 @@ function ImageComponent({
         });
       }),
       editor.registerCommand(
-        import_lexical53.SELECTION_CHANGE_COMMAND,
+        import_lexical43.SELECTION_CHANGE_COMMAND,
         (_14, activeEditor) => {
           activeEditorRef.current = activeEditor;
           return false;
         },
-        import_lexical53.COMMAND_PRIORITY_LOW
+        import_lexical43.COMMAND_PRIORITY_LOW
       ),
-      editor.registerCommand(import_lexical53.CLICK_COMMAND, onClick, import_lexical53.COMMAND_PRIORITY_LOW),
+      editor.registerCommand(import_lexical43.CLICK_COMMAND, onClick, import_lexical43.COMMAND_PRIORITY_LOW),
       editor.registerCommand(
         RIGHT_CLICK_IMAGE_COMMAND,
         onClick,
-        import_lexical53.COMMAND_PRIORITY_LOW
+        import_lexical43.COMMAND_PRIORITY_LOW
       ),
       editor.registerCommand(
-        import_lexical53.DRAGSTART_COMMAND,
+        import_lexical43.DRAGSTART_COMMAND,
         (event) => {
           if (event.target === imageRef.current) {
             event.preventDefault();
@@ -137280,13 +136615,13 @@ function ImageComponent({
           }
           return false;
         },
-        import_lexical53.COMMAND_PRIORITY_LOW
+        import_lexical43.COMMAND_PRIORITY_LOW
       ),
-      editor.registerCommand(import_lexical53.KEY_ENTER_COMMAND, $onEnter, import_lexical53.COMMAND_PRIORITY_LOW),
+      editor.registerCommand(import_lexical43.KEY_ENTER_COMMAND, $onEnter, import_lexical43.COMMAND_PRIORITY_LOW),
       editor.registerCommand(
-        import_lexical53.KEY_ESCAPE_COMMAND,
+        import_lexical43.KEY_ESCAPE_COMMAND,
         $onEscape,
-        import_lexical53.COMMAND_PRIORITY_LOW
+        import_lexical43.COMMAND_PRIORITY_LOW
       )
     );
     rootElement?.addEventListener("contextmenu", onRightClick);
@@ -137305,7 +136640,7 @@ function ImageComponent({
     onRightClick,
     setSelected
   ]);
-  const draggable = isSelected && (0, import_lexical53.$isNodeSelection)(selection);
+  const draggable = isSelected && (0, import_lexical43.$isNodeSelection)(selection);
   const onResizeStart = () => {
     setIsResizing(true);
   };
@@ -137314,7 +136649,7 @@ function ImageComponent({
       setIsResizing(false);
     }, 200);
     editor.update(() => {
-      const node = (0, import_lexical53.$getNodeByKey)(nodeKey);
+      const node = (0, import_lexical43.$getNodeByKey)(nodeKey);
       if ($isImageNode(node)) {
         node.setWidthAndHeight(nextWidth, nextHeight);
       }
@@ -137323,12 +136658,12 @@ function ImageComponent({
   const handleBrokenImageClick = () => {
     setSelected(true);
   };
-  const [isInRangeSelection, setIsInRangeSelection] = (0, import_react201.useState)(false);
-  (0, import_react201.useEffect)(() => {
+  const [isInRangeSelection, setIsInRangeSelection] = (0, import_react199.useState)(false);
+  (0, import_react199.useEffect)(() => {
     const compute = (editorState) => {
       editorState.read(() => {
-        const sel = (0, import_lexical53.$getSelection)();
-        if (!(0, import_lexical53.$isRangeSelection)(sel) || sel.isCollapsed()) {
+        const sel = (0, import_lexical43.$getSelection)();
+        if (!(0, import_lexical43.$isRangeSelection)(sel) || sel.isCollapsed()) {
           setIsInRangeSelection(false);
           return;
         }
@@ -137346,7 +136681,7 @@ function ImageComponent({
     isLazy: isLazyEnabled,
     onMediaLoaded
   } = useLazyMediaLoad({ wrapperRef: divRef, tag: "img", src });
-  (0, import_react201.useEffect)(() => {
+  (0, import_react199.useEffect)(() => {
     const cached = ImageConversionCache.get(src);
     if (!mayLoad) return;
     if (!cached && !isUploading && !uploadId && isImageUrlUploadable(src) && !isUploadImageBlocked && editorProps.props.uploadToServer && editor.isEditable()) {
@@ -137360,7 +136695,7 @@ function ImageComponent({
       ).then((convertedURL) => {
         endUpload(uploadId2);
         editor.update(() => {
-          const node = (0, import_lexical53.$getNodeByKey)(nodeKey);
+          const node = (0, import_lexical43.$getNodeByKey)(nodeKey);
           if ($isImageNode(node)) {
             node.setShadowSrc(convertedURL);
           }
@@ -137399,7 +136734,7 @@ function ImageComponent({
       const uploadId2 = v4_default();
       UploadRegistry.setLocalBlob(uploadId2, _src);
       editor.update(() => {
-        const imageNode = (0, import_lexical53.$getNodeByKey)(nodeKey);
+        const imageNode = (0, import_lexical43.$getNodeByKey)(nodeKey);
         if ($isImageNode(imageNode)) {
           imageNode.setUploadId(uploadId2);
           imageNode.setWidthAndHeight(naturalWidth, naturalHeight);
@@ -137444,7 +136779,7 @@ function ImageComponent({
       getCrossOrigin(cropSrc, editorProps.props.allowURLWithCredentials)
     );
   };
-  (0, import_react201.useEffect)(() => {
+  (0, import_react199.useEffect)(() => {
     if (src !== prevSrcRef.current) {
       setIsLoadError(false);
       prevSrcRef.current = src;
@@ -137464,7 +136799,7 @@ function ImageComponent({
   if (showUploadingPlaceholder) {
     const w2 = typeof width === "number" && width > 0 ? width : 320;
     const h2 = typeof height === "number" && height > 0 ? height : 180;
-    return /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(
       "div",
       {
         className: "ds-de-image-margin-wrapper",
@@ -137485,7 +136820,7 @@ function ImageComponent({
         },
         "data-test-id": `${testId}-uploading`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
             "span",
             {
               style: {
@@ -137499,13 +136834,13 @@ function ImageComponent({
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("span", { children: "Uploading image\u2026" }),
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("style", { children: `@keyframes ds-de-spin { to { transform: rotate(360deg); } }` })
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("span", { children: "Uploading image\u2026" }),
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("style", { children: `@keyframes ds-de-spin { to { transform: rotate(360deg); } }` })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(import_react201.Suspense, { fallback: null, children: /* @__PURE__ */ (0, import_jsx_runtime64.jsx)("div", { className: "ds-de-image-margin-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime64.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(import_react199.Suspense, { fallback: null, children: /* @__PURE__ */ (0, import_jsx_runtime59.jsx)("div", { className: "ds-de-image-margin-wrapper", children: /* @__PURE__ */ (0, import_jsx_runtime59.jsxs)(
     "div",
     {
       className: `${latex ? "ds-de-image-latex-container" : "ds-de-image-container"} ${isFocused ? latex ? "ds-de-image-latex--focused" : "ds-de-image-container--focused" : ""}`,
@@ -137513,7 +136848,7 @@ function ImageComponent({
       ref: divRef,
       style: containerStyle,
       children: [
-        isLoadError ? /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+        isLoadError ? /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
           BrokenImageViewer_default,
           {
             onClick: handleBrokenImageClick,
@@ -137521,10 +136856,10 @@ function ImageComponent({
             width,
             height
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
           LazyImageViewer_default,
           {
-            className: isFocused ? `focused ${(0, import_lexical53.$isNodeSelection)(selection) ? "draggable" : ""}` : null,
+            className: isFocused ? `focused ${(0, import_lexical43.$isNodeSelection)(selection) ? "draggable" : ""}` : null,
             nodeKey,
             src: renderSrc,
             altText,
@@ -137550,7 +136885,7 @@ function ImageComponent({
           }
         ),
         isEditable && isFocused && !latex && imageRef.current && divRef.current && !isLoadError ? (0, import_react_dom7.createPortal)(
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
             ImageResizer,
             {
               imageRef,
@@ -137564,7 +136899,7 @@ function ImageComponent({
           divRef.current
         ) : null,
         shouldShowFloatingOptions ? (0, import_react_dom7.createPortal)(
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
             ImageFloatingOptions_default,
             {
               imageRef,
@@ -137591,7 +136926,7 @@ function ImageComponent({
           divRef.current
         ) : null,
         isEditable && isFocused && imageRef.current && divRef.current && link ? (0, import_react_dom7.createPortal)(
-          /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
             ImageLinkPreview_default,
             {
               imageRef,
@@ -137602,7 +136937,7 @@ function ImageComponent({
           ),
           divRef.current
         ) : null,
-        showCropper && selectedImage && /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+        showCropper && selectedImage && /* @__PURE__ */ (0, import_jsx_runtime59.jsx)(
           CropModalSelector,
           {
             dsVersion: "2.0",
@@ -137626,7 +136961,7 @@ function ImageComponent({
 
 // ../../doc-editor/packages/doc-editor/src/nodes/ImageNode/ImageNode.js
 var import_selection10 = require("@lexical/selection");
-var import_jsx_runtime65 = require("react/jsx-runtime");
+var import_jsx_runtime60 = require("react/jsx-runtime");
 var DEFAULT_IMAGE_VERTICAL_ALIGN = "text-bottom";
 function parseImageNode(domNode) {
   let src = "";
@@ -137728,7 +137063,7 @@ function $convertAnchorWithImageElement(domNode) {
     })
   };
 }
-var ImageNode = class _ImageNode extends import_lexical54.DecoratorNode {
+var ImageNode = class _ImageNode extends import_lexical44.DecoratorNode {
   static getType() {
     return "image";
   }
@@ -137929,7 +137264,7 @@ var ImageNode = class _ImageNode extends import_lexical54.DecoratorNode {
     return this.__altText;
   }
   decorate() {
-    return /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime60.jsx)(
       ImageComponent,
       {
         src: this.__shadowSrc ?? this.__src,
@@ -137965,7 +137300,7 @@ function $createImageNode({
   uploadId,
   key
 }) {
-  return (0, import_lexical54.$applyNodeReplacement)(
+  return (0, import_lexical44.$applyNodeReplacement)(
     new ImageNode(
       src,
       altText,
@@ -137987,36 +137322,1469 @@ function $isImageNode(node) {
   return node instanceof ImageNode;
 }
 
-// ../../doc-editor/packages/doc-editor/src/nodes/AllNodesServer.js
-var AllDocEditorNodes = [
-  import_rich_text5.HeadingNode,
-  import_list4.ListNode,
-  import_list4.ListItemNode,
-  import_rich_text5.QuoteNode,
-  import_code3.CodeNode,
-  import_table5.TableNode,
+// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeNode.js
+var import_LexicalDecoratorBlockNode2 = require("@lexical/react/LexicalDecoratorBlockNode");
+var React201 = __toESM(require("react"));
+
+// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeComponent.js
+var import_LexicalBlockWithAlignableContents = require("@lexical/react/LexicalBlockWithAlignableContents");
+var React200 = __toESM(require("react"));
+var import_useLexicalNodeSelection4 = require("@lexical/react/useLexicalNodeSelection");
+
+// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeResizeHandlers.js
+var import_utils27 = require("@lexical/utils");
+var React199 = __toESM(require("react"));
+var import_react200 = require("react");
+var import_jsx_runtime61 = require("react/jsx-runtime");
+function clamp3(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+var Direction3 = {
+  east: 1 << 0,
+  north: 1 << 3,
+  south: 1 << 1,
+  west: 1 << 2
+};
+var CONTAINER_PADDING = 80;
+function YoutubeResizer({
+  onResizeStart,
+  onResizeEnd,
+  iframeRef,
+  maxWidth,
+  editor,
+  testId
+}) {
+  const controlWrapperRef = (0, import_react200.useRef)(null);
+  const userSelect = (0, import_react200.useRef)({
+    priority: "",
+    value: "default"
+  });
+  const positioningRef = (0, import_react200.useRef)({
+    currentHeight: 0,
+    currentWidth: 0,
+    direction: 0,
+    isResizing: false,
+    ratio: 0,
+    startHeight: 0,
+    startWidth: 0,
+    startX: 0,
+    startY: 0
+  });
+  const editorRootElement = editor.getRootElement();
+  const maxWidthContainer = maxWidth ? maxWidth : editorRootElement !== null ? editorRootElement.getBoundingClientRect().width - CONTAINER_PADDING : 100;
+  const minWidth = 100;
+  const setStartCursor = (direction) => {
+    const ew = direction === Direction3.east || direction === Direction3.west;
+    const ns = direction === Direction3.north || direction === Direction3.south;
+    const nwse = direction & Direction3.north && direction & Direction3.west || direction & Direction3.south && direction & Direction3.east;
+    const cursorDir = ew ? "ew" : ns ? "ns" : nwse ? "nwse" : "nesw";
+    if (editorRootElement !== null) {
+      editorRootElement.style.setProperty(
+        "cursor",
+        `${cursorDir}-resize`,
+        "important"
+      );
+    }
+    if (document.body !== null) {
+      document.body.style.setProperty(
+        "cursor",
+        `${cursorDir}-resize`,
+        "important"
+      );
+      userSelect.current.value = document.body.style.getPropertyValue(
+        "-webkit-user-select"
+      );
+      userSelect.current.priority = document.body.style.getPropertyPriority(
+        "-webkit-user-select"
+      );
+      document.body.style.setProperty(
+        "-webkit-user-select",
+        `none`,
+        "important"
+      );
+    }
+  };
+  const setEndCursor = () => {
+    if (editorRootElement !== null) {
+      editorRootElement.style.setProperty("cursor", "text");
+    }
+    if (document.body !== null) {
+      document.body.style.setProperty("cursor", "default");
+      document.body.style.setProperty(
+        "-webkit-user-select",
+        userSelect.current.value,
+        userSelect.current.priority
+      );
+    }
+  };
+  const handlePointerDown = (event, direction) => {
+    if (!editor.isEditable()) {
+      return;
+    }
+    const image = iframeRef.current;
+    const controlWrapper = controlWrapperRef.current;
+    if (image !== null && controlWrapper !== null) {
+      event.preventDefault();
+      const { width, height } = image.getBoundingClientRect();
+      const zoom = (0, import_utils27.calculateZoomLevel)(image);
+      const positioning = positioningRef.current;
+      positioning.startWidth = width;
+      positioning.startHeight = height;
+      positioning.ratio = width / height;
+      positioning.currentWidth = width;
+      positioning.currentHeight = height;
+      positioning.startX = event.clientX / zoom;
+      positioning.startY = event.clientY / zoom;
+      positioning.isResizing = true;
+      positioning.direction = direction;
+      setStartCursor(direction);
+      onResizeStart();
+      controlWrapper.classList.add("image-control-wrapper--resizing");
+      image.style.height = `${height}px`;
+      image.style.width = `${width}px`;
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp);
+    }
+  };
+  const handlePointerMove = (event) => {
+    const image = iframeRef.current;
+    const positioning = positioningRef.current;
+    const isHorizontal = positioning.direction & (Direction3.east | Direction3.west);
+    const isVertical = positioning.direction & (Direction3.south | Direction3.north);
+    if (image !== null && positioning.isResizing) {
+      const zoom = (0, import_utils27.calculateZoomLevel)(image);
+      if (isHorizontal && isVertical) {
+        let diff = Math.floor(positioning.startX - event.clientX / zoom);
+        diff = positioning.direction & Direction3.east ? -diff : diff;
+        const width = clamp3(
+          positioning.startWidth + diff,
+          minWidth,
+          maxWidthContainer
+        );
+        const height = width / positioning.ratio;
+        image.style.width = `${width}px`;
+        image.style.height = `${height}px`;
+        positioning.currentHeight = height;
+        positioning.currentWidth = width;
+      }
+    }
+  };
+  const handlePointerUp = () => {
+    const image = iframeRef.current;
+    const positioning = positioningRef.current;
+    const controlWrapper = controlWrapperRef.current;
+    if (image !== null && controlWrapper !== null && positioning.isResizing) {
+      const width = positioning.currentWidth;
+      const height = positioning.currentHeight;
+      positioning.startWidth = 0;
+      positioning.startHeight = 0;
+      positioning.ratio = 0;
+      positioning.startX = 0;
+      positioning.startY = 0;
+      positioning.currentWidth = 0;
+      positioning.currentHeight = 0;
+      positioning.isResizing = false;
+      controlWrapper.classList.remove("image-control-wrapper--resizing");
+      setEndCursor();
+      onResizeEnd(width, height);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime61.jsxs)("div", { ref: controlWrapperRef, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+      "div",
+      {
+        className: "youtube-resizer youtube-resizer-ne",
+        onPointerDown: (event) => {
+          handlePointerDown(event, Direction3.north | Direction3.east);
+        },
+        "data-test-id": `${testId}-ne`
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+      "div",
+      {
+        className: "youtube-resizer youtube-resizer-se",
+        onPointerDown: (event) => {
+          handlePointerDown(event, Direction3.south | Direction3.east);
+        },
+        "data-test-id": `${testId}-se`
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+      "div",
+      {
+        className: "youtube-resizer youtube-resizer-sw",
+        onPointerDown: (event) => {
+          handlePointerDown(event, Direction3.south | Direction3.west);
+        },
+        "data-test-id": `${testId}-sw`
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime61.jsx)(
+      "div",
+      {
+        className: "youtube-resizer youtube-resizer-nw",
+        onPointerDown: (event) => {
+          handlePointerDown(event, Direction3.north | Direction3.west);
+        },
+        "data-test-id": `${testId}-nw`
+      }
+    )
+  ] });
+}
+
+// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeComponent.js
+var import_react201 = require("react");
+var import_LexicalComposerContext29 = require("@lexical/react/LexicalComposerContext");
+var import_lexical45 = require("lexical");
+var import_useLexicalEditable3 = require("@lexical/react/useLexicalEditable");
+init_EditorPropsContext();
+var import_jsx_runtime62 = require("react/jsx-runtime");
+function YouTubeComponent({
+  className,
+  format,
+  nodeKey,
+  videoID,
+  width,
+  height,
+  testId
+}) {
+  const t2 = useLanguage_default();
+  const [isSelected] = (0, import_useLexicalNodeSelection4.useLexicalNodeSelection)(nodeKey);
+  const [editor] = (0, import_LexicalComposerContext29.useLexicalComposerContext)();
+  const [isResizing, setIsResizing] = (0, import_react201.useState)(false);
+  const isEditable = (0, import_useLexicalEditable3.useLexicalEditable)();
+  const [isHovering, setIsHovering] = (0, import_react201.useState)(false);
+  const editorProps = useEditorProps();
+  const iframeOverride = getElementOverride(
+    editorProps.props.overrideElements,
+    "iframe"
+  );
+  const iframeRef = (0, import_react201.useRef)(null);
+  const wrapperRef = (0, import_react201.useRef)(null);
+  const youtubeSrc = `https://www.youtube-nocookie.com/embed/${videoID}`;
+  const { mayLoad, onMediaLoaded } = useLazyMediaLoad({
+    wrapperRef,
+    tag: "iframe",
+    src: youtubeSrc
+  });
+  const onResizeStart = () => {
+    setIsResizing(true);
+  };
+  const onResizeEnd = (nextWidth, nextHeight) => {
+    setTimeout(() => {
+      setIsResizing(false);
+    }, 200);
+    editor.update(() => {
+      const node = (0, import_lexical45.$getNodeByKey)(nodeKey);
+      if ($isYouTubeNode(node)) {
+        node.setWidthAndHeight(nextWidth, nextHeight);
+      }
+    });
+  };
+  const isFocused = (isSelected || isResizing || isHovering) && isEditable;
+  return /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+    import_LexicalBlockWithAlignableContents.BlockWithAlignableContents,
+    {
+      className,
+      format,
+      nodeKey,
+      children: /* @__PURE__ */ (0, import_jsx_runtime62.jsxs)(
+        "div",
+        {
+          className: "ds-de-youtube-container",
+          ref: wrapperRef,
+          onMouseOver: () => isEditable && setIsHovering(true),
+          onMouseLeave: () => setIsHovering(false),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+              "iframe",
+              {
+                className: `${isFocused ? "ds-de-youtube-iframe-focused" : ""} ds-de-youtube-iframe`,
+                width,
+                height,
+                src: mayLoad ? youtubeSrc : void 0,
+                frameBorder: "0",
+                allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+                allowFullScreen: true,
+                title: t2("common:youtubeVideo", true),
+                ref: iframeRef,
+                style: {
+                  userSelect: isResizing ? "none" : "auto",
+                  pointerEvents: isResizing ? "none" : "auto"
+                },
+                onLoad: onMediaLoaded,
+                onError: onMediaLoaded,
+                "data-copy-hover": "true",
+                "data-copy-id": nodeKey,
+                "data-delete-hover": "true",
+                "data-delete-id": nodeKey,
+                ...iframeOverride
+              }
+            ),
+            isFocused ? /* @__PURE__ */ (0, import_jsx_runtime62.jsx)(
+              YoutubeResizer,
+              {
+                iframeRef,
+                editor,
+                onResizeEnd,
+                onResizeStart,
+                testId: `${testId}-resize-handler`
+              }
+            ) : null
+          ]
+        }
+      )
+    }
+  );
+}
+var YoutubeComponent_default = YouTubeComponent;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/YoutubeNode/YoutubeNode.js
+var import_jsx_runtime63 = require("react/jsx-runtime");
+function $convertYoutubeElement(domNode) {
+  const videoID = domNode.getAttribute("data-lexical-youtube");
+  if (videoID) {
+    const node = $createYouTubeNode(videoID);
+    return { node };
+  }
+  return null;
+}
+var YouTubeNode = class _YouTubeNode extends import_LexicalDecoratorBlockNode2.DecoratorBlockNode {
+  constructor(id, height, width, format, key) {
+    super(format, key);
+    this.__id = id;
+    this.__height = height || 500;
+    this.__width = width || 700;
+  }
+  static getType() {
+    return "youtube";
+  }
+  static clone(node) {
+    return new _YouTubeNode(
+      node.__id,
+      node.__format,
+      node.__width,
+      node.__height,
+      node.__key
+    );
+  }
+  static importJSON(serializedNode) {
+    return $createYouTubeNode(
+      serializedNode.videoID,
+      serializedNode.height,
+      serializedNode.width
+    ).updateFromJSON(serializedNode);
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      videoID: this.__id,
+      height: this.__height,
+      width: this.__width
+    };
+  }
+  exportDOM() {
+    const element = document.createElement("iframe");
+    element.setAttribute("data-lexical-youtube", this.__id);
+    element.setAttribute("width", this.__width);
+    element.setAttribute("height", this.__height);
+    element.setAttribute(
+      "src",
+      `https://www.youtube-nocookie.com/embed/${this.__id}`
+    );
+    element.setAttribute("frameborder", "0");
+    element.setAttribute(
+      "allow",
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    );
+    element.setAttribute("allowfullscreen", "true");
+    element.setAttribute("title", "YouTube video");
+    return { element };
+  }
+  static importDOM() {
+    return {
+      iframe: (domNode) => {
+        if (!domNode.hasAttribute("data-lexical-youtube")) {
+          return null;
+        }
+        return {
+          conversion: $convertYoutubeElement,
+          priority: 1
+        };
+      }
+    };
+  }
+  updateDOM() {
+    return false;
+  }
+  getId() {
+    return this.__id;
+  }
+  getTextContent() {
+    return `https://www.youtube.com/watch?v=${this.__id}`;
+  }
+  setWidthAndHeight(width, height) {
+    const writable = this.getWritable();
+    writable.__width = width;
+    writable.__height = height;
+  }
+  decorate(_editor, config) {
+    const embedBlockTheme = config.theme.embedBlock || {};
+    const className = {
+      base: embedBlockTheme.base || "",
+      focus: embedBlockTheme.focus || ""
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime63.jsx)(
+      YoutubeComponent_default,
+      {
+        className,
+        format: this.__format,
+        nodeKey: this.getKey(),
+        videoID: this.__id,
+        width: this.__width,
+        height: this.__height
+      }
+    );
+  }
+};
+function $createYouTubeNode(videoID, height, width) {
+  return new YouTubeNode(videoID, height, width);
+}
+function $isYouTubeNode(node) {
+  return node instanceof YouTubeNode;
+}
+
+// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutItemNode.js
+var import_utils29 = require("@lexical/utils");
+var import_lexical47 = require("lexical");
+
+// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutContainerNode.js
+var import_utils28 = require("@lexical/utils");
+var import_lexical46 = require("lexical");
+var TOTAL_GRID_UNITS = 20;
+function parseTemplateColumns(templateColumns) {
+  if (!templateColumns) return [];
+  return templateColumns.trim().split(/\s+/).map((part) => {
+    const match = part.match(/^(\d*\.?\d+)/);
+    return match ? parseFloat(match[1]) : 1;
+  });
+}
+function $convertLayoutContainerElement(domNode) {
+  const template = domNode.getAttribute("data-lexical-layout-template");
+  if (!template) {
+    return null;
+  }
+  const containerNode = $createLayoutContainerNode(template);
+  return { node: containerNode };
+}
+var LayoutContainerNode = class _LayoutContainerNode extends import_lexical46.ElementNode {
+  constructor(templateColumns, key) {
+    super(key);
+    this.__templateColumns = templateColumns;
+  }
+  static getType() {
+    return "layout-container";
+  }
+  static clone(node) {
+    return new _LayoutContainerNode(node.__templateColumns, node.__key);
+  }
+  createDOM(config) {
+    const dom = document.createElement("div");
+    dom.style.display = "grid";
+    dom.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
+    if (typeof config.theme.layoutContainer === "string") {
+      (0, import_utils28.addClassNamesToElement)(dom, config.theme.layoutContainer);
+    }
+    dom.setAttribute("data-lexical-layout-container", "true");
+    dom.setAttribute("data-lexical-layout-container-version", "2");
+    dom.setAttribute("data-lexical-layout-template", this.__templateColumns);
+    return dom;
+  }
+  exportDOM() {
+    const element = document.createElement("div");
+    element.style.display = "grid";
+    element.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
+    element.setAttribute("data-lexical-layout-container", "true");
+    element.setAttribute(
+      "data-lexical-layout-template",
+      this.__templateColumns
+    );
+    return { element };
+  }
+  updateDOM(prevNode, dom) {
+    if (dom.style.gridTemplateColumns !== `repeat(${TOTAL_GRID_UNITS},1fr)`) {
+      dom.style.gridTemplateColumns = `repeat(${TOTAL_GRID_UNITS},1fr)`;
+    }
+    return false;
+  }
+  static importDOM() {
+    return {
+      div: (domNode) => {
+        if (!domNode.hasAttribute("data-lexical-layout-container")) {
+          return null;
+        }
+        return {
+          conversion: $convertLayoutContainerElement,
+          priority: 2
+        };
+      }
+    };
+  }
+  static importJSON(json) {
+    return $createLayoutContainerNode().updateFromJSON(json);
+  }
+  updateFromJSON(serializedNode) {
+    return super.updateFromJSON(serializedNode).setTemplateColumns(serializedNode.templateColumns);
+  }
+  isShadowRoot() {
+    return true;
+  }
+  canBeEmpty() {
+    return false;
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      templateColumns: this.__templateColumns
+    };
+  }
+  getTemplateColumns() {
+    return this.getLatest().__templateColumns;
+  }
+  setTemplateColumns(templateColumns) {
+    const self2 = this.getWritable();
+    self2.__templateColumns = templateColumns;
+    return self2;
+  }
+};
+function normalizeTemplateString(templateColumns) {
+  if (!templateColumns) return "";
+  const values = parseTemplateColumns(templateColumns);
+  if (!values.length) return "";
+  const total = values.reduce((a, b) => a + b, 0);
+  const scaled = values.map(
+    (v) => Math.max(1, Math.round(v / total * TOTAL_GRID_UNITS))
+  );
+  let diff = scaled.reduce((a, b) => a + b, 0) - TOTAL_GRID_UNITS;
+  if (diff !== 0 && scaled.length) {
+    scaled[scaled.length - 1] = Math.max(1, scaled[scaled.length - 1] - diff);
+  }
+  return scaled.map((s) => `${s}fr`).join(" ");
+}
+function $createLayoutContainerNode(templateColumns = "") {
+  const normalized = normalizeTemplateString(templateColumns);
+  return new LayoutContainerNode(normalized);
+}
+
+// ../../doc-editor/packages/doc-editor/src/nodes/LayoutNode/LayoutItemNode.js
+function getItemsCountFromTemplate(template) {
+  if (!template) return 0;
+  return template.trim().split(/\s+/).filter(Boolean).length;
+}
+function computeColumnGroupForIndex(index, itemsCount) {
+  if (itemsCount <= 0) return "";
+  const totalUnits = TOTAL_GRID_UNITS;
+  const baseSpan = Math.floor(totalUnits / itemsCount);
+  const remainder = totalUnits - baseSpan * itemsCount;
+  let cursor = 1;
+  for (let i = 0; i <= index; i++) {
+    let span = baseSpan;
+    if (span < 1) span = 1;
+    if (i < remainder) span += 1;
+    if (i === index) {
+      let end = cursor + span;
+      if (end > totalUnits + 1) end = totalUnits + 1;
+      return `${cursor} / ${end}`;
+    }
+    cursor += span;
+  }
+  return "";
+}
+function $convertLayoutItemElement(domNode) {
+  let dataGridColumn = domNode.getAttribute("data-grid-column") || domNode.style.gridColumn || "";
+  if (!dataGridColumn) {
+    const parent = domNode.parentElement;
+    if (parent && parent.hasAttribute("data-lexical-layout-container")) {
+      const template = parent.getAttribute("data-lexical-layout-template");
+      const itemsCount = getItemsCountFromTemplate(template);
+      const siblings = Array.from(
+        parent.querySelectorAll(`:scope > div[data-lexical-layout-item="true"]`)
+      );
+      const index = siblings.indexOf(domNode);
+      if (index >= 0 && index < itemsCount) {
+        dataGridColumn = computeColumnGroupForIndex(index, itemsCount);
+      }
+    }
+  }
+  return { node: $createLayoutItemNode(dataGridColumn) };
+}
+function $isEmptyLayoutItemNode(node) {
+  if (!$isLayoutItemNode(node) || node.getChildrenSize() !== 1) {
+    return false;
+  }
+  const firstChild = node.getFirstChild();
+  return (0, import_lexical47.$isParagraphNode)(firstChild) && firstChild.isEmpty();
+}
+var LayoutItemNode = class _LayoutItemNode extends import_lexical47.ElementNode {
+  constructor(dataGridColumn = "", key) {
+    super(key);
+    this.__dataGridColumn = dataGridColumn;
+  }
+  static getType() {
+    return "layout-item";
+  }
+  static clone(node) {
+    return new _LayoutItemNode(node.__dataGridColumn, node.__key);
+  }
+  createDOM(config) {
+    const dom = document.createElement("div");
+    dom.setAttribute("data-lexical-layout-item", "true");
+    if (this.__dataGridColumn) {
+      dom.style.gridColumn = this.__dataGridColumn;
+      dom.setAttribute("data-grid-column", this.__dataGridColumn);
+    }
+    if (typeof config.theme.layoutItem === "string") {
+      (0, import_utils29.addClassNamesToElement)(dom, config.theme.layoutItem);
+    }
+    return dom;
+  }
+  updateDOM(prevNode, dom) {
+    if (prevNode.__dataGridColumn !== this.__dataGridColumn) {
+      if (this.__dataGridColumn) {
+        dom.style.gridColumn = this.__dataGridColumn;
+        dom.setAttribute("data-grid-column", this.__dataGridColumn);
+      } else {
+        dom.style.removeProperty("grid-column");
+        dom.removeAttribute("data-grid-column");
+      }
+    }
+    return false;
+  }
+  exportDOM() {
+    const element = document.createElement("div");
+    element.setAttribute("data-lexical-layout-item", "true");
+    if (this.__dataGridColumn) {
+      element.style.gridColumn = this.__dataGridColumn;
+      element.setAttribute("data-grid-column", this.__dataGridColumn);
+    }
+    return { element };
+  }
+  collapseAtStart() {
+    const parent = this.getParentOrThrow();
+    if (this.is(parent.getFirstChild()) && parent.getChildren().every($isEmptyLayoutItemNode)) {
+      parent.remove();
+      return true;
+    }
+    return false;
+  }
+  static importDOM() {
+    return {
+      div: (domNode) => {
+        if (!domNode.hasAttribute("data-lexical-layout-item")) {
+          return null;
+        }
+        return {
+          conversion: $convertLayoutItemElement,
+          priority: 2
+        };
+      }
+    };
+  }
+  static importJSON(serializedNode) {
+    return $createLayoutItemNode(
+      serializedNode.dataGridColumn || ""
+    ).updateFromJSON(serializedNode);
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      type: "layout-item",
+      dataGridColumn: this.__dataGridColumn
+    };
+  }
+  isShadowRoot() {
+    return true;
+  }
+  getDataGridColumn() {
+    return this.getLatest().__dataGridColumn;
+  }
+  setDataGridColumn(value) {
+    const self2 = this.getWritable();
+    self2.__dataGridColumn = value;
+    return self2;
+  }
+};
+function $createLayoutItemNode(dataGridColumn = "") {
+  return new LayoutItemNode(dataGridColumn);
+}
+function $isLayoutItemNode(node) {
+  return node instanceof LayoutItemNode;
+}
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContainerNode.js
+var import_utils30 = require("@lexical/utils");
+var import_lexical48 = require("lexical");
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleUtils.js
+function setDomHiddenUntilFound(dom) {
+  dom.hidden = "until-found";
+}
+function domOnBeforeMatch(dom, callback) {
+  dom.onbeforematch = callback;
+}
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContainerNode.js
+function $convertDetailsElement(domNode) {
+  const isOpen = domNode.open !== void 0 ? domNode.open : true;
+  const node = $createCollapsibleContainerNode(isOpen);
+  return {
+    node
+  };
+}
+var CollapsibleContainerNode = class _CollapsibleContainerNode extends import_lexical48.ElementNode {
+  constructor(open, key) {
+    super(key);
+    this.__open = open;
+  }
+  static getType() {
+    return "collapsible-container";
+  }
+  static clone(node) {
+    return new _CollapsibleContainerNode(node.__open, node.__key);
+  }
+  isShadowRoot() {
+    return true;
+  }
+  collapseAtStart() {
+    const nodesToInsert = [];
+    for (const child of this.getChildren()) {
+      if ((0, import_lexical48.$isElementNode)(child)) {
+        nodesToInsert.push(...child.getChildren());
+      }
+    }
+    const caret = (0, import_lexical48.$rewindSiblingCaret)((0, import_lexical48.$getSiblingCaret)(this, "previous"));
+    caret.splice(1, nodesToInsert);
+    const [firstChild] = nodesToInsert;
+    if (firstChild) {
+      firstChild.selectStart().deleteCharacter(true);
+    }
+    return true;
+  }
+  createDOM(config, editor) {
+    let dom;
+    if (import_utils30.IS_CHROME) {
+      dom = document.createElement("div");
+      if (this.__open) {
+        dom.setAttribute("open", "");
+      }
+    } else {
+      const detailsDom = document.createElement("details");
+      detailsDom.open = this.__open;
+      detailsDom.addEventListener("toggle", () => {
+        const open = editor.getEditorState().read(() => this.getOpen());
+        if (open !== detailsDom.open) {
+          editor.update(() => this.toggleOpen());
+        }
+      });
+      dom = detailsDom;
+    }
+    dom.classList.add("Collapsible__container");
+    return dom;
+  }
+  updateDOM(prevNode, dom) {
+    const currentOpen = this.__open;
+    if (prevNode.__open !== currentOpen) {
+      if (import_utils30.IS_CHROME) {
+        const contentDom = dom.children[1];
+        if (!(0, import_lexical48.isHTMLElement)(contentDom)) {
+          throw new Error("Expected contentDom to be an HTMLElement");
+        }
+        if (currentOpen) {
+          dom.setAttribute("open", "");
+          contentDom.hidden = false;
+        } else {
+          dom.removeAttribute("open");
+          setDomHiddenUntilFound(contentDom);
+        }
+      } else {
+        dom.open = this.__open;
+      }
+    }
+    return false;
+  }
+  static importDOM() {
+    return {
+      details: () => {
+        return {
+          conversion: $convertDetailsElement,
+          priority: 1
+        };
+      }
+    };
+  }
+  static importJSON(serializedNode) {
+    return $createCollapsibleContainerNode(serializedNode.open).updateFromJSON(
+      serializedNode
+    );
+  }
+  exportDOM() {
+    const element = document.createElement("details");
+    element.classList.add("Collapsible__container");
+    element.setAttribute("open", this.__open.toString());
+    return { element };
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      open: this.__open
+    };
+  }
+  setOpen(open) {
+    const writable = this.getWritable();
+    writable.__open = open;
+  }
+  getOpen() {
+    return this.getLatest().__open;
+  }
+  toggleOpen() {
+    this.setOpen(!this.getOpen());
+  }
+};
+function $createCollapsibleContainerNode(isOpen) {
+  return new CollapsibleContainerNode(isOpen);
+}
+function $isCollapsibleContainerNode(node) {
+  return node instanceof CollapsibleContainerNode;
+}
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleTitleNode.js
+var import_utils32 = require("@lexical/utils");
+var import_lexical50 = require("lexical");
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleContentNode.js
+var import_utils31 = require("@lexical/utils");
+var import_lexical49 = require("lexical");
+function $convertCollapsibleContentElement() {
+  const node = $createCollapsibleContentNode();
+  return {
+    node
+  };
+}
+var CollapsibleContentNode = class _CollapsibleContentNode extends import_lexical49.ElementNode {
+  static getType() {
+    return "collapsible-content";
+  }
+  static clone(node) {
+    return new _CollapsibleContentNode(node.__key);
+  }
+  createDOM(config, editor) {
+    const dom = document.createElement("div");
+    dom.classList.add("Collapsible__content");
+    if (import_utils31.IS_CHROME) {
+      editor.getEditorState().read(() => {
+        const containerNode = this.getParentOrThrow();
+        if (!$isCollapsibleContainerNode(containerNode)) {
+          throw new Error(
+            "Expected parent node to be a CollapsibleContainerNode"
+          );
+        }
+        if (!containerNode.__open) {
+          setDomHiddenUntilFound(dom);
+        }
+      });
+      domOnBeforeMatch(dom, () => {
+        editor.update(() => {
+          const containerNode = this.getParentOrThrow().getLatest();
+          if (!$isCollapsibleContainerNode(containerNode)) {
+            throw new Error(
+              "Expected parent node to be a CollapsibleContainerNode"
+            );
+          }
+          if (!containerNode.__open) {
+            containerNode.toggleOpen();
+          }
+        });
+      });
+    }
+    return dom;
+  }
+  updateDOM() {
+    return false;
+  }
+  static importDOM() {
+    return {
+      div: (domNode) => {
+        if (!domNode.hasAttribute("data-lexical-collapsible-content")) {
+          return null;
+        }
+        return {
+          conversion: $convertCollapsibleContentElement,
+          priority: 2
+        };
+      }
+    };
+  }
+  exportDOM() {
+    const element = document.createElement("div");
+    element.classList.add("Collapsible__content");
+    element.setAttribute("data-lexical-collapsible-content", "true");
+    return { element };
+  }
+  static importJSON(serializedNode) {
+    return $createCollapsibleContentNode().updateFromJSON(serializedNode);
+  }
+  isShadowRoot() {
+    return true;
+  }
+};
+function $createCollapsibleContentNode() {
+  return new CollapsibleContentNode();
+}
+function $isCollapsibleContentNode(node) {
+  return node instanceof CollapsibleContentNode;
+}
+
+// ../../doc-editor/packages/doc-editor/src/plugins/CollapsiblePlugin/CollapsibleTitleNode.js
+function $convertSummaryElement() {
+  const node = $createCollapsibleTitleNode();
+  return {
+    node
+  };
+}
+var CollapsibleTitleNode = class _CollapsibleTitleNode extends import_lexical50.ElementNode {
+  static getType() {
+    return "collapsible-title";
+  }
+  static clone(node) {
+    return new _CollapsibleTitleNode(node.__key);
+  }
+  createDOM(config, editor) {
+    const dom = document.createElement("summary");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "10");
+    svg.setAttribute("height", "6");
+    svg.setAttribute("viewBox", "0 0 10 6");
+    svg.setAttribute("fill", "none");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute(
+      "d",
+      "M5.44213 5.05806L8.93324 1.56694C9.32697 1.17321 9.04812 0.500001 8.4913 0.500001L1.50907 0.5C0.952251 0.5 0.673395 1.17321 1.06712 1.56694L4.55824 5.05806C4.80232 5.30213 5.19805 5.30213 5.44213 5.05806Z"
+    );
+    path.setAttribute("fill", "currentColor");
+    svg.classList.add("Collapsible__caret");
+    svg.appendChild(path);
+    dom.appendChild(svg);
+    dom.classList.add("Collapsible__title");
+    if (import_utils32.IS_CHROME) {
+      svg.addEventListener("click", () => {
+        editor.update(() => {
+          const collapsibleContainer = this.getLatest().getParentOrThrow();
+          if (!$isCollapsibleContainerNode(collapsibleContainer)) {
+            throw new Error(
+              "Expected parent node to be a CollapsibleContainerNode"
+            );
+          }
+          collapsibleContainer.toggleOpen();
+        });
+      });
+    }
+    return dom;
+  }
+  updateDOM() {
+    return false;
+  }
+  static importDOM() {
+    return {
+      summary: () => {
+        return {
+          conversion: $convertSummaryElement,
+          priority: 1
+        };
+      }
+    };
+  }
+  static importJSON(serializedNode) {
+    return $createCollapsibleTitleNode().updateFromJSON(serializedNode);
+  }
+  static transform() {
+    return (node) => {
+      if (!$isCollapsibleTitleNode(node)) {
+        throw new Error("node is not a CollapsibleTitleNode");
+      }
+      if (node.isEmpty()) {
+        node.remove();
+      }
+    };
+  }
+  insertNewAfter(_14, restoreSelection = true) {
+    const containerNode = this.getParentOrThrow();
+    if (!$isCollapsibleContainerNode(containerNode)) {
+      throw new Error(
+        "CollapsibleTitleNode expects to be child of CollapsibleContainerNode"
+      );
+    }
+    if (containerNode.getOpen()) {
+      const contentNode = this.getNextSibling();
+      if (!$isCollapsibleContentNode(contentNode)) {
+        throw new Error(
+          "CollapsibleTitleNode expects to have CollapsibleContentNode sibling"
+        );
+      }
+      const firstChild = contentNode.getFirstChild();
+      if ((0, import_lexical50.$isElementNode)(firstChild)) {
+        return firstChild;
+      } else {
+        const paragraph = (0, import_lexical50.$createParagraphNode)();
+        contentNode.append(paragraph);
+        return paragraph;
+      }
+    } else {
+      const paragraph = (0, import_lexical50.$createParagraphNode)();
+      containerNode.insertAfter(paragraph, restoreSelection);
+      return paragraph;
+    }
+  }
+};
+function $createCollapsibleTitleNode() {
+  return new CollapsibleTitleNode();
+}
+function $isCollapsibleTitleNode(node) {
+  return node instanceof CollapsibleTitleNode;
+}
+
+// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
+init_MarkNode();
+
+// ../../doc-editor/packages/doc-editor/src/nodes/DiffMarkNode/index.ts
+var utils2 = __toESM(require("@lexical/utils"));
+var import_lexical51 = require("lexical");
+var VARIANT_CLASS = {
+  added: "ds-de-content-added",
+  removed: "ds-de-content-removed"
+};
+var BLOCK_CLASS = "ds-de-diff-block";
+var DiffMarkNode = class _DiffMarkNode extends import_lexical51.ElementNode {
+  static getType() {
+    return "diff-mark";
+  }
+  static clone(node) {
+    return new _DiffMarkNode(node.__variant, node.__display, node.__key);
+  }
+  static importJSON(serializedNode) {
+    return $createDiffMarkNode(
+      serializedNode.variant,
+      serializedNode.display
+    ).updateFromJSON(serializedNode);
+  }
+  constructor(variant = "added", display = "inline", key) {
+    super(key);
+    this.__variant = variant;
+    this.__display = display;
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      type: "diff-mark",
+      version: 1,
+      variant: this.__variant,
+      display: this.__display
+    };
+  }
+  createDOM(_config) {
+    const element = document.createElement(
+      this.__display === "block" ? "div" : "span"
+    );
+    utils2.addClassNamesToElement(element, VARIANT_CLASS[this.__variant]);
+    if (this.__display === "block") {
+      utils2.addClassNamesToElement(element, BLOCK_CLASS);
+    }
+    return element;
+  }
+  updateDOM(prevNode, element, _config) {
+    if (prevNode.__display !== this.__display) return true;
+    if (prevNode.__variant !== this.__variant) {
+      utils2.removeClassNamesFromElement(
+        element,
+        VARIANT_CLASS[prevNode.__variant]
+      );
+      utils2.addClassNamesToElement(element, VARIANT_CLASS[this.__variant]);
+    }
+    return false;
+  }
+  getVariant() {
+    return this.getLatest().__variant;
+  }
+  canInsertTextBefore() {
+    return false;
+  }
+  canInsertTextAfter() {
+    return false;
+  }
+  canBeEmpty() {
+    return false;
+  }
+  isInline() {
+    return this.__display !== "block";
+  }
+  extractWithChild() {
+    return true;
+  }
+};
+function $createDiffMarkNode(variant = "added", display = "inline") {
+  return (0, import_lexical51.$applyNodeReplacement)(new DiffMarkNode(variant, display));
+}
+var DiffMarkNode_default = DiffMarkNode;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentNode/index.ts
+var utils3 = __toESM(require("@lexical/utils"));
+var import_lexical52 = require("lexical");
+var import_utils33 = require("@lexical/utils");
+init_MarkNode();
+
+// ../../doc-editor/packages/doc-editor/src/utils/conversion/color.ts
+var parseHexToRgba = (hex, alpha = 0.1) => {
+  const normalized = hex.replace("#", "");
+  let r = 0, g = 0, b = 0;
+  if (normalized.length === 3) {
+    r = parseInt(normalized[0] + normalized[0], 16);
+    g = parseInt(normalized[1] + normalized[1], 16);
+    b = parseInt(normalized[2] + normalized[2], 16);
+  } else if (normalized.length === 6) {
+    r = parseInt(normalized.substring(0, 2), 16);
+    g = parseInt(normalized.substring(2, 4), 16);
+    b = parseInt(normalized.substring(4, 6), 16);
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+var calculateBgColor = (color, alpha = 0.1) => {
+  if (!color) return "rgba(0, 0, 0, 0)";
+  const trimmed = color.trim();
+  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(trimmed)) {
+    return parseHexToRgba(trimmed, alpha);
+  }
+  if (/^rgb/.test(trimmed)) {
+    const nums = trimmed.match(/\d+(\.\d+)?/g);
+    if (!nums || nums.length < 3) return trimmed;
+    const r = nums[0];
+    const g = nums[1];
+    const b = nums[2];
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (/^var\(/.test(trimmed)) {
+    return `color-mix(in srgb, ${trimmed} ${Math.round(alpha * 100)}%, transparent)`;
+  }
+  return trimmed;
+};
+
+// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentNode/index.ts
+function generateCommentId() {
+  return `comment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+function $convertInlineCommentElement(domNode) {
+  const commentColor = domNode.getAttribute("data-comment-color");
+  const internalCommentId = domNode.getAttribute("data-internal-comment-id") || generateCommentId();
+  return {
+    node: $createInlineCommentNode(commentColor, internalCommentId)
+  };
+}
+var InlineCommentNode = class _InlineCommentNode extends import_lexical52.ElementNode {
+  static getType() {
+    return "inline-comment";
+  }
+  static clone(node) {
+    return new _InlineCommentNode(
+      node.__commentColor ?? void 0,
+      node.__internalCommentId,
+      node.__key
+    );
+  }
+  static importDOM() {
+    return {
+      mark: (domNode) => {
+        const isInlineComment = domNode.getAttribute("data-internal-comment-id") !== null || domNode.getAttribute("data-comment-content") !== null;
+        if (!isInlineComment) {
+          return null;
+        }
+        return {
+          conversion: $convertInlineCommentElement,
+          priority: 2
+        };
+      }
+    };
+  }
+  static importJSON(serializedNode) {
+    return $createInlineCommentNode(
+      "#000000",
+      serializedNode.internalCommentId
+    );
+  }
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      internalCommentId: this.__internalCommentId,
+      type: "inline-comment",
+      version: 1
+    };
+  }
+  constructor(commentColor, internalCommentId, key) {
+    super(key);
+    this.__commentColor = commentColor ?? null;
+    this.__internalCommentId = internalCommentId || generateCommentId();
+  }
+  createDOM(config) {
+    const element = document.createElement("mark");
+    if (config.theme.inlineComment && typeof config.theme.inlineComment === "string") {
+      utils3.addClassNamesToElement(element, config.theme.inlineComment);
+    }
+    element.setAttribute("data-internal-comment-id", this.__internalCommentId);
+    if (this.__commentColor) {
+      const bgColor = calculateBgColor(this.__commentColor);
+      element.style.setProperty("--inline-comment-color", this.__commentColor);
+      element.style.setProperty("--inline-comment-bg-color", bgColor);
+    }
+    return element;
+  }
+  updateDOM(prevNode, element, _config) {
+    const prevColor = prevNode.__commentColor;
+    const nextColor = this.__commentColor;
+    const prevInternalId = prevNode.__internalCommentId;
+    const nextInternalId = this.__internalCommentId;
+    if (prevColor !== nextColor) {
+      if (nextColor) {
+        const bgColor = calculateBgColor(nextColor);
+        element.style.setProperty("--inline-comment-color", nextColor);
+        element.style.setProperty("--inline-comment-bg-color", bgColor);
+      } else {
+        element.style.removeProperty("--inline-comment-color");
+        element.style.removeProperty("--inline-comment-bg-color");
+      }
+    }
+    if (prevInternalId !== nextInternalId) {
+      element.setAttribute("data-internal-comment-id", nextInternalId);
+    }
+    return false;
+  }
+  getCommentContent() {
+    return "";
+  }
+  getCommentColor() {
+    return this.__commentColor;
+  }
+  setCommentColor(color) {
+    const self2 = this.getWritable();
+    self2.__commentColor = color;
+    return self2;
+  }
+  getInternalCommentId() {
+    return this.__internalCommentId;
+  }
+  setInternalCommentId(id) {
+    const self2 = this.getWritable();
+    self2.__internalCommentId = id;
+    return self2;
+  }
+  insertNewAfter(_selection, restoreSelection = true) {
+    const inlineCommentNode = $createInlineCommentNode(
+      this.__commentColor ?? void 0,
+      this.__internalCommentId
+    );
+    this.insertAfter(inlineCommentNode, restoreSelection);
+    return inlineCommentNode;
+  }
+  canInsertTextBefore() {
+    return false;
+  }
+  canInsertTextAfter() {
+    return false;
+  }
+  canBeEmpty() {
+    return false;
+  }
+  isInline() {
+    return true;
+  }
+  extractWithChild() {
+    return true;
+  }
+  exportDOM(_editor) {
+    const element = document.createElement("mark");
+    element.setAttribute("data-internal-comment-id", this.__internalCommentId);
+    return {
+      element
+    };
+  }
+};
+function $createInlineCommentNode(commentColor, internalCommentId) {
+  return (0, import_lexical52.$applyNodeReplacement)(
+    new InlineCommentNode(commentColor, internalCommentId)
+  );
+}
+var InlineCommentNode_default = InlineCommentNode;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
+var import_lexical54 = require("lexical");
+init_node();
+
+// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/index.tsx
+var import_lexical53 = require("lexical");
+
+// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/InlineCommentChip.tsx
+init_theme();
+var import_jsx_runtime64 = require("react/jsx-runtime");
+function InlineCommentChip({
+  commentContent,
+  commentColor,
+  internalCommentId
+}) {
+  const bgColor = calculateBgColor(commentColor);
+  return /* @__PURE__ */ (0, import_jsx_runtime64.jsx)(
+    "span",
+    {
+      className: `${theme_default.inlineCommentChip}`,
+      "data-comment-content": commentContent,
+      "data-comment-color": commentColor,
+      "data-internal-comment-id": internalCommentId,
+      style: {
+        backgroundColor: bgColor,
+        color: commentColor,
+        padding: "0 6px",
+        borderRadius: "4px",
+        fontSize: "14px",
+        marginLeft: "4px",
+        display: "inline",
+        border: `1px solid ${commentColor}`,
+        fontWeight: 500,
+        height: "20px"
+      },
+      children: commentContent
+    }
+  );
+}
+
+// ../../doc-editor/packages/doc-editor/src/nodes/InlineCommentChipNode/index.tsx
+var import_jsx_runtime65 = require("react/jsx-runtime");
+var InlineCommentChipNode = class _InlineCommentChipNode extends import_lexical53.DecoratorNode {
+  static getType() {
+    return "inline-comment-chip";
+  }
+  static clone(node) {
+    return new _InlineCommentChipNode(
+      node.__commentContent,
+      node.__commentColor,
+      node.__internalCommentId,
+      node.__key
+    );
+  }
+  static importJSON() {
+    return new _InlineCommentChipNode();
+  }
+  exportJSON() {
+    return {
+      type: _InlineCommentChipNode.getType(),
+      version: 1
+    };
+  }
+  isSelected() {
+    return false;
+  }
+  constructor(commentContent = "", commentColor = "#000000", internalCommentId = "", key) {
+    super(key);
+    this.__commentContent = commentContent;
+    this.__commentColor = commentColor;
+    this.__internalCommentId = internalCommentId;
+  }
+  createDOM(_config) {
+    const element = document.createElement("span");
+    element.style.display = "inline";
+    element.style.fontSize = "18px";
+    element.contentEditable = "false";
+    return element;
+  }
+  updateDOM() {
+    return false;
+  }
+  getCommentContent() {
+    return this.__commentContent;
+  }
+  setCommentContent(content) {
+    const self2 = this.getWritable();
+    self2.__commentContent = content;
+    return self2;
+  }
+  getCommentColor() {
+    return this.__commentColor;
+  }
+  setCommentColor(color) {
+    const self2 = this.getWritable();
+    self2.__commentColor = color;
+    return self2;
+  }
+  getInternalCommentId() {
+    return this.__internalCommentId;
+  }
+  setInternalCommentId(id) {
+    const self2 = this.getWritable();
+    self2.__internalCommentId = id;
+    return self2;
+  }
+  isInline() {
+    return true;
+  }
+  decorate() {
+    return /* @__PURE__ */ (0, import_jsx_runtime65.jsx)(
+      InlineCommentChip,
+      {
+        commentContent: this.__commentContent,
+        commentColor: this.__commentColor,
+        internalCommentId: this.__internalCommentId
+      }
+    );
+  }
+};
+var InlineCommentChipNode_default = InlineCommentChipNode;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/AllNodes.js
+init_CommentIconNode();
+var AllNodes = [
+  import_rich_text4.HeadingNode,
+  import_list3.ListNode,
+  import_list3.ListItemNode,
+  import_rich_text4.QuoteNode,
+  import_code2.CodeNode,
+  import_table4.TableNode,
   CustomTableCellNodeReplacement,
   CustomTableCellNode,
-  import_table5.TableRowNode,
-  import_hashtag2.HashtagNode,
-  import_code3.CodeHighlightNode,
-  import_link5.AutoLinkNode,
-  import_link5.LinkNode,
-  import_overflow2.OverflowNode,
+  import_table4.TableRowNode,
+  import_hashtag.HashtagNode,
+  import_code2.CodeHighlightNode,
+  import_link4.AutoLinkNode,
+  import_link4.LinkNode,
+  import_overflow.OverflowNode,
+  import_LexicalHorizontalRuleNode3.HorizontalRuleNode,
+  ImageNode,
+  YouTubeNode,
   CollapsibleContainerNode,
   CollapsibleTitleNode,
   CollapsibleContentNode,
   LayoutItemNode,
   LayoutContainerNode,
-  // Visual/media nodes — needed for server-side image/embed/file authoring.
-  // (YouTubeNode is intentionally omitted: it extends @lexical/react's
-  // DecoratorBlockNode, which isn't a server dependency; image + embed-media
-  // cover image / link-embed / file authoring.)
-  ImageNode,
   EmbedMediaNode,
-  import_lexical55.TextNode,
-  import_lexical55.ParagraphNode
+  MarkNode_default,
+  DiffMarkNode_default,
+  InlineCommentNode_default,
+  InlineCommentChipNode_default,
+  CommentIconNode_default,
+  import_lexical54.TextNode,
+  import_lexical54.ParagraphNode,
+  node_default
 ];
+var AllNodes_default = AllNodes;
+
+// ../../doc-editor/packages/doc-editor/src/nodes/AllNodesServer.js
+var AllDocEditorNodes = AllNodes_default;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AllDocEditorNodes

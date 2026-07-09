@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppBar } from '../../components/AppBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -105,7 +104,10 @@ export function LauncherPage() {
   const enter = useEnterWorkspace();
   const openModal = useUiStore((s) => s.openModal);
   const navigate = useNavigate();
-  const [view, setView] = useState<'workspaces' | 'shared'>('workspaces');
+  // View lives in the URL (?view=shared) so refresh and deep links keep the tab.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: 'workspaces' | 'shared' = searchParams.get('view') === 'shared' ? 'shared' : 'workspaces';
+  const setView = (v: 'workspaces' | 'shared') => setSearchParams(v === 'shared' ? { view: v } : {});
 
   if (!me) return null;
   const admin = isRealmAdmin(realm?.role);

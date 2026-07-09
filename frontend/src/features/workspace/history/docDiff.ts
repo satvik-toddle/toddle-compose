@@ -30,6 +30,8 @@ interface DiffMarkNode extends SerializedElementNode {
   type: 'diff-mark';
   version: 1;
   variant: DiffVariant;
+  // Absent/inline = word-level run; block = whole added/removed block (overlay tint).
+  display?: 'inline' | 'block';
   direction: null;
   format: '';
   indent: 0;
@@ -52,6 +54,23 @@ export function wrapRun(
     format: '',
     indent: 0,
     children: textNodes,
+  };
+}
+
+// Wrap a whole added/removed block (paragraph, table, media, ...) in a block-display diff-mark; the editor tints it with a pointer-events-none overlay, so decorators/images tint too.
+function wrapBlock(
+  block: SerializedLexicalNode,
+  variant: DiffVariant
+): DiffMarkNode {
+  return {
+    type: 'diff-mark',
+    version: 1,
+    variant,
+    display: 'block',
+    direction: null,
+    format: '',
+    indent: 0,
+    children: [block],
   };
 }
 
@@ -140,34 +159,6 @@ function collectTextLeaves(node: SerializedLexicalNode): SerializedLexicalNode[]
   const out: SerializedLexicalNode[] = [];
   for (const child of children) out.push(...collectTextLeaves(child));
   return out;
-}
-
-// Recursively clone a node, replacing every text leaf's run with a diff-mark of the given variant (contiguous text siblings share one wrapper).
-function markTextDescendants(
-  node: SerializedLexicalNode,
-  variant: DiffVariant
-): SerializedLexicalNode {
-  const clone = cloneNode(node);
-  if (!Array.isArray(clone.children)) return clone;
-  const rebuilt: SerializedLexicalNode[] = [];
-  let run: SerializedLexicalNode[] = [];
-  const flushRun = () => {
-    if (run.length) {
-      rebuilt.push(wrapRun(run, variant));
-      run = [];
-    }
-  };
-  for (const child of clone.children) {
-    if (isTextNode(child)) {
-      run.push(child);
-    } else {
-      flushRun();
-      rebuilt.push(markTextDescendants(child, variant));
-    }
-  }
-  flushRun();
-  clone.children = rebuilt;
-  return clone;
 }
 
 interface Token {
@@ -290,9 +281,9 @@ function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
     if (entry.side === 'before') {
       const paired = pairFor.get(entry.node);
       if (paired) out.push(emitMatchedBlock(entry.node, paired));
-      else out.push(markTextDescendants(entry.node, 'removed'));
+      else out.push(wrapBlock(cloneNode(entry.node), 'removed'));
     } else if (!pairedAdded.has(entry.node)) {
-      out.push(markTextDescendants(entry.node, 'added'));
+      out.push(wrapBlock(cloneNode(entry.node), 'added'));
     }
   }
   return out;

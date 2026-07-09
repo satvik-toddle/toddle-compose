@@ -39,17 +39,15 @@ export function DocActions({
     return (
       canCreate && (
         <CreatePageDropdown placement="bottomRight" onCreate={newPage} disabled={isPending}>
-          <span className="inline-flex">
-            <Button
-              dsVersion="2.0"
-              variant="primary"
-              type="fill"
-              icon={<AddOutlined />}
-              disabled={isPending}
-            >
-              New page
-            </Button>
-          </span>
+          <Button
+            dsVersion="2.0"
+            variant="primary"
+            type="fill"
+            icon={<AddOutlined />}
+            disabled={isPending}
+          >
+            New page
+          </Button>
         </CreatePageDropdown>
       )
     );
@@ -139,16 +137,13 @@ export function DocActions({
             />
           }
         >
-          {/* antd attaches its open-on-click handler to this DOM node. */}
-          <span className="inline-flex">
-            <IconButton
-              dsVersion="2.0"
-              variant="neutral"
-              type="plain"
-              icon={<DotsHorizontalOutlined />}
-              aria-label="Page actions"
-            />
-          </span>
+          <IconButton
+            dsVersion="2.0"
+            variant="neutral"
+            type="plain"
+            icon={<DotsHorizontalOutlined />}
+            aria-label="Page actions"
+          />
         </Dropdown>
       )}
     </>

@@ -21,6 +21,7 @@ import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
 const DELETE_KEY = 'delete';
+const HISTORY_KEY = 'history';
 
 export function DocActions({
   ctx,
@@ -66,9 +67,27 @@ export function DocActions({
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
+  // Version history is only meaningful for DOC pages (SHEET has no lexical
+  // projection to render read-only yet).
+  const showHistory = doc.type === 'DOC';
+
   // Same option shape + click dispatch as the sidebar's page menu: each leaf carries its
   // own onSelect, and the create action reuses the shared Doc/Sheet submenu builder.
   const menuOptions: PageMenuOption[] = [
+    // Version history leads the menu; available to every reader (not gated by edit rights).
+    ...(showHistory
+      ? [
+          {
+            key: HISTORY_KEY,
+            label: history.active ? 'Exit version history' : 'Version history',
+            icon: <ClockRecentsOutlined size="xxx-small" variant="subtle" />,
+            onSelect: () => (history.active ? history.exit() : history.enter()),
+          },
+        ]
+      : []),
+    ...(showHistory && (canCreate || canManage)
+      ? [{ key: `${HISTORY_KEY}__divider`, isDivider: true }]
+      : []),
     ...(canCreate
       ? [
           {
@@ -95,22 +114,8 @@ export function DocActions({
       : []),
   ];
 
-  // Version history is only meaningful for DOC pages (SHEET has no lexical
-  // projection to render read-only yet).
-  const showHistory = doc.type === 'DOC';
-
   return (
     <>
-      {showHistory && (
-        <IconButton
-          dsVersion="2.0"
-          variant={history.active ? 'primary' : 'neutral'}
-          type={history.active ? 'fill' : 'plain'}
-          icon={<ClockRecentsOutlined />}
-          aria-label={history.active ? 'Exit version history' : 'Version history'}
-          onClick={() => (history.active ? history.exit() : history.enter())}
-        />
-      )}
       <Button
         dsVersion="2.0"
         variant="neutral"
@@ -120,7 +125,7 @@ export function DocActions({
       >
         Share
       </Button>
-      {(canCreate || canManage) && (
+      {(canCreate || canManage || showHistory) && (
         <Dropdown
           trigger={['click']}
           placement="bottomRight"

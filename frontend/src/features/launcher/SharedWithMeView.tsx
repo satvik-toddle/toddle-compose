@@ -26,8 +26,8 @@ function addedAt(iso?: string): string {
 
 const cell = {
   nameWrap: 'flex flex-col',
-  nameTitle: 'text-body-s font-medium text-primary truncate',
-  nameSub: 'text-body-xs text-secondary',
+  nameTitle: 'text-body font-medium text-primary truncate',
+  nameSub: 'text-body-s text-secondary',
 };
 
 export function SharedWithMeView() {

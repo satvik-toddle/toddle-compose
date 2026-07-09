@@ -52,7 +52,7 @@ const styles = {
   navList: 'flex flex-col gap-0.5 px-2.5',
   dangerZone: 'mt-auto px-2.5 pb-3 pt-3',
   bar: 'flex items-center gap-3 border-b border-secondary px-5.5 py-4',
-  barTitle: 'text-[16px] font-bold leading-tight text-primary',
+  barTitle: 'text-heading-6 text-primary',
   barDesc: 'mt-1 text-body-s text-secondary',
   scroll: 'min-h-0 flex-1 overflow-auto px-5.5 py-5',
   group: 'flex flex-col gap-[18px]',
@@ -345,7 +345,7 @@ function Stat({ k, v, small }: { k: string; v: string; small?: boolean }) {
   return (
     <div className={styles.statCard}>
       <div className={styles.statKey}>{k}</div>
-      <div className={cn(styles.statVal, small ? 'text-body' : 'text-[22px]')}>{v}</div>
+      <div className={cn(styles.statVal, small ? 'text-body' : 'text-heading-4')}>{v}</div>
     </div>
   );
 }

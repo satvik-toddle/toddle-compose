@@ -93,7 +93,7 @@ function EmptyOwner({ onCreate }: { onCreate: () => void }) {
 const nav = {
   layout: 'flex flex-1 min-h-0',
   side: 'flex-none w-56 flex flex-col gap-1 p-3 border-r border-secondary bg-surface-secondary-enabled',
-  item: 'flex items-center gap-2 rounded-1.5 px-2.5 py-2 text-body-s text-primary cursor-pointer hover:bg-surface-secondary-hover text-left w-full border-0 bg-transparent',
+  item: 'flex items-center gap-2 rounded-1.5 px-2.5 py-2 text-body text-primary cursor-pointer hover:bg-surface-secondary-hover text-left w-full border-0 bg-transparent',
   itemOn: 'bg-surface-secondary-hover text-primary font-semibold',
   main: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-auto bg-[var(--panel-bg)]',
 };

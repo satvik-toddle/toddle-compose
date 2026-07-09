@@ -3,16 +3,43 @@ import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
+import { diffEditorStates, SerializedEditorState } from "./doc-diff";
 
 const log = createLogger("versions");
+
+// Sibling Yjs map holding uploadId -> { url } (doc-editor's UploadRegistry); outside the Lexical tree, so extraction alone misses it.
+const UPLOAD_REGISTRY_KEY = "tde-upload-registry";
+
+// Bake registry-resolved upload URLs into extracted node JSON: the frontend renders this state with no Y.Doc attached, so a registry-backed embed/image would otherwise have an empty src.
+function materializeUploadSrcs(node: unknown, registry: Map<string, string>): void {
+  if (!node || typeof node !== "object") return;
+  const n = node as { uploadId?: string; src?: string; children?: unknown[] };
+  if (n.uploadId && !n.src) {
+    const url = registry.get(n.uploadId);
+    if (url) n.src = url;
+  }
+  if (Array.isArray(n.children)) {
+    for (const child of n.children) materializeUploadSrcs(child, registry);
+  }
+}
+
+// Registry entries from a reconstructed Y.Doc (empty map when the doc predates any upload).
+function readUploadRegistry(ydoc: Y.Doc): Map<string, string> {
+  const out = new Map<string, string>();
+  ydoc.getMap(UPLOAD_REGISTRY_KEY).forEach((value, key) => {
+    const url = (value as { url?: string } | null)?.url;
+    if (url) out.set(key, url);
+  });
+  return out;
+}
 
 // Sheet Yjs model (mirrors frontend sheetModel): 'rows' Array of per-row Y.Map keyed by '__id', 'colTypes' Map of column uuid -> { type, order } (stored opaquely here). DOC docs have no 'rows' root.
 const ROWS_KEY = "rows";
 const ID_KEY = "__id";
 const COL_TYPE_KEY = "colTypes";
 
-// Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (DOC render); 'text' = sheet snapshot only (SHEET render).
-export type PreviewInclude = "all" | "state" | "text";
+// Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (legacy DOC render); 'render' = materialized lexicalJson (+ optional diffJson) only (DOC render); 'text' = sheet snapshot only (SHEET render).
+export type PreviewInclude = "all" | "state" | "render" | "text";
 
 export type SheetSnapshot = {
   rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
@@ -33,6 +60,8 @@ export type VersionPreview = {
   // Full Yjs state at this seq (base64). The frontend binds it to a read-only
   // editor to render the snapshot through the exact live-collab path.
   yjsStateB64: string;
+  // include='render' with diffAgainstSeq: merged editorState of diffAgainstSeq -> seq, changed runs/blocks wrapped in diff-mark nodes.
+  diffJson: string | null;
   elapsedMs: number;
 };
 
@@ -62,13 +91,12 @@ export class VersionsService {
     private readonly extract: LexicalExtractService
   ) {}
 
-  async previewAtSeq(
+  // Replay the update log into a fresh Y.Doc clamped to [0, head].
+  private async reconstruct(
     docId: string,
     seq: number,
-    include: PreviewInclude = "all"
-  ): Promise<VersionPreview> {
-    const t0 = Date.now();
-    const head = await this.repo.getHeadSeq(docId);
+    head: number
+  ): Promise<{ ydoc: Y.Doc; target: number }> {
     const target = Math.max(0, Math.min(seq, head));
     const ydoc = new Y.Doc();
     if (target > 0) {
@@ -77,17 +105,56 @@ export class VersionsService {
         Y.applyUpdate(ydoc, new Uint8Array(blob));
       }
     }
+    return { ydoc, target };
+  }
+
+  // Extract the doc's editorState with upload URLs baked in (see materializeUploadSrcs); null when extraction fails.
+  private async renderState(ydoc: Y.Doc): Promise<SerializedEditorState | null> {
+    const { lexicalJson } = await this.extract.extractFromBytes(
+      Y.encodeStateAsUpdate(ydoc)
+    );
+    if (!lexicalJson) return null;
+    const state = JSON.parse(lexicalJson) as SerializedEditorState;
+    const registry = readUploadRegistry(ydoc);
+    if (registry.size) materializeUploadSrcs(state.root, registry);
+    return state;
+  }
+
+  async previewAtSeq(
+    docId: string,
+    seq: number,
+    include: PreviewInclude = "all",
+    // Baseline seq for include='render': also return the merged diff baseline -> seq (0 = empty doc).
+    diffAgainstSeq: number | null = null
+  ): Promise<VersionPreview> {
+    const t0 = Date.now();
+    const head = await this.repo.getHeadSeq(docId);
+    const { ydoc, target } = await this.reconstruct(docId, seq, head);
     const yjsState = Y.encodeStateAsUpdate(ydoc);
 
     // Extract sheet FIRST so the rawTexts getText() loop can't coerce 'rows' to Y.Text; cheap and local, so run it in every mode.
     const sheet = extractSheet(ydoc);
 
-    // Only 'all' reads lexicalJson/plainText/rawTexts. 'state' (DOC render, yjs bytes only) and
-    // 'text' (SHEET render, reads only `sheet`) both skip the CPU-heavy headless-Lexical extraction.
+    // 'state' (legacy DOC render, yjs bytes only) and 'text' (SHEET render, reads only `sheet`) skip the CPU-heavy headless-Lexical extraction.
     let lexicalJson: string | null = null;
+    let diffJson: string | null = null;
     const rawTexts: Record<string, string> = {};
     let plainText = "";
-    if (include === "all") {
+    if (include === "render") {
+      const state = await this.renderState(ydoc);
+      lexicalJson = state ? JSON.stringify(state) : null;
+      if (state && diffAgainstSeq != null) {
+        const base = await this.reconstruct(docId, diffAgainstSeq, head);
+        const baseState = await this.renderState(base.ydoc);
+        // An empty/failed baseline diffs against the empty doc (everything reads as added).
+        diffJson = JSON.stringify(
+          diffEditorStates(
+            baseState ?? { root: { type: "root", children: [] } },
+            state
+          )
+        );
+      }
+    } else if (include === "all") {
       const extracted = await this.extract.extractFromBytes(yjsState);
       lexicalJson = extracted.lexicalJson;
 
@@ -106,13 +173,15 @@ export class VersionsService {
         : extracted.plainText;
     }
 
-    // 'text' callers (SHEET render) discard the yjs bytes, so skip the base64 encode of the full state.
+    // Only 'all' and 'state' callers read the yjs bytes; skip the base64 encode elsewhere.
     const yjsStateB64 =
-      include === "text" ? "" : Buffer.from(yjsState).toString("base64");
+      include === "text" || include === "render"
+        ? ""
+        : Buffer.from(yjsState).toString("base64");
 
     const elapsedMs = Date.now() - t0;
     log.debug(
-      `preview '${docId}' seq=${target}/${head} include=${include} json=${lexicalJson?.length ?? 0}B in ${elapsedMs}ms`
+      `preview '${docId}' seq=${target}/${head} include=${include} json=${lexicalJson?.length ?? 0}B diff=${diffJson?.length ?? 0}B in ${elapsedMs}ms`
     );
     return {
       docId,
@@ -125,6 +194,7 @@ export class VersionsService {
       rawTexts,
       sheet,
       yjsStateB64,
+      diffJson,
       elapsedMs,
     };
   }

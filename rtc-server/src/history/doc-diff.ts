@@ -1,4 +1,4 @@
-// Pure diff algorithm for DOC version comparison: merges two serialized Lexical editorStates into one, wrapping changed inline runs in 'diff-mark' nodes so a read-only editor can tint added/removed text. No Lexical/React/DOM imports.
+// Pure diff algorithm for DOC version comparison: merges two serialized Lexical editorStates into one, wrapping changed inline runs in "diff-mark" nodes so a read-only editor can tint added/removed text. No Lexical/React/DOM imports.
 
 // Loose structural node type: any serialized Lexical node, with unknown fields preserved as pass-through.
 export interface SerializedLexicalNode {
@@ -23,23 +23,23 @@ export interface SerializedEditorState {
   [key: string]: unknown;
 }
 
-type DiffVariant = 'added' | 'removed';
+type DiffVariant = "added" | "removed";
 
 // The exact wrapper node shape the editor registers to tint changed inline runs.
 interface DiffMarkNode extends SerializedElementNode {
-  type: 'diff-mark';
+  type: "diff-mark";
   version: 1;
   variant: DiffVariant;
   // Absent/inline = word-level run; block = whole added/removed block (overlay tint).
-  display?: 'inline' | 'block';
+  display?: "inline" | "block";
   direction: null;
-  format: '';
+  format: "";
   indent: 0;
   children: SerializedLexicalNode[];
 }
 
 // Block types whose children are only text/inline nodes get word-level descent; anything else is treated as non-simple in v1.
-const SIMPLE_TEXT_BLOCK_TYPES = new Set(['paragraph', 'heading', 'quote']);
+const SIMPLE_TEXT_BLOCK_TYPES = new Set(["paragraph", "heading", "quote"]);
 
 // Wrap contiguous text nodes in a diff-mark of the given variant, keeping each text node's original format/style.
 export function wrapRun(
@@ -47,11 +47,11 @@ export function wrapRun(
   variant: DiffVariant
 ): DiffMarkNode {
   return {
-    type: 'diff-mark',
+    type: "diff-mark",
     version: 1,
     variant,
     direction: null,
-    format: '',
+    format: "",
     indent: 0,
     children: textNodes,
   };
@@ -63,12 +63,12 @@ function wrapBlock(
   variant: DiffVariant
 ): DiffMarkNode {
   return {
-    type: 'diff-mark',
+    type: "diff-mark",
     version: 1,
     variant,
-    display: 'block',
+    display: "block",
     direction: null,
-    format: '',
+    format: "",
     indent: 0,
     children: [block],
   };
@@ -115,22 +115,22 @@ function lcsAlign<T>(
 
 // True if the node looks like a text/inline leaf (has a `text` field or no children).
 function isTextNode(node: SerializedLexicalNode): boolean {
-  return node.type === 'text' || typeof node.text === 'string';
+  return node.type === "text" || typeof node.text === "string";
 }
 
 // Concatenate all descendant text-node text values.
 function collectText(node: SerializedLexicalNode): string {
-  if (isTextNode(node)) return typeof node.text === 'string' ? node.text : '';
+  if (isTextNode(node)) return typeof node.text === "string" ? node.text : "";
   const children = node.children;
-  if (!Array.isArray(children)) return '';
-  let out = '';
+  if (!Array.isArray(children)) return "";
+  let out = "";
   for (const child of children) out += collectText(child);
   return out;
 }
 
 // Trim + collapse internal whitespace for block equality keys.
 function normalizedText(node: SerializedLexicalNode): string {
-  return collectText(node).replace(/\s+/g, ' ').trim();
+  return collectText(node).replace(/\s+/g, " ").trim();
 }
 
 // A block is "simple text" if it is a known simple type and every child is a text/inline leaf (no nested element children).
@@ -172,11 +172,11 @@ function tokenize(node: SerializedLexicalNode): Token[] {
   const leaves = collectTextLeaves(node);
   const tokens: Token[] = [];
   for (const leaf of leaves) {
-    const text = typeof leaf.text === 'string' ? leaf.text : '';
+    const text = typeof leaf.text === "string" ? leaf.text : "";
     if (!text) continue;
     // Split so whitespace runs survive as their own tokens.
     for (const piece of text.split(/(\s+)/)) {
-      if (piece === '') continue;
+      if (piece === "") continue;
       tokens.push({ text: piece, format: leaf.format, style: leaf.style });
     }
   }
@@ -186,18 +186,18 @@ function tokenize(node: SerializedLexicalNode): Token[] {
 // Build a plain text node from a token, preserving its source format/style where present.
 function textNodeFromToken(token: Token): SerializedLexicalNode {
   const node: SerializedLexicalNode = {
-    type: 'text',
+    type: "text",
     text: token.text,
     detail: 0,
     format: token.format ?? 0,
-    mode: 'normal',
-    style: token.style ?? '',
+    mode: "normal",
+    style: token.style ?? "",
     version: 1,
   };
   return node;
 }
 
-type TokenClass = 'equal' | DiffVariant;
+type TokenClass = "equal" | DiffVariant;
 
 // Coalesce adjacent tokens sharing class + format + style into a single text node, to avoid node explosion. v1 collapses a changed run to its first token's format.
 function emitClassifiedTokens(
@@ -209,7 +209,7 @@ function emitClassifiedTokens(
     const cls = entries[i].cls;
     const format = entries[i].token.format;
     const style = entries[i].token.style;
-    let text = '';
+    let text = "";
     while (
       i < entries.length &&
       entries[i].cls === cls &&
@@ -220,7 +220,7 @@ function emitClassifiedTokens(
       i++;
     }
     const textNode = textNodeFromToken({ text, format, style });
-    if (cls === 'equal') out.push(textNode);
+    if (cls === "equal") out.push(textNode);
     else out.push(wrapRun([textNode], cls));
   }
   return out;
@@ -236,9 +236,9 @@ function diffSimpleTextBlock(
   const aligned = lcsAlign(beforeTokens, afterTokens, (a, b) => a.text === b.text);
   const entries: Array<{ token: Token; cls: TokenClass }> = [];
   for (const pair of aligned) {
-    if (pair.before && pair.after) entries.push({ token: pair.after, cls: 'equal' });
-    else if (pair.after) entries.push({ token: pair.after, cls: 'added' });
-    else if (pair.before) entries.push({ token: pair.before, cls: 'removed' });
+    if (pair.before && pair.after) entries.push({ token: pair.after, cls: "equal" });
+    else if (pair.after) entries.push({ token: pair.after, cls: "added" });
+    else if (pair.before) entries.push({ token: pair.before, cls: "removed" });
   }
   const clone = cloneNode(afterBlock);
   clone.children = emitClassifiedTokens(entries);
@@ -259,14 +259,14 @@ function emitMatchedBlock(
 
 // An entry within a change region (a maximal run of non-anchor before/after blocks between LCS anchors).
 interface ChangeEntry {
-  side: 'before' | 'after';
+  side: "before" | "after";
   node: SerializedLexicalNode;
 }
 
 // Resolve one change region: pair each removed block with an unused added block of the same type (an in-place edit → word diff at the removed's position); leftovers are pure removed/added, emitted in original document order.
 function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
-  const removed = entries.filter((e) => e.side === 'before').map((e) => e.node);
-  const added = entries.filter((e) => e.side === 'after').map((e) => e.node);
+  const removed = entries.filter((e) => e.side === "before").map((e) => e.node);
+  const added = entries.filter((e) => e.side === "after").map((e) => e.node);
   const pairedAdded = new Set<SerializedLexicalNode>();
   const pairFor = new Map<SerializedLexicalNode, SerializedLexicalNode>();
   for (const b of removed) {
@@ -278,24 +278,24 @@ function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
   }
   const out: SerializedLexicalNode[] = [];
   for (const entry of entries) {
-    if (entry.side === 'before') {
+    if (entry.side === "before") {
       const paired = pairFor.get(entry.node);
       if (paired) out.push(emitMatchedBlock(entry.node, paired));
-      else out.push(wrapBlock(cloneNode(entry.node), 'removed'));
+      else out.push(wrapBlock(cloneNode(entry.node), "removed"));
     } else if (!pairedAdded.has(entry.node)) {
-      out.push(wrapBlock(cloneNode(entry.node), 'added'));
+      out.push(wrapBlock(cloneNode(entry.node), "added"));
     }
   }
   return out;
 }
 
-// Merge two serialized editorStates into one, with changed inline runs wrapped in diff-mark nodes (base = after; adds vs before are 'added', removes are re-inserted as 'removed').
+// Merge two serialized editorStates into one, with changed inline runs wrapped in diff-mark nodes (base = after; adds vs before are "added", removes are re-inserted as "removed").
 export function diffEditorStates(
   before: SerializedEditorState,
   after: SerializedEditorState
 ): SerializedEditorState {
   const afterRoot: SerializedElementNode =
-    after && after.root ? after.root : { type: 'root', children: [] };
+    after && after.root ? after.root : { type: "root", children: [] };
   const beforeRoot: SerializedElementNode | null =
     before && before.root ? before.root : null;
 
@@ -324,13 +324,13 @@ export function diffEditorStates(
     const region: ChangeEntry[] = [];
     while (i < aligned.length && !(aligned[i].before && aligned[i].after)) {
       const cur = aligned[i];
-      if (cur.after) region.push({ side: 'after', node: cur.after });
-      else if (cur.before) region.push({ side: 'before', node: cur.before });
+      if (cur.after) region.push({ side: "after", node: cur.after });
+      else if (cur.before) region.push({ side: "before", node: cur.before });
       i++;
     }
     merged.push(...emitChangeRegion(region));
   }
 
-  const rest = after && typeof after === 'object' ? after : {};
+  const rest = after && typeof after === "object" ? after : {};
   return { ...rest, root: { ...afterRoot, children: merged } };
 }

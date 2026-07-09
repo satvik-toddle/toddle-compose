@@ -172,8 +172,10 @@ export interface DocSnapshot {
   type: DocumentType;
   seq: number;
   headSeq: number;
-  // DOC docs: full Yjs state at this seq (base64) for read-only rendering. SHEET docs omit it.
-  yjsStateB64?: string;
+  // DOC docs: server-extracted Lexical editorState at this seq (upload URLs materialized). SHEET docs omit it.
+  lexicalJson?: string;
+  // DOC docs, when ?diff=<baselineSeq> was requested: merged diff editorState (baseline -> seq) with diff-mark nodes.
+  diffJson?: string | null;
 }
 
 export interface FolderDto {

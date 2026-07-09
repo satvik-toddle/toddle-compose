@@ -13,12 +13,9 @@ const DocSnapshotViewer = lazy(() =>
   import('./DocSnapshotViewer').then((m) => ({ default: m.DocSnapshotViewer })),
 );
 
-const DocDiffViewer = lazy(() =>
-  import('./DocDiffViewer').then((m) => ({ default: m.DocDiffViewer })),
-);
-
 const styles = {
-  contentShell: 'flex-1 min-w-0 flex flex-col bg-[var(--panel-bg)]',
+  // min-h-0 lets the editor pane shrink to the viewport so its own overflow scroll engages (long docs).
+  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   center: 'flex-1 flex items-center justify-center',
   // Read-only banner marking this as a past version (matches the doc title inset).
   banner:
@@ -63,20 +60,15 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
     session,
   } = useVersionSelection(doc.id);
 
+  // The previous version is the next-older session in the newest-first list; the oldest diffs against the empty doc (seq 0).
+  const selectedIdx = sessions.findIndex((sess) => sess.lastSeq === effectiveSeq);
+  const prevSeq = selectedIdx >= 0 ? (sessions[selectedIdx + 1]?.lastSeq ?? 0) : 0;
+  // One query returns the snapshot, plus the server-computed merged diff in diff mode.
   const { data: snapshot, isLoading: snapLoading, isError: snapError } = useDocSnapshot(
     doc.id,
     effectiveSeq,
+    diff ? prevSeq : undefined,
   );
-
-  // The previous version is the next-older session in the newest-first list; the oldest has none, so its baseline is the empty doc.
-  const selectedIdx = sessions.findIndex((sess) => sess.lastSeq === effectiveSeq);
-  const prevSeq = selectedIdx >= 0 ? (sessions[selectedIdx + 1]?.lastSeq ?? null) : null;
-  // Only fetch the baseline in diff mode; a null seq skips the query.
-  const {
-    data: prevSnapshot,
-    isLoading: prevSnapLoading,
-    isError: prevSnapError,
-  } = useDocSnapshot(doc.id, diff ? prevSeq : null);
 
   if (sessionsLoading) {
     return (
@@ -86,11 +78,12 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
     );
   }
 
-  if (sessionsError || snapError || (diff && prevSnapError)) {
+  if (sessionsError || snapError) {
     return <ErrorPane />;
   }
 
-  const loading = snapLoading || !snapshot || (diff && prevSeq != null && prevSnapLoading);
+  const loading = snapLoading || !snapshot;
+  const stateJson = diff ? snapshot?.diffJson : snapshot?.lexicalJson;
 
   return (
     <main className={styles.contentShell}>
@@ -108,18 +101,13 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
         <Suspense fallback={<PageLoader />}>
           {loading ? (
             <PageLoader />
-          ) : diff ? (
-            <DocDiffViewer
-              key={`diff-${prevSeq ?? 'none'}-${effectiveSeq}`}
-              beforeStateB64={prevSnapshot?.yjsStateB64}
-              afterStateB64={snapshot.yjsStateB64}
+          ) : stateJson ? (
+            <DocSnapshotViewer
+              key={`${diff ? `diff-${prevSeq}-` : ''}${effectiveSeq}`}
+              editorStateJson={stateJson}
             />
           ) : (
-            <DocSnapshotViewer
-              key={effectiveSeq}
-              docId={doc.id}
-              yjsStateB64={snapshot.yjsStateB64}
-            />
+            <ErrorPane />
           )}
         </Suspense>
       )}

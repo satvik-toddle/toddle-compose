@@ -134121,14 +134121,27 @@ var EmbedMediaNode = class _EmbedMediaNode extends import_lexical37.DecoratorNod
     return cloned;
   }
   static importJSON(serializedNode) {
-    const { height, width, maxWidth, src, mimeType, uploadId } = serializedNode;
+    const {
+      height,
+      width,
+      maxWidth,
+      src,
+      mimeType,
+      uploadId,
+      isMediaComp,
+      filename,
+      filesize
+    } = serializedNode;
     return $createEmbedMediaNode({
       height,
       maxWidth,
       src,
       width,
       mimeType,
-      uploadId
+      uploadId,
+      filename,
+      filesize,
+      isMedia: isMediaComp
     }).updateFromJSON(serializedNode);
   }
   updateFromJSON(serializedNode) {
@@ -134208,7 +134221,10 @@ var EmbedMediaNode = class _EmbedMediaNode extends import_lexical37.DecoratorNod
       width: this.__width === "inherit" ? 0 : this.__width,
       mimeType: this.__mimeType,
       isMediaComp: this.__isMediaComp,
-      uploadId: this.__uploadId
+      uploadId: this.__uploadId,
+      // Needed for the file-card render after a JSON round-trip (see importJSON).
+      filename: this.__filename,
+      filesize: this.__filesize
     };
   }
   createDOM(config) {

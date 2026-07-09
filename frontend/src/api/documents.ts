@@ -42,7 +42,9 @@ export const documentsApi = {
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
   // Per-author edit-session timeline for the version-history panel.
   history: (id: string) => http.get<DocHistoryResponse>(`/documents/${id}/history`),
-  // Read-only snapshot of the document at a given update seq.
-  historyAt: (id: string, seq: number) =>
-    http.get<DocSnapshot>(`/documents/${id}/history/${seq}`),
+  // Read-only snapshot of the document at a given update seq; diffAgainst also returns the server-computed merged diff (0 = empty doc).
+  historyAt: (id: string, seq: number, diffAgainst?: number) =>
+    http.get<DocSnapshot>(
+      `/documents/${id}/history/${seq}${diffAgainst != null ? `?diff=${diffAgainst}` : ''}`,
+    ),
 };

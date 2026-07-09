@@ -75,12 +75,17 @@ export class RtcInternalClient {
   getVersionPreview(
     docId: string,
     seq: number,
-    include: RtcPreviewInclude = "all"
+    include: RtcPreviewInclude = "all",
+    // Baseline seq for a merged diff render (include='render' only; 0 = empty doc).
+    diffAgainst?: number
   ): Promise<RtcVersionPreview> {
-    const q = include === "all" ? "" : `?include=${include}`;
+    const params = new URLSearchParams();
+    if (include !== "all") params.set("include", include);
+    if (diffAgainst != null) params.set("diffAgainst", String(diffAgainst));
+    const qs = params.toString();
     return this.call(
       "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}${q}`
+      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}${qs ? `?${qs}` : ""}`
     ) as Promise<RtcVersionPreview>;
   }
 
@@ -134,7 +139,7 @@ export type RtcSheetSnapshot = {
 };
 
 // Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.
-export type RtcPreviewInclude = "all" | "state" | "text";
+export type RtcPreviewInclude = "all" | "state" | "render" | "text";
 
 export type RtcVersionPreview = {
   docId: string;
@@ -145,4 +150,6 @@ export type RtcVersionPreview = {
   plainText: string;
   // Absent when include='text', or when talking to an older rtc-server that predates this field.
   yjsStateB64?: string;
+  // include='render' with diffAgainst: merged diff editorState (baseline -> seq); absent otherwise.
+  diffJson?: string | null;
 };

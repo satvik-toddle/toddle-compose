@@ -98,14 +98,20 @@ export class DocumentsController {
     return this.documents.history(user.id, id);
   }
 
-  // Read-only snapshot of the document at a given update seq.
+  // Read-only snapshot of the document at a given update seq; ?diff=<baselineSeq> also returns the merged server-computed diff (DOC only, 0 = empty doc).
   @Get(":id/history/:seq")
   historyAt(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
-    @Param("seq") seq: string
+    @Param("seq") seq: string,
+    @Query("diff") diff?: string
   ) {
-    return this.documents.historySnapshot(user.id, id, Number(seq));
+    return this.documents.historySnapshot(
+      user.id,
+      id,
+      Number(seq),
+      diff != null && diff !== "" ? Number(diff) : undefined
+    );
   }
 
   // Short-lived RTC token for this document; 403 if the caller has no access.

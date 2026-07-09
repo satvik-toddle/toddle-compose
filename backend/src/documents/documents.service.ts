@@ -366,17 +366,27 @@ export class DocumentsService {
   }
 
   // Read-only preview of the document at a given seq; the kind is resolved from the doc, then dispatched on.
-  async historySnapshot(userId: string, docId: string, seq: number) {
+  async historySnapshot(
+    userId: string,
+    docId: string,
+    seq: number,
+    // Baseline seq to also return a merged server-computed diff (0 = empty doc); DOC only.
+    diffAgainst?: number
+  ) {
     const doc = await this.get(userId, docId);
     if (!Number.isFinite(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    // Fetch only the slice each doc type renders: DOC binds the yjs bytes, SHEET reads the grid snapshot.
+    if (diffAgainst != null && (!Number.isFinite(diffAgainst) || diffAgainst < 0)) {
+      throw new BadRequestException("diff must be a non-negative integer");
+    }
+    // Fetch only the slice each doc type renders: DOC gets server-extracted editorState JSON (+ optional diff), SHEET reads the grid snapshot.
     const isSheet = doc.type === DocumentType.SHEET;
     const preview = await this.rtc.getVersionPreview(
       docId,
       seq,
-      isSheet ? "text" : "state"
+      isSheet ? "text" : "render",
+      isSheet ? undefined : diffAgainst
     );
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
@@ -386,11 +396,15 @@ export class DocumentsService {
         return { ...base, sheet: preview.sheet };
       case DocumentType.DOC:
       default:
-        // A DOC renders purely from yjs state; a missing field means the rtc-server predates it (deploy skew) — fail loud rather than render every version empty.
-        if (!preview.yjsStateB64) {
+        // A DOC renders from the server-extracted editorState; a missing field means extraction failed or the rtc-server predates it — fail loud rather than render every version empty.
+        if (!preview.lexicalJson) {
           throw new HttpException({ error: "rtc service error" }, 502);
         }
-        return { ...base, yjsStateB64: preview.yjsStateB64 };
+        return {
+          ...base,
+          lexicalJson: preview.lexicalJson,
+          diffJson: preview.diffJson ?? null,
+        };
     }
   }
 

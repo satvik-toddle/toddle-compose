@@ -41,11 +41,18 @@ export function useDocHistory(docId: string | undefined, enabled = true) {
   });
 }
 
-// Read-only snapshot of a document at a given update seq (null seq = skip).
-export function useDocSnapshot(docId: string | undefined, seq: number | null) {
+// Read-only snapshot of a document at a given update seq (null seq = skip); diffAgainst also fetches the server-computed merged diff.
+export function useDocSnapshot(
+  docId: string | undefined,
+  seq: number | null,
+  diffAgainst?: number,
+) {
   return useQuery({
-    queryKey: docId && seq != null ? qk.docSnapshot(docId, seq) : ['docHistory', '_none', 'snap'],
-    queryFn: () => documentsApi.historyAt(docId as string, seq as number),
+    queryKey:
+      docId && seq != null
+        ? qk.docSnapshot(docId, seq, diffAgainst)
+        : ['docHistory', '_none', 'snap'],
+    queryFn: () => documentsApi.historyAt(docId as string, seq as number, diffAgainst),
     enabled: !!docId && seq != null,
     // Not immutable: compaction (tier-1 merge / tier-2 archive) rewrites the seq→state mapping, so a
     // cached snapshot can go stale — short staleTime, not Infinity, or a long-lived tab diverges from a fresh load.

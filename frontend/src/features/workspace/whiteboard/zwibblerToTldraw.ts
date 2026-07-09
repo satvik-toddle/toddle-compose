@@ -8,14 +8,15 @@ import {
   type TLDefaultColorStyle,
   type TLDefaultSizeStyle,
   type TLGeoShape,
-  type TLShapeId,
   type TLShapePartial,
 } from 'tldraw';
+import { WHITEBOARD_SOLIDS } from './whiteboardTheme';
 
 // Converts a legacy Zwibbler workbook document (flat node array) into tldraw
 // shapes, for backward compatibility with old Toddle workbooks.
 //
-// Mapping: PageNode → frame (pages laid out left-to-right), SvgNode → image
+// Mapping: PageNode → x-offset only (pages flow left-to-right on the open
+// canvas — the whiteboard is freeform, no bounded frames), SvgNode → image
 // shape backed by the original workbook SVG asset with the doc's fill tint
 // applied (exact silhouette + exact color); falls back to a rough tldraw geo
 // shape if the asset can't be fetched. TextNode → text, BrushNode → draw.
@@ -50,22 +51,8 @@ export type ZwibblerConversion = {
   skipped: string[];
 };
 
-// tldraw light-theme "solid" hexes (defaultThemes.ts), used for nearest-match.
-const PALETTE: Record<string, string> = {
-  black: '#1d1d1d',
-  grey: '#9fa8b2',
-  'light-violet': '#e085f4',
-  violet: '#ae3ec9',
-  blue: '#4465e9',
-  'light-blue': '#4ba1f1',
-  yellow: '#f1ac4b',
-  orange: '#e16919',
-  green: '#099268',
-  'light-green': '#4cb05e',
-  'light-red': '#f87777',
-  red: '#e03131',
-  white: '#FFFFFF',
-};
+// Whiteboard theme "solid" hexes, used for nearest-match.
+const PALETTE = WHITEBOARD_SOLIDS;
 
 const STROKE_SIZES: Record<TLDefaultSizeStyle, number> = { s: 2, m: 3.5, l: 5, xl: 10 };
 const FONT_SIZES: Record<TLDefaultSizeStyle, number> = { s: 18, m: 24, l: 36, xl: 44 };
@@ -301,27 +288,17 @@ function convertBrushNode(node: ZwibblerNode, m: Xform): TLShapePartial | null {
 export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerConversion> {
   const shapes: TLShapePartial[] = [];
   const skipped: string[] = [];
-  const frameIds = new Map<ZwibblerNode['id'], TLShapeId>();
   const { assets, byKey } = await loadSvgAssets(nodes);
 
-  // Frames first so children can parent to them; pages flow left-to-right.
+  // No frames — the whiteboard is freeform. Each page just contributes an
+  // x-offset so pages flow left-to-right without overlapping.
   const PAGE_GAP = 80;
+  const pageOffsets = new Map<ZwibblerNode['id'], number>();
   let pageX = 0;
-  let pageNo = 0;
   for (const node of nodes) {
     if (node.type !== 'PageNode') continue;
-    const id = createShapeId(`zw-${node.id}`);
-    frameIds.set(node.id, id);
-    pageNo += 1;
-    const w = node.width ?? 800;
-    shapes.push({
-      id,
-      type: 'frame',
-      x: pageX,
-      y: 0,
-      props: { w, h: node.height ?? 600, name: `Page ${pageNo}` },
-    });
-    pageX += w + PAGE_GAP;
+    pageOffsets.set(node.id, pageX);
+    pageX += (node.width ?? 800) + PAGE_GAP;
   }
 
   for (const node of nodes) {
@@ -335,8 +312,8 @@ export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerC
     else if (node.type === 'BrushNode') shape = convertBrushNode(node, m);
     else skipped.push(node.type);
     if (!shape) continue;
-    const parentId = node.parent != null ? frameIds.get(node.parent) : undefined;
-    if (parentId) shape.parentId = parentId;
+    const dx = node.parent != null ? (pageOffsets.get(node.parent) ?? 0) : 0;
+    if (dx) shape.x = (shape.x ?? 0) + dx;
     shapes.push(shape);
   }
 

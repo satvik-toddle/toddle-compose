@@ -3,6 +3,7 @@ import { Tldraw, type Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
 import zwibblerDoc from './zwibbler-fixture.json';
 import { zwibblerToTldraw, type ZwibblerNode } from './zwibblerToTldraw';
+import { WHITEBOARD_THEMES } from './whiteboardTheme';
 
 // Dev-only harness (route /zwibbler-preview): renders a legacy Zwibbler workbook
 // on a local, non-synced tldraw canvas to validate the backward-compat converter.
@@ -25,7 +26,7 @@ export function ZwibblerPreviewPage() {
 
   return (
     <div className="fixed inset-0">
-      <Tldraw onMount={onMount} />
+      <Tldraw themes={WHITEBOARD_THEMES} onMount={onMount} />
     </div>
   );
 }

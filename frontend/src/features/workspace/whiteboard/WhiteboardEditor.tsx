@@ -5,6 +5,7 @@ import { useAuthStore } from '../../../stores/authStore';
 import { useThemeStore } from '../../../stores/themeStore';
 import { PageLoader } from '../../../components/Loader';
 import { useYjsTldrawStore } from './useYjsTldrawStore';
+import { WHITEBOARD_THEMES } from './whiteboardTheme';
 
 // tldraw's navigation panel starts with the minimap collapsed (localStorage
 // key "minimap", true = collapsed). Seed it once so the minimap is open by
@@ -41,6 +42,7 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
         <Tldraw
           store={storeWithStatus}
           colorScheme={preference}
+          themes={WHITEBOARD_THEMES}
           onMount={onMount}
           // No license key for the trial — tldraw shows its watermark. A business
           // license is required for production (docs/whiteboard-integration.md).

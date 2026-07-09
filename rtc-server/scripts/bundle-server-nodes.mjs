@@ -29,7 +29,7 @@ await build({
   target: "node20",
   outfile: OUT,
   logLevel: "info",
-  loader: { ".js": "jsx", ".svg": "dataurl", ".png": "dataurl", ".css": "empty" },
+  loader: { ".js": "jsx", ".svg": "dataurl", ".png": "dataurl", ".css": "empty", ".scss": "empty" },
   jsx: "automatic",
   external: [
     "yjs",

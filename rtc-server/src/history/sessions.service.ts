@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
+import { Env } from "../config/env";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { SheetSnapshot, extractSheet } from "./versions.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
 const log = createLogger("sessions");
-const DEFAULT_GAP_MS = 30_000;
 
 export type ChangedCell = { rowId: string; colId: string };
 
@@ -70,14 +71,20 @@ export type SessionList = {
 export class SessionsService {
   constructor(
     private readonly repo: DocRepository,
-    private readonly extract: LexicalExtractService
+    private readonly extract: LexicalExtractService,
+    private readonly config: ConfigService<Env, true>
   ) {}
+
+  private env<K extends keyof Env>(k: K): Env[K] {
+    return this.config.get(k, { infer: true });
+  }
 
   async buildSessions(
     docId: string,
     opts: { clientSub?: string | null; gapMs?: number; includeNoop?: boolean } = {}
   ): Promise<SessionList> {
-    const gapMs = opts.gapMs ?? DEFAULT_GAP_MS;
+    // Env-tunable (RTC_SESSION_GAP_MS) so local/E2E runs can use a short gap instead of waiting out 30s.
+    const gapMs = opts.gapMs ?? this.env("RTC_SESSION_GAP_MS");
     const clientSub = opts.clientSub ?? null;
     const includeNoop = opts.includeNoop ?? false;
     const head = await this.repo.getHeadSeq(docId);
@@ -135,7 +142,8 @@ export class SessionsService {
       const after = atBoundary.get(g.lastSeq);
       const beforeText = before?.text ?? "";
       const afterText = after?.text ?? "";
-      const noop = beforeText === afterText;
+      // Compare full structure, not plainText: media/embed/formatting-only edits add no text and would otherwise be dropped as no-ops.
+      const noop = (before?.content ?? "") === (after?.content ?? "");
       const changedCells = diffSheetCells(
         before?.sheet ?? null,
         after?.sheet ?? null
@@ -161,28 +169,32 @@ export class SessionsService {
     };
   }
 
-  // Single-pass equivalent of previewAtSeq per boundary; for SHEET docs `text` is the grid's canonical serialization (so cell changes aren't seen as no-ops).
+  // Single-pass equivalent of previewAtSeq per boundary. `text` is the human-readable content (plainText for DOC, grid serialization for SHEET); `content` is the no-op fingerprint (full lexicalJson for DOC so non-text edits register, grid serialization for SHEET).
   private async replayBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
-  ): Promise<Map<number, { text: string; sheet: SheetSnapshot | null }>> {
-    type Snap = { text: string; sheet: SheetSnapshot | null };
+  ): Promise<
+    Map<number, { text: string; content: string; sheet: SheetSnapshot | null }>
+  > {
+    type Snap = { text: string; content: string; sheet: SheetSnapshot | null };
     const at = new Map<number, Snap>();
     if (boundaries.length === 0) return at;
     const ydoc = new Y.Doc();
-    let last: Snap = { text: "", sheet: null };
+    let last: Snap = { text: "", content: "", sheet: null };
     let dirty = true;
     const capture = async (): Promise<Snap> => {
       if (dirty) {
         // Read the grid off the live doc before worker extraction (see previewAtSeq).
         const sheet = extractSheet(ydoc);
-        const { plainText } = await this.extract.extractFromBytes(
+        const { plainText, lexicalJson } = await this.extract.extractFromBytes(
           Y.encodeStateAsUpdate(ydoc)
         );
         const text = sheet
           ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
           : plainText;
-        last = { text, sheet };
+        // SHEET: grid serialization already captures cell changes. DOC: lexicalJson captures media/embeds/formatting that plainText misses.
+        const content = sheet ? text : (lexicalJson ?? plainText);
+        last = { text, content, sheet };
         dirty = false;
       }
       return last;

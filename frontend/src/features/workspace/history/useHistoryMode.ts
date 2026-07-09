@@ -18,10 +18,14 @@ export function useHistoryMode() {
   const parsedSeq = seqParam != null && seqParam !== '' ? Number(seqParam) : NaN;
   const selectedSeq = Number.isFinite(parsedSeq) ? parsedSeq : null;
 
+  // `?diff=true` renders the selected version against the previous one (only meaningful inside history mode); kept in the URL so a comparison is shareable.
+  const diff = active && params.get('diff') === 'true';
+
   const enter = useCallback(() => {
     setParams((prev) => {
       prev.set('history', 'true');
       prev.delete('v');
+      prev.delete('diff');
       return prev;
     });
   }, [setParams]);
@@ -30,9 +34,24 @@ export function useHistoryMode() {
     setParams((prev) => {
       prev.delete('history');
       prev.delete('v');
+      prev.delete('diff');
       return prev;
     });
   }, [setParams]);
+
+  const setDiff = useCallback(
+    (on: boolean) => {
+      setParams(
+        (prev) => {
+          if (on) prev.set('diff', 'true');
+          else prev.delete('diff');
+          return prev;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
 
   const select = useCallback(
     (seq: number) => {
@@ -49,5 +68,5 @@ export function useHistoryMode() {
     [setParams],
   );
 
-  return { active, docId, openDoc, selectedSeq, enter, exit, select };
+  return { active, docId, openDoc, selectedSeq, diff, enter, exit, select, setDiff };
 }

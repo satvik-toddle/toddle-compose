@@ -42,4 +42,9 @@ declare module '@toddle-edu/ds-doc-editor' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export const WebsocketProvider: any;
   export function isClean(html: string): boolean;
+
+  // Headless: convert a full Yjs document-state update (Y.encodeStateAsUpdate bytes)
+  // into a serialized Lexical editorState via the editor's own bundled lexical.
+  // Returns the editorState JSON object, or null on failure. Used by the version-diff render.
+  export function bytesToEditorStateJSON(bytes: Uint8Array): unknown | null;
 }

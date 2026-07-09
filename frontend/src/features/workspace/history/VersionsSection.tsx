@@ -1,5 +1,5 @@
 import { CloseOutlined } from '@toddle-edu/ds-icons';
-import { IconButton } from '@toddle-edu/ds-web';
+import { IconButton, ToggleSwitch } from '@toddle-edu/ds-web';
 import { relativeTime } from '../../../lib/time';
 import { cn } from '../../../lib/cn';
 import { Avatar } from '../../../components/Avatar';
@@ -13,6 +13,9 @@ const styles = {
   head: 'flex items-center justify-between px-2.25 pb-2 pt-1',
   heading: 'text-label-xs uppercase text-secondary',
   message: 'px-2.25 py-4 text-body-s text-secondary',
+  // Row for the "Show changes" toggle, aligned with the version rows.
+  toggleRow: 'flex items-center justify-between px-2.25 pb-2',
+  toggleLabel: 'text-body-s text-primary',
   list: 'flex flex-col gap-0.25',
   // Two-line row, so its own layout, but shares the sidebar's hover/selected/focus tokens.
   row: `flex w-full items-start gap-2.5 rounded-2 px-2.25 py-2 text-left ${sidebarRowState.focus}`,
@@ -56,7 +59,7 @@ function VersionRow({
 // Left-panel content when a doc is in history mode: the edit-session timeline,
 // newest first. Selecting a row previews that version in the content pane.
 export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
-  const { select, exit } = useHistoryMode();
+  const { select, exit, diff, setDiff } = useHistoryMode();
   const { sessions, isLoading, isError, effectiveSeq } = useVersionSelection(docId);
 
   return (
@@ -78,6 +81,18 @@ export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
       {isError && <div className={styles.message}>Couldn&apos;t load version history.</div>}
       {!isLoading && !isError && sessions.length === 0 && (
         <div className={styles.message}>No edits recorded yet.</div>
+      )}
+
+      {!isLoading && !isError && sessions.length > 0 && (
+        <div className={styles.toggleRow}>
+          <span className={styles.toggleLabel}>Show changes</span>
+          <ToggleSwitch
+            dsVersion="2.0"
+            checked={diff}
+            onChange={(e) => setDiff((e.target as HTMLInputElement).checked)}
+            aria-label="Compare this version with the previous one"
+          />
+        </div>
       )}
 
       <div className={styles.list}>

@@ -23,7 +23,9 @@ function RoleNote({ roleLabel }: { roleLabel: string }) {
   return (
     <div className={s.lcNote}>
       <Icon name="InformationOutlined" size={14} muted />
-      As a realm {roleLabel.toLowerCase()}, you can enter <b>any</b> workspace and act as its Admin.
+      <span>
+        As a realm {roleLabel.toLowerCase()}, you can enter <b>any</b> workspace and act as its Admin.
+      </span>
     </div>
   );
 }

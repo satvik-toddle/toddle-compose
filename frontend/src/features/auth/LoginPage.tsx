@@ -148,7 +148,6 @@ export function LoginPage() {
           value={password}
           error={loginFailed ? ' ' : undefined}
           onChange={(e) => setPassword(e.target.value)}
-          onTrailingIconClick={(e) => e.preventDefault()}
         />
 
         <div className={styles.row}>
@@ -175,7 +174,13 @@ export function LoginPage() {
           )}
         </div>
 
-        <Button size="large" isFullWidth disabled={isLoggingIn}>
+        <Button
+          dsVersion="2.0"
+          htmlButtonType="submit"
+          size="large"
+          isFullWidth
+          disabled={isLoggingIn}
+        >
           {submitButtonLabel}
         </Button>
       </form>

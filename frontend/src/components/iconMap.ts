@@ -38,10 +38,13 @@ export const ICONS = {
   HelpOutlined: OutlinedIcons.HelpOutlined,
   HomeOutlined: OutlinedIcons.HomeOutlined,
   ShareOutlined: OutlinedIcons.ShareOutlined,
+  CopyOutlined: OutlinedIcons.CopyOutlined,
+  ReloadArrowOutlined: OutlinedIcons.ReloadArrowOutlined,
   FilterOutlined: OutlinedIcons.FilterOutlined,
   HamburgerOutlined: OutlinedIcons.HamburgerOutlined,
   GridOutlined: OutlinedIcons.GridOutlined,
   ImageSquareOutlined: OutlinedIcons.ImageSquareOutlined,
+  BulbOutlined: OutlinedIcons.BulbOutlined,
 } as unknown as Record<string, ComponentType<SystemIconProps>>;
 
 export type IconName = keyof typeof ICONS;

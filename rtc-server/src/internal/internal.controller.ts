@@ -17,6 +17,7 @@ import { DocStateService } from "../persistence/doc-state.service";
 import { VersionsService } from "../history/versions.service";
 import { SessionsService } from "../history/sessions.service";
 import { CompactionService } from "../compaction/compaction.service";
+import { DocKickService } from "../yjs/doc-kick.service";
 
 // Parse an optional integer query param; 400 (not a Prisma 500) on garbage like ?to=abc.
 function qInt(name: string, raw: string | undefined, fallback: number): number {
@@ -44,7 +45,8 @@ export class InternalController {
     private readonly docState: DocStateService,
     private readonly versions: VersionsService,
     private readonly sessions: SessionsService,
-    private readonly compaction: CompactionService
+    private readonly compaction: CompactionService,
+    private readonly docKick: DocKickService
   ) {}
 
   @Post("init")
@@ -120,6 +122,14 @@ export class InternalController {
     // Atomically delete the doc and its update rows; idempotent.
     await this.repo.deleteDocCompletely(docId);
     return { ok: true, docId };
+  }
+
+  // Force-refresh access: close all live sockets on the doc and invalidate already-minted tokens.
+  // kickedAt (optional, epoch seconds from the backend clock) becomes the revocation watermark.
+  @Post(":docId/kick")
+  kick(@Param("docId") docId: string, @Body() body?: { kickedAt?: number }) {
+    const closed = this.docKick.kickDoc(docId, body?.kickedAt);
+    return { ok: true, docId, closed };
   }
 
   @Post(":docId/compact-demo")

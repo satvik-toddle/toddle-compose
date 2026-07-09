@@ -29,6 +29,7 @@ export function TextInput({
   const dsType = type === 'password' ? 'password' : 'text';
   return (
     <DsTextInput
+      dsVersion="2.0"
       leadingIcon={icon ? <Icon name={icon} size={14} muted /> : undefined}
       trailingIcon={(trailing as ReactElement) ?? undefined}
       onTrailingIconClick={onTrailingClick ? () => onTrailingClick() : undefined}

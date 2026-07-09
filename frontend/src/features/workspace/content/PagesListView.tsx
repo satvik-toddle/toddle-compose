@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { Avatar, Table } from '@toddle-edu/ds-web';
-import { GlobeOutlined, LockOutlined } from '@toddle-edu/ds-icons';
 import { pageTypeIcon } from '../pageTypes';
 import { dsAvatarColor } from '../../../lib/dsAvatar';
 import { firstName, relativeTime } from '../../../lib/time';
@@ -16,14 +15,20 @@ const styles = {
   emptyWrap: 'flex-1 min-h-0 flex items-center justify-center', // Fills the space under the header and centers the empty illustration.
 };
 
-const TABLE_HEADERS = [
+const TABLE_HEADERS: TableHeader[] = [
   { key: 'name', value: 'Name' },
   { key: 'owner', value: 'Owner' },
   { key: 'edited', value: 'Edited' },
-  { key: 'sharing', value: 'Sharing' },
 ];
 
-function toRow(doc: DocumentDto) {
+export type TableHeader = { key: string; value: string };
+// Cell values mirror ds-web Table's CellData (no null/boolean ReactNode members).
+export type PageRow = {
+  id: string;
+  rowData: { key: string; value: string | number | ReactElement | undefined; prefix?: ReactElement }[];
+};
+
+function defaultToRow(doc: DocumentDto): PageRow {
   const PageIcon = pageTypeIcon(doc.type);
   return {
     id: doc.id,
@@ -47,37 +52,32 @@ function toRow(doc: DocumentDto) {
         ),
       },
       { key: 'edited', value: <span className="tabular-nums">{relativeTime(doc.updatedAt)}</span> },
-      {
-        key: 'sharing',
-        value: doc.visibility === 'PUBLIC' ? 'Public' : 'Private',
-        prefix:
-          doc.visibility === 'PUBLIC' ? (
-            <GlobeOutlined size="xxx-small" variant="subtle" />
-          ) : (
-            <LockOutlined size="xxx-small" variant="subtle" />
-          ),
-      },
     ],
   };
 }
 
-type PagesListViewProps = {
+type PagesListViewProps<T extends DocumentDto> = {
   title: string;
   icon: ReactNode;
-  docs: DocumentDto[];
+  docs: T[];
   onOpenDoc: (id: string | number) => void;
   emptyState: ReactNode;
+  // Optional column overrides (e.g. Shared with me); defaults to Name/Owner/Edited/Sharing.
+  headers?: TableHeader[];
+  toRow?: (doc: T) => PageRow;
 };
 
-// Shared shell for the workspace page lists (All pages, Starred): a titled header
-// over a bounded, fixed-header table — or the caller's empty state when there are none.
-export function PagesListView({
+// Shared shell for the workspace page lists (All pages, Starred, Shared with me): a titled
+// header over a bounded, fixed-header table — or the caller's empty state when there are none.
+export function PagesListView<T extends DocumentDto>({
   title,
   icon,
   docs,
   onOpenDoc,
   emptyState,
-}: Readonly<PagesListViewProps>) {
+  headers = TABLE_HEADERS,
+  toRow = defaultToRow,
+}: Readonly<PagesListViewProps<T>>) {
   return (
     <main className={styles.contentShell}>
       <div className={styles.body}>
@@ -92,7 +92,7 @@ export function PagesListView({
           <div className={styles.tableWrap}>
             <Table
               dsVersion="2.0"
-              headers={TABLE_HEADERS}
+              headers={headers}
               data={docs.map(toRow)}
               onRowClick={onOpenDoc}
               isHeaderFixed

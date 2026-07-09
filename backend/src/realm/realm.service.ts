@@ -74,6 +74,37 @@ export class RealmService {
     });
   }
 
+  // User-directory search for pickers: case-insensitive substring on name OR email.
+  // Searches the User table (single-realm app) so registered users who haven't joined a
+  // workspace yet are still findable in the Share/Add-member pickers. Open to ANY realm
+  // member (workspace admins who aren't realm admins need it); omitted/blank queries
+  // return the first `take` users alphabetically.
+  async searchUsers(userId: string, q: string | undefined, take = 20) {
+    await this.authz.requireRealmRole(userId, "MEMBER");
+    return this.searchDirectory(q, take);
+  }
+
+  // Raw user-directory query with NO authz — callers MUST gate first (realm-member for
+  // the realm picker, doc-manage for the doc picker). Same shape as the realm search:
+  // case-insensitive name/email substring, deterministic order, capped at 20 rows.
+  async searchDirectory(q: string | undefined, take = 20) {
+    const query = q?.trim() ?? "";
+    return this.prisma.user.findMany({
+      where: query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { email: { contains: query, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      select: USER_SELECT,
+      // Tiebreak by id so the order is deterministic when names collide.
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: Math.min(take, 20),
+    });
+  }
+
   // Owner manages maintainers; maintainers manage members. OWNER never assignable.
   async addUser(actorId: string, email: string, role: RealmRole) {
     await this.requireAuthorityOver(actorId, role);

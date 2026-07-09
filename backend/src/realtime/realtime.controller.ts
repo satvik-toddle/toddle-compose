@@ -13,8 +13,11 @@ export class RealtimeController {
   @Sse("workspaces/:workspaceId/stream")
   stream(
     @Param("workspaceId") workspaceId: string,
-    @Req() req: { tokenExp?: number }
+    @Req() req: { tokenExp?: number; guestDocIds?: string[] | null }
   ): Observable<MessageEvent> {
-    return this.events.subscribe(workspaceId, req.tokenExp);
+    return this.events.subscribe(workspaceId, {
+      tokenExpSec: req.tokenExp,
+      guestDocIds: req.guestDocIds ?? null,
+    });
   }
 }

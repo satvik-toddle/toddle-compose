@@ -47,8 +47,8 @@ export function ForgotPasswordPage() {
       >
         <h1 className={styles.heading}>Password reset unavailable</h1>
         <p className={styles.subheading}>
-          This server doesn't have email set up, so passwords can't be reset by
-          email. Contact your administrator for help signing in.
+          This server doesn't have email set up, so passwords can't be reset by email. Contact your
+          administrator for help signing in.
         </p>
       </AuthShell>
     );
@@ -113,7 +113,13 @@ export function ForgotPasswordPage() {
           autoFocus
         />
 
-        <Button size="large" isFullWidth disabled={forgot.isPending}>
+        <Button
+          dsVersion="2.0"
+          htmlButtonType="submit"
+          size="large"
+          isFullWidth
+          disabled={forgot.isPending}
+        >
           {submitButtonLabel}
         </Button>
       </form>

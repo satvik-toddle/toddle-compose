@@ -2,8 +2,8 @@ import { RequestsTable } from '../../components/RequestsTable';
 import { useRealmJoinRequests } from '../../hooks/queries';
 
 const styles = {
-  page: 'flex-1 overflow-auto px-[30px] pt-[26px] pb-10',
-  pageWrap: 'mx-auto max-w-[1040px]',
+  page: 'flex flex-1 flex-col overflow-auto px-[30px] pt-[26px] pb-10',
+  pageWrap: 'mx-auto flex w-full max-w-[1040px] flex-1 flex-col',
   pageHead: 'mb-5 flex items-end justify-between gap-[18px]',
   h1: 'm-0 text-[25px] font-extrabold tracking-[-0.01em]',
   headSub: 'mt-1 text-[13px] text-secondary',
@@ -27,7 +27,6 @@ export function JoinRequestsTab() {
           requests={requests ?? []}
           isLoading={isLoading}
           showWorkspace
-          emptyText="When someone asks to join a private workspace, it'll show up here."
         />
       </div>
     </div>

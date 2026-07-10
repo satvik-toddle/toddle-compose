@@ -84,6 +84,15 @@ Authorization: Bearer {{ownerToken}}
 GET {{baseUrl}}/realm/users?skip=0&take=50
 Authorization: Bearer {{ownerToken}}
 
+### Search all registered users by name/email substring (any realm MEMBER; powers member pickers).
+### Case-insensitive, name asc, top 20 → [{ id, email, name, color }]. Finds users who haven't joined a workspace yet.
+GET {{baseUrl}}/realm/users/search?q=ali&take=20
+Authorization: Bearer {{ownerToken}}
+
+### Empty q → the first `take` users (the dropdown's initial list)
+GET {{baseUrl}}/realm/users/search
+Authorization: Bearer {{ownerToken}}
+
 ### Add a realm user (role: MAINTAINER | MEMBER) → capture their userId
 # @name addRealmUser
 POST {{baseUrl}}/realm/users
@@ -109,7 +118,8 @@ Authorization: Bearer {{ownerToken}}
 # 3. WORKSPACES  (/api/workspaces)
 # =============================================================================
 
-### List workspaces I can see (realm admins → all; others → their memberships).
+### List workspaces I can see (realm admins → all; others → memberships only; per-page doc
+### grants do NOT add the workspace here — grantees use /documents/shared-with-me).
 ### Captures the first one's id into {{workspaceId}}.
 # @name listWorkspaces
 GET {{baseUrl}}/workspaces
@@ -324,7 +334,6 @@ Content-Type: application/json
 
 > {%
   client.global.set("docId", response.body.id);
-  client.test("doc private by default", () => client.assert(response.body.visibility === "PRIVATE"));
   client.test("defaults to type DOC", () => client.assert(response.body.type === "DOC"));
 %}
 
@@ -439,12 +448,100 @@ Authorization: Bearer {{wsToken}}
 GET {{baseUrl}}/documents/{{sheetDocId}}/history/0
 Authorization: Bearer {{wsToken}}
 
-### Toggle visibility PUBLIC (creator or ADMIN) — PUBLIC also exposes it to any realm member
-PATCH {{baseUrl}}/documents/{{docId}}/visibility
+### ---- per-page permission grants (doc 3-dots → Permissions) ----
+
+### Grant Bob EDIT on this doc by email → capture his userId (manager: owner/ws-ADMIN/doc-ADMIN).
+### Any role is grantable (READ|COMMENT|EDIT|ADMIN) — grants only elevate: effective = max(ws role, grant);
+### READ/COMMENT grants mint viewer RTC tokens. Side effect: Bob gets a "shared with you" email (View doc button).
+# @name grantBob
+POST {{baseUrl}}/documents/{{docId}}/permissions
 Authorization: Bearer {{wsToken}}
 Content-Type: application/json
 
-{ "visibility": "PUBLIC" }
+{ "email": "bob@toddle.test", "role": "EDIT" }
+
+> {% client.global.set("bobGrantUserId", response.body.userId); %}
+
+### List this doc's grants (managers only) → [{ userId, documentId, role, createdAt, user }]
+GET {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+
+### Duplicate grant for the same user → 409
+POST {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "email": "bob@toddle.test", "role": "ADMIN" }
+
+### Grant to an unregistered email → 404 ("must register first")
+POST {{baseUrl}}/documents/{{docId}}/permissions
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "email": "nobody@nowhere.test", "role": "EDIT" }
+
+### Promote Bob to doc ADMIN (rename/move/delete/manage)
+PATCH {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "role": "ADMIN" }
+
+### Bob's workspace launcher does NOT include this workspace (per-page grants don't list it)
+GET {{baseUrl}}/workspaces
+Authorization: Bearer {{bobToken}}
+
+### Bob (non-member) enters as a GUEST via his grant → { role: "READ", guest: true }
+POST {{baseUrl}}/auth/workspace/enter
+Authorization: Bearer {{bobToken}}
+Content-Type: application/json
+
+{ "workspaceId": "{{workspaceId}}" }
+
+> {% client.global.set("bobGuestWsToken", response.body.accessToken); %}
+
+### Bob's doc list shows ONLY his granted docs (guest fallback); each carries `myRole`
+GET {{baseUrl}}/documents
+Authorization: Bearer {{bobGuestWsToken}}
+
+### Bob opens the granted doc — breadcrumbs collapse to the doc itself (no ancestor leak)
+GET {{baseUrl}}/documents/{{docId}}
+Authorization: Bearer {{bobGuestWsToken}}
+
+### Revoke Bob's grant (manager) — or Bob himself may DELETE with his own userId to "leave"
+DELETE {{baseUrl}}/documents/{{docId}}/permissions/{{bobGrantUserId}}
+Authorization: Bearer {{wsToken}}
+
+### Global "shared with me" across ALL workspaces (launcher) — rows carry workspace {id,name}
+GET {{baseUrl}}/documents/shared-with-me
+Authorization: Bearer {{bobToken}}
+
+### ---- share links (doc 3-dots → Share → "Anyone with the link") ----
+### Create/update the link (manager). scope REALM|ANYONE, role READ|COMMENT|EDIT.
+PUT {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
+Content-Type: application/json
+
+{ "role": "READ", "scope": "REALM" }
+
+### Read the current link
+GET {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
+
+### Rotate the token (old URL dies immediately)
+POST {{baseUrl}}/documents/{{docId}}/share-link/regenerate
+Authorization: Bearer {{wsToken}}
+
+### Public resolve — REALM scope needs a signed-in realm member (else 401); ANYONE works with no auth
+GET {{baseUrl}}/share-links/{{shareToken}}
+Authorization: Bearer {{bobToken}}
+
+### Public RTC token via the link → { token, docId, role, name, color } (random anonymous identity when logged-out on an ANYONE link)
+POST {{baseUrl}}/share-links/{{shareToken}}/rtc-token
+
+### Revoke the link (idempotent)
+DELETE {{baseUrl}}/documents/{{docId}}/share-link
+Authorization: Bearer {{wsToken}}
 
 ### Delete a document (creator or ADMIN) — run in cleanup
 # DELETE {{baseUrl}}/documents/{{docId}}

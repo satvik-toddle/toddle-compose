@@ -36,11 +36,29 @@ export class WorkspaceEventsService {
     this.publish(workspaceId, { type: "document.deleted", id });
   }
 
+  // Which doc a metadata event concerns; used to filter a grant-only guest's stream.
+  private eventDocId(event: WorkspaceEvent): string | undefined {
+    if (event.type === "document.deleted") return event.id;
+    return (event.document as { id?: string } | null)?.id;
+  }
+
   // `tokenExpSec` (the JWT `exp`, seconds) closes the stream at expiry so a stale token can't hold
-  // it open; the client reconnects with a refreshed token.
-  subscribe(workspaceId: string, tokenExpSec?: number): Observable<MessageEvent> {
+  // it open; the client reconnects with a refreshed token. `guestDocIds` (null for full members)
+  // restricts a grant-only guest to metadata for docs they were granted — a snapshot taken at
+  // connect time, so a grant added mid-stream surfaces on the next reconnect.
+  subscribe(
+    workspaceId: string,
+    opts: { tokenExpSec?: number; guestDocIds?: string[] | null } = {}
+  ): Observable<MessageEvent> {
+    const { tokenExpSec, guestDocIds } = opts;
+    const allow = guestDocIds ? new Set(guestDocIds) : null;
     const events$ = this.stream$.pipe(
       filter((e) => e.workspaceId === workspaceId),
+      filter((e) => {
+        if (allow === null) return true;
+        const id = this.eventDocId(e.event);
+        return id !== undefined && allow.has(id);
+      }),
       map((e): MessageEvent => ({ data: e.event }))
     );
     // Keeps the connection (and any proxy in front of it) alive while idle.

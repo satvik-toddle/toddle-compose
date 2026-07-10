@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import s from './AdminConsolePage.module.scss';
 
 function Count({ n, alert }: { n?: number; alert?: boolean }) {
-  if (n == null) return null;
+  if (n == null || n === 0) return null;
   return (
     <span
       style={{
@@ -57,7 +57,6 @@ export function AdminConsolePage() {
           <Icon name="DashboardOutlined" size={18} muted />
           Admin console
         </div>
-        <div className={s.adCrumb}>{realm?.name ?? 'Toddle'} realm</div>
         <Button
           size="sm"
           variant="ghost"

@@ -37,6 +37,23 @@ export class UpdateRealmSettingsDto {
   allowedEmailDomains!: string[];
 }
 
+export class SearchRealmUsersDto {
+  // Substring matched case-insensitively against realm members' names and emails;
+  // omitted/blank → the first `take` members (initial dropdown list).
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+
+  // Result cap for the dropdown; defaults to 20 and can only be lowered.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  take?: number;
+}
+
 export class PaginationDto {
   @IsOptional()
   @Type(() => Number)

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Tldraw, type Editor } from 'tldraw';
+import { DefaultFontStyle, Tldraw, type Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
 import zwibblerDoc from './zwibbler-fixture.json';
 import { zwibblerToTldraw, type ZwibblerNode } from './zwibblerToTldraw';
@@ -9,6 +9,7 @@ import { WHITEBOARD_THEMES } from './whiteboardTheme';
 // on a local, non-synced tldraw canvas to validate the backward-compat converter.
 export function ZwibblerPreviewPage() {
   const onMount = useCallback((editor: Editor) => {
+    editor.setStyleForNextShapes(DefaultFontStyle, 'sans');
     let cancelled = false;
     void zwibblerToTldraw(zwibblerDoc as unknown as ZwibblerNode[]).then(
       ({ shapes, assets, skipped }) => {

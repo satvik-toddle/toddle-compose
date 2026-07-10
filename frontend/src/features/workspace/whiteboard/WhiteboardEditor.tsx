@@ -1,4 +1,4 @@
-import { Tldraw, type Editor } from 'tldraw';
+import { DefaultFontStyle, Tldraw, type Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { useRtcToken } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
@@ -34,6 +34,8 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
 
   const onMount = (editor: Editor) => {
     if (!canEdit) editor.updateInstanceState({ isReadonly: true });
+    // Default text/labels to the normal sans font, not tldraw's handwritten one.
+    editor.setStyleForNextShapes(DefaultFontStyle, 'sans');
   };
 
   return (

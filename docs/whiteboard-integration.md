@@ -114,6 +114,9 @@ Workspace fit:
 
 ## Comparison (E2E-verified where noted; rest pending)
 
+In-depth version — feature-by-feature ratings, Zwibbler backward compatibility, collaboration,
+pros/cons: `whiteboard-library-comparison.md`.
+
 | Criterion | Excalidraw | tldraw |
 | --- | --- | --- |
 | Checklist coverage / gaps | v1 verified 14/14 | v1 verified 14/14 |

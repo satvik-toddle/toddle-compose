@@ -28,6 +28,13 @@ const ZwibblerPreviewPage = lazy(() =>
   })),
 );
 
+// Dev-only whiteboard perf harness (docs/whiteboard-library-comparison.md §Performance).
+const WhiteboardBenchPage = lazy(() =>
+  import('./features/workspace/whiteboard/WhiteboardBenchPage').then((m) => ({
+    default: m.WhiteboardBenchPage,
+  })),
+);
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -65,14 +72,24 @@ export function AppRoutes() {
       </Route>
 
       {import.meta.env.DEV && (
-        <Route
-          path="/zwibbler-preview"
-          element={
-            <Suspense fallback={null}>
-              <ZwibblerPreviewPage />
-            </Suspense>
-          }
-        />
+        <>
+          <Route
+            path="/zwibbler-preview"
+            element={
+              <Suspense fallback={null}>
+                <ZwibblerPreviewPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/whiteboard-bench"
+            element={
+              <Suspense fallback={null}>
+                <WhiteboardBenchPage />
+              </Suspense>
+            }
+          />
+        </>
       )}
 
       <Route path="/" element={<RootRedirect />} />

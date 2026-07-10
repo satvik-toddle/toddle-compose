@@ -25,12 +25,11 @@ export function WorkspaceBadge({
         width: size,
         height: size,
         borderRadius: size >= 40 ? 12 : 10,
-        background: v.color + '22',
-        boxShadow: `inset 0 0 0 1px ${v.color}44`,
+        background: `var(--tag-background-${v.hue}-default)`,
         ...style,
       }}
     >
-      <Icon name={v.icon} size={iconSize} style={{ color: v.color }} />
+      <Icon name={v.icon} size={iconSize} style={{ color: `var(--tag-foreground-${v.hue})` }} />
     </span>
   );
 }

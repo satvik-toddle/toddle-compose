@@ -5,7 +5,8 @@ import titleStyles from './PageTitle.module.scss';
 
 const styles = {
   field:
-    'block w-full m-0 p-0 border-0 outline-0 bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
+    // outline-none, not outline-0: outline-0 leaves WebKit's auto focus ring visible.
+    'block w-full m-0 p-0 border-0 outline-none bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
   heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
   named: 'text-primary',
   // grey colour for an unnamed page (flips with the theme, unlike a raw neutral)

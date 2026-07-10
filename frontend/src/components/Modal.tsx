@@ -7,7 +7,7 @@ export type ModalTone = 'neutral' | 'brand' | 'danger';
 
 const TONE_BG: Record<ModalTone, string> = {
   neutral: 'var(--surface-secondary-enabled)',
-  brand: 'var(--red-950)',
+  brand: 'var(--surface-decorative-subtle-red)',
   danger: 'var(--surface-semantic-error)',
 };
 const TONE_ICON: Record<ModalTone, string> = {
@@ -37,7 +37,7 @@ export function ModalHead({
         </span>
       )}
       <div style={{ flex: 1 }}>
-        <h3>{title}</h3>
+        <h3 className="text-primary">{title}</h3>
         {sub && <p>{sub}</p>}
       </div>
       <IconButton icon="CloseOutlined" iconSize={18} onClick={onClose} aria-label="Close" />
@@ -58,6 +58,7 @@ export function Modal({
 }) {
   return (
     <DsModal
+      dsVersion="2.0"
       isOpen
       onClose={onClose}
       width={wide ? '560px' : '440px'}

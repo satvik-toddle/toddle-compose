@@ -3,8 +3,7 @@ import {
   AddOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
-  PencilOutlined,
-  ShareOutlined,
+  LockOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
@@ -19,7 +18,7 @@ import {
 import { usePageActions } from './usePageActions';
 
 const SUB_PAGE_KEY = 'subpage';
-const RENAME_KEY = 'rename';
+const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 
 export function DocActions({
@@ -31,7 +30,7 @@ export function DocActions({
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
-  const canManage = !!doc && (isAdmin || doc.owner.id === user.id);
+  const canManage = !!doc && (isAdmin || doc.owner.id === user.id || doc.myRole === 'ADMIN');
 
   if (!doc) {
     return (
@@ -53,17 +52,19 @@ export function DocActions({
     );
   }
 
-  const openShareModal = () =>
+  const openPermissionsModal = () =>
     openModal({
-      type: 'shareDocument',
-      workspaceId,
+      type: 'docPermissions',
       docId: doc.id,
       docTitle: doc.title,
-      canManage,
-      isAdmin,
+      // DocumentDto.owner carries no email; supply the viewer's when they are the owner.
+      owner: {
+        id: doc.owner.id,
+        name: doc.owner.name,
+        color: doc.owner.color,
+        email: doc.owner.id === user.id ? user.email : undefined,
+      },
     });
-  const openRenameModal = () =>
-    openModal({ type: 'renamePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
 
@@ -84,12 +85,17 @@ export function DocActions({
     ...(canManage
       ? [
           {
-            key: RENAME_KEY,
-            label: 'Rename',
-            icon: <PencilOutlined size="xxx-small" variant="subtle" />,
-            onSelect: openRenameModal,
+            key: PERMISSIONS_KEY,
+            label: 'Share',
+            icon: <LockOutlined size="xxx-small" variant="subtle" />,
+            onSelect: openPermissionsModal,
           },
-          { key: `${DELETE_KEY}__divider`, isDivider: true },
+        ]
+      : []),
+    // Divider before Delete whenever a manage group (Permissions) sits above it.
+    ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
+    ...(canManage
+      ? [
           {
             key: DELETE_KEY,
             label: 'Delete',
@@ -103,15 +109,6 @@ export function DocActions({
 
   return (
     <>
-      <Button
-        dsVersion="2.0"
-        variant="neutral"
-        type="outlined"
-        icon={<ShareOutlined />}
-        onClick={openShareModal}
-      >
-        Share
-      </Button>
       {(canCreate || canManage) && (
         <Dropdown
           trigger={['click']}

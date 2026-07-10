@@ -1,5 +1,10 @@
 declare module '@toddle-edu/ds-data-grid' {
-  import type { ForwardRefExoticComponent, RefAttributes } from 'react';
+  import type {
+    CSSProperties,
+    ForwardRefExoticComponent,
+    ReactElement,
+    RefAttributes,
+  } from 'react';
 
   // The cell renderers ds-data-grid ships (see Storybook "Data Grid > Cells").
   export type DataGridCellType =
@@ -32,10 +37,44 @@ declare module '@toddle-edu/ds-data-grid' {
     [key: string]: unknown;
   }
 
+  // A cell's position in the grid, by index and by id. colId is absent only for
+  // cells outside the header-mapped area (e.g. row markers).
+  export interface DataGridCellCoords {
+    row: number;
+    col: number;
+    rowId: string;
+    colId?: string | number;
+  }
+
+  // Options are forwarded verbatim to the ds-web DropdownMenu, so its option shape
+  // applies: icon renders before the label, suffix at the far right of the row.
+  export interface DataGridContextMenuOption {
+    key: string;
+    label?: string;
+    icon?: ReactElement;
+    suffix?: ReactElement;
+    isDivider?: boolean;
+    isDestructive?: boolean;
+  }
+
+  // Right-click menu attached per cell — see Storybook "Data Grid > Docs".
+  // onClick also receives the coordinates of the cell the menu was opened on.
+  export interface DataGridContextMenu {
+    options: DataGridContextMenuOption[];
+    onClick: (option: DataGridContextMenuOption, cell: DataGridCellCoords) => void;
+    closeOnSelect?: boolean;
+    hasMultilineOptions?: boolean;
+    allowOverflow?: boolean;
+    // Replaces the grid's default overlay styles wholesale — restate position and
+    // zIndex when overriding (defaults: position "relative", zIndex 1000).
+    containerStyles?: CSSProperties;
+  }
+
   export interface DataGridCell {
     cellType: DataGridCellType;
     value: unknown;
     isEditable?: boolean;
+    contextMenu?: DataGridContextMenu;
     [key: string]: unknown;
   }
 
@@ -47,7 +86,7 @@ declare module '@toddle-edu/ds-data-grid' {
 
   // One entry in the array passed to onCellEdit.
   export interface DataGridCellEdit {
-    cellCoods: { row: number; col: number; rowId: string; colId?: string | number };
+    cellCoods: DataGridCellCoords;
     newValue: DataGridCell & { value: unknown };
     changeType?: 'paste' | 'undo' | 'redo';
   }
@@ -97,7 +136,5 @@ declare module '@toddle-edu/ds-data-grid' {
     [key: string]: unknown;
   }
 
-  export const DataGrid: ForwardRefExoticComponent<
-    DataGridProps & RefAttributes<DataGridRef>
-  >;
+  export const DataGrid: ForwardRefExoticComponent<DataGridProps & RefAttributes<DataGridRef>>;
 }

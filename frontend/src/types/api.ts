@@ -63,6 +63,7 @@ export interface EnterWorkspaceResponse {
   expiresIn: number;
   workspaceId: string;
   role: WorkspaceRole;
+  guest?: boolean; // true when the caller has no workspace membership and entered via a per-page grant
 }
 
 // POST /auth/workspace/leave — re-mints an unscoped access token.
@@ -95,6 +96,7 @@ export interface Workspace {
   defaultRole: WorkspaceRole;
   createdAt: string;
   role: WorkspaceRole; // caller's effective role in this workspace
+  guest?: boolean; // true when the caller has no membership and sees the workspace shell via a per-page grant
 }
 
 // GET /workspaces/discoverable — metadata only, no role.
@@ -111,6 +113,7 @@ export interface WorkspaceMember {
   role: WorkspaceRole;
   createdAt: string;
   user: PublicUser;
+  realmRole?: RealmRole | null; // the member's realm role, so the UI can gate admin-only controls
 }
 
 export interface JoinRequest {
@@ -128,12 +131,29 @@ export interface JoinRequest {
 
 export type DocumentType = 'DOC' | 'SHEET';
 
+export type ShareLinkScope = 'REALM' | 'ANYONE';
+
+// A document's public/realm share link (manage endpoints; managers only).
+export interface DocumentShareLink {
+  token: string;
+  role: WorkspaceRole; // READ | COMMENT | EDIT
+  scope: ShareLinkScope;
+  createdAt: string;
+  url: string; // ready-to-copy frontend URL (/link/:token)
+}
+
+// GET /share-links/:token — public resolve of a link to its document.
+export interface ShareLinkResolve {
+  document: { id: string; title: string; icon: string; type: DocumentType; workspaceId: string };
+  role: WorkspaceRole;
+  scope: ShareLinkScope;
+}
+
 export interface DocumentDto {
   id: string;
   type: DocumentType;
   title: string;
   icon: string;
-  visibility: Visibility;
   workspaceId: string;
   folderId: string | null;
   parentId: string | null;
@@ -141,6 +161,18 @@ export interface DocumentDto {
   updatedAt: string;
   owner: { id: string; name: string; color: string };
   isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
+  myRole?: WorkspaceRole | null; // caller's effective role on this doc = owner ? ADMIN : max(ws role, per-doc grant); null for public-only viewers
+  sharedAt?: string; // when the caller's per-page grant was created (only on the shared-with-me list)
+  workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
+}
+
+// GET /documents/:id/permissions row — EDIT/ADMIN granted on one document, independent of workspace membership.
+export interface DocumentPermission {
+  userId: string;
+  documentId: string;
+  role: WorkspaceRole;
+  createdAt: string;
+  user: PublicUser;
 }
 
 export interface FolderDto {

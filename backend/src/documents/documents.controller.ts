@@ -6,22 +6,26 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { Visibility } from "@app/database";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../auth/current-user.decorator";
-import { PaginationDto } from "../realm/dto";
+import { PaginationDto, SearchRealmUsersDto } from "../realm/dto";
 import { DocumentsService } from "./documents.service";
+import { DocumentPermissionsService } from "./document-permissions.service";
+import { DocumentShareLinksService } from "./document-share-links.service";
 import { RtcTokenService } from "../rtc/rtc-token.service";
 import {
+  AddDocumentPermissionDto,
   CreateDocumentDto,
   ListDocumentsDto,
   ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
-  SetVisibilityDto,
+  UpdateDocumentPermissionDto,
+  UpsertShareLinkDto,
 } from "./dto";
 
 @UseGuards(JwtAuthGuard)
@@ -29,6 +33,8 @@ import {
 export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
+    private readonly permissions: DocumentPermissionsService,
+    private readonly shareLinks: DocumentShareLinksService,
     private readonly rtcTokens: RtcTokenService
   ) {}
 
@@ -69,6 +75,13 @@ export class DocumentsController {
       page.skip,
       page.take
     );
+  }
+
+  // Global "Shared with me" across all workspaces (launcher side panel).
+  // Declared before `:id` so "shared-with-me" isn't matched as a document id.
+  @Get("shared-with-me")
+  listAllShared(@CurrentUser() user: AuthUser, @Query() page: PaginationDto) {
+    return this.documents.listAllSharedWithMe(user, page.skip, page.take);
   }
 
   @Get(":id")
@@ -137,15 +150,6 @@ export class DocumentsController {
     });
   }
 
-  @Patch(":id/visibility")
-  setVisibility(
-    @CurrentUser() user: AuthUser,
-    @Param("id") id: string,
-    @Body() dto: SetVisibilityDto
-  ) {
-    return this.documents.setVisibility(user.id, id, dto.visibility as Visibility);
-  }
-
   @Delete(":id")
   remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.remove(user.id, id);
@@ -161,6 +165,89 @@ export class DocumentsController {
   unstar(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.unstar(user.id, id);
   }
+
+  // --- Per-page permission grants (manage from the doc's 3-dots → Permissions) ---
+
+  // Doc-scoped user search for the Share picker; requires manage rights (not realm membership),
+  // so a doc-ADMIN grantee who never joined a workspace can still find people to grant.
+  @Get(":id/grantable-users")
+  searchGrantable(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query() q: SearchRealmUsersDto
+  ) {
+    return this.permissions.searchGrantable(user.id, id, q.q, q.take);
+  }
+
+  // Explicit grants on this doc; requires manage rights (owner / workspace ADMIN / doc-ADMIN grantee).
+  @Get(":id/permissions")
+  listPermissions(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.permissions.list(user.id, id);
+  }
+
+  // Grant a registered user any role on this doc (elevate-only); 404 unregistered email, 409 owner/duplicate.
+  @Post(":id/permissions")
+  addPermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() dto: AddDocumentPermissionDto
+  ) {
+    return this.permissions.add(user, id, dto.email, dto.role);
+  }
+
+  // Change a grant's role; 404 if there's no grant for that user.
+  @Patch(":id/permissions/:userId")
+  updatePermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("userId") userId: string,
+    @Body() dto: UpdateDocumentPermissionDto
+  ) {
+    return this.permissions.update(user.id, id, userId, dto.role);
+  }
+
+  // Revoke a grant; allowed for managers or the grantee themselves (leave the page).
+  @Delete(":id/permissions/:userId")
+  removePermission(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Param("userId") userId: string
+  ) {
+    return this.permissions.remove(user.id, id, userId);
+  }
+
+  // ------------------------------------------------------------ share link (manage)
+
+  @Get(":id/share-link")
+  getShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.get(user.id, id);
+  }
+
+  @Put(":id/share-link")
+  upsertShareLink(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Body() dto: UpsertShareLinkDto
+  ) {
+    return this.shareLinks.upsert(user.id, id, dto.role, dto.scope);
+  }
+
+  @Post(":id/share-link/regenerate")
+  regenerateShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.regenerate(user.id, id);
+  }
+
+  @Delete(":id/share-link")
+  removeShareLink(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.remove(user.id, id);
+  }
+
+  // Force everyone currently in the doc to re-check access now (kick live RTC + invalidate tokens).
+  @Post(":id/refresh-access")
+  refreshAccess(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.shareLinks.refreshAccess(user.id, id);
+  }
+
 }
 
 // parentId query → filter: omitted=undefined (no filter), ""/"null"=null (top-level), id=that doc's subdocs.

@@ -4,7 +4,6 @@ import { documentsApi } from '../api/documents';
 import { foldersApi } from '../api/folders';
 import { messageOf } from '../lib/errors';
 import { pushToast } from '../stores/uiStore';
-import type { Visibility } from '../types/roles';
 import type { DocumentType } from '../types/api';
 
 // ---- queries ----
@@ -104,16 +103,6 @@ export function useRenameDocument() {
   });
 }
 
-export function useRenameFolder() {
-  const { folders } = useInvalidatePages();
-  return useMutation({
-    mutationFn: (v: { workspaceId: string; id: string; name: string }) =>
-      foldersApi.rename(v.id, { name: v.name }),
-    onSuccess: (_d, v) => folders(v.workspaceId),
-    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
-  });
-}
-
 export function useDeleteDocument() {
   const { docs } = useInvalidatePages();
   return useMutation({
@@ -131,16 +120,6 @@ export function useDeleteFolder() {
       folders(v.workspaceId);
       docs(v.workspaceId); // a deleted folder's docs detach
     },
-    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
-  });
-}
-
-export function useSetDocumentVisibility() {
-  const { docs } = useInvalidatePages();
-  return useMutation({
-    mutationFn: (v: { workspaceId: string; id: string; visibility: Visibility }) =>
-      documentsApi.setVisibility(v.id, v.visibility),
-    onSuccess: (_d, v) => docs(v.workspaceId),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }

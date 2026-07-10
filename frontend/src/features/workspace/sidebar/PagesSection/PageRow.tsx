@@ -2,13 +2,14 @@ import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
-import { useToggleStar } from '../../../../hooks/usePages';
+import { useRenameDocument, useToggleStar } from '../../../../hooks/usePages';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
 import { pageTypeIcon } from '../../pageTypes';
 import type { TreeDoc } from '../../pagesModel';
 import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './pageMenuItems';
+import { RenameInput } from './RenameInput';
 import type { PagesSectionController } from './usePagesSection';
 
 const BASE_INDENT = 8;
@@ -22,18 +23,27 @@ export function PageRow({
   const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
+  const renameDoc = useRenameDocument();
   const { doc, children } = node;
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
+  // Close the menu explicitly: entering rename unmounts the Dropdown, which
+  // would otherwise remount later with a stale visible=true.
+  const handleRename = () => {
+    setIsMenuOpen(false);
+    setIsRenaming(true);
+  };
+
   const menuItems = buildPageMenuItems({
     canCreate,
-    canManage: canManage(doc.owner.id),
+    canManage: canManage(doc.owner.id, doc.myRole),
     isStarred,
     onAddSubpage: (type) => createPage(doc.id, type),
     onAddPage: (type) => createPage(doc.parentId ?? undefined, type),
@@ -43,14 +53,7 @@ export function PageRow({
       pushToast({ kind: 'success', message: 'Link copied' });
     },
     onOpenInNewTab: () => window.open(docUrl, '_blank', 'noopener,noreferrer'),
-    onRename: () =>
-      openModal({
-        type: 'renamePage',
-        kind: 'doc',
-        workspaceId: pages.ws,
-        id: doc.id,
-        name: doc.title,
-      }),
+    onRename: handleRename,
     onDelete: () =>
       openModal({
         type: 'confirmDeletePage',
@@ -88,17 +91,44 @@ export function PageRow({
     selectPage(doc.id);
   };
 
+  const handleRowDoubleClick = () => {
+    if (canManage(doc.owner.id, doc.myRole)) setIsRenaming(true);
+  };
+
+  const commitRename = (value: string) => {
+    setIsRenaming(false);
+    const title = value.trim();
+    if (!title || title === doc.title) return;
+    renameDoc.mutate({ workspaceId: pages.ws, id: doc.id, title });
+  };
+
+  const cancelRename = () => setIsRenaming(false);
+
+  const titleContent = isRenaming ? (
+    <RenameInput initial={doc.title} onCommit={commitRename} onCancel={cancelRename} />
+  ) : (
+    <span ref={labelRef} className={styles.label}>
+      {doc.title}
+    </span>
+  );
+
   return (
     <>
       {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
           but only when the title is actually clipped. */}
-      <Tooltip dsVersion="2.0" placement="right" showArrow tooltip={isTruncated ? doc.title : ''}>
+      <Tooltip
+        dsVersion="2.0"
+        placement="right"
+        showArrow
+        tooltip={isTruncated && !isRenaming ? doc.title : ''}
+      >
         <div
           className={styles.row}
           style={styles.rowStyle}
           role="button"
           tabIndex={0}
           onClick={() => selectPage(doc.id)}
+          onDoubleClick={handleRowDoubleClick}
           onKeyDown={handleRowKeyDown}
         >
           <IconButton
@@ -115,11 +145,9 @@ export function PageRow({
           />
 
           <PageIcon variant="subtle" size="xxx-small" />
-          <span ref={labelRef} className={styles.label}>
-            {doc.title}
-          </span>
+          {titleContent}
 
-          {menuItems.length > 0 && (
+          {!isRenaming && menuItems.length > 0 && (
             <span
               className={styles.menuWrap}
               onClick={(e) => e.stopPropagation()}

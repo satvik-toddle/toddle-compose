@@ -36,12 +36,8 @@ export function Button({
 }: ButtonProps) {
   void _type;
   const v = VARIANT[variant] ?? VARIANT[''];
-  // ds-web "fill" buttons paint the label/icon via --text-inverse/--icon-inverse
-  // (white in light, BLACK in dark). On the COLORED fills (primary/danger) the bg
-  // stays saturated in both themes, so the label must stay white — the global rule
-  // in index.css handles that for all ds-web fill buttons (wrapped + direct). Our
-  // injected <Icon> renders in a separate slot with its own color, so force it white
-  // here to match (white → --icon-on, white in both themes).
+  // Fill-button label/icon flip to black in dark via --text-inverse; index.css forces
+  // colored fills back to white. Match the injected icon (white → --icon-on) here.
   const onFill = v.dsType === 'fill';
   return (
     <DsButton

@@ -5,10 +5,7 @@ import titleStyles from './PageTitle.module.scss';
 
 const styles = {
   field:
-    // outline-none (not outline-0): outline-0 only zeroes the width, which does NOT
-    // suppress WebKit's focus ring (drawn with outline-style:auto) — that showed a
-    // bright system-blue box on focus. outline-none paints a transparent outline, so
-    // the borderless inline title stays ring-free (the caret is the focus cue).
+    // outline-none, not outline-0: outline-0 leaves WebKit's auto focus ring visible.
     'block w-full m-0 p-0 border-0 outline-none bg-transparent resize-none overflow-hidden text-heading-1 text-primary whitespace-pre-wrap break-words [word-break:break-word] placeholder:text-placeholder placeholder:font-weight-600',
   heading: 'm-0 text-heading-1 whitespace-pre-wrap break-words [word-break:break-word]',
   named: 'text-primary',

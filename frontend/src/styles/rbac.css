@@ -5,8 +5,7 @@
    ============================================================ */
 
 .rbac {
-  /* --app-bg is defined at :root in index.css (a DS surface alias that flips);
-     .rbac inherits it. --panel-bg/--line/--line-strong map DS semantic tokens. */
+  /* --app-bg is set at :root (index.css) and inherited here. */
   --panel-bg: var(--surface-primary-enabled); /* white / neutral-100 */
   --line: var(--border-secondary);
   --line-strong: var(--border-primary);
@@ -129,8 +128,7 @@
   gap: 10px;
 }
 .rbac .appbar .brand .logo {
-  /* No tile background: ToddleLogo.svg is a self-contained coral mark, so the box
-     just sizes/centers it (a colored tile behind it only clashed in dark). */
+  /* No tile: the logo SVG is self-contained; the box just sizes/centers it. */
   width: 30px;
   height: 30px;
   display: flex;

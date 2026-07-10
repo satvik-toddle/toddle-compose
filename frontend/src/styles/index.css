@@ -10,9 +10,7 @@
   --font-family-display: "Nunito", "AvenirNext", sans-serif;
   --font-weight-medium: 500;
 
-  /* App page canvas behind the content panels. Defined at :root so <body> (an
-     ancestor of .rbac) can resolve it — a DS semantic surface alias that flips
-     with the .dark theme on its own (light #fafafa / dark #333333). */
+  /* Page canvas; at :root so <body> resolves it. Flipping DS surface. */
   --app-bg: var(--surface-secondary-enabled);
 }
 
@@ -36,11 +34,8 @@ body {
   height: 100%;
 }
 
-/* Base headings — font-family inherits from body; size/weight are usually set by
-   the page container or a class, so these are just the fallback. Set color here
-   (loaded after antd.css) so headings use the flipping DS token instead of antd's
-   fixed dark reset (h1..h6 { color: rgba(0,0,0,.85) }), which was dark-on-dark in
-   dark theme. */
+/* Base headings: size/weight fallback. Color set here (after antd.css) so headings
+   use the flipping token, not antd's fixed dark reset. */
 h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
 h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
 h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
@@ -49,16 +44,9 @@ h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-
 h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
 h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
 
-/* ---- ds-web overrides ----
-   ds-web v2 "fill" buttons color their label/icon with .text-inverse / .icon-inverse
-   (= --text-inverse / --icon-inverse), which are white in light but flip to BLACK in
-   dark. That's correct only for the NEUTRAL fill (its bg also flips light↔dark); on
-   the COLORED fills (primary/info/destructive/tertiary) the bg stays saturated in both
-   themes, so a black label/icon in dark is unreadable. Force those to the on-accent
-   white tokens (--text-on / --icon-on = white in both themes). Compound selectors
-   (0,2,0) beat the .text-inverse/.icon-inverse utilities (0,1,0), and this file loads
-   after ds-web's main.css, so no !important is needed. Covers both the app <Button>
-   wrapper and direct ds-web <Button> usages (e.g. auth pages). */
+/* ds-web fill buttons color label/icon with --text-inverse/--icon-inverse (black in
+   dark). Fine for the neutral fill, wrong on colored fills (bg stays saturated) —
+   force those to --text-on/--icon-on (white in both themes). */
 [class*='bg-interactive-primary'].text-inverse,
 [class*='bg-interactive-semantic'].text-inverse,
 [class*='bg-[var(--purple'].text-inverse {

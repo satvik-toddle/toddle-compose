@@ -68,8 +68,7 @@ const styles = {
   roleBadge: 'absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase',
 };
 
-// DS decorative/tag hue per role. Drives --tag-background-{hue}-default (chip fill)
-// and --tag-foreground-{hue} (icon), which flip with the theme.
+// DS tag hue per role → --tag-background/foreground-{hue} (flips with theme).
 const ROLE_HUE: Record<string, WorkspaceHue> = {
   EDIT: 'blue',
   COMMENT: 'green',

@@ -18,15 +18,12 @@ export const WORKSPACE_ICONS: IconName[] = [
   'SettingsOutlined',
 ];
 
-// A DS decorative/tag hue name. Consumers build the flipping semantic tokens
-// --tag-background-{hue}-default (chip fill) and --tag-foreground-{hue} (icon) from
-// it, so the workspace chip themes itself in both light and dark.
+// DS tag hue → --tag-background/foreground-{hue} (flips with theme).
 export type WorkspaceHue =
   | 'violet' | 'teal' | 'pink' | 'yellow' | 'green'
   | 'blue' | 'purple' | 'orange' | 'red';
 
-// One hue per slot; mirrors the id→hue mapping in dsAvatar.ts (COLOR_BY_HEX) so a
-// workspace keeps the same identity color it had under the old BRAND_PALETTE.
+// One hue per slot; mirrors dsAvatar.ts COLOR_BY_HEX so ids keep their old color.
 const HUE_PALETTE: WorkspaceHue[] = [
   'violet', 'teal', 'pink', 'yellow', 'green',
   'blue', 'purple', 'orange', 'purple', 'red',

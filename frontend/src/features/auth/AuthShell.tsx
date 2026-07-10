@@ -6,7 +6,7 @@ import { cn } from '../../lib/cn';
 const styles = {
   card: 'w-[412px] max-w-[calc(100%_-_48px)] rounded-[20px] border border-[var(--line)] bg-[var(--panel-bg)] px-9 pb-[30px] pt-[34px] shadow-elevation-3-bottom',
   brand: 'mb-2 flex items-center gap-[11px]',
-  // No tile background: the logo SVG is a self-contained coral mark; the box only sizes/centers it.
+  // No tile: the logo SVG is self-contained; the box just sizes/centers it.
   logo: 'flex h-[38px] w-[38px] items-center justify-center',
   logoImage: 'h-6 w-6',
   word: 'font-[family-name:var(--font-family-display)] text-[18px] font-extrabold tracking-[-0.01em]',

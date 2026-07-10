@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
+import { trace } from "../tracing/trace";
 import type { Env } from "../config/env";
 import type { RtcClaims } from "../tokens/tokens.service";
 
@@ -44,6 +45,10 @@ export class DocStateService {
     { ydoc: Y.Doc; state: DebounceState }
   >();
   private readonly chains = new Map<string, Promise<unknown>>();
+  // In-flight cold-load (bindState) promises, so a connecting client can await the
+  // persisted state before its first sync — otherwise the reload races bindState and
+  // the client sees an empty doc and re-seeds it.
+  private readonly loads = new Map<string, Promise<void>>();
   private readonly wsToClaims = new WeakMap<object, RtcClaims>();
 
   constructor(
@@ -58,6 +63,21 @@ export class DocStateService {
 
   registerClaims(ws: object, claims: RtcClaims): void {
     this.wsToClaims.set(ws, claims);
+  }
+
+  // Record a doc's in-flight cold-load so a connection can await it; self-clears on settle.
+  trackLoad(docName: string, load: Promise<void>): void {
+    // Swallow load errors so a connection never fails just because bindState did.
+    const tracked = load.catch(() => undefined);
+    this.loads.set(docName, tracked);
+    void tracked.finally(() => {
+      if (this.loads.get(docName) === tracked) this.loads.delete(docName);
+    });
+  }
+
+  // Resolves once the doc's persisted state is loaded (or immediately if already warm).
+  whenLoaded(docName: string): Promise<void> {
+    return this.loads.get(docName) ?? Promise.resolve();
   }
 
   private enqueue<T>(docId: string, task: () => Promise<T>): Promise<T> {
@@ -81,79 +101,84 @@ export class DocStateService {
   }
 
   async bindState(docName: string, ydoc: Y.Doc): Promise<void> {
-    persistLog.info(`'${docName}' bindState — cold-load`);
-    await this.repo.ensureRtcDoc(docName);
-    const row = await this.repo.getRtcDoc(docName);
-    const snapshotAtSeq = row?.snapshotAtSeq ?? 0;
+    // Cold-load of the document state a connecting client receives: read the
+    // snapshot + replay the tail of updates from the DB. Timed end-to-end; the
+    // individual DB queries also log their own [trace] db ... lines.
+    await trace(`rtc.bindState ${docName}`, async () => {
+      persistLog.info(`'${docName}' bindState — cold-load`);
+      await this.repo.ensureRtcDoc(docName);
+      const row = await this.repo.getRtcDoc(docName);
+      const snapshotAtSeq = row?.snapshotAtSeq ?? 0;
 
-    if (row?.yjsState) {
-      try {
-        Y.applyUpdate(ydoc, new Uint8Array(row.yjsState));
-        persistLog.info(
-          `'${docName}' cold-loaded snapshot ${row.yjsState.byteLength}B at_seq=${snapshotAtSeq}`
-        );
-      } catch (e) {
-        persistLog.error(`'${docName}' apply yjs_state FAILED`, e);
-      }
-    } else {
-      persistLog.info(`'${docName}' no snapshot yet`);
-    }
-
-    const head = await this.repo.getHeadSeq(docName);
-    if (head > snapshotAtSeq) {
-      const tail = await this.repo.getDocUpdateBlobsAfterSeq(
-        docName,
-        snapshotAtSeq
-      );
-      let applied = 0;
-      for (const { blob } of tail) {
+      if (row?.yjsState) {
         try {
-          Y.applyUpdate(ydoc, new Uint8Array(blob));
-          applied += 1;
-        } catch (e) {
-          persistLog.error(`'${docName}' tail-apply FAILED`, e);
-        }
-      }
-      persistLog.info(
-        `'${docName}' replayed ${applied}/${tail.length} tail updates seq=${snapshotAtSeq + 1}..${head}`
-      );
-    }
-
-    if (head === 0) {
-      const baseUpdate = Buffer.from(Y.encodeStateAsUpdate(ydoc));
-      if (baseUpdate.byteLength > 2) {
-        try {
-          const seq = await this.repo.appendDocUpdate(
-            docName,
-            baseUpdate,
-            "cold-load-seed",
-            null
-          );
+          Y.applyUpdate(ydoc, new Uint8Array(row.yjsState));
           persistLog.info(
-            `'${docName}' seeded history seq=${seq} with ${baseUpdate.byteLength}B baseline`
+            `'${docName}' cold-loaded snapshot ${row.yjsState.byteLength}B at_seq=${snapshotAtSeq}`
           );
         } catch (e) {
-          persistLog.error(`'${docName}' seed-on-bindState FAILED`, e);
+          persistLog.error(`'${docName}' apply yjs_state FAILED`, e);
+        }
+      } else {
+        persistLog.info(`'${docName}' no snapshot yet`);
+      }
+
+      const head = await this.repo.getHeadSeq(docName);
+      if (head > snapshotAtSeq) {
+        const tail = await this.repo.getDocUpdateBlobsAfterSeq(
+          docName,
+          snapshotAtSeq
+        );
+        let applied = 0;
+        for (const { blob } of tail) {
+          try {
+            Y.applyUpdate(ydoc, new Uint8Array(blob));
+            applied += 1;
+          } catch (e) {
+            persistLog.error(`'${docName}' tail-apply FAILED`, e);
+          }
+        }
+        persistLog.info(
+          `'${docName}' replayed ${applied}/${tail.length} tail updates seq=${snapshotAtSeq + 1}..${head}`
+        );
+      }
+
+      if (head === 0) {
+        const baseUpdate = Buffer.from(Y.encodeStateAsUpdate(ydoc));
+        if (baseUpdate.byteLength > 2) {
+          try {
+            const seq = await this.repo.appendDocUpdate(
+              docName,
+              baseUpdate,
+              "cold-load-seed",
+              null
+            );
+            persistLog.info(
+              `'${docName}' seeded history seq=${seq} with ${baseUpdate.byteLength}B baseline`
+            );
+          } catch (e) {
+            persistLog.error(`'${docName}' seed-on-bindState FAILED`, e);
+          }
         }
       }
-    }
 
-    const lastSeq = await this.repo.getHeadSeq(docName);
-    this.docState.set(docName, {
-      ydoc,
-      state: {
-        idleTimer: null,
-        maxTimer: null,
-        dirty: false,
-        flushing: null,
-        dirtyAt: null,
-        updates: 0,
-        bytesIn: 0,
-        checkpointTimer: null,
-        snapshotAtSeq,
-        lastAppendedSeq: lastSeq,
-        pendingAppend: null,
-      },
+      const lastSeq = await this.repo.getHeadSeq(docName);
+      this.docState.set(docName, {
+        ydoc,
+        state: {
+          idleTimer: null,
+          maxTimer: null,
+          dirty: false,
+          flushing: null,
+          dirtyAt: null,
+          updates: 0,
+          bytesIn: 0,
+          checkpointTimer: null,
+          snapshotAtSeq,
+          lastAppendedSeq: lastSeq,
+          pendingAppend: null,
+        },
+      });
     });
 
     ydoc.on("update", (update: Uint8Array, origin: unknown) => {
@@ -305,6 +330,11 @@ export class DocStateService {
         await this.drain(docName);
         // Capture seq BEFORE encoding: snapshotAtSeq may lag state but must never exceed it, or compaction drops unsnapshotted updates.
         const flushedSeq = state.lastAppendedSeq;
+        // Snapshot already current (e.g. writeState's checkpoint just wrote it) — skip the duplicate encode+write.
+        if (flushedSeq === state.snapshotAtSeq) {
+          log.debug(`'${docName}' flush skipped reason=${reason} — snapshot already at_seq=${flushedSeq}`);
+          return;
+        }
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
         const version = await this.repo.persistRtcDoc(

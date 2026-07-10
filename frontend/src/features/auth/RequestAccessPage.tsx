@@ -1,135 +1,270 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../components/Button';
+import { Button, IconButton, TextInput } from '@toddle-edu/ds-web';
+import {
+  LeftArrowOutlined,
+  SearchOutlined,
+  GlobeOutlined,
+  LockOutlined,
+  ChevronRightOutlined,
+  BellRingOutlined,
+  SendOutlined,
+} from '@toddle-edu/ds-icons';
 import { Icon } from '../../components/Icon';
-import { TextInput } from '../../components/TextInput';
-import { useDiscoverableWorkspaces } from '../../hooks/queries';
+import { AuthShell } from './AuthShell';
+import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
+import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { performLogout } from '../../lib/session';
+import { qk } from '../../lib/queryKeys';
 import { useAuthStore } from '../../stores/authStore';
+import { pushToast } from '../../stores/uiStore';
 import { cn } from '../../lib/cn';
-import s from './RequestAccessPage.module.scss';
+import type { JoinRequestState } from '../../types/roles';
+
+const styles = {
+  // Wider than the default auth card; `!` overrides AuthShell's `.auth-card` width.
+  card: '!w-[540px]',
+  backButton: 'pb-2',
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-4 text-body text-secondary',
+  search: 'mb-4 mt-0.5',
+  list: 'flex max-h-[400px] flex-col gap-2 overflow-auto pt-2.5',
+  hint: 'text-body-s text-secondary',
+  footerNote: 'mt-1 text-center text-body-s text-secondary',
+  row: 'grid grid-cols-[36px_1fr_auto_auto] items-center gap-3 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-3 py-[11px] hover:border-[var(--border-hover)]',
+  icon: 'flex h-9 w-9 min-w-[36px] items-center justify-center rounded-2.5',
+  info: 'min-w-0',
+  workspaceName: 'text-[14px] font-bold',
+  workspaceMeta: 'mt-px text-[12px] text-secondary',
+  visibilityBadge:
+    'inline-flex h-[22px] items-center gap-[5px] whitespace-nowrap rounded-full px-[9px] text-[11px] font-semibold',
+  visibilityBadgePublic:
+    'bg-[var(--tag-background-teal-default)] text-[var(--tag-foreground-teal)]',
+  visibilityBadgePrivate: 'bg-[var(--surface-tertiary-enabled)] text-secondary [&_.ic]:opacity-60',
+  signedInEmail: 'text-primary font-semibold',
+};
+
+// Per-row labels live as pure helpers (a row can't hold its own useMemo).
+function workspaceStatusText(isPublicWorkspace: boolean, isRequestRejected: boolean): string {
+  if (isPublicWorkspace) return 'Anyone in the realm can join';
+  if (isRequestRejected) return 'Request declined — you can ask again';
+  return 'Approval required';
+}
+
+function requestButtonLabel(isRequestRejected: boolean): string {
+  if (isRequestRejected) return 'Request again';
+  return 'Request access';
+}
 
 export function RequestAccessPage() {
-  const me = useAuthStore((s) => s.user);
+  const currentUser = useAuthStore((state) => state.user);
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const { data: workspaces = [], isLoading } = useDiscoverableWorkspaces();
-  const joinPublic = useJoinPublicWorkspace();
+  const queryClient = useQueryClient();
+  const { data: discoverableWorkspaces = [], isLoading } = useDiscoverableWorkspaces();
+  const { data: myRequests } = useMyJoinRequests();
+  const joinPublicWorkspace = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
-  const [query, setQuery] = useState('');
-  const [requested, setRequested] = useState<Set<string>>(new Set());
+  const { mutate: enterWorkspace } = useEnterWorkspace();
+  const [searchQuery, setSearchQuery] = useState('');
+  // Optimistic "just requested here" flags; bridge the gap until the next poll reflects them.
+  const [optimisticRequests, setOptimisticRequests] = useState<Set<string>>(new Set());
 
-  const filtered = useMemo(
-    () => workspaces.filter((w) => w.name.toLowerCase().includes(query.toLowerCase())),
-    [workspaces, query],
+  // Request state per workspace, sorted newest-first so a stale REJECTED can't shadow a live PENDING.
+  const requestStateByWorkspace = useMemo(() => {
+    const stateByWorkspace = new Map<string, JoinRequestState>();
+    const newestFirst = [...(myRequests ?? [])].sort(
+      (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+    );
+    for (const request of newestFirst) {
+      if (!stateByWorkspace.has(request.workspaceId)) {
+        stateByWorkspace.set(request.workspaceId, request.state);
+      }
+    }
+    return stateByWorkspace;
+  }, [myRequests]);
+
+  // Once the server reports a state, it's authoritative — drop the optimistic flag.
+  useEffect(() => {
+    setOptimisticRequests((previous) => {
+      const stillOptimistic = new Set(
+        [...previous].filter((workspaceId) => !requestStateByWorkspace.has(workspaceId)),
+      );
+      return stillOptimistic.size === previous.size ? previous : stillOptimistic;
+    });
+  }, [requestStateByWorkspace]);
+
+  // Auto-enter only workspaces requested in this session (tracked separately so it survives the optimistic flag clearing).
+  const requestedThisSession = useRef<Set<string>>(new Set());
+  const enteredWorkspaces = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!myRequests) return;
+    const approvedRequest = myRequests.find(
+      (request) =>
+        request.state === 'APPROVED' &&
+        requestedThisSession.current.has(request.workspaceId) &&
+        !enteredWorkspaces.current.has(request.id),
+    );
+    if (!approvedRequest) return;
+    enteredWorkspaces.current.add(approvedRequest.id);
+    pushToast({
+      kind: 'success',
+      message: `Access granted — opening ${approvedRequest.workspace?.name ?? 'workspace'}…`,
+    });
+    queryClient.invalidateQueries({ queryKey: qk.workspaces });
+    enterWorkspace(approvedRequest.workspaceId, { onError: () => navigate('/launcher') });
+  }, [myRequests, queryClient, navigate, enterWorkspace]);
+
+  const matchingWorkspaces = useMemo(
+    () =>
+      discoverableWorkspaces.filter((workspace) =>
+        workspace.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [discoverableWorkspaces, searchQuery],
   );
 
   const signOut = async () => {
-    await performLogout(qc);
+    await performLogout(queryClient);
     navigate('/login');
   };
 
   return (
-    <div className="rbac auth-bg">
-      <div className="auth-card ra-card">
-        <div className="auth-brand">
-          <div className="auth-logo">
-            <img src="/brand/ToddleLogo.svg" alt="" />
-          </div>
-          <div className="auth-word">
-            Toddle <span>Compose</span>
-          </div>
+    <AuthShell
+      cardClassName={styles.card}
+      lead={
+        <div className={styles.backButton}>
+          <IconButton
+            type="plain"
+            variant="neutral"
+            icon={<LeftArrowOutlined />}
+            title="Back"
+            onClick={() => navigate('/')}
+          />
         </div>
-        <h1 className="auth-h">Find a workspace to join</h1>
-        <p className="auth-p">
-          Open a public workspace right away, or request access to a private one — an admin will
-          approve it.
-        </p>
-
-        <TextInput
-          wrapClassName={s.raSearch}
-          icon="SearchOutlined"
-          placeholder="Search workspaces in Toddle…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-
-        <div className={s.raList}>
-          {isLoading && <p className="auth-fine">Loading workspaces…</p>}
-          {!isLoading && filtered.length === 0 && (
-            <p className="auth-fine">No discoverable workspaces right now.</p>
+      }
+      foot={
+        <>
+          {currentUser && (
+            <>
+              Signed in as <b className={styles.signedInEmail}>{currentUser.email}</b> ·{' '}
+            </>
           )}
-          {filtered.map((w) => {
-            const vis = workspaceVisual(w.id);
-            const pub = w.visibility === 'PUBLIC';
-            const isRequested = requested.has(w.id);
-            return (
-              <div key={w.id} className={s.raRow}>
-                <span
-                  className="ws-emoji sm"
-                  style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
-                >
-                  <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
-                </span>
-                <div className={s.raInfo}>
-                  <div className="nm">{w.name}</div>
-                  <div className="sub">{pub ? 'Anyone in the realm can join' : 'Approval required'}</div>
-                </div>
-                <span className={cn(s.raVis, pub ? s.pub : s.priv)}>
-                  <Icon name={pub ? 'GlobeOutlined' : 'LockOutlined'} size={12} />
-                  {pub ? 'Public' : 'Private'}
-                </span>
-                {pub ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    iconRight="ChevronRightOutlined"
-                    disabled={joinPublic.isPending}
-                    onClick={() => joinPublic.mutate(w.id)}
-                  >
-                    Open
-                  </Button>
-                ) : isRequested ? (
-                  <Button size="sm" disabled className="ra-requested" icon="TickSmallOutlined">
-                    Requested
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    icon="SendOutlined"
-                    disabled={requestAccess.isPending}
-                    onClick={() =>
-                      requestAccess.mutate(
-                        { workspaceId: w.id },
-                        { onSuccess: () => setRequested((s) => new Set(s).add(w.id)) },
-                      )
-                    }
-                  >
-                    Request access
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+          <Button variant="progressive" type="inline" size="small" onClick={signOut}>
+            Sign out
+          </Button>
+        </>
+      }
+    >
+      <h1 className={styles.heading}>Find a workspace to join</h1>
+      <p className={styles.subheading}>
+        Open a public workspace right away, or request access to a private one
+      </p>
 
-        <p className="auth-fine">
-          Don't see your team's workspace? Ask a realm admin to add you directly.
-        </p>
+      <div className={styles.search}>
+        <TextInput
+          dsVersion="2.0"
+          leadingIcon={<SearchOutlined />}
+          placeholder="Search workspaces in Toddle…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
-      <div className="auth-foot">
-        {me && (
-          <>
-            Signed in as <b style={{ color: 'var(--text-primary)' }}>{me.email}</b> ·{' '}
-          </>
+
+      <div className={styles.list}>
+        {isLoading && <p className={styles.hint}>Loading workspaces…</p>}
+        {!isLoading && matchingWorkspaces.length === 0 && (
+          <p className={styles.hint}>No discoverable workspaces right now.</p>
         )}
-        <a onClick={signOut} role="button">
-          Sign out
-        </a>
+        {matchingWorkspaces.map((workspace) => {
+          const appearance = workspaceVisual(workspace.id);
+          const isPublicWorkspace = workspace.visibility === 'PUBLIC';
+          const requestState = requestStateByWorkspace.get(workspace.id);
+          const isRequestPending =
+            requestState === 'PENDING' || optimisticRequests.has(workspace.id);
+          const isRequestRejected = requestState === 'REJECTED';
+          const VisibilityIcon = isPublicWorkspace ? GlobeOutlined : LockOutlined;
+          return (
+            <div key={workspace.id} className={styles.row}>
+              <span
+                className={styles.icon}
+                style={{ background: `var(--tag-background-${appearance.hue}-default)` }}
+              >
+                <Icon
+                  name={appearance.icon}
+                  size={18}
+                  style={{ color: `var(--tag-foreground-${appearance.hue})` }}
+                />
+              </span>
+              <div className={styles.info}>
+                <div className={styles.workspaceName}>{workspace.name}</div>
+                <div className={styles.workspaceMeta}>
+                  {workspaceStatusText(isPublicWorkspace, isRequestRejected)}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  styles.visibilityBadge,
+                  isPublicWorkspace ? styles.visibilityBadgePublic : styles.visibilityBadgePrivate,
+                )}
+              >
+                <VisibilityIcon size="xxxx-small" overrideVariantStyles className="ic" />
+                {isPublicWorkspace ? 'Public' : 'Private'}
+              </span>
+              {isPublicWorkspace ? (
+                <Button
+                  variant="primary"
+                  type="fill"
+                  size="small"
+                  rightIcon={<ChevronRightOutlined />}
+                  disabled={joinPublicWorkspace.isPending}
+                  onClick={() => joinPublicWorkspace.mutate(workspace.id)}
+                >
+                  Open
+                </Button>
+              ) : isRequestPending ? (
+                <Button
+                  variant="neutral"
+                  type="outlined"
+                  size="small"
+                  disabled
+                  icon={<BellRingOutlined />}
+                >
+                  Awaiting approval
+                </Button>
+              ) : (
+                <Button
+                  variant="neutral"
+                  type="outlined"
+                  size="small"
+                  icon={<SendOutlined />}
+                  disabled={requestAccess.isPending}
+                  onClick={() =>
+                    requestAccess.mutate(
+                      { workspaceId: workspace.id },
+                      {
+                        onSuccess: () => {
+                          requestedThisSession.current.add(workspace.id);
+                          setOptimisticRequests((previous) =>
+                            new Set(previous).add(workspace.id),
+                          );
+                        },
+                      },
+                    )
+                  }
+                >
+                  {requestButtonLabel(isRequestRejected)}
+                </Button>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      <p className={styles.footerNote}>
+        Don't see your team's workspace? Ask a realm admin to add you directly.
+      </p>
+    </AuthShell>
   );
 }

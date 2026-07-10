@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import s from './AdminConsolePage.module.scss';
 
 function Count({ n, alert }: { n?: number; alert?: boolean }) {
-  if (n == null) return null;
+  if (n == null || n === 0) return null;
   return (
     <span
       style={{
@@ -18,8 +18,9 @@ function Count({ n, alert }: { n?: number; alert?: boolean }) {
         height: 16,
         lineHeight: '16px',
         borderRadius: 999,
-        background: alert && n > 0 ? 'var(--red-500)' : 'var(--surface-tertiary-enabled)',
-        color: alert && n > 0 ? '#fff' : 'var(--text-secondary)',
+        background:
+          alert && n > 0 ? 'var(--interactive-semantic-error)' : 'var(--surface-tertiary-enabled)',
+        color: alert && n > 0 ? 'var(--text-on)' : 'var(--text-secondary)',
       }}
     >
       {n}
@@ -37,16 +38,15 @@ export function AdminConsolePage() {
   const loc = useLocation();
   if (!me) return null;
 
-  const active = loc.pathname.includes('/members')
-    ? 'members'
-    : loc.pathname.includes('/requests')
-      ? 'requests'
-      : 'workspaces';
+  // Active tab = the /admin path segment, defaulting to Workspaces.
+  const TAB_SEGMENTS = ['members', 'requests', 'settings'] as const;
+  const active = TAB_SEGMENTS.find((segment) => loc.pathname.includes(`/${segment}`)) ?? 'workspaces';
 
   const options = [
     { value: 'workspaces', label: 'Workspaces', suffix: <Count n={workspaces?.length} /> },
     { value: 'members', label: 'Realm members', suffix: <Count n={members?.length} /> },
     { value: 'requests', label: 'Join requests', suffix: <Count n={requests?.length} alert /> },
+    { value: 'settings', label: 'Settings' },
   ];
 
   return (
@@ -57,7 +57,6 @@ export function AdminConsolePage() {
           <Icon name="DashboardOutlined" size={18} muted />
           Admin console
         </div>
-        <div className={s.adCrumb}>{realm?.name ?? 'Toddle'} realm</div>
         <Button
           size="sm"
           variant="ghost"

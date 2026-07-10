@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Avatar } from '../../components/Avatar';
@@ -45,12 +46,18 @@ export function ConfirmRemoveMemberModal({
       ? `They'll lose access to ${workspaceName ?? 'this workspace'} and everything shared inside it.`
       : 'They lose realm access and are removed from every workspace in it.';
 
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (pending) return 'Removing…';
+    return scope === 'workspace' ? 'Remove from workspace' : 'Remove from realm';
+  }, [pending, scope]);
+
   return (
     <Modal onClose={onClose}>
       <ModalHead tone="danger" icon="DeleteOutlined" title={title} sub={sub} onClose={onClose} />
       <div className="m-body">
         <div className="found">
-          <Avatar person={{ name, color: '#8f8f8f' }} size={34} />
+          <Avatar person={{ name }} size={34} />
           <div style={{ flex: 1 }}>
             <div className="nm">{name}</div>
             <div className="sub">{email}</div>
@@ -70,7 +77,7 @@ export function ConfirmRemoveMemberModal({
           Cancel
         </Button>
         <Button variant="danger" disabled={pending} onClick={submit}>
-          {pending ? 'Removing…' : scope === 'workspace' ? 'Remove from workspace' : 'Remove from realm'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

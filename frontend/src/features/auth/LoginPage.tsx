@@ -1,28 +1,71 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthShell } from './AuthShell';
-import { Field } from '../../components/Field';
-import { TextInput } from '../../components/TextInput';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
-import { useLogin } from '../../hooks/useAuthMutations';
-import { messageOf } from '../../lib/errors';
+import { TextInput, PasswordTextInput, Checkbox, Button, Alert } from '@toddle-edu/ds-web';
+import { EmailOutlined, LockOutlined } from '@toddle-edu/ds-icons';
+import { useLogin, useResendVerification } from '../../hooks/useAuthMutations';
+import { useAuthConfig } from '../../hooks/queries';
+import { useCooldown, EMAIL_RESEND_COOLDOWN_SEC } from '../../hooks/useCooldown';
+import { isEmailNotVerified, messageOf } from '../../lib/errors';
+
+const styles = {
+  heading: 'text-heading-3',
+  subheading: 'mt-1.5 mb-5.5 text-body text-secondary',
+  form: 'flex flex-col gap-4',
+  row: 'flex items-center justify-between text-body-s',
+  notVerified: 'flex flex-col gap-2',
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set when register redirected here (email service bypassed); account is ready to sign in.
+  const registeredEmail = (location.state as { registered?: string } | null)?.registered;
+  // Where ProtectedRoute wanted to go before bouncing here (share-email deep link); back to it after sign-in.
+  const from = (location.state as { from?: string } | null)?.from;
   const login = useLogin();
-  const [email, setEmail] = useState('');
+  const resend = useResendVerification();
+  const { data: authConfig } = useAuthConfig();
+  // Default to enabled until config loads; hide only when the server reports it off.
+  const passwordResetEnabled = authConfig?.passwordResetEnabled !== false;
+  const [email, setEmail] = useState(registeredEmail ?? '');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const err = login.isError;
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [resent, setResent] = useState(false);
+  const cooldown = useCooldown(EMAIL_RESEND_COOLDOWN_SEC);
+  // Credentials are valid but the email was never verified — a distinct,
+  // non-error state ("user not authenticated") rather than a bad-password.
+  const notVerified = isEmailNotVerified(login.error);
+  const loginFailed = login.isError && !notVerified;
+  const isLoggingIn = login.isPending;
 
-  const submit = () => {
-    if (login.isPending) return;
-    login.mutate({ email, password }, { onSuccess: () => navigate('/') });
-  };
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (isLoggingIn) return 'Signing in…';
+    return 'Sign in';
+  }, [isLoggingIn]);
+
+  const resendButtonLabel = useMemo(() => {
+    if (resend.isPending) return 'Sending…';
+    if (cooldown.active) return `Resend available in ${cooldown.remaining}s`;
+    return 'Resend verification email';
+  }, [resend.isPending, cooldown.active, cooldown.remaining]);
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submit();
+    if (isLoggingIn) return;
+    setResent(false);
+    login.mutate({ email, password }, { onSuccess: () => navigate(from ?? '/') });
+  };
+
+  const onResend = () => {
+    if (resend.isPending || cooldown.active || !email) return;
+    resend.mutate(email, {
+      onSuccess: () => {
+        setResent(true);
+        cooldown.start();
+      },
+    });
   };
 
   return (
@@ -33,52 +76,112 @@ export function LoginPage() {
         </span>
       }
     >
-      <h1 className="auth-h">Welcome back</h1>
-      <p className="auth-p">Sign in to reach your workspaces.</p>
+      <h1 className={styles.heading}>Welcome back</h1>
+      <p className={styles.subheading}>Sign in to reach your workspaces.</p>
 
-      {err && (
-        <div className="auth-banner err">
-          <Icon name="WarningTriangleOutlined" size={14} />
-          {messageOf(login.error, "That email and password don't match. Try again.")}
-        </div>
-      )}
+      <form className={styles.form} onSubmit={onSubmit}>
+        {registeredEmail && !login.isError && (
+          <Alert
+            dsVersion="2.0"
+            type="success"
+            message="Your account is ready. Sign in to continue."
+          />
+        )}
 
-      <form className="auth-form" onSubmit={onSubmit}>
-        <Field label="Email">
-          <TextInput
-            icon="EmailOutlined"
-            type="email"
-            placeholder="you@toddle.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            err={err}
-            required
-            autoFocus
+        {loginFailed && (
+          <Alert
+            dsVersion="2.0"
+            type="error"
+            message={messageOf(login.error, "That email and password don't match. Try again.")}
           />
-        </Field>
-        <Field label="Password">
-          <TextInput
-            type={showPw ? 'text' : 'password'}
-            icon="LockOutlined"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            err={err}
-            required
-            trailing={<Icon name="EyeOutlined" size={14} muted />}
-            onTrailingClick={() => setShowPw((v) => !v)}
-          />
-        </Field>
-        <div className="auth-row">
-          <label className="auth-check">
-            <span className="cbx on">
-              <Icon name="TickSmallOutlined" size={12} white />
-            </span>
+        )}
+
+        {notVerified && (
+          <div className={styles.notVerified}>
+            <Alert
+              dsVersion="2.0"
+              type="warning"
+              title="User not authenticated"
+              message={
+                resent
+                  ? 'Verification email sent again. Open the link, then sign in.'
+                  : 'Verify your email to sign in. Open the link we emailed when you signed up.'
+              }
+            />
+            {!resent && (
+              <Button
+                variant="neutral"
+                size="small"
+                isFullWidth
+                disabled={resend.isPending || cooldown.active}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onResend();
+                }}
+              >
+                {resendButtonLabel}
+              </Button>
+            )}
+          </div>
+        )}
+
+        <TextInput
+          dsVersion="2.0"
+          label="Email"
+          leadingIcon={<EmailOutlined />}
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@toddleapp.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={loginFailed ? ' ' : undefined}
+          required
+          autoFocus
+        />
+
+        <PasswordTextInput
+          dsVersion="2.0"
+          label="Password"
+          leadingIcon={<LockOutlined />}
+          required
+          value={password}
+          error={loginFailed ? ' ' : undefined}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        <div className={styles.row}>
+          <Checkbox
+            dsVersion="2.0"
+            size="small"
+            isChecked={keepSignedIn}
+            onChange={(e) => setKeepSignedIn((e.target as HTMLInputElement).checked)}
+          >
             Keep me signed in
-          </label>
-          <a>Forgot password?</a>
+          </Checkbox>
+          {passwordResetEnabled && (
+            <Button
+              variant="progressive"
+              type="inline"
+              size="small"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate('/forgot-password');
+              }}
+            >
+              Forgot password?
+            </Button>
+          )}
         </div>
-        <Button type="submit" variant="primary" size="lg" block disabled={login.isPending} onClick={submit}>
-          {login.isPending ? 'Signing in…' : 'Sign in'}
+
+        <Button
+          dsVersion="2.0"
+          htmlButtonType="submit"
+          size="large"
+          isFullWidth
+          disabled={isLoggingIn}
+        >
+          {submitButtonLabel}
         </Button>
       </form>
     </AuthShell>

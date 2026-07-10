@@ -3,11 +3,11 @@ import { CreateWorkspaceModal } from '../features/modals/CreateWorkspaceModal';
 import { RenameWorkspaceModal } from '../features/modals/RenameWorkspaceModal';
 import { AddRealmMemberModal } from '../features/modals/AddRealmMemberModal';
 import { AddWorkspaceMemberModal } from '../features/modals/AddWorkspaceMemberModal';
+import { WorkspaceSettingsModal } from '../features/modals/WorkspaceSettingsModal';
 import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWorkspaceModal';
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
-import { RenamePageModal } from '../features/modals/RenamePageModal';
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
-import { ShareDocumentModal } from '../features/modals/ShareDocumentModal';
+import { DocPermissionsModal } from '../features/modals/DocPermissionsModal';
 
 // Renders the active modal from the UI store. One mount point at the app root.
 export function ModalRoot() {
@@ -37,6 +37,15 @@ export function ModalRoot() {
           workspaceName={modal.workspaceName}
         />
       );
+    case 'workspaceSettings':
+      return (
+        <WorkspaceSettingsModal
+          onClose={close}
+          workspaceId={modal.workspaceId}
+          workspaceName={modal.workspaceName}
+          isAdmin={modal.isAdmin}
+        />
+      );
     case 'confirmDeleteWorkspace':
       return (
         <ConfirmDeleteWorkspaceModal onClose={close} workspaceId={modal.workspaceId} name={modal.name} />
@@ -54,16 +63,6 @@ export function ModalRoot() {
           role={modal.role}
         />
       );
-    case 'renamePage':
-      return (
-        <RenamePageModal
-          onClose={close}
-          kind={modal.kind}
-          workspaceId={modal.workspaceId}
-          id={modal.id}
-          name={modal.name}
-        />
-      );
     case 'confirmDeletePage':
       return (
         <ConfirmDeletePageModal
@@ -74,15 +73,13 @@ export function ModalRoot() {
           name={modal.name}
         />
       );
-    case 'shareDocument':
+    case 'docPermissions':
       return (
-        <ShareDocumentModal
+        <DocPermissionsModal
           onClose={close}
-          workspaceId={modal.workspaceId}
           docId={modal.docId}
           docTitle={modal.docTitle}
-          canManage={modal.canManage}
-          isAdmin={modal.isAdmin}
+          owner={modal.owner}
         />
       );
     default:

@@ -60,19 +60,28 @@ RTC_DATABASE_URL=postgresql://toddle:<pw>@<internal-host>/toddle_compose_rtc
 ```
 
 ### 2. Populate the database
-Run once from your laptop, pointing at the **External** URLs (`?sslmode=require`):
+Run once from your laptop, pointing at the **External** URLs (`?sslmode=require`).
+`db:provision` reads the URLs from the environment, pushes the schema to both
+databases, and creates the realm + owner in one step:
 
 ```bash
-# create the schema in BOTH databases
-DATABASE_URL="<ext app url>" RTC_DATABASE_URL="<ext rtc url>" pnpm db:push
-
-# create the realm row the backend requires to boot (REALM_ID)
-DATABASE_URL="<ext app url>" \
-  REALM_ID=realm_toddle REALM_NAME="Toddle" \
+DATABASE_URL="<ext app url>" RTC_DATABASE_URL="<ext rtc url>" \
   REALM_OWNER_EMAIL="owner@toddle.app" REALM_OWNER_PASSWORD="<strong-pw>" \
-  REALM_OWNER_NAME="Owner" \
-  pnpm db:init
+  pnpm db:provision
 ```
+
+Optional env: `REALM_ID` (default `realm_toddle`), `REALM_NAME`, `REALM_OWNER_NAME`.
+It is idempotent, so re-running is safe.
+
+> **Do not** use the older `DATABASE_URL=… pnpm db:push` / `db:init` form: those
+> scripts source `./.env`, which overwrites the `DATABASE_URL` you pass and silently
+> targets your local DB. `db:provision` never sources `.env`.
+
+> **Connection poolers** (e.g. Supabase transaction pooler — `:6543`,
+> `?pgbouncer=true`) can't run schema DDL. Pass the **direct** connection (port
+> 5432) via `DATABASE_URL_DIRECT` / `RTC_DATABASE_URL_DIRECT` for the push, while
+> `DATABASE_URL` / `RTC_DATABASE_URL` stay on the pooler for runtime.
+
 `db:seed` is **local-only** demo data — don't run it against staging.
 
 ### 3. Backend keys
@@ -122,7 +131,7 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   REALM_ID=realm_toddle
   CORS_ORIGINS=https://<your-netlify-domain>
   BACKEND_PUBLIC_URL=https://<backend>.onrender.com
-  RTC_INTERNAL_URL=http://<rtc-service-name>:4002  # rtc over the private network
+  RTC_INTERNAL_URL=http://<rtc-service-name>:10000 # rtc over the private network (same port as WS)
   RTC_PRIVATE_KEY_PATH=/etc/secrets/rtc-private.pem
   RTC_PUBLIC_KEY_PATH=/etc/secrets/rtc-public.pem
   ```
@@ -143,12 +152,11 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
   INTERNAL_TOKEN=<same value as backend>
   RTC_DATABASE_URL=<Internal rtc DB URL>           # …/toddle_compose_rtc
   JWKS_URL=https://<backend>.onrender.com/.well-known/rtc-jwks.json
-  RTC_PORT=10000                                    # public WebSocket → bind Render's port
-  RTC_INTERNAL_PORT=4002                            # internal API the backend calls
+  RTC_PORT=10000                                    # single port: public WS + internal API
   ```
-  > rtc-server opens **two** ports (public WS + internal HTTP). Render routes one
-  > external port, so set `RTC_PORT` to Render's assigned port (default `10000`) for
-  > browser WebSockets; the backend reaches the internal API privately on `:4002`.
+  > rtc-server serves browser WebSockets and the internal HTTP API on the one
+  > `RTC_PORT`; set it to Render's assigned port (default `10000`). The backend
+  > reaches `/internal/*` on that same port over the private network.
 
 ### 6. Deploy hooks → GitHub secrets
 Each Render service → **Settings → Deploy Hook** → copy the URL. Then:

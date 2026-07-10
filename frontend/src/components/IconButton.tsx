@@ -1,5 +1,5 @@
-import type { ButtonHTMLAttributes } from 'react';
-import { Button as DsButton } from '@toddle-edu/ds-web';
+import type { ButtonHTMLAttributes, ReactElement } from 'react';
+import { IconButton as DsIconButton, type IconButtonProps as DsIconButtonProps } from '@toddle-edu/ds-web';
 import { Icon, type IconName, type IconSize } from './Icon';
 
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
@@ -8,19 +8,21 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   muted?: boolean;
   red?: boolean;
   sm?: boolean;
+  variant?: DsIconButtonProps['variant'];
+  type?: DsIconButtonProps['type'];
 }
 
-// Icon-only ds-web Button (plain style).
-export function IconButton({ icon, iconSize = 14, muted = true, red, sm, ...rest }: IconButtonProps) {
+// Icon-only ds-web IconButton (plain style), keyed by our IconName map.
+export function IconButton({ icon, iconSize = 14, muted = true, red, sm, variant, type = 'plain', ...rest }: IconButtonProps) {
+  // An explicit variant/type opts into ds-web's icon-color classes; our inline color would beat them.
+  const dsColors = Boolean(variant) || type !== 'plain';
   return (
-    <DsButton
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      variant={(red ? 'destructive' : 'neutral') as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      type={'plain' as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      size={'small' as any}
-      icon={<Icon name={icon} size={iconSize} red={red} muted={muted && !red} />}
+    <DsIconButton
+      dsVersion="2.0"
+      variant={variant ?? (red ? 'destructive' : 'neutral')}
+      type={type}
+      size={sm ? 'x-small' : 'small'}
+      icon={(<Icon name={icon} size={iconSize} red={!dsColors && red} muted={!dsColors && muted && !red} />) as ReactElement}
       {...rest}
     />
   );

@@ -4,8 +4,10 @@ generator client {
 }
 
 datasource db {
+  // Prisma 7 no longer allows `url` here. The connection string lives in
+  // prisma.config.ts (for Migrate) and is passed via the @prisma/adapter-pg
+  // driver adapter to the PrismaClient constructor (for the app runtime).
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Visibility {
@@ -47,9 +49,18 @@ enum JoinRequestState {
   REJECTED
 }
 
+// Reach of a document share link: REALM → any logged-in realm member with the
+// link; ANYONE → works logged-out, no auth at all.
+enum ShareLinkScope {
+  REALM
+  ANYONE
+}
+
 model Realm {
   id         String        @id @default(cuid())
   name       String
+  // Self-signup email allowlist (bare domains, e.g. "toddleapp.com"). Empty = any domain may register.
+  allowedEmailDomains String[] @default([]) @map("allowed_email_domains")
   createdAt  DateTime      @default(now()) @map("created_at")
   members    RealmMember[]
   workspaces Workspace[]
@@ -124,15 +135,57 @@ model User {
   passwordHash  String         @map("password_hash")
   name          String
   color         String         @default("#f04c54")
+  // Null until the user clicks the link in their sign-up verification email.
+  // Login is refused while this is null (the "user not authenticated" state).
+  // Added as a nullable column with NO backfill: pre-existing/legacy users are
+  // intentionally treated as unverified and must verify (or reset password) to
+  // sign in. See migrations/20260624_add_email_verification.sql.
+  emailVerifiedAt DateTime?    @map("email_verified_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   documents     Document[]
   folders       Folder[]
   refreshTokens RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
+  documentStars        DocumentStar[]
+  documentPermissions  DocumentPermission[]
 
   @@map("users")
+}
+
+// Short-lived, single-use tokens emailed on sign-up to verify ownership of the
+// address. Mirrors RefreshToken: only the sha256 hash is stored, never the raw
+// token (which travels in the email link). Consumed on success; GC'd once stale.
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// Short-lived, single-use tokens emailed for "forgot password". Same shape as
+// EmailVerificationToken: only the sha256 hash is stored; consumed on a
+// successful reset and GC'd once stale.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 of the raw token; raw is never stored
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at") // set when the link is successfully used
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model RefreshToken {
@@ -195,19 +248,81 @@ model Document {
   parentId    String?      @map("parent_id")
   parent      Document?    @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
   children    Document[]   @relation("DocumentTree")
-  // PUBLIC additionally exposes the doc to any realm member, across workspaces.
-  visibility  Visibility   @default(PRIVATE)
+  // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
+  stars       DocumentStar[]
+  // Per-page permission grants on this doc; deleting the doc removes them (cascade).
+  permissions DocumentPermission[]
+  // At most one live share link per doc (cascade on doc delete).
+  shareLink   DocumentShareLink?
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   // Collaborative content (yjsState / update log) lives in the SEPARATE
   // @app/rtc-database, keyed by this id. No FK relation here by design.
 
   @@index([ownerId])
-  @@index([visibility])
   @@index([folderId])
   @@index([parentId])
   @@index([workspaceId])
   // Backs the documents list (filtered by workspace, ordered by updatedAt desc).
   @@index([workspaceId, updatedAt])
   @@map("documents")
+}
+
+// A user's star ("favorite") on a document. Join table: one row = this user has
+// starred this document. The composite primary key [userId, documentId] makes
+// starring idempotent — a user can star a given doc at most once. Cascades on
+// both sides, so deleting the user or the document drops the star automatically.
+// Mirrors the WorkspaceMember/RealmMember join-table shape used elsewhere.
+model DocumentStar {
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String   @map("document_id")
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // PK indexes userId-first, so "this user's stars" (the starred list) is covered;
+  // the extra index backs lookups/cascades by document.
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_stars")
+}
+
+// A per-page (per-document) permission grant: one row = this user holds `role`
+// on this specific document, independent of workspace membership. The grant does
+// NOT cascade to sub-pages (lookups are by exact documentId). The role reuses the
+// WorkspaceRole enum (any of READ/COMMENT/EDIT/ADMIN may be granted). Effective
+// doc role = MAX(workspace-derived role, grant) — a grant only ever elevates.
+// Composite PK [userId, documentId] makes a grant idempotent per (user, doc).
+// Cascades on both sides, so deleting the user or the document drops the grant.
+// Mirrors the DocumentStar/WorkspaceMember join-table shape used elsewhere.
+model DocumentPermission {
+  userId     String        @map("user_id")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String        @map("document_id")
+  document   Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  role       WorkspaceRole @default(EDIT)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_permissions")
+}
+
+// "Anyone with the link" sharing: at most one live link per document (documentId
+// is unique). The token is a crypto-random capability — knowing it (plus, for
+// REALM scope, being a logged-in realm member) grants `role` on this one doc.
+// Role is capped at EDIT (never ADMIN), enforced at the DTO layer. Regenerating
+// replaces the token, instantly invalidating the old URL. createdById is a plain
+// audit field (no relation), mirroring JoinRequest.decidedById.
+model DocumentShareLink {
+  id          String         @id @default(cuid())
+  documentId  String         @unique @map("document_id")
+  document    Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token       String         @unique
+  role        WorkspaceRole  @default(READ)
+  scope       ShareLinkScope @default(REALM)
+  createdById String         @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@map("document_share_links")
 }

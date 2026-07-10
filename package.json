@@ -4,11 +4,11 @@
   "private": true,
   "packageManager": "pnpm@9.12.3",
   "engines": {
-    "node": ">=20"
+    "node": "^20.19 || ^22.12 || >=24.0"
   },
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:services": "concurrently -n backend,rtc,frontend -c blue,magenta,green \"pnpm --filter backend dev\" \"pnpm --filter rtc-server dev\" \"pnpm --filter frontend dev\"",
+    "dev:services": "node scripts/dev-services.mjs",
     "dev:backend": "pnpm --filter backend dev",
     "dev:rtc": "pnpm --filter rtc-server dev",
     "dev:frontend": "pnpm --filter frontend dev",
@@ -24,6 +24,7 @@
     "db:seed": "set -a && . ./.env && set +a && pnpm --filter @app/database run seed",
     "db:reset": "pnpm --filter @app/database reset",
     "db:push": "set -a && . ./.env && set +a && pnpm --filter @app/database exec prisma db push && pnpm --filter @app/rtc-database exec prisma db push",
+    "db:provision": "bash scripts/provision-db.sh",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "test": "set -a && . ./.env && set +a && pnpm --filter backend test:e2e",
@@ -57,7 +58,7 @@
       "y-websocket": "2.0.4"
     },
     "patchedDependencies": {
-      "@toddle-edu/ds-icons@1.21.1": "patches/@toddle-edu__ds-icons@1.21.1.patch"
+      "@toddle-edu/ds-icons": "patches/@toddle-edu__ds-icons.patch"
     }
   }
 }

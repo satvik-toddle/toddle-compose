@@ -4,7 +4,7 @@ import { IconButton } from '../../components/IconButton';
 import { Avatar } from '../../components/Avatar';
 import { RealmChip } from '../../components/RealmChip';
 import { RoleSelect } from '../../components/RoleSelect';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import s from './RealmMembersTab.module.scss';
 import { useRealm, useRealmMembers } from '../../hooks/queries';
 import { useSetRealmRole } from '../../hooks/useRealmMutations';
@@ -28,7 +28,7 @@ export function RealmMembersTab() {
 
   const isOwner = realm?.role === 'OWNER';
 
-  if (isLoading) return <div className="page"><div className="page-wrap"><PageSpinner /></div></div>;
+  if (isLoading) return <div className="page"><div className="page-wrap"><PageLoader /></div></div>;
   const list = members ?? [];
 
   return (

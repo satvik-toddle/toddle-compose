@@ -3,7 +3,7 @@ import { Outlet, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { enterWorkspaceScope } from '../lib/session';
-import { PageSpinner } from '../components/Spinner';
+import { PageLoader } from '../components/Loader';
 import { NoAccessPanel } from '../features/errors/NoAccessPanel';
 
 type ScopeState = 'entering' | 'ready' | 'denied';
@@ -40,7 +40,7 @@ export function WorkspaceScopeRoute() {
   if (state !== 'ready' || activeId !== workspaceId) {
     return (
       <div className="rbac">
-        <PageSpinner />
+        <PageLoader />
       </div>
     );
   }

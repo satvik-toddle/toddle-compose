@@ -27,12 +27,43 @@ export interface AuthResponse extends AuthTokens {
   user: User;
 }
 
+// POST /auth/register and /auth/resend-verification — no session is issued until
+// the emailed link is verified.
+export interface VerificationPending {
+  status: 'verification_sent';
+  email: string;
+  emailDelivered: boolean; // false when the backend mailer is in dev/console mode (link logged, not sent)
+  verified: boolean; // true when the account is already verified (email service bypassed, no link to wait for)
+}
+
+// GET /auth/config — public client config flagging email-dependent flows.
+export interface AuthConfig {
+  passwordResetEnabled: boolean; // false when the backend email service is bypassed (no self-serve password reset)
+}
+
+// POST /auth/verify-email — success.
+export interface VerifyEmailResponse {
+  status: 'verified';
+  email: string;
+}
+
+// POST /auth/forgot-password — always generic (no account-existence leak).
+export interface ResetEmailSent {
+  status: 'reset_email_sent';
+}
+
+// POST /auth/reset-password — success.
+export interface ResetPasswordResponse {
+  status: 'reset';
+}
+
 // POST /auth/workspace/enter — re-mints the access token scoped to a workspace.
 export interface EnterWorkspaceResponse {
   accessToken: string;
   expiresIn: number;
   workspaceId: string;
   role: WorkspaceRole;
+  guest?: boolean; // true when the caller has no workspace membership and entered via a per-page grant
 }
 
 // POST /auth/workspace/leave — re-mints an unscoped access token.
@@ -46,6 +77,7 @@ export interface RealmInfo {
   id: string;
   name: string;
   role: RealmRole; // caller's realm role
+  allowedEmailDomains?: string[]; // self-signup allowlist; empty = any domain, only returned to OWNER/MAINTAINER
 }
 
 export interface RealmMember {
@@ -64,6 +96,7 @@ export interface Workspace {
   defaultRole: WorkspaceRole;
   createdAt: string;
   role: WorkspaceRole; // caller's effective role in this workspace
+  guest?: boolean; // true when the caller has no membership and sees the workspace shell via a per-page grant
 }
 
 // GET /workspaces/discoverable — metadata only, no role.
@@ -80,6 +113,7 @@ export interface WorkspaceMember {
   role: WorkspaceRole;
   createdAt: string;
   user: PublicUser;
+  realmRole?: RealmRole | null; // the member's realm role, so the UI can gate admin-only controls
 }
 
 export interface JoinRequest {
@@ -92,21 +126,53 @@ export interface JoinRequest {
   createdAt: string;
   decidedAt: string | null;
   user: PublicUser;
-  // Present on the realm-wide listing (so a row can name its workspace).
-  workspace?: { id: string; name: string; visibility: Visibility };
+  workspace?: { id: string; name: string; visibility: Visibility }; // present on the realm-wide listing (so a row can name its workspace)
+}
+
+export type DocumentType = 'DOC' | 'SHEET';
+
+export type ShareLinkScope = 'REALM' | 'ANYONE';
+
+// A document's public/realm share link (manage endpoints; managers only).
+export interface DocumentShareLink {
+  token: string;
+  role: WorkspaceRole; // READ | COMMENT | EDIT
+  scope: ShareLinkScope;
+  createdAt: string;
+  url: string; // ready-to-copy frontend URL (/link/:token)
+}
+
+// GET /share-links/:token — public resolve of a link to its document.
+export interface ShareLinkResolve {
+  document: { id: string; title: string; icon: string; type: DocumentType; workspaceId: string };
+  role: WorkspaceRole;
+  scope: ShareLinkScope;
 }
 
 export interface DocumentDto {
   id: string;
+  type: DocumentType;
   title: string;
   icon: string;
-  visibility: Visibility;
   workspaceId: string;
   folderId: string | null;
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
   owner: { id: string; name: string; color: string };
+  isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
+  myRole?: WorkspaceRole | null; // caller's effective role on this doc = owner ? ADMIN : max(ws role, per-doc grant); null for public-only viewers
+  sharedAt?: string; // when the caller's per-page grant was created (only on the shared-with-me list)
+  workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
+}
+
+// GET /documents/:id/permissions row — EDIT/ADMIN granted on one document, independent of workspace membership.
+export interface DocumentPermission {
+  userId: string;
+  documentId: string;
+  role: WorkspaceRole;
+  createdAt: string;
+  user: PublicUser;
 }
 
 export interface FolderDto {

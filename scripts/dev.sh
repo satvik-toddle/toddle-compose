@@ -174,5 +174,5 @@ fi
 # 4. APP SERVERS
 # ===========================================================================
 step "Starting services"
-note "backend → :4000   rtc → :4001/:4002   frontend → :5173"
+note "backend → :4000   rtc → :4001   frontend → :5173"
 exec pnpm run dev:services

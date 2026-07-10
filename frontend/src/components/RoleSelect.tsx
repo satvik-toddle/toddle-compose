@@ -21,6 +21,7 @@ export interface RoleSelectProps<T extends string> {
   renderValue: (v: T) => ReactNode; // the visible chip
   disabled?: boolean;
   locked?: boolean; // shows the chip + a lock, no dropdown
+  size?: 'small' | 'medium'; // defaults to small (the pre-existing callers' size)
 }
 
 // Inline role picker backed by ds-web SelectDropdown; each option/value renders
@@ -32,6 +33,7 @@ export function RoleSelect<T extends string>({
   renderValue,
   disabled,
   locked,
+  size = 'small',
 }: RoleSelectProps<T>) {
   if (locked || disabled) {
     return (
@@ -51,7 +53,7 @@ export function RoleSelect<T extends string>({
         onChange={(opt: any) => opt && onChange(opt.value as T)}
         isSearchable={false}
         isClearable={false}
-        size="small"
+        size={size}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatOptionLabel={(opt: any) => renderValue(opt.value as T)}
       />

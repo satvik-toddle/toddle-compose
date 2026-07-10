@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Field } from '../../components/Field';
 import { TextInput } from '../../components/TextInput';
@@ -18,6 +18,12 @@ export function ConfirmDeleteWorkspaceModal({
   const del = useDeleteWorkspace();
   const [text, setText] = useState('');
   const canDelete = text.trim() === name && !del.isPending;
+
+  // Centralised so additional states (e.g. validating, retrying) can be added here later.
+  const submitButtonLabel = useMemo(() => {
+    if (del.isPending) return 'Deleting…';
+    return 'Delete workspace';
+  }, [del.isPending]);
 
   const submit = () => {
     if (!canDelete) return;
@@ -56,7 +62,7 @@ export function ConfirmDeleteWorkspaceModal({
           Cancel
         </Button>
         <Button variant="danger" icon="DeleteOutlined" disabled={!canDelete} onClick={submit}>
-          {del.isPending ? 'Deleting…' : 'Delete workspace'}
+          {submitButtonLabel}
         </Button>
       </div>
     </Modal>

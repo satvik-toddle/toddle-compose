@@ -14,6 +14,9 @@ export function wsAtLeast(role: WorkspaceRole | null | undefined, min: Workspace
 export function isRealmAdmin(role: RealmRole | null | undefined): boolean {
   return role === 'OWNER' || role === 'MAINTAINER';
 }
+export function isUserMember(role: RealmRole | null | undefined): boolean {
+  return role === 'MEMBER';
+}
 export function maxWsRole(
   a: WorkspaceRole | null,
   b: WorkspaceRole | null,
@@ -44,11 +47,13 @@ export const WS_ROLE_META: Record<
   WorkspaceRole,
   { label: string; icon: string; desc: string }
 > = {
-  READ: { label: 'Read', icon: 'EyeOutlined', desc: 'View pages only' },
-  COMMENT: { label: 'Comment', icon: 'CommentOutlined', desc: 'View and comment' },
-  EDIT: { label: 'Edit', icon: 'PencilOutlined', desc: 'Create and edit pages' },
-  ADMIN: { label: 'Admin', icon: 'SettingsOutlined', desc: 'Manage members & settings' },
+  READ: { label: 'Read', icon: 'EyeOutlined', desc: 'View' },
+  COMMENT: { label: 'Comment', icon: 'CommentOutlined', desc: 'Comment' },
+  EDIT: { label: 'Edit', icon: 'PencilOutlined', desc: 'Edit' },
+  ADMIN: { label: 'Admin', icon: 'SettingsOutlined', desc: 'Manage' },
 };
 
 export const REALM_ROLES: RealmRole[] = ['OWNER', 'MAINTAINER', 'MEMBER'];
 export const WS_ROLES: WorkspaceRole[] = ['READ', 'COMMENT', 'EDIT', 'ADMIN'];
+
+export const WS_ROLE_OPTIONS = WS_ROLES.map((r) => ({ value: r, label: WS_ROLE_META[r].label }));

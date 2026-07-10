@@ -1,13 +1,12 @@
 import {
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from "class-validator";
-
-const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
-type VisibilityInput = (typeof VISIBILITIES)[number];
+import { WORKSPACE_ROLES } from "../workspaces/dto";
 
 const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
 type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
@@ -64,11 +63,6 @@ export class MoveDocumentDto {
   parentId?: string | null;
 }
 
-export class SetVisibilityDto {
-  @IsIn(VISIBILITIES)
-  visibility!: VisibilityInput;
-}
-
 export class ListDocumentsDto {
   // Narrow to a single folder; omit for the whole workspace.
   @IsOptional()
@@ -84,4 +78,44 @@ export class ListDocumentsDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+}
+
+export class ListStarredDocumentsDto {
+  // Defaults to the caller's active workspace from the session.
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+}
+
+// Per-page grants accept any WorkspaceRole; they only ever elevate (effective = max(ws role, grant)).
+type DocPermissionRoleInput = (typeof WORKSPACE_ROLES)[number];
+
+export class AddDocumentPermissionDto {
+  // The grantee must already be a registered user (looked up by email; 404 otherwise).
+  @IsEmail()
+  email!: string;
+
+  @IsIn(WORKSPACE_ROLES)
+  role!: DocPermissionRoleInput;
+}
+
+export class UpdateDocumentPermissionDto {
+  @IsIn(WORKSPACE_ROLES)
+  role!: DocPermissionRoleInput;
+}
+
+// Share links never confer ADMIN — role is capped at EDIT here, at the API edge.
+const SHARE_LINK_ROLES = ["READ", "COMMENT", "EDIT"] as const;
+type ShareLinkRoleInput = (typeof SHARE_LINK_ROLES)[number];
+
+const SHARE_LINK_SCOPES = ["REALM", "ANYONE"] as const;
+type ShareLinkScopeInput = (typeof SHARE_LINK_SCOPES)[number];
+
+export class UpsertShareLinkDto {
+  @IsIn(SHARE_LINK_ROLES)
+  role!: ShareLinkRoleInput;
+
+  // REALM → any logged-in realm member with the link; ANYONE → works logged-out.
+  @IsIn(SHARE_LINK_SCOPES)
+  scope!: ShareLinkScopeInput;
 }

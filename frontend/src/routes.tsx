@@ -5,17 +5,21 @@ import { WorkspaceScopeRoute } from './app/WorkspaceScopeRoute';
 import { RootRedirect } from './app/RootRedirect';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
-import { RegisterSuccessPage } from './features/auth/RegisterSuccessPage';
+import { CheckEmailPage } from './features/auth/CheckEmailPage';
+import { VerifyEmailPage } from './features/auth/VerifyEmailPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { RequestAccessPage } from './features/auth/RequestAccessPage';
 import { LauncherPage } from './features/launcher/LauncherPage';
 import { AdminConsolePage } from './features/admin/AdminConsolePage';
 import { WorkspacesTab } from './features/admin/WorkspacesTab';
 import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
+import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
-import { PagesPanel } from './features/workspace/PagesPanel';
-import { MembersPanel } from './features/workspace/MembersPanel';
-import { RequestsPanel } from './features/workspace/RequestsPanel';
+import { WorkspaceContent } from './features/workspace/content';
+import { StarredPagesView } from './features/workspace/content/StarredPagesView';
+import { LinkDocView } from './features/link/LinkDocView';
 
 export function AppRoutes() {
   return (
@@ -23,7 +27,13 @@ export function AppRoutes() {
       {/* public auth */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/register/success" element={<RegisterSuccessPage />} />
+      <Route path="/register/check-email" element={<CheckEmailPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+      {/* public share link (works logged-out for ANYONE-scope links) */}
+      <Route path="/link/:token" element={<LinkDocView />} />
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>
@@ -37,15 +47,15 @@ export function AppRoutes() {
             <Route path="workspaces" element={<WorkspacesTab />} />
             <Route path="members" element={<RealmMembersTab />} />
             <Route path="requests" element={<JoinRequestsTab />} />
+            <Route path="settings" element={<RealmSettingsTab />} />
           </Route>
         </Route>
 
         {/* inside a workspace (scope is entered before render) */}
         <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
           <Route element={<WorkspaceLayout />}>
-            <Route index element={<PagesPanel />} />
-            <Route path="members" element={<MembersPanel />} />
-            <Route path="requests" element={<RequestsPanel />} />
+            <Route index element={<WorkspaceContent />} />
+            <Route path="starred" element={<StarredPagesView />} />
           </Route>
         </Route>
       </Route>

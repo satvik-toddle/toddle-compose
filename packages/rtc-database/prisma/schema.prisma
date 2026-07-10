@@ -11,8 +11,10 @@ generator client {
 }
 
 datasource db {
+  // Prisma 7 no longer allows `url` here. The connection string lives in
+  // prisma.config.ts (for Migrate) and is passed via the @prisma/adapter-pg
+  // driver adapter to the PrismaClient constructor (for the app runtime).
   provider = "postgresql"
-  url      = env("RTC_DATABASE_URL")
 }
 
 model RtcDocument {

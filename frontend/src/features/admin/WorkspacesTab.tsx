@@ -1,7 +1,7 @@
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
-import { PageSpinner } from '../../components/Spinner';
+import { PageLoader } from '../../components/Loader';
 import s from './WorkspacesTab.module.scss';
 import { useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
@@ -15,7 +15,7 @@ export function WorkspacesTab() {
   const enter = useEnterWorkspace();
   const openModal = useUiStore((s) => s.openModal);
 
-  if (isLoading) return <div className="page"><div className="page-wrap"><PageSpinner /></div></div>;
+  if (isLoading) return <div className="page"><div className="page-wrap"><PageLoader /></div></div>;
   const list = workspaces ?? [];
 
   return (
@@ -47,9 +47,9 @@ export function WorkspacesTab() {
                 <div className="cell-main">
                   <span
                     className="ws-emoji sm"
-                    style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
+                    style={{ background: `var(--tag-background-${vis.hue}-default)` }}
                   >
-                    <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+                    <Icon name={vis.icon} size={18} style={{ color: `var(--tag-foreground-${vis.hue})` }} />
                   </span>
                   <div>
                     <div className="nm">{w.name}</div>

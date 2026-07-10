@@ -22,7 +22,37 @@ export const envSchema = z.object({
   REFRESH_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(86400), // 24 h
 
   // CORS allowlist (comma-separated origins). No wildcard in production.
-  CORS_ORIGINS: z.string().default("http://localhost:5173"),
+  CORS_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173"),
+
+  // --- Email verification -----------------------------------------------------
+  // Public origin of the frontend; used to build the verification link emailed
+  // on sign-up (`${FRONTEND_URL}/verify-email?token=...`).
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  // How long a sign-up verification token stays valid. Short-lived by design.
+  EMAIL_VERIFICATION_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // How long a "forgot password" reset token stays valid. Short-lived by design.
+  PASSWORD_RESET_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // Minimum gap between verification/reset emails to the SAME account, in
+  // seconds. Enforced server-side (per email, not per IP) so a fresh token +
+  // email is issued at most once per window. 0 disables the cooldown.
+  EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
+  // Which email transport to use. "nodemailer" (default) preserves today's Gmail/console behaviour; "resend" sends via Resend.
+  EMAIL_SERVICE_TYPE: z.enum(["nodemailer", "resend"]).default("nodemailer"),
+  // Gmail SMTP credentials; when both set, mail goes via Gmail, else logged to console (dev).
+  // Required in production unless BYPASS_EMAIL_SERVICE=true (checked in superRefine below).
+  GMAIL_SERVICE_EMAIL: z.string().email().optional(),
+  GMAIL_SERVICE_PASSWORD: z.string().min(1).optional(),
+  // Resend API key; when EMAIL_SERVICE_TYPE=resend and set, mail goes via Resend, else logged to console (dev).
+  RESEND_API_KEY: z.string().min(1).optional(),
+  // Resend requires a verified-domain sender; falls back to Resend's test sender (onboarding@resend.dev) in the service.
+  RESEND_FROM_EMAIL: z.string().email().optional(),
+  // Display name on the From header.
+  MAIL_FROM_NAME: z.string().default("Toddle Compose"),
+  // No email service: auto-verifies sign-ups, mints no reset token. Strict enum so it's explicit.
+  BYPASS_EMAIL_SERVICE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 
   // --- Rate limiting (@nestjs/throttler) -------------------------------------
   // Window all limits below are measured over, in milliseconds.
@@ -49,7 +79,8 @@ export const envSchema = z.object({
   RTC_TOKEN_AUD: z.string().default("rtc-server"),
 
   // Internal HTTP channel to rtc-server (shared-secret authed); production REQUIRES a long random secret.
-  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4002"),
+  // rtc-server serves its internal API on the same port as WS (RTC_PORT, default 4001).
+  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4001"),
   INTERNAL_TOKEN: isProduction
     ? z.string().min(32, "INTERNAL_TOKEN must be at least 32 characters in production")
     : z.string().min(1).default("dev-internal-secret-change-me"),
@@ -73,6 +104,44 @@ export const envSchema = z.object({
   // If set, objects link to this public/CDN base URL; otherwise the provider returns pre-signed GET URLs.
   STORAGE_S3_PUBLIC_URL: z.string().optional(),
   STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
+
+  // --- Request tracing --------------------------------------------------------
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+}).superRefine((env, ctx) => {
+  // Production must have deliverable mail unless the email service is bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "nodemailer" &&
+    (!env.GMAIL_SERVICE_EMAIL || !env.GMAIL_SERVICE_PASSWORD)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GMAIL_SERVICE_EMAIL"],
+      message:
+        "GMAIL_SERVICE_EMAIL and GMAIL_SERVICE_PASSWORD are required in production unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
+  // Mirror rule for the Resend transport: production needs an API key unless bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "resend" &&
+    !env.RESEND_API_KEY
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["RESEND_API_KEY"],
+      message:
+        "RESEND_API_KEY is required in production when EMAIL_SERVICE_TYPE=resend unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

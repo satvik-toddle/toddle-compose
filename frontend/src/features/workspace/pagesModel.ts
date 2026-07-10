@@ -35,3 +35,31 @@ export function buildDocTree(docs: DocumentDto[]): DocTree {
 
   return { roots, isEmpty: docs.length === 0 };
 }
+
+// Index the flat document list by id, for parent/ancestor lookups.
+export function mapDocsById(docs: DocumentDto[]): Map<string, DocumentDto> {
+  return new Map(docs.map((d) => [d.id, d]));
+}
+
+// Case-insensitive title search; powers the sidebar's flat result list.
+export function filterDocuments(docs: DocumentDto[], query: string): DocumentDto[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return [];
+  return docs
+    .filter((doc) => doc.title.toLowerCase().includes(normalizedQuery))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+// Walk a page's parent spine (the page itself up to its root), returning the ids.
+// Used to reveal a deep-linked page by expanding its ancestors.
+export function getAncestorIds(docId: string, byId: Map<string, DocumentDto>): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  let cur: string | null | undefined = docId;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    ids.push(cur);
+    cur = byId.get(cur)?.parentId ?? null;
+  }
+  return ids;
+}

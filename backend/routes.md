@@ -324,9 +324,12 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
   access required; `400` if `seq` is not a non-negative integer. This is a **generic id route**: the
   server resolves the document's `type` and dispatches to the matching handler, so the payload is
   kind-specific. The response always includes `type`. For a **SHEET**, `sheet` is the reconstructed
-  grid (`{ rows, colTypes }`); for a **DOC**, `yjsStateB64` is the full Yjs state at that seq (base64),
-  which the client binds to a read-only editor to render the snapshot. (`502` if the rtc-server is too
-  old to return `yjsStateB64` — deploy skew.)
+  grid (`{ rows, colTypes }`); for a **DOC**, `lexicalJson` is the server-extracted Lexical
+  editorState at that seq (upload URLs materialized), which the client feeds to a read-only editor.
+  Optional `?diff=<baselineSeq>` (DOC only, `400` if not a non-negative integer; `0` = empty doc)
+  additionally returns `diffJson` — a merged diff editorState (baseline → seq) with added/removed
+  content wrapped in `diff-mark` nodes; without `?diff`, `diffJson` is `null`. (`502` if extraction
+  fails or the rtc-server is too old to serve the render mode — deploy skew.)
   `200` (SHEET):
   ```json
   { "docId": "ckdo…", "type": "SHEET", "seq": 30, "headSeq": 42,
@@ -335,7 +338,7 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
   `200` (DOC):
   ```json
   { "docId": "ckdo…", "type": "DOC", "seq": 30, "headSeq": 42,
-    "yjsStateB64": "AQ…" }
+    "lexicalJson": "{\"root\":…}", "diffJson": null }
   ```
 - `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
 - `PATCH /api/documents/:id/move` — `{ folderId?, parentId? }` → relocate. `parentId` re-parents it

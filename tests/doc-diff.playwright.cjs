@@ -78,7 +78,12 @@ async function main() {
   ok(hist.sessions.length >= 2, `history API returned two edit sessions (got ${hist.sessions.length})`);
 
   // --- open history mode + toggle "Show changes" ---
-  await page.locator('button[aria-label="Version history"]').click();
+  // History lives in the Page actions dropdown as a "Version history" menu item.
+  await page.locator('[aria-label="Page actions"]').last().click();
+  await page
+    .locator('.ant-dropdown-menu li[role="menuitem"]', { hasText: 'Version history' })
+    .first()
+    .click();
   await page.waitForFunction(() => new URL(location.href).searchParams.get('history') === 'true', { timeout: 5000 });
   await page.waitForSelector('text=Version history', { timeout: 5000 });
   await page.locator('button[aria-current]').first().waitFor({ timeout: 8000 });

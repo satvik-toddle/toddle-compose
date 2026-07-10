@@ -38,17 +38,19 @@ export class CompactionScheduler
       return;
     }
 
-    // Hard precondition: rtc_compaction_runs MUST exist (rtc schema pushed). Abort boot loudly
-    // if it can't be read, rather than silently degrading to a 30s-after-boot pass every restart.
+    // rtc_compaction_runs must exist (rtc schema pushed). If it can't be read, DISABLE the
+    // scheduler and log FATAL rather than aborting boot: crash-looping the whole rtc-server
+    // (all live collab websockets) over compaction bookkeeping is a far worse failure than
+    // running without compaction until the schema push lands.
     let latest: Awaited<ReturnType<DocRepository["getLatestCompactionRun"]>>;
     try {
       latest = await this.repo.getLatestCompactionRun();
     } catch (e) {
       log.error(
-        "FATAL: cannot read rtc_compaction_runs — push the rtc schema (pnpm --filter @app/rtc-database exec prisma db push)",
+        "FATAL: cannot read rtc_compaction_runs — compaction DISABLED until the rtc schema is pushed (pnpm --filter @app/rtc-database exec prisma db push) and the service restarts",
         e
       );
-      throw e;
+      return;
     }
     if (this.stopped) return;
 

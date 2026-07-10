@@ -151,7 +151,8 @@ export type RtcSheetSnapshot = {
 };
 
 // Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.
-export type RtcPreviewInclude = "all" | "state" | "render" | "text";
+// (rtc also accepts a legacy 'state' value for older backends; this backend never sends it.)
+export type RtcPreviewInclude = "all" | "render" | "text";
 
 export type RtcVersionPreview = {
   docId: string;
@@ -160,8 +161,7 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
-  // Absent when include='text', or when talking to an older rtc-server that predates this field.
-  yjsStateB64?: string;
-  // include='render' with diffAgainst: merged diff editorState (baseline -> seq); absent otherwise.
+  // include='render': merged diff editorState (baseline -> seq) or null; ABSENT (undefined) when
+  // talking to an older rtc-server that predates the render mode — the skew guard keys off this.
   diffJson?: string | null;
 };

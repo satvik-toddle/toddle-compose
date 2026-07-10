@@ -102,10 +102,15 @@ The append-only update log for a doc. Query params (all optional):
 ### GET `/internal/docs/:docId/versions/:seq` — preview doc state at a seq
 Reconstructs the document by applying updates up to `:seq` and extracts its content. `:seq` must be a
 non-negative integer (`400` otherwise); `0` yields the empty document. Optional `include` query param
-selects which slice to compute (skips the rest): `all` (default), `state` (yjs bytes only — DOC
-render), or `text` (sheet/text only — SHEET render); any other value is `400`. `yjsStateB64` is the
-full Yjs state (base64), present for `all`/`state` and empty for `text`; `lexicalJson`/`plainText`/
-`rawTexts` are populated only for `all`.
+selects which slice to compute (skips the rest): `all` (default), `render` (materialized
+`lexicalJson` — DOC snapshot/diff render, the mode the backend sends for DOCs), `text` (sheet/text
+only — SHEET render), or the legacy `state` (yjs bytes only; kept for older backends); any other
+value is `400`. With `include=render`, optional `diffAgainst=<seq>` (`400` if not a non-negative
+integer; `0` = empty-doc baseline) also returns `diffJson` — a merged diff editorState
+(baseline → seq) with `diff-mark` nodes; `diffJson` is `null` for a render without `diffAgainst` and
+absent semantics only on older servers. `yjsStateB64` is the full Yjs state (base64), present for
+`all`/`state` and empty for `render`/`text`; `lexicalJson` is populated for `render` (upload-registry
+URLs baked into node `src`) and `all` (raw); `plainText`/`rawTexts` only for `all`.
 `200`:
 ```json
 {

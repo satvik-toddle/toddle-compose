@@ -486,14 +486,14 @@ export class DocumentsService {
         return { ...base, sheet: preview.sheet };
       case DocumentType.DOC:
       default:
-        // A DOC renders from the server-extracted editorState; a missing field means extraction failed or the rtc-server predates it — fail loud rather than render every version empty.
-        if (!preview.lexicalJson) {
+        // Fail loud on both skew shapes: extraction failure (lexicalJson null) AND an old rtc-server that silently ignored include=render — it returns a lexicalJson WITHOUT materialized upload srcs and never emits the diffJson key (the render path always sets it, even as null).
+        if (!preview.lexicalJson || preview.diffJson === undefined) {
           throw new HttpException({ error: "rtc service error" }, 502);
         }
         return {
           ...base,
           lexicalJson: preview.lexicalJson,
-          diffJson: preview.diffJson ?? null,
+          diffJson: preview.diffJson,
         };
     }
   }

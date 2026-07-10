@@ -91,23 +91,6 @@ export class VersionsService {
     private readonly extract: LexicalExtractService
   ) {}
 
-  // Replay the update log into a fresh Y.Doc clamped to [0, head].
-  private async reconstruct(
-    docId: string,
-    seq: number,
-    head: number
-  ): Promise<{ ydoc: Y.Doc; target: number }> {
-    const target = Math.max(0, Math.min(seq, head));
-    const ydoc = new Y.Doc();
-    if (target > 0) {
-      const blobs = await this.repo.getDocUpdateBlobsUpTo(docId, target);
-      for (const { blob } of blobs) {
-        Y.applyUpdate(ydoc, new Uint8Array(blob));
-      }
-    }
-    return { ydoc, target };
-  }
-
   // Extract the doc's editorState with upload URLs baked in (see materializeUploadSrcs); null when extraction fails.
   private async renderState(ydoc: Y.Doc): Promise<SerializedEditorState | null> {
     const { lexicalJson } = await this.extract.extractFromBytes(
@@ -129,23 +112,27 @@ export class VersionsService {
   ): Promise<VersionPreview> {
     const t0 = Date.now();
     const head = await this.repo.getHeadSeq(docId);
-    const { ydoc, target } = await this.reconstruct(docId, seq, head);
-    const yjsState = Y.encodeStateAsUpdate(ydoc);
+    const target = Math.max(0, Math.min(seq, head));
+    // One blob fetch + one replay pass: the diff baseline is a prefix of the target replay, so it is snapshotted mid-pass instead of replaying the log twice.
+    const blobs =
+      target > 0 ? await this.repo.getDocUpdateBlobsUpTo(docId, target) : [];
+    const ydoc = new Y.Doc();
 
-    // Extract sheet FIRST so the rawTexts getText() loop can't coerce 'rows' to Y.Text; cheap and local, so run it in every mode.
-    const sheet = extractSheet(ydoc);
-
-    // 'state' (legacy DOC render, yjs bytes only) and 'text' (SHEET render, reads only `sheet`) skip the CPU-heavy headless-Lexical extraction.
     let lexicalJson: string | null = null;
     let diffJson: string | null = null;
-    const rawTexts: Record<string, string> = {};
-    let plainText = "";
-    if (include === "render") {
+    if (include === "render" && diffAgainstSeq != null) {
+      const baseSeq = Math.max(0, Math.min(diffAgainstSeq, target));
+      let idx = 0;
+      for (; idx < blobs.length && blobs[idx].seq <= baseSeq; idx++) {
+        Y.applyUpdate(ydoc, new Uint8Array(blobs[idx].blob));
+      }
+      const baseState = await this.renderState(ydoc);
+      for (; idx < blobs.length; idx++) {
+        Y.applyUpdate(ydoc, new Uint8Array(blobs[idx].blob));
+      }
       const state = await this.renderState(ydoc);
       lexicalJson = state ? JSON.stringify(state) : null;
-      if (state && diffAgainstSeq != null) {
-        const base = await this.reconstruct(docId, diffAgainstSeq, head);
-        const baseState = await this.renderState(base.ydoc);
+      if (state) {
         // An empty/failed baseline diffs against the empty doc (everything reads as added).
         diffJson = JSON.stringify(
           diffEditorStates(
@@ -154,7 +141,28 @@ export class VersionsService {
           )
         );
       }
-    } else if (include === "all") {
+    } else {
+      for (const { blob } of blobs) {
+        Y.applyUpdate(ydoc, new Uint8Array(blob));
+      }
+      if (include === "render") {
+        const state = await this.renderState(ydoc);
+        lexicalJson = state ? JSON.stringify(state) : null;
+      }
+    }
+
+    // Extract sheet BEFORE the rawTexts getText() loop so it can't coerce 'rows' to Y.Text; cheap and local, so run it in every mode.
+    const sheet = extractSheet(ydoc);
+
+    // Only 'all' and 'state' read the yjs bytes; 'render'/'text' skip the O(doc) encode entirely.
+    const yjsState =
+      include === "all" || include === "state"
+        ? Y.encodeStateAsUpdate(ydoc)
+        : null;
+
+    const rawTexts: Record<string, string> = {};
+    let plainText = "";
+    if (include === "all" && yjsState) {
       const extracted = await this.extract.extractFromBytes(yjsState);
       lexicalJson = extracted.lexicalJson;
 
@@ -173,11 +181,7 @@ export class VersionsService {
         : extracted.plainText;
     }
 
-    // Only 'all' and 'state' callers read the yjs bytes; skip the base64 encode elsewhere.
-    const yjsStateB64 =
-      include === "text" || include === "render"
-        ? ""
-        : Buffer.from(yjsState).toString("base64");
+    const yjsStateB64 = yjsState ? Buffer.from(yjsState).toString("base64") : "";
 
     const elapsedMs = Date.now() - t0;
     log.debug(
@@ -188,7 +192,7 @@ export class VersionsService {
       seq: target,
       headSeq: head,
       appliedUpdates: target,
-      yjsStateBytes: yjsState.byteLength,
+      yjsStateBytes: yjsState?.byteLength ?? 0,
       lexicalJson,
       plainText,
       rawTexts,

@@ -41,12 +41,12 @@ function ErrorPane() {
   );
 }
 
-// Banner for the selected version; neutral label when ?v names a seq no session matches.
-function bannerText(session: DocHistorySession | undefined): string {
-  if (!session) return 'Viewing version';
+// Who/when suffix for the selected version; null when ?v names a seq no session matches.
+function sessionLabel(session: DocHistorySession | undefined): string | null {
+  if (!session) return null;
   const when = relativeTime(session.endedAt);
-  if (session.kind === 'archive') return `Viewing version · ${when} · archived`;
-  return `Viewing version · ${when} · edited by ${session.user?.name ?? 'unknown'}`;
+  if (session.kind === 'archive') return `${when} · archived`;
+  return `${when} · edited by ${session.user?.name ?? 'unknown'}`;
 }
 
 // Content pane while a DOC is in history mode: the version's title + a read-only render at that seq (or a diff against the previous version when `?diff=true`).
@@ -60,14 +60,18 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
     session,
   } = useVersionSelection(doc.id);
 
-  // The previous version is the next-older session in the newest-first list; the oldest diffs against the empty doc (seq 0).
+  // The previous version is the next-older session in the newest-first list; the oldest diffs
+  // against the empty doc (seq 0). When ?v names a seq NO session matches (e.g. a stale link
+  // after compaction rewrote boundaries), there is no meaningful baseline — diffing against 0
+  // would render the whole doc as "added", so diff mode degrades to the plain snapshot instead.
   const selectedIdx = sessions.findIndex((sess) => sess.lastSeq === effectiveSeq);
-  const prevSeq = selectedIdx >= 0 ? (sessions[selectedIdx + 1]?.lastSeq ?? 0) : 0;
+  const diffBaseline = selectedIdx >= 0 ? (sessions[selectedIdx + 1]?.lastSeq ?? 0) : null;
+  const diffActive = diff && diffBaseline != null;
   // One query returns the snapshot, plus the server-computed merged diff in diff mode.
   const { data: snapshot, isLoading: snapLoading, isError: snapError } = useDocSnapshot(
     doc.id,
     effectiveSeq,
-    diff ? prevSeq : undefined,
+    diffActive ? diffBaseline : undefined,
   );
 
   if (sessionsLoading) {
@@ -83,27 +87,29 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
   }
 
   const loading = snapLoading || !snapshot;
-  const stateJson = diff ? snapshot?.diffJson : snapshot?.lexicalJson;
+  const stateJson = diffActive ? snapshot?.diffJson : snapshot?.lexicalJson;
+
+  const label = sessionLabel(session);
+  const banner =
+    effectiveSeq == null
+      ? 'No versions to preview.'
+      : diffActive
+        ? `Comparing with previous version${label ? ` · ${label}` : ''}`
+        : `Viewing version${label ? ` · ${label}` : ''}`;
 
   return (
     <main className={styles.contentShell}>
       <div className={styles.docTitle}>
         <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
       </div>
-      <div className={styles.banner}>
-        {effectiveSeq == null
-          ? 'No versions to preview.'
-          : diff
-            ? `Comparing with previous version · ${bannerText(session).replace(/^Viewing version · /, '')}`
-            : bannerText(session)}
-      </div>
+      <div className={styles.banner}>{banner}</div>
       {effectiveSeq != null && (
         <Suspense fallback={<PageLoader />}>
           {loading ? (
             <PageLoader />
           ) : stateJson ? (
             <DocSnapshotViewer
-              key={`${diff ? `diff-${prevSeq}-` : ''}${effectiveSeq}`}
+              key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
               editorStateJson={stateJson}
             />
           ) : (

@@ -109,10 +109,8 @@ export function DocActions({
           },
         ]
       : []),
-    // Divider before Delete whenever anything sits above it.
-    ...(canManage && (canCreate || canManage || showHistory)
-      ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }]
-      : []),
+    // Divider before Delete; Share (also canManage) always sits above it when Delete renders.
+    ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
     ...(canManage
       ? [
           {

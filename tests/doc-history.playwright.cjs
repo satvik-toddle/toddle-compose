@@ -66,14 +66,18 @@ async function main() {
   ok(hist.sessions.length >= 1, `history API returned a session (got ${hist.sessions.length})`);
   const seq = hist.sessions[0]?.lastSeq;
   if (seq != null) {
-    // DOC snapshots now return only the yjs state (plainText/lexicalJson were trimmed —
-    // nothing read them); the rendered text is asserted against the editor below.
+    // DOC snapshots return the server-extracted editorState (lexicalJson, upload URLs
+    // materialized); the rendered text is asserted against the editor below.
     const snap = await j(`/documents/${doc.id}/history/${seq}`, { token });
-    ok(!!snap.yjsStateB64, `snapshot API returns yjs state for the DOC`);
+    ok(!!snap.lexicalJson, `snapshot API returns the extracted editorState for the DOC`);
   }
 
-  // --- open history mode via the topbar button ---
-  await page.locator('button[aria-label="Version history"]').click();
+  // --- open history mode via the Page actions dropdown ("Version history" menu item) ---
+  await page.locator('[aria-label="Page actions"]').last().click();
+  await page
+    .locator('.ant-dropdown-menu li[role="menuitem"]', { hasText: 'Version history' })
+    .first()
+    .click();
   await page.waitForFunction(() => new URL(location.href).searchParams.get('history') === 'true', { timeout: 5000 });
   ok(true, 'History button set ?history=true');
 

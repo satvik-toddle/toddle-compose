@@ -74,42 +74,69 @@ function wrapBlock(
   };
 }
 
-// Generic LCS over two arrays keyed by an equality function; returns aligned pairs (either side may be null for insert/delete).
+// Hard ceiling on the LCS DP size: beyond it we degrade to remove-all/add-all instead of risking an event-loop stall or OOM on the shared rtc process.
+const MAX_DP_CELLS = 4_000_000;
+
+// Generic LCS over two arrays with PRECOMPUTED string keys (so equality is O(1) per DP cell, not a subtree walk); returns aligned pairs (either side may be null for insert/delete).
+// Trims the common prefix/suffix before the DP (typical edits shrink the matrix to the changed span), uses a flat Int32Array, and caps the matrix at MAX_DP_CELLS.
 function lcsAlign<T>(
   before: T[],
   after: T[],
-  equal: (a: T, b: T) => boolean
+  beforeKeys: string[],
+  afterKeys: string[]
 ): Array<{ before: T | null; after: T | null }> {
-  const n = before.length;
-  const m = after.length;
-  // dp[i][j] = LCS length of before[i..] and after[j..].
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = equal(before[i], after[j])
-        ? dp[i + 1][j + 1] + 1
-        : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
   const result: Array<{ before: T | null; after: T | null }> = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (equal(before[i], after[j])) {
-      result.push({ before: before[i], after: after[j] });
-      i++;
-      j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      // Advancing before means this before element is removed.
-      result.push({ before: before[i], after: null });
-      i++;
-    } else {
-      result.push({ before: null, after: after[j] });
-      j++;
-    }
+  let lo = 0;
+  let hiB = before.length;
+  let hiA = after.length;
+  while (lo < hiB && lo < hiA && beforeKeys[lo] === afterKeys[lo]) {
+    result.push({ before: before[lo], after: after[lo] });
+    lo++;
   }
-  while (i < n) result.push({ before: before[i++], after: null });
-  while (j < m) result.push({ before: null, after: after[j++] });
+  const suffix: Array<{ before: T | null; after: T | null }> = [];
+  while (hiB > lo && hiA > lo && beforeKeys[hiB - 1] === afterKeys[hiA - 1]) {
+    suffix.push({ before: before[hiB - 1], after: after[hiA - 1] });
+    hiB--;
+    hiA--;
+  }
+  const n = hiB - lo;
+  const m = hiA - lo;
+  if (n === 0 || m === 0 || (n + 1) * (m + 1) > MAX_DP_CELLS) {
+    // Empty side, or matrix too large: no anchors — everything removed then added (callers pair/wrap from there).
+    for (let i = lo; i < hiB; i++) result.push({ before: before[i], after: null });
+    for (let j = lo; j < hiA; j++) result.push({ before: null, after: after[j] });
+  } else {
+    // dp[i*w+j] = LCS length of before[lo+i..] and after[lo+j..].
+    const w = m + 1;
+    const dp = new Int32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i * w + j] =
+          beforeKeys[lo + i] === afterKeys[lo + j]
+            ? dp[(i + 1) * w + j + 1] + 1
+            : Math.max(dp[(i + 1) * w + j], dp[i * w + j + 1]);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (beforeKeys[lo + i] === afterKeys[lo + j]) {
+        result.push({ before: before[lo + i], after: after[lo + j] });
+        i++;
+        j++;
+      } else if (dp[(i + 1) * w + j] >= dp[i * w + j + 1]) {
+        // Advancing before means this before element is removed.
+        result.push({ before: before[lo + i], after: null });
+        i++;
+      } else {
+        result.push({ before: null, after: after[lo + j] });
+        j++;
+      }
+    }
+    while (i < n) result.push({ before: before[lo + i++], after: null });
+    while (j < m) result.push({ before: null, after: after[lo + j++] });
+  }
+  for (let k = suffix.length - 1; k >= 0; k--) result.push(suffix[k]);
   return result;
 }
 
@@ -233,7 +260,12 @@ function diffSimpleTextBlock(
 ): SerializedLexicalNode {
   const beforeTokens = tokenize(beforeBlock);
   const afterTokens = tokenize(afterBlock);
-  const aligned = lcsAlign(beforeTokens, afterTokens, (a, b) => a.text === b.text);
+  const aligned = lcsAlign(
+    beforeTokens,
+    afterTokens,
+    beforeTokens.map((t) => t.text),
+    afterTokens.map((t) => t.text)
+  );
   const entries: Array<{ token: Token; cls: TokenClass }> = [];
   for (const pair of aligned) {
     if (pair.before && pair.after) entries.push({ token: pair.after, cls: "equal" });
@@ -245,16 +277,21 @@ function diffSimpleTextBlock(
   return clone;
 }
 
-// Emit a MATCHED block (same-position before/after of the same type): identical text → after unchanged; simple text → word-level diff; non-simple → after unchanged (v1 does not descend into lists/tables/columns).
+// Emit a MATCHED block pair (same change region, same type): identical text → after unchanged; simple text → word-level diff; non-simple (tables, lists, link/linebreak-bearing paragraphs) → removed+added block pair, so the edit is never rendered as "no change".
 function emitMatchedBlock(
   beforeBlock: SerializedLexicalNode,
   afterBlock: SerializedLexicalNode
-): SerializedLexicalNode {
-  if (normalizedText(beforeBlock) === normalizedText(afterBlock)) return cloneNode(afterBlock);
-  if (isSimpleTextBlock(beforeBlock) && isSimpleTextBlock(afterBlock)) {
-    return diffSimpleTextBlock(beforeBlock, afterBlock);
+): SerializedLexicalNode[] {
+  if (normalizedText(beforeBlock) === normalizedText(afterBlock)) {
+    return [cloneNode(afterBlock)];
   }
-  return cloneNode(afterBlock);
+  if (isSimpleTextBlock(beforeBlock) && isSimpleTextBlock(afterBlock)) {
+    return [diffSimpleTextBlock(beforeBlock, afterBlock)];
+  }
+  return [
+    wrapBlock(cloneNode(beforeBlock), "removed"),
+    wrapBlock(cloneNode(afterBlock), "added"),
+  ];
 }
 
 // An entry within a change region (a maximal run of non-anchor before/after blocks between LCS anchors).
@@ -280,7 +317,7 @@ function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
   for (const entry of entries) {
     if (entry.side === "before") {
       const paired = pairFor.get(entry.node);
-      if (paired) out.push(emitMatchedBlock(entry.node, paired));
+      if (paired) out.push(...emitMatchedBlock(entry.node, paired));
       else out.push(wrapBlock(cloneNode(entry.node), "removed"));
     } else if (!pairedAdded.has(entry.node)) {
       out.push(wrapBlock(cloneNode(entry.node), "added"));
@@ -303,11 +340,12 @@ export function diffEditorStates(
   const beforeBlocks =
     beforeRoot && Array.isArray(beforeRoot.children) ? beforeRoot.children : [];
 
-  // Block-level LCS anchors identical blocks; blocks that only differ in text fall into change regions and are paired there.
+  // Block-level LCS anchors identical blocks (keys precomputed once — never inside the DP); blocks that only differ in text fall into change regions and are paired there.
   const aligned = lcsAlign(
     beforeBlocks,
     afterBlocks,
-    (a, b) => blockKey(a) === blockKey(b)
+    beforeBlocks.map(blockKey),
+    afterBlocks.map(blockKey)
   );
 
   const merged: SerializedLexicalNode[] = [];

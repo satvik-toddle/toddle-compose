@@ -35,7 +35,11 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
           key: workspace.id,
           label: workspace.name,
           icon: (
-            <WorkspaceIcon size="xxx-small" overrideVariantStyles style={{ color: visual.color }} />
+            <WorkspaceIcon
+              size="xxx-small"
+              overrideVariantStyles
+              style={{ color: `var(--tag-foreground-${visual.hue})` }}
+            />
           ),
         };
       }),
@@ -86,7 +90,7 @@ export function WorkspaceSwitcher({ ctx }: Readonly<{ ctx: WorkspaceCtx }>) {
           icon={
             <CurrentWorkspaceIcon
               overrideVariantStyles
-              style={{ color: currentWorkspaceVisual.color }}
+              style={{ color: `var(--tag-foreground-${currentWorkspaceVisual.hue})` }}
             />
           }
           rightIcon={<ChevronDownOutlined variant="subtle" />}

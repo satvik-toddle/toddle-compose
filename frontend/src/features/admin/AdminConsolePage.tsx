@@ -18,8 +18,9 @@ function Count({ n, alert }: { n?: number; alert?: boolean }) {
         height: 16,
         lineHeight: '16px',
         borderRadius: 999,
-        background: alert && n > 0 ? 'var(--red-500)' : 'var(--surface-tertiary-enabled)',
-        color: alert && n > 0 ? '#fff' : 'var(--text-secondary)',
+        background:
+          alert && n > 0 ? 'var(--interactive-semantic-error)' : 'var(--surface-tertiary-enabled)',
+        color: alert && n > 0 ? 'var(--text-on)' : 'var(--text-secondary)',
       }}
     >
       {n}

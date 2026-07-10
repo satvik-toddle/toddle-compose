@@ -47,9 +47,9 @@ export function WorkspacesTab() {
                 <div className="cell-main">
                   <span
                     className="ws-emoji sm"
-                    style={{ background: vis.color + '22', boxShadow: `inset 0 0 0 1px ${vis.color}44` }}
+                    style={{ background: `var(--tag-background-${vis.hue}-default)` }}
                   >
-                    <Icon name={vis.icon} size={18} style={{ color: vis.color }} />
+                    <Icon name={vis.icon} size={18} style={{ color: `var(--tag-foreground-${vis.hue})` }} />
                   </span>
                   <div>
                     <div className="nm">{w.name}</div>

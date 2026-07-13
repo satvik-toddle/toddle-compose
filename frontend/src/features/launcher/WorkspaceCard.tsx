@@ -1,14 +1,9 @@
-import { Icon } from '../../components/Icon';
-import { workspaceVisual, type WorkspaceHue } from '../../lib/workspaceVisual';
+import { Icon, type IconName } from '../../components/Icon';
+import { WS_ROLE_META } from '../../lib/roles';
+import { workspaceVisual } from '../../lib/workspaceVisual';
 import { formatDate } from '../../lib/time';
 import type { Workspace } from '../../types/api';
 import s from './WorkspaceCard.module.scss';
-import {
-  ChatDotsOutlined,
-  EyeOutlined,
-  PencilOutlined,
-  UserProfileOutlined,
-} from '@toddle-edu/ds-icons';
 
 export function WorkspaceCard({
   ws,
@@ -20,11 +15,20 @@ export function WorkspaceCard({
   showRoleBadge?: boolean;
 }) {
   const vis = workspaceVisual(ws.id);
+  const visibilityLabel = ws.visibility === 'PUBLIC' ? 'Public' : 'Private';
+  // Explicit accessible name: otherwise the button's name is the concatenation of all
+  // inner text ("Private Edit Created 12 Jun 2026 Enter"). This keeps visibility + role
+  // in the announcement while dropping the noisy timestamp.
+  const ariaLabel =
+    `Open ${ws.name} workspace. ${visibilityLabel}` +
+    (showRoleBadge ? `. Your role: ${WS_ROLE_META[ws.role].label}` : '');
+
   return (
     <div
       className={s.wsCard}
       role="button"
       tabIndex={0}
+      aria-label={ariaLabel}
       style={{ cursor: 'pointer' }}
       onClick={onEnter}
       onKeyDown={(e) => {
@@ -34,13 +38,15 @@ export function WorkspaceCard({
         }
       }}
     >
+      {/* Identity: icon + name (single-purpose header, no floating badge) */}
       <div className={s.wsCardTop}>
         <span className="ws-emoji" style={{ background: `var(--tag-background-${vis.hue}-default)` }}>
           <Icon name={vis.icon} size={20} style={{ color: `var(--tag-foreground-${vis.hue})` }} />
         </span>
         <div className={s.wsCardNm}>{ws.name}</div>
-        {showRoleBadge && <WorkspaceRoleBadge role={ws.role} />}
       </div>
+
+      {/* Status: visibility + your role, as two quiet, equal-weight metadata items */}
       <div className={s.wsCardMeta}>
         <span>
           <Icon
@@ -48,9 +54,17 @@ export function WorkspaceCard({
             size={14}
             muted
           />
-          {ws.visibility === 'PUBLIC' ? 'Public' : 'Private'}
+          {visibilityLabel}
         </span>
+        {showRoleBadge && (
+          <span>
+            <Icon name={WS_ROLE_META[ws.role].icon as IconName} size={14} muted />
+            {WS_ROLE_META[ws.role].label}
+          </span>
+        )}
       </div>
+
+      {/* Action: the single primary CTA */}
       <div className={s.wsCardFoot}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           Created {formatDate(ws.createdAt)}
@@ -61,37 +75,5 @@ export function WorkspaceCard({
         </span>
       </div>
     </div>
-  );
-}
-
-const styles = {
-  roleBadge: 'absolute -right-[15px] -top-[15px] flex rounded-2 p-1 text-center lowercase',
-};
-
-// DS tag hue per role → --tag-background/foreground-{hue} (flips with theme).
-const ROLE_HUE: Record<string, WorkspaceHue> = {
-  EDIT: 'blue',
-  COMMENT: 'green',
-  READ: 'orange',
-  ADMIN: 'purple',
-};
-
-function WorkspaceRoleBadge({ role }: { role: Workspace['role'] }) {
-  const hue = ROLE_HUE[role] ?? 'blue';
-  const color = `var(--tag-foreground-${hue})`;
-  return (
-    <span
-      className={styles.roleBadge}
-      style={{ background: `var(--tag-background-${hue}-default)`, color }}
-    >
-      {
-        {
-          EDIT: <PencilOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
-          COMMENT: <ChatDotsOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
-          READ: <EyeOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
-          ADMIN: <UserProfileOutlined size="xxx-small" overrideVariantStyles style={{ color }} />,
-        }[role]
-      }
-    </span>
   );
 }

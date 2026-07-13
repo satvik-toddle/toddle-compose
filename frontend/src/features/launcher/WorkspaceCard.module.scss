@@ -57,28 +57,34 @@
 }
 
 .ws-card-top {
+  /* Two children now (emoji + name); name is flex:1 so justify-content is moot, and
+     position:relative only anchored the removed absolute role badge. */
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 14px;
-  gap: 8px;
-  position: relative;
+  gap: 10px;
 }
 
 .ws-card-nm {
   font-size: 17px;
   font-weight: 700;
-  width: 100%;
+  /* Shrinkable flex child so long workspace names truncate inside the card. */
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ws-card-meta {
   display: flex;
-  gap: 14px;
+  align-items: center;
+  gap: 16px;
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-secondary);
 
-  span {
+  > span {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -100,5 +106,12 @@
     font-size: 13px;
     font-weight: 700;
     color: var(--interactive-primary); /* the icon inherits this via currentColor */
+    transition: gap 0.12s ease;
   }
+}
+
+/* Motion-only affordance cue: the chevron nudges right on card hover, reinforcing
+   "the whole card is a button" without introducing a second accent colour. */
+.ws-card:hover .enter {
+  gap: 5px;
 }

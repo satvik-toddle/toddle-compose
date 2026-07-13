@@ -45,7 +45,7 @@ function defaultToRow(doc: DocumentDto): PageRow {
           <Avatar
             dsVersion="2.0"
             name={doc.owner.name}
-            color={dsAvatarColor(doc.owner.color)}
+            color={dsAvatarColor(doc.owner.color, doc.owner.id)}
             size="small"
             shape="circle"
           />

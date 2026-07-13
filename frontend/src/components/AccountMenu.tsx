@@ -2,14 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Dropdown, DropdownMenu, Tag } from '@toddle-edu/ds-web';
 import {
-  ChevronDownOutlined,
   DashboardOutlined,
   LogoutOutlined,
   OutlinedIcons,
   PaintBrushOutlined,
 } from '@toddle-edu/ds-icons';
 import { performLogout } from '../lib/session';
-import { cn } from '../lib/cn';
 import { dsAvatarColor, dsAvatarSize } from '../lib/dsAvatar';
 import { isThemePreference, useThemeStore } from '../stores/themeStore';
 import type { User } from '../types/api';
@@ -17,12 +15,12 @@ import type { RealmRole } from '../types/roles';
 import { isRealmAdmin, REALM_ROLE_META } from '../lib/roles';
 
 const styles = {
-  trigger: 'flex items-center rounded-full border border-secondary',
-  triggerCompact: 'gap-1 py-0.75 pl-0.75 pr-1',
-  triggerExpanded: 'gap-2.25 py-1 pl-1 pr-1.5',
-  identity: 'flex flex-col leading-tight',
-  name: 'text-label-s text-primary',
-  role: 'text-body-xs text-secondary',
+  // Bare circular avatar — no pill/border chrome, no name or chevron. A subtle
+  // ring surfaces on hover/focus so it still reads as an interactive trigger.
+  trigger:
+    'flex items-center justify-center rounded-full outline-none transition-shadow ' +
+    'hover:shadow-[0_0_0_2px_var(--border-hover)] ' +
+    'focus-visible:shadow-[0_0_0_2px_var(--border-focus)]',
   menu: 'w-[240px] p-1.5 rounded-3 border border-secondary bg-surface-primary-enabled shadow-elevation-3-bottom z-[60]',
   menuHead: 'px-2.5 pt-2.5 pb-2 mb-1 border-b border-secondary',
   menuName: 'text-label text-primary',
@@ -73,15 +71,12 @@ const REALM_TAG_COLOR: Record<RealmRole, 'red' | 'violet' | 'neutral'> = {
   MEMBER: 'neutral',
 };
 
-// `compact` renders the workspace-topbar variant (avatar + chevron only).
 export function AccountMenu({
   user,
   realmRole,
-  compact,
 }: Readonly<{
   user: User;
   realmRole?: RealmRole | null;
-  compact?: boolean;
 }>) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -107,7 +102,6 @@ export function AccountMenu({
     ? [...ADMIN_MENU_OPTIONS, ...ACCOUNT_MENU_OPTIONS]
     : ACCOUNT_MENU_OPTIONS;
 
-  const triggerClass = cn(styles.trigger, compact ? styles.triggerCompact : styles.triggerExpanded);
   const RealmRoleIcon = realmRole
     ? OutlinedIcons[REALM_ROLE_META[realmRole].icon as keyof typeof OutlinedIcons]
     : null;
@@ -146,21 +140,19 @@ export function AccountMenu({
   return (
     <Dropdown trigger={['click']} placement="bottomRight" overlay={menu}>
       {/* antd attaches its ref/onClick to this node */}
-      <button type="button" className={triggerClass} aria-haspopup="menu">
+      <button
+        type="button"
+        className={styles.trigger}
+        aria-haspopup="menu"
+        aria-label={`Account menu for ${user.name}`}
+      >
         <Avatar
           dsVersion="2.0"
           name={user.name}
-          color={dsAvatarColor(user.color)}
-          size={dsAvatarSize(compact ? 30 : 28)}
+          color={dsAvatarColor(user.color, user.id)}
+          size={dsAvatarSize(32)}
           shape="circle"
         />
-        {!compact && (
-          <span className={styles.identity}>
-            <span className={styles.name}>{user.name}</span>
-            {realmRole && <span className={styles.role}>{REALM_ROLE_META[realmRole].label}</span>}
-          </span>
-        )}
-        <ChevronDownOutlined size="xxx-small" variant="subtle" />
       </button>
     </Dropdown>
   );

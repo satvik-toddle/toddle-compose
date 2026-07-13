@@ -12,7 +12,7 @@ import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './p
 import { RenameInput } from './RenameInput';
 import type { PagesSectionController } from './usePagesSection';
 
-const BASE_INDENT = 8;
+const BASE_INDENT = 4;
 const INDENT_STEP = 15;
 
 export function PageRow({
@@ -70,8 +70,10 @@ export function PageRow({
       sidebarRow.base,
       selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
     ),
-    // Leaf pages keep the (hidden) chevron so icons stay aligned.
-    chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
+    // Leaf pages keep the (hidden) chevron so icons stay aligned. The negative
+    // margin absorbs the chevron's own padding + the row gap, pulling the file
+    // icon closer so the ~20px chevron column doesn't leave dead space.
+    chevronButton: cn('-mr-2 shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
     // min-w-0 lets the flex item shrink below its content so truncate shows the ellipsis.
     label: 'min-w-0 flex-1 truncate',
@@ -136,7 +138,6 @@ export function PageRow({
             type="plain"
             variant="neutral"
             size="x-small"
-            isCompact
             shouldStopPropagation
             className={styles.chevronButton}
             aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
@@ -173,7 +174,6 @@ export function PageRow({
                     type="plain"
                     variant="neutral"
                     size="x-small"
-                    isCompact
                     isActivated={isMenuOpen}
                     className={styles.menuTrigger}
                     aria-label="Page actions"

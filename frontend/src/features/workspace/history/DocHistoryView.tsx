@@ -1,6 +1,7 @@
-import { Suspense, lazy, useRef } from 'react';
+import { Suspense, lazy } from 'react';
 import { Button, EmptyState } from '@toddle-edu/ds-web';
 import { CopyOutlined } from '@toddle-edu/ds-icons';
+import { editorStateJsonToHtml } from '@toddle-edu/ds-doc-editor';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
@@ -54,7 +55,6 @@ function sessionLabel(session: DocHistorySession | undefined): string | null {
 // Content pane while a DOC is in history mode: the version's title + a read-only render at that seq (or a diff against the previous version when `?diff=true`).
 export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProps>) {
   const { diff } = useHistoryMode();
-  const contentRef = useRef<HTMLDivElement>(null);
   const {
     sessions,
     isLoading: sessionsLoading,
@@ -92,27 +92,14 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
   const loading = snapLoading || !snapshot;
   const stateJson = diffActive ? snapshot?.diffJson : snapshot?.lexicalJson;
 
-  // Copy the viewed version's content to the clipboard as rich HTML + plain text. In diff mode the
-  // rendered DOM carries diff decorations, so we clone it and reduce it to the version being viewed:
-  // removed marks are dropped, added marks are unwrapped to their content.
+  // Copy the viewed version's content to the clipboard as rich HTML + plain text. Serialize the
+  // plain version content via Lexical exportDOM (never the rendered DOM or the diff), so decorator
+  // nodes (images, files, embeds, videos) become real elements instead of editor chrome.
   const handleCopy = async () => {
-    const el = contentRef.current?.querySelector('.ds-de-contentEditable');
-    if (!el) return;
-    const clone = el.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll('.ds-de-content-removed').forEach((n) => n.remove());
-    clone.querySelectorAll('.ds-de-content-added').forEach((n) => {
-      const p = n.parentNode;
-      if (!p) return;
-      while (n.firstChild) p.insertBefore(n.firstChild, n);
-      p.removeChild(n);
-    });
-    // Attach offscreen so innerText reflects rendered line breaks, then read both formats.
-    clone.style.position = 'fixed';
-    clone.style.left = '-99999px';
-    document.body.appendChild(clone);
-    const text = (clone.innerText || clone.textContent || '').trim();
-    const html = clone.innerHTML;
-    document.body.removeChild(clone);
+    const json = snapshot?.lexicalJson;
+    if (!json) return;
+    const { html, text } = editorStateJsonToHtml(json);
+    if (!html && !text) { pushToast({ kind: 'error', message: "Couldn't copy content" }); return; }
     try {
       try {
         await navigator.clipboard.write([
@@ -151,27 +138,25 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
           type="plain"
           size="small"
           icon={<CopyOutlined />}
-          disabled={loading || !stateJson || effectiveSeq == null}
+          disabled={loading || !snapshot?.lexicalJson || effectiveSeq == null}
           onClick={handleCopy}
         >
           Copy content
         </Button>
       </div>
       {effectiveSeq != null && (
-        <div ref={contentRef} className="contents">
-          <Suspense fallback={<PageLoader />}>
-            {loading ? (
-              <PageLoader />
-            ) : stateJson ? (
-              <DocSnapshotViewer
-                key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
-                editorStateJson={stateJson}
-              />
-            ) : (
-              <ErrorPane />
-            )}
-          </Suspense>
-        </div>
+        <Suspense fallback={<PageLoader />}>
+          {loading ? (
+            <PageLoader />
+          ) : stateJson ? (
+            <DocSnapshotViewer
+              key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
+              editorStateJson={stateJson}
+            />
+          ) : (
+            <ErrorPane />
+          )}
+        </Suspense>
       )}
     </main>
   );

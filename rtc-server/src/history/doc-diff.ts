@@ -1,4 +1,6 @@
 // Pure diff algorithm for DOC version comparison: merges two serialized Lexical editorStates into one, wrapping changed inline runs in "diff-mark" nodes so a read-only editor can tint added/removed text. No Lexical/React/DOM imports.
+// Blocks and inline tokens are keyed by a full structural signature (type + content-bearing attrs + subtree), so formatting-only edits (bold, color, alignment, indent, table structure, image src/size, checkbox, code language, ...) are detected — not just type/text changes.
+// A simple text block may also contain inline-atomic nodes (childless non-text decorators, e.g. inline images); those tokenize as single node tokens so an inserted/removed/changed inline node is wrapped in its own inline diff-mark while surrounding text stays neutral.
 
 // Loose structural node type: any serialized Lexical node, with unknown fields preserved as pass-through.
 export interface SerializedLexicalNode {
@@ -145,32 +147,52 @@ function isTextNode(node: SerializedLexicalNode): boolean {
   return node.type === "text" || typeof node.text === "string";
 }
 
-// Concatenate all descendant text-node text values.
-function collectText(node: SerializedLexicalNode): string {
-  if (isTextNode(node)) return typeof node.text === "string" ? node.text : "";
-  const children = node.children;
-  if (!Array.isArray(children)) return "";
-  let out = "";
-  for (const child of children) out += collectText(child);
-  return out;
+// True if the node is an inline-atomic node: a non-text node with no (non-empty) children array, e.g. an inline image / decorator. A link (element with text children) does NOT qualify.
+function isInlineAtomic(node: SerializedLexicalNode): boolean {
+  if (isTextNode(node)) return false;
+  return !Array.isArray(node.children) || node.children.length === 0;
 }
 
-// Trim + collapse internal whitespace for block equality keys.
-function normalizedText(node: SerializedLexicalNode): string {
-  return collectText(node).replace(/\s+/g, " ").trim();
-}
-
-// A block is "simple text" if it is a known simple type and every child is a text/inline leaf (no nested element children).
+// A block is "simple text" if it is a known simple type and every child is either a text leaf or an inline-atomic node (text + inline images), so it can be word/node-diffed; a block containing an element-with-children (e.g. a link) stays non-simple and is diffed whole-block.
 function isSimpleTextBlock(node: SerializedLexicalNode): boolean {
   if (!SIMPLE_TEXT_BLOCK_TYPES.has(node.type)) return false;
   const children = node.children;
   if (!Array.isArray(children)) return true;
-  return children.every((child) => isTextNode(child));
+  return children.every((child) => isTextNode(child) || isInlineAtomic(child));
 }
 
-// Equality key for block-level LCS: block type + normalized descendant text.
-function blockKey(node: SerializedLexicalNode): string {
-  return `${node.type} ${normalizedText(node)}`;
+// Sort CSS declarations so property order never causes a false diff; non-strings and empties normalize to "".
+function normalizeStyle(style: unknown): string {
+  if (typeof style !== "string" || style.length === 0) return "";
+  return style
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .sort()
+    .join(";");
+}
+
+// Attrs excluded from a node's signature: children (recursed separately), version (bump-only), direction (auto-computed from content — would false-positive).
+const SIGNATURE_EXCLUDE = new Set(["children", "version", "direction"]);
+
+// Deterministic structural signature of a node and its subtree: captures type, all content-bearing own attrs (format/style/indent/checked/src/width/language/...), and recursively its children — so any meaningful change alters the key. Used as the block-level LCS key and the matched-block equality check.
+function nodeSignature(node: SerializedLexicalNode): string {
+  if (isTextNode(node)) {
+    const text = typeof node.text === "string" ? node.text : "";
+    return `T${text}${node.format ?? 0}${normalizeStyle(
+      node.style
+    )}${node.mode ?? ""}${node.detail ?? 0}`;
+  }
+  const attrs: string[] = [];
+  for (const key of Object.keys(node).sort()) {
+    if (SIGNATURE_EXCLUDE.has(key)) continue;
+    if (key === "type") continue;
+    attrs.push(`${key}=${JSON.stringify(node[key])}`);
+  }
+  const children = Array.isArray(node.children) ? node.children : [];
+  return `E${node.type}${attrs.join("")}[${children
+    .map(nodeSignature)
+    .join("")}]`;
 }
 
 // Deep-clone a plain-JSON node so we never mutate the caller's input.
@@ -178,33 +200,30 @@ function cloneNode<T>(node: T): T {
   return JSON.parse(JSON.stringify(node)) as T;
 }
 
-// Flatten a block's inline children into text leaves (any element children are flattened to their text descendants, v1 loses their structure but not their text).
-function collectTextLeaves(node: SerializedLexicalNode): SerializedLexicalNode[] {
-  if (isTextNode(node)) return [node];
-  const children = node.children;
-  if (!Array.isArray(children)) return [];
-  const out: SerializedLexicalNode[] = [];
-  for (const child of children) out.push(...collectTextLeaves(child));
-  return out;
-}
-
+// A token is either a text/whitespace token (text + source format/style, used to reconstruct a text node) or a node token (`node` set to an inline-atomic node; `text` unused for reconstruction).
 interface Token {
   text: string;
   format?: number | string;
   style?: string;
+  node?: SerializedLexicalNode;
 }
 
-// Tokenize a block's inline children into words and whitespace runs, carrying each token's source format/style.
+// Tokenize a simple text block's DIRECT children (guaranteed flat: text or inline-atomic) into words, whitespace runs, and single node tokens, in document order.
 function tokenize(node: SerializedLexicalNode): Token[] {
-  const leaves = collectTextLeaves(node);
+  const children = Array.isArray(node.children) ? node.children : [];
   const tokens: Token[] = [];
-  for (const leaf of leaves) {
-    const text = typeof leaf.text === "string" ? leaf.text : "";
-    if (!text) continue;
-    // Split so whitespace runs survive as their own tokens.
-    for (const piece of text.split(/(\s+)/)) {
-      if (piece === "") continue;
-      tokens.push({ text: piece, format: leaf.format, style: leaf.style });
+  for (const child of children) {
+    if (isTextNode(child)) {
+      const text = typeof child.text === "string" ? child.text : "";
+      if (!text) continue;
+      // Split so whitespace runs survive as their own tokens.
+      for (const piece of text.split(/(\s+)/)) {
+        if (piece === "") continue;
+        tokens.push({ text: piece, format: child.format, style: child.style });
+      }
+    } else {
+      // Inline-atomic node (e.g. inline image): one indivisible node token.
+      tokens.push({ text: "", node: child });
     }
   }
   return tokens;
@@ -226,19 +245,29 @@ function textNodeFromToken(token: Token): SerializedLexicalNode {
 
 type TokenClass = "equal" | DiffVariant;
 
-// Coalesce adjacent tokens sharing class + format + style into a single text node, to avoid node explosion. v1 collapses a changed run to its first token's format.
+// Emit classified tokens: node tokens are emitted standalone (cloned when equal, else wrapped in an inline diff-mark) and never coalesced; text tokens coalesce adjacent runs sharing class + format + style into a single text node, to avoid node explosion. v1 collapses a changed text run to its first token's format.
 function emitClassifiedTokens(
   entries: Array<{ token: Token; cls: TokenClass }>
 ): SerializedLexicalNode[] {
   const out: SerializedLexicalNode[] = [];
   let i = 0;
   while (i < entries.length) {
-    const cls = entries[i].cls;
-    const format = entries[i].token.format;
-    const style = entries[i].token.style;
+    const entry = entries[i];
+    if (entry.token.node) {
+      // Inline-atomic node token: emit the node itself, wrapped in an inline diff-mark if changed.
+      const cloned = cloneNode(entry.token.node);
+      if (entry.cls === "equal") out.push(cloned);
+      else out.push(wrapRun([cloned], entry.cls));
+      i++;
+      continue;
+    }
+    const cls = entry.cls;
+    const format = entry.token.format;
+    const style = entry.token.style;
     let text = "";
     while (
       i < entries.length &&
+      !entries[i].token.node &&
       entries[i].cls === cls &&
       entries[i].token.format === format &&
       entries[i].token.style === style
@@ -253,40 +282,59 @@ function emitClassifiedTokens(
   return out;
 }
 
-// Word-level diff between two matched simple-text blocks; returns the after block with inline children replaced by the merged token runs.
+// Format-aware token key: a node token keys on its structural signature (so identical inline nodes align equal, a changed one matches nothing); whitespace ignores format (avoids spurious space diffs); a real word carries its format + normalized style, so re-formatting identical text aligns as removed(old)+added(new).
+function tokenKey(t: Token): string {
+  if (t.node) return ` N${nodeSignature(t.node)}`;
+  if (/^\s+$/.test(t.text)) return t.text;
+  return `${t.text}${t.format ?? 0}${normalizeStyle(t.style)}`;
+}
+
+// Word-level diff between two matched simple-text blocks; returns the after block with inline children replaced by the merged token runs, plus whether the alignment found any inline change.
 function diffSimpleTextBlock(
   beforeBlock: SerializedLexicalNode,
   afterBlock: SerializedLexicalNode
-): SerializedLexicalNode {
+): { block: SerializedLexicalNode; hasInlineChange: boolean } {
   const beforeTokens = tokenize(beforeBlock);
   const afterTokens = tokenize(afterBlock);
   const aligned = lcsAlign(
     beforeTokens,
     afterTokens,
-    beforeTokens.map((t) => t.text),
-    afterTokens.map((t) => t.text)
+    beforeTokens.map(tokenKey),
+    afterTokens.map(tokenKey)
   );
   const entries: Array<{ token: Token; cls: TokenClass }> = [];
+  let hasInlineChange = false;
   for (const pair of aligned) {
     if (pair.before && pair.after) entries.push({ token: pair.after, cls: "equal" });
-    else if (pair.after) entries.push({ token: pair.after, cls: "added" });
-    else if (pair.before) entries.push({ token: pair.before, cls: "removed" });
+    else if (pair.after) {
+      entries.push({ token: pair.after, cls: "added" });
+      hasInlineChange = true;
+    } else if (pair.before) {
+      entries.push({ token: pair.before, cls: "removed" });
+      hasInlineChange = true;
+    }
   }
   const clone = cloneNode(afterBlock);
   clone.children = emitClassifiedTokens(entries);
-  return clone;
+  return { block: clone, hasInlineChange };
 }
 
-// Emit a MATCHED block pair (same change region, same type): identical text → after unchanged; simple text → word-level diff; non-simple (tables, lists, link/linebreak-bearing paragraphs) → removed+added block pair, so the edit is never rendered as "no change".
+// Emit a MATCHED block pair (same change region, same type): structurally identical → after unchanged; simple text with an inline change → word-level diff; simple text differing only in block-level attrs (align/indent) or any non-simple block → removed+added block pair, so the edit is never rendered as "no change".
 function emitMatchedBlock(
   beforeBlock: SerializedLexicalNode,
   afterBlock: SerializedLexicalNode
 ): SerializedLexicalNode[] {
-  if (normalizedText(beforeBlock) === normalizedText(afterBlock)) {
+  if (nodeSignature(beforeBlock) === nodeSignature(afterBlock)) {
     return [cloneNode(afterBlock)];
   }
   if (isSimpleTextBlock(beforeBlock) && isSimpleTextBlock(afterBlock)) {
-    return [diffSimpleTextBlock(beforeBlock, afterBlock)];
+    const { block, hasInlineChange } = diffSimpleTextBlock(beforeBlock, afterBlock);
+    if (hasInlineChange) return [block];
+    // Text + inline formatting identical; only block-level attrs (alignment/indent) differ.
+    return [
+      wrapBlock(cloneNode(beforeBlock), "removed"),
+      wrapBlock(cloneNode(afterBlock), "added"),
+    ];
   }
   return [
     wrapBlock(cloneNode(beforeBlock), "removed"),
@@ -340,12 +388,12 @@ export function diffEditorStates(
   const beforeBlocks =
     beforeRoot && Array.isArray(beforeRoot.children) ? beforeRoot.children : [];
 
-  // Block-level LCS anchors identical blocks (keys precomputed once — never inside the DP); blocks that only differ in text fall into change regions and are paired there.
+  // Block-level LCS anchors structurally identical blocks (full signature precomputed once — never inside the DP); blocks that differ in any content-bearing way fall into change regions and are paired there.
   const aligned = lcsAlign(
     beforeBlocks,
     afterBlocks,
-    beforeBlocks.map(blockKey),
-    afterBlocks.map(blockKey)
+    beforeBlocks.map(nodeSignature),
+    afterBlocks.map(nodeSignature)
   );
 
   const merged: SerializedLexicalNode[] = [];
@@ -353,7 +401,7 @@ export function diffEditorStates(
   while (i < aligned.length) {
     const pair = aligned[i];
     if (pair.before && pair.after) {
-      // LCS anchor: identical type + normalized text, emit unchanged.
+      // LCS anchor: structurally identical block, emit unchanged.
       merged.push(cloneNode(pair.after));
       i++;
       continue;

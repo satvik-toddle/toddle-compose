@@ -144,22 +144,22 @@ strokes, text nodes, arbitrary hex colors and continuous sizes, plus our custom 
 | Unknown node types | collected + logged (`skipped`), never silently dropped | ✅ |
 | Custom nodes (audio) | pending: needs the custom audio shape first (§3), then a converter case | 🔧 clear path |
 
-### What the same converter costs on Excalidraw
+### The Excalidraw converter — now built and verified
 
-Feasible for the basics, structurally worse in four places:
+`zwibblerToExcalidraw.ts` exists on `feat/whiteboard-compare` and runs against the same
+fixture at `/zwibbler-preview?lib=excalidraw`. Measured findings (which correct two
+predictions the earlier draft of this section made): **text fidelity is exact** (arbitrary
+`fontSize` px, and Excalidraw bundles Nunito — the workbooks' own font), and a failed
+clipart fetch falls back to a colored rectangle, not nothing. The real gaps are brush
+strokes converting as polylines instead of pen ink (the skeleton API doesn't expose
+`freedraw`) and the thin native shape set. Colors are *better* than tldraw (exact hex, no
+palette snap).
 
-1. **Clipart**: only rect/ellipse/diamond primitives exist, so *every* clipart shape must go
-   through the SVG-image path with **no geo fallback** when a fetch fails (dead workbook assets
-   render as nothing). ⚠️
-2. **Text fidelity**: no `scale` equivalent — font sizes snap to Excalidraw's fixed steps, so
-   converted workbooks reflow. ⚠️
-3. **Colors**: arbitrary hex is native — *better* fidelity than tldraw's palette snap. ✅ (the one
-   place Excalidraw wins on conversion)
-4. **Audio nodes**: land on the `renderEmbeddable` hack. ⚠️→❌ as custom types grow.
+Full side-by-side mapping tables and pros/cons: **`zwibbler-backward-compat.md`**.
 
-**Bottom line:** basic workbooks convert on either library; full Zwibbler parity (custom nodes,
-custom toolbar) has a supported path only on tldraw. The converter investment made so far is
-tldraw-specific.
+**Bottom line:** basic workbooks convert with high fidelity on either library — Excalidraw
+is more faithful (colors, sizes, font), tldraw keeps converted ink editable. Full Zwibbler
+parity (custom audio nodes, custom toolbar) still has a supported path only on tldraw.
 
 ---
 

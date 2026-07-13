@@ -1,3 +1,4 @@
+import { FONT_FAMILY } from '@excalidraw/excalidraw';
 import type { ExcalidrawElementSkeleton } from '@excalidraw/excalidraw/data/transform';
 import type { FileId } from '@excalidraw/excalidraw/element/types';
 import type { BinaryFileData, DataURL } from '@excalidraw/excalidraw/types';
@@ -115,7 +116,7 @@ function convertTextNode(node: ZwibblerNode, m: Xform): ExcalidrawElementSkeleto
     x: m.tx,
     y: m.ty,
     fontSize: (node.fontSize ?? 24) * scaleX(m),
-    fontFamily: 2, // normal sans — workbooks used Nunito Sans, not a handwritten face
+    fontFamily: FONT_FAMILY.Nunito, // workbooks used Nunito Sans; excalidraw bundles Nunito
     strokeColor: node.textFillStyle ?? node.fillStyle ?? '#222222',
     textAlign: node.textAlign === 'center' ? 'center' : node.textAlign === 'right' ? 'right' : 'left',
     angle: angle(m) as ExcalidrawElementSkeleton['angle'],

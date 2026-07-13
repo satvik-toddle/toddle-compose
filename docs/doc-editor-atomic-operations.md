@@ -256,12 +256,12 @@ Legend: 🟢🔴 word-level (precise) · 🟩🟥 whole-block tint (coarse) · �
 | Add / remove / edit a list item | 🟩🟥 | whole old list red + whole new list green (coarse) |
 | **Toggle checkbox** checked/unchecked | 🟩🟥 | ✅ fixed — `checked` in signature |
 | **Nest / indent list item** | 🟩🟥 | ✅ fixed — `indent` in signature |
-| Table: add/edit/delete row/col **with text** | 🟩🟥 | **whole old table red + whole new table green** — not the specific row/col |
-| Table: delete an **empty** row/column | 🟩🟥 | ✅ fixed — row count in signature |
-| Table: **merge / unmerge cells** | 🟩🟥 | ✅ fixed — `colSpan`/`rowSpan` in signature |
-| Table: **toggle header** row/column | 🟩🟥 | ✅ fixed — `headerState` in signature |
-| Table: **cell background color** | 🟩🟥 | ✅ fixed — `backgroundColor` in signature |
-| Table: **resize column** | 🟩🟥 | ✅ fixed — width attrs in signature |
+| Table: **delete / add a row** (incl. empty) | 🟢🔴 | ✅ granular — the removed row's cells tint red / added row green; other rows neutral |
+| Table: **delete / add a column** (incl. empty) | 🟢🔴 | ✅ granular — the removed column's cell in every row tints red / added green |
+| Table: **edit a cell's text** | 🟢🔴 | ✅ word-level diff inside the cell; other cells neutral |
+| Table with **merged cells** (colSpan/rowSpan>1) | 🟩🟥 | falls back to whole-table red+green (grid ambiguous) |
+| Table: **both** a row and a column change at once | 🟩🟥 | falls back to whole-table (can't separate the two axes) |
+| Table: **toggle header** / **cell background** / **resize column** | 🟩🟥 | detected via signature; still whole-table (attr-only, no row/col/cell content change) |
 | Code block: edit code / **change language** | 🟩🟥 | ✅ fixed — `language` in signature (whole-block) |
 | Columns/layout: change text or **restructure/resize** | 🟩🟥 | ✅ fixed — attrs/structure in signature |
 | Collapsible: change text or **toggle open/closed** | 🟩🟥 | ✅ fixed (if open/closed is serialized) |
@@ -276,11 +276,14 @@ Legend: 🟢🔴 word-level (precise) · 🟩🟥 whole-block tint (coarse) · �
 
 ### Remaining, intentional limitations
 
-1. **Granularity** — changes inside tables, lists, code blocks, columns, and
-   layouts surface as a **whole-block** red+green swap, not per-cell / per-item /
-   word-level. (Simple paragraphs/headings/quotes get word-level precision,
-   including inline images/decorators, which are marked individually.) A paragraph
-   containing a **link** (an inline element with children) is still whole-block.
+1. **Granularity** — changes inside lists, code blocks, columns, and layouts
+   surface as a **whole-block** red+green swap, not per-item / word-level.
+   (Simple paragraphs/headings/quotes get word-level precision, including inline
+   images/decorators, which are marked individually. **Tables** get per-row /
+   per-column / per-cell granularity via cell background tinting — except tables
+   with merged cells or simultaneous row+column changes, which fall back to
+   whole-table.) A paragraph containing a **link** (inline element with children)
+   is still whole-block.
 2. **Comments** are not part of the content snapshot, so they never appear in the
    content diff.
 3. **Formatting shows as duplication** — a re-formatted word renders as the old

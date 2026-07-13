@@ -43,6 +43,10 @@ interface DiffMarkNode extends SerializedElementNode {
 // Block types whose children are only text/inline nodes get word-level descent; anything else is treated as non-simple in v1.
 const SIMPLE_TEXT_BLOCK_TYPES = new Set(["paragraph", "heading", "quote"]);
 
+// Cell backgroundColor tints used by the granular table differ (match the diff CSS red/green channels); a read-only cell renders its backgroundColor, so tinting it marks removed/added cells with no editor change.
+const REMOVED_BG = "rgba(255, 0, 0, 0.18)";
+const ADDED_BG = "rgba(0, 200, 83, 0.22)";
+
 // Wrap contiguous text nodes in a diff-mark of the given variant, keeping each text node's original format/style.
 export function wrapRun(
   textNodes: SerializedLexicalNode[],
@@ -319,6 +323,188 @@ function diffSimpleTextBlock(
   return { block: clone, hasInlineChange };
 }
 
+// The tablerow children of a table (defensive: ignore any non-tablerow child).
+function tableRows(t: SerializedLexicalNode): SerializedLexicalNode[] {
+  return Array.isArray(t.children)
+    ? t.children.filter((c) => c.type === "tablerow")
+    : [];
+}
+
+// Concatenated, whitespace-collapsed+trimmed descendant text of a cell — the content key used to align rows/columns.
+function cellText(cell: SerializedLexicalNode): string {
+  let acc = "";
+  const walk = (node: SerializedLexicalNode): void => {
+    if (typeof node.text === "string") acc += node.text;
+    if (Array.isArray(node.children)) for (const c of node.children) walk(c);
+  };
+  walk(cell);
+  return acc.replace(/\s+/g, " ").trim();
+}
+
+// A cell is simple-span if it occupies exactly one grid slot (no merged cells).
+function isSimpleSpanCell(cell: SerializedLexicalNode): boolean {
+  const colSpan = typeof cell.colSpan === "number" ? cell.colSpan : 1;
+  const rowSpan = typeof cell.rowSpan === "number" ? cell.rowSpan : 1;
+  return colSpan === 1 && rowSpan === 1;
+}
+
+// Diff one matched cell pair: identical signature → after cell unchanged; else clone after and word-diff its block content (paragraphs) so a changed cell shows inline diff-marks. Attr-only cell changes with identical content are left un-tinted in v1.
+function diffCell(
+  bCell: SerializedLexicalNode,
+  aCell: SerializedLexicalNode
+): SerializedLexicalNode {
+  if (nodeSignature(bCell) === nodeSignature(aCell)) return cloneNode(aCell);
+  const clone = cloneNode(aCell);
+  clone.children = mergeBlockLists(
+    Array.isArray(bCell.children) ? bCell.children : [],
+    Array.isArray(aCell.children) ? aCell.children : []
+  );
+  return clone;
+}
+
+// Clone a cell and tint its backgroundColor to mark it removed/added, keeping the cell's existing content.
+function tintCell(
+  cell: SerializedLexicalNode,
+  variant: DiffVariant
+): SerializedLexicalNode {
+  const c = cloneNode(cell);
+  c.backgroundColor = variant === "removed" ? REMOVED_BG : ADDED_BG;
+  return c;
+}
+
+// Granular table diff: returns a single merged table (row/column tinting + per-cell word diff) or null to signal "fall back to whole-block" whenever the granular path can't safely apply.
+function diffTable(
+  before: SerializedLexicalNode,
+  after: SerializedLexicalNode
+): SerializedLexicalNode | null {
+  if (before.type !== "table" || after.type !== "table") return null;
+  const rowsB = tableRows(before);
+  const rowsA = tableRows(after);
+  if (rowsB.length === 0 || rowsA.length === 0) return null;
+
+  // Both tables must be rectangular (every row same cell count as its own first row) and made only of simple-span cells.
+  const rectDims = (
+    t: SerializedLexicalNode,
+    rows: SerializedLexicalNode[]
+  ): { rows: number; cols: number } | null => {
+    if (rows.length !== (Array.isArray(t.children) ? t.children.length : 0)) return null;
+    const cols = Array.isArray(rows[0].children) ? rows[0].children.length : 0;
+    if (cols === 0) return null;
+    for (const r of rows) {
+      const cells = Array.isArray(r.children) ? r.children : [];
+      if (cells.length !== cols) return null;
+      for (const cell of cells) {
+        if (cell.type !== "custom-table-cell" || !isSimpleSpanCell(cell)) return null;
+      }
+    }
+    return { rows: rows.length, cols };
+  };
+  const dimsB = rectDims(before, rowsB);
+  const dimsA = rectDims(after, rowsA);
+  if (!dimsB || !dimsA) return null;
+  const { rows: Rb, cols: Cb } = dimsB;
+  const { rows: Ra, cols: Ca } = dimsA;
+
+  // ROW diff: same column count, differing row count → align rows by content, tint removed/added rows, word-diff surviving cells.
+  if (Cb === Ca && Rb !== Ra) {
+    const cellsOf = (r: SerializedLexicalNode): SerializedLexicalNode[] =>
+      Array.isArray(r.children) ? r.children : [];
+    const keysB = rowsB.map((r) => cellsOf(r).map(cellText).join(""));
+    const keysA = rowsA.map((r) => cellsOf(r).map(cellText).join(""));
+    const aligned = lcsAlign(rowsB, rowsA, keysB, keysA);
+    const mergedRows: SerializedLexicalNode[] = [];
+    for (const pair of aligned) {
+      if (pair.before && pair.after) {
+        const beforeCells = cellsOf(pair.before);
+        const afterCells = cellsOf(pair.after);
+        const rowClone = cloneNode(pair.after);
+        rowClone.children = beforeCells.map((bc, c) => diffCell(bc, afterCells[c]));
+        mergedRows.push(rowClone);
+      } else if (pair.before) {
+        const rowClone = cloneNode(pair.before);
+        rowClone.children = cellsOf(pair.before).map((cell) => tintCell(cell, "removed"));
+        mergedRows.push(rowClone);
+      } else if (pair.after) {
+        const rowClone = cloneNode(pair.after);
+        rowClone.children = cellsOf(pair.after).map((cell) => tintCell(cell, "added"));
+        mergedRows.push(rowClone);
+      }
+    }
+    const result = cloneNode(after);
+    result.children = mergedRows;
+    return result;
+  }
+
+  // COLUMN diff: same row count, differing column count → align columns by content, tint removed/added columns in every row, word-diff surviving cells, rebuild colWidths.
+  if (Rb === Ra && Cb !== Ca) {
+    interface Column {
+      cells: SerializedLexicalNode[];
+      width: number | undefined;
+    }
+    const cellsOf = (r: SerializedLexicalNode): SerializedLexicalNode[] =>
+      Array.isArray(r.children) ? r.children : [];
+    const widthsB = Array.isArray(before.colWidths) ? before.colWidths : undefined;
+    const widthsA = Array.isArray(after.colWidths) ? after.colWidths : undefined;
+    const colsB: Column[] = [];
+    for (let c = 0; c < Cb; c++) {
+      colsB.push({ cells: rowsB.map((r) => cellsOf(r)[c]), width: widthsB?.[c] });
+    }
+    const colsA: Column[] = [];
+    for (let c = 0; c < Ca; c++) {
+      colsA.push({ cells: rowsA.map((r) => cellsOf(r)[c]), width: widthsA?.[c] });
+    }
+    const colKey = (col: Column): string => col.cells.map(cellText).join("");
+    const aligned = lcsAlign(colsB, colsA, colsB.map(colKey), colsA.map(colKey));
+    // Per-row cell lists in the merged column order.
+    const newRowCells: SerializedLexicalNode[][] = rowsA.map(() => []);
+    const mergedWidths: number[] = [];
+    let widthsSeen = false;
+    for (const pair of aligned) {
+      for (let r = 0; r < Ra; r++) {
+        if (pair.before && pair.after) {
+          newRowCells[r].push(diffCell(pair.before.cells[r], pair.after.cells[r]));
+        } else if (pair.before) {
+          newRowCells[r].push(tintCell(pair.before.cells[r], "removed"));
+        } else if (pair.after) {
+          newRowCells[r].push(tintCell(pair.after.cells[r], "added"));
+        }
+      }
+      const width = pair.after ? pair.after.width : pair.before?.width;
+      if (typeof width === "number") {
+        mergedWidths.push(width);
+        widthsSeen = true;
+      }
+    }
+    const result = cloneNode(after);
+    result.children = rowsA.map((r, idx) => {
+      const rowClone = cloneNode(r);
+      rowClone.children = newRowCells[idx];
+      return rowClone;
+    });
+    if (widthsB || widthsA) {
+      if (widthsSeen) result.colWidths = mergedWidths;
+    }
+    return result;
+  }
+
+  // CELL diff: same dimensions → word-diff each cell in place.
+  if (Rb === Ra && Cb === Ca) {
+    const cellsOf = (r: SerializedLexicalNode): SerializedLexicalNode[] =>
+      Array.isArray(r.children) ? r.children : [];
+    const result = cloneNode(after);
+    result.children = rowsA.map((afterRow, r) => {
+      const rowClone = cloneNode(afterRow);
+      const beforeCells = cellsOf(rowsB[r]);
+      rowClone.children = cellsOf(afterRow).map((ac, c) => diffCell(beforeCells[c], ac));
+      return rowClone;
+    });
+    return result;
+  }
+
+  // Both dimensions changed (or no dimension matched) → fall back to whole-block.
+  return null;
+}
+
 // Emit a MATCHED block pair (same change region, same type): structurally identical → after unchanged; simple text with an inline change → word-level diff; simple text differing only in block-level attrs (align/indent) or any non-simple block → removed+added block pair, so the edit is never rendered as "no change".
 function emitMatchedBlock(
   beforeBlock: SerializedLexicalNode,
@@ -335,6 +521,11 @@ function emitMatchedBlock(
       wrapBlock(cloneNode(beforeBlock), "removed"),
       wrapBlock(cloneNode(afterBlock), "added"),
     ];
+  }
+  // Tables get a granular row/column/cell diff; null means the granular path can't apply, so fall through to whole-block.
+  if (beforeBlock.type === "table" && afterBlock.type === "table") {
+    const t = diffTable(beforeBlock, afterBlock);
+    if (t) return [t];
   }
   return [
     wrapBlock(cloneNode(beforeBlock), "removed"),
@@ -374,21 +565,11 @@ function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
   return out;
 }
 
-// Merge two serialized editorStates into one, with changed inline runs wrapped in diff-mark nodes (base = after; adds vs before are "added", removes are re-inserted as "removed").
-export function diffEditorStates(
-  before: SerializedEditorState,
-  after: SerializedEditorState
-): SerializedEditorState {
-  const afterRoot: SerializedElementNode =
-    after && after.root ? after.root : { type: "root", children: [] };
-  const beforeRoot: SerializedElementNode | null =
-    before && before.root ? before.root : null;
-
-  const afterBlocks = Array.isArray(afterRoot.children) ? afterRoot.children : [];
-  const beforeBlocks =
-    beforeRoot && Array.isArray(beforeRoot.children) ? beforeRoot.children : [];
-
-  // Block-level LCS anchors structurally identical blocks (full signature precomputed once — never inside the DP); blocks that differ in any content-bearing way fall into change regions and are paired there.
+// Merge two flat block lists into one diff'd list: block-level LCS anchors structurally identical blocks (full signature precomputed once — never inside the DP); blocks that differ in any content-bearing way fall into maximal change regions and are resolved (add/remove/in-place-edit) there. Reused for both the document root and the contents of a single table cell.
+function mergeBlockLists(
+  beforeBlocks: SerializedLexicalNode[],
+  afterBlocks: SerializedLexicalNode[]
+): SerializedLexicalNode[] {
   const aligned = lcsAlign(
     beforeBlocks,
     afterBlocks,
@@ -416,6 +597,24 @@ export function diffEditorStates(
     }
     merged.push(...emitChangeRegion(region));
   }
+  return merged;
+}
+
+// Merge two serialized editorStates into one, with changed inline runs wrapped in diff-mark nodes (base = after; adds vs before are "added", removes are re-inserted as "removed").
+export function diffEditorStates(
+  before: SerializedEditorState,
+  after: SerializedEditorState
+): SerializedEditorState {
+  const afterRoot: SerializedElementNode =
+    after && after.root ? after.root : { type: "root", children: [] };
+  const beforeRoot: SerializedElementNode | null =
+    before && before.root ? before.root : null;
+
+  const afterBlocks = Array.isArray(afterRoot.children) ? afterRoot.children : [];
+  const beforeBlocks =
+    beforeRoot && Array.isArray(beforeRoot.children) ? beforeRoot.children : [];
+
+  const merged = mergeBlockLists(beforeBlocks, afterBlocks);
 
   const rest = after && typeof after === "object" ? after : {};
   return { ...rest, root: { ...afterRoot, children: merged } };

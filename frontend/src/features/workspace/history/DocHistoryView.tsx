@@ -1,11 +1,8 @@
 import { Suspense, lazy } from 'react';
-import { Button, EmptyState } from '@toddle-edu/ds-web';
-import { CopyOutlined } from '@toddle-edu/ds-icons';
-import { editorStateJsonToHtml } from '@toddle-edu/ds-doc-editor';
+import { EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
-import { pushToast } from '../../../stores/uiStore';
 import { useDocSnapshot } from '../../../hooks/usePages';
 import type { DocumentDto, DocHistorySession } from '../../../types/api';
 import { PageTitle } from '../content/PageTitle';
@@ -22,7 +19,7 @@ const styles = {
   center: 'flex-1 flex items-center justify-center',
   // Read-only banner marking this as a past version (matches the doc title inset).
   banner:
-    'flex-none flex items-center justify-between w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
+    'flex-none w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
   // Same inset wrapper as PageView's docTitle so the reused PageTitle lines up with the live editor.
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
 };
@@ -92,31 +89,6 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
   const loading = snapLoading || !snapshot;
   const stateJson = diffActive ? snapshot?.diffJson : snapshot?.lexicalJson;
 
-  // Copy the viewed version's content to the clipboard as rich HTML + plain text. Serialize the
-  // plain version content via Lexical exportDOM (never the rendered DOM or the diff), so decorator
-  // nodes (images, files, embeds, videos) become real elements instead of editor chrome.
-  const handleCopy = async () => {
-    const json = snapshot?.lexicalJson;
-    if (!json) return;
-    const { html, text } = editorStateJsonToHtml(json);
-    if (!html && !text) { pushToast({ kind: 'error', message: "Couldn't copy content" }); return; }
-    try {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': new Blob([html], { type: 'text/html' }),
-            'text/plain': new Blob([text], { type: 'text/plain' }),
-          }),
-        ]);
-      } catch {
-        await navigator.clipboard.writeText(text);
-      }
-      pushToast({ kind: 'success', message: 'Content copied' });
-    } catch {
-      pushToast({ kind: 'error', message: "Couldn't copy content" });
-    }
-  };
-
   const label = sessionLabel(session);
   const banner =
     effectiveSeq == null
@@ -130,20 +102,7 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
       <div className={styles.docTitle}>
         <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
       </div>
-      <div className={styles.banner}>
-        <span>{banner}</span>
-        <Button
-          dsVersion="2.0"
-          variant="neutral"
-          type="plain"
-          size="small"
-          icon={<CopyOutlined />}
-          disabled={loading || !snapshot?.lexicalJson || effectiveSeq == null}
-          onClick={handleCopy}
-        >
-          Copy content
-        </Button>
-      </div>
+      <div className={styles.banner}>{banner}</div>
       {effectiveSeq != null && (
         <Suspense fallback={<PageLoader />}>
           {loading ? (

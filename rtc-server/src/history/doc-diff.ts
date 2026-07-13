@@ -505,6 +505,30 @@ function diffTable(
   return null;
 }
 
+// Granular column-layout diff: aligns columns positionally and recursively diffs each column's block list (word-level text, inline/block image+file adds/removes, nested tables), or returns null to fall back to whole-block when the shapes don't match (non-layout, missing children, non-layout-item child, or a changed column count).
+function diffLayout(
+  before: SerializedLexicalNode,
+  after: SerializedLexicalNode
+): SerializedLexicalNode | null {
+  if (before.type !== "layout-container" || after.type !== "layout-container") return null;
+  if (!Array.isArray(before.children) || !Array.isArray(after.children)) return null;
+  const beforeCols = before.children;
+  const afterCols = after.children;
+  if (beforeCols.length !== afterCols.length) return null;
+  if (!beforeCols.every((c) => c.type === "layout-item")) return null;
+  if (!afterCols.every((c) => c.type === "layout-item")) return null;
+  const result = cloneNode(after);
+  result.children = afterCols.map((afterCol, i) => {
+    const colClone = cloneNode(afterCol);
+    colClone.children = mergeBlockLists(
+      beforeCols[i].children ?? [],
+      afterCol.children ?? []
+    );
+    return colClone;
+  });
+  return result;
+}
+
 // Emit a MATCHED block pair (same change region, same type): structurally identical → after unchanged; simple text with an inline change → word-level diff; simple text differing only in block-level attrs (align/indent) or any non-simple block → removed+added block pair, so the edit is never rendered as "no change".
 function emitMatchedBlock(
   beforeBlock: SerializedLexicalNode,
@@ -525,6 +549,11 @@ function emitMatchedBlock(
   // Tables get a granular row/column/cell diff; null means the granular path can't apply, so fall through to whole-block.
   if (beforeBlock.type === "table" && afterBlock.type === "table") {
     const t = diffTable(beforeBlock, afterBlock);
+    if (t) return [t];
+  }
+  // Column layouts get a granular per-column recursive diff; null falls through to whole-block.
+  if (beforeBlock.type === "layout-container" && afterBlock.type === "layout-container") {
+    const t = diffLayout(beforeBlock, afterBlock);
     if (t) return [t];
   }
   return [

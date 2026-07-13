@@ -263,7 +263,8 @@ Legend: 🟢🔴 word-level (precise) · 🟩🟥 whole-block tint (coarse) · �
 | Table: **both** a row and a column change at once | 🟩🟥 | falls back to whole-table (can't separate the two axes) |
 | Table: **toggle header** / **cell background** / **resize column** | 🟩🟥 | detected via signature; still whole-table (attr-only, no row/col/cell content change) |
 | Code block: edit code / **change language** | 🟩🟥 | ✅ fixed — `language` in signature (whole-block) |
-| Columns/layout: change text or **restructure/resize** | 🟩🟥 | ✅ fixed — attrs/structure in signature |
+| Columns/layout: **edit content** inside a column (text, add/remove image/file) | 🟢🔴 | ✅ granular — recurses per column; only the changed content is marked, rest neutral |
+| Columns/layout: **add/remove a whole column** | 🟩🟥 | falls back to whole-layout (column-count change) |
 | Collapsible: change text or **toggle open/closed** | 🟩🟥 | ✅ fixed (if open/closed is serialized) |
 | Image/embed/file/YouTube: **add / remove** | 🟩 / 🟥 | whole block green/red |
 | **Inline** image inside a paragraph: add/remove/replace | 🟢🔴 | ✅ granular — text stays neutral, only the image gets an inline mark (paragraph is NOT whole-block tinted) |
@@ -276,14 +277,15 @@ Legend: 🟢🔴 word-level (precise) · 🟩🟥 whole-block tint (coarse) · �
 
 ### Remaining, intentional limitations
 
-1. **Granularity** — changes inside lists, code blocks, columns, and layouts
-   surface as a **whole-block** red+green swap, not per-item / word-level.
-   (Simple paragraphs/headings/quotes get word-level precision, including inline
-   images/decorators, which are marked individually. **Tables** get per-row /
-   per-column / per-cell granularity via cell background tinting — except tables
-   with merged cells or simultaneous row+column changes, which fall back to
-   whole-table.) A paragraph containing a **link** (inline element with children)
-   is still whole-block.
+1. **Granularity** — changes inside lists and code blocks surface as a
+   **whole-block** red+green swap, not per-item / word-level. (Simple
+   paragraphs/headings/quotes get word-level precision, including inline
+   images/decorators, marked individually. **Tables** get per-row / per-column /
+   per-cell granularity via cell background tinting — except merged cells or
+   simultaneous row+column changes, which fall back to whole-table. **Column
+   layouts** recurse per column, so content edits are granular — except a change
+   in the number of columns, which falls back to whole-layout.) A paragraph
+   containing a **link** (inline element with children) is still whole-block.
 2. **Comments** are not part of the content snapshot, so they never appear in the
    content diff.
 3. **Formatting shows as duplication** — a re-formatted word renders as the old

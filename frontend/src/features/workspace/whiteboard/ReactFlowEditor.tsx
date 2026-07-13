@@ -1,10 +1,13 @@
 import { useCallback } from 'react';
 import {
   Background,
+  ConnectionMode,
   Controls,
+  Handle,
   MarkerType,
   MiniMap,
   Panel,
+  Position,
   ReactFlow,
   ReactFlowProvider,
   ViewportPortal,
@@ -31,6 +34,10 @@ const styles = {
 
 type LabelNodeData = { label: string; readOnly?: boolean };
 
+// One connection handle per side; ConnectionMode.Loose lets a drag start or end
+// on any of them, so arrows work in every direction.
+const HANDLES = [Position.Top, Position.Right, Position.Bottom, Position.Left];
+
 // The one node kind on this board: a card with an editable label. Edits go
 // through updateNodeData, which surfaces as a 'replace' change in onNodesChange
 // and syncs like any other node update. `readOnly` is stamped locally per client
@@ -41,6 +48,9 @@ function LabelNode({ id, data }: Readonly<NodeProps>) {
 
   return (
     <div className={styles.node}>
+      {HANDLES.map((position) => (
+        <Handle key={position} id={position} type="source" position={position} />
+      ))}
       <input
         className={styles.nodeInput}
         value={label}
@@ -115,6 +125,7 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
           edges={edges}
           nodeTypes={NODE_TYPES}
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+          connectionMode={ConnectionMode.Loose}
           colorMode={preference}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

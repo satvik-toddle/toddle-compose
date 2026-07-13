@@ -22,7 +22,8 @@ const styles = {
   rowDefault: sidebarRowState.hover,
   rowSelected: sidebarRowState.selected,
   rowBody: 'flex min-w-0 flex-col',
-  name: 'truncate text-body-s font-medium text-primary',
+  name: 'truncate text-body-s text-primary',
+  nameSelected: 'font-semibold',
   meta: 'truncate text-body-xs text-secondary',
 };
 
@@ -49,7 +50,7 @@ function VersionRow({
     >
       <Avatar person={{ name, color: session.user?.color }} size={24} />
       <span className={styles.rowBody}>
-        <span className={styles.name}>{name}</span>
+        <span className={cn(styles.name, selected && styles.nameSelected)}>{name}</span>
         <span className={styles.meta}>{meta}</span>
       </span>
     </button>

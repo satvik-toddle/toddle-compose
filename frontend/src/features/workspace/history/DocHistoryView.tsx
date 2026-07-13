@@ -1,8 +1,10 @@
-import { Suspense, lazy } from 'react';
-import { EmptyState } from '@toddle-edu/ds-web';
+import { Suspense, lazy, useRef } from 'react';
+import { Button, EmptyState } from '@toddle-edu/ds-web';
+import { CopyOutlined } from '@toddle-edu/ds-icons';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
+import { pushToast } from '../../../stores/uiStore';
 import { useDocSnapshot } from '../../../hooks/usePages';
 import type { DocumentDto, DocHistorySession } from '../../../types/api';
 import { PageTitle } from '../content/PageTitle';
@@ -19,7 +21,7 @@ const styles = {
   center: 'flex-1 flex items-center justify-center',
   // Read-only banner marking this as a past version (matches the doc title inset).
   banner:
-    'flex-none w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
+    'flex-none flex items-center justify-between w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
   // Same inset wrapper as PageView's docTitle so the reused PageTitle lines up with the live editor.
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
 };
@@ -52,6 +54,7 @@ function sessionLabel(session: DocHistorySession | undefined): string | null {
 // Content pane while a DOC is in history mode: the version's title + a read-only render at that seq (or a diff against the previous version when `?diff=true`).
 export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProps>) {
   const { diff } = useHistoryMode();
+  const contentRef = useRef<HTMLDivElement>(null);
   const {
     sessions,
     isLoading: sessionsLoading,
@@ -89,6 +92,44 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
   const loading = snapLoading || !snapshot;
   const stateJson = diffActive ? snapshot?.diffJson : snapshot?.lexicalJson;
 
+  // Copy the viewed version's content to the clipboard as rich HTML + plain text. In diff mode the
+  // rendered DOM carries diff decorations, so we clone it and reduce it to the version being viewed:
+  // removed marks are dropped, added marks are unwrapped to their content.
+  const handleCopy = async () => {
+    const el = contentRef.current?.querySelector('.ds-de-contentEditable');
+    if (!el) return;
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.ds-de-content-removed').forEach((n) => n.remove());
+    clone.querySelectorAll('.ds-de-content-added').forEach((n) => {
+      const p = n.parentNode;
+      if (!p) return;
+      while (n.firstChild) p.insertBefore(n.firstChild, n);
+      p.removeChild(n);
+    });
+    // Attach offscreen so innerText reflects rendered line breaks, then read both formats.
+    clone.style.position = 'fixed';
+    clone.style.left = '-99999px';
+    document.body.appendChild(clone);
+    const text = (clone.innerText || clone.textContent || '').trim();
+    const html = clone.innerHTML;
+    document.body.removeChild(clone);
+    try {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          }),
+        ]);
+      } catch {
+        await navigator.clipboard.writeText(text);
+      }
+      pushToast({ kind: 'success', message: 'Content copied' });
+    } catch {
+      pushToast({ kind: 'error', message: "Couldn't copy content" });
+    }
+  };
+
   const label = sessionLabel(session);
   const banner =
     effectiveSeq == null
@@ -102,20 +143,35 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
       <div className={styles.docTitle}>
         <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
       </div>
-      <div className={styles.banner}>{banner}</div>
+      <div className={styles.banner}>
+        <span>{banner}</span>
+        <Button
+          dsVersion="2.0"
+          variant="neutral"
+          type="plain"
+          size="small"
+          icon={<CopyOutlined />}
+          disabled={loading || !stateJson || effectiveSeq == null}
+          onClick={handleCopy}
+        >
+          Copy content
+        </Button>
+      </div>
       {effectiveSeq != null && (
-        <Suspense fallback={<PageLoader />}>
-          {loading ? (
-            <PageLoader />
-          ) : stateJson ? (
-            <DocSnapshotViewer
-              key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
-              editorStateJson={stateJson}
-            />
-          ) : (
-            <ErrorPane />
-          )}
-        </Suspense>
+        <div ref={contentRef} className="contents">
+          <Suspense fallback={<PageLoader />}>
+            {loading ? (
+              <PageLoader />
+            ) : stateJson ? (
+              <DocSnapshotViewer
+                key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
+                editorStateJson={stateJson}
+              />
+            ) : (
+              <ErrorPane />
+            )}
+          </Suspense>
+        </div>
       )}
     </main>
   );

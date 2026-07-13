@@ -13,8 +13,14 @@ const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.Do
 const SheetEditor = lazy(() =>
   import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
 );
-const WhiteboardEditor = lazy(() =>
-  import('../whiteboard/WhiteboardEditor').then((m) => ({ default: m.WhiteboardEditor })),
+const TldrawEditor = lazy(() =>
+  import('../whiteboard/TldrawEditor').then((m) => ({ default: m.TldrawEditor })),
+);
+const ExcalidrawEditor = lazy(() =>
+  import('../whiteboard/ExcalidrawEditor').then((m) => ({ default: m.ExcalidrawEditor })),
+);
+const ReactFlowEditor = lazy(() =>
+  import('../whiteboard/ReactFlowEditor').then((m) => ({ default: m.ReactFlowEditor })),
 );
 
 const styles = {
@@ -61,7 +67,11 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   if (openDoc.type === 'SHEET') {
     editor = <SheetEditor key={openDocId} docId={openDocId} />;
   } else if (openDoc.type === 'WHITEBOARD') {
-    editor = <WhiteboardEditor key={openDocId} docId={openDocId} />;
+    editor = <TldrawEditor key={openDocId} docId={openDocId} />;
+  } else if (openDoc.type === 'WHITEBOARD_EXCALIDRAW') {
+    editor = <ExcalidrawEditor key={openDocId} docId={openDocId} />;
+  } else if (openDoc.type === 'WHITEBOARD_REACTFLOW') {
+    editor = <ReactFlowEditor key={openDocId} docId={openDocId} />;
   } else {
     editor = <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />;
   }

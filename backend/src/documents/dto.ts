@@ -9,7 +9,13 @@ import {
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
 type VisibilityInput = (typeof VISIBILITIES)[number];
 
-const DOCUMENT_TYPES = ["DOC", "SHEET", "WHITEBOARD"] as const;
+const DOCUMENT_TYPES = [
+  "DOC",
+  "SHEET",
+  "WHITEBOARD",
+  "WHITEBOARD_EXCALIDRAW",
+  "WHITEBOARD_REACTFLOW",
+] as const;
 type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
 
 export class CreateDocumentDto {
@@ -24,7 +30,8 @@ export class CreateDocumentDto {
   @MaxLength(16)
   icon?: string;
 
-  // DOC (rich-text, default), SHEET (data grid), or WHITEBOARD (canvas); all share the RTC/Yjs stack.
+  // DOC (rich-text, default), SHEET (data grid), or a WHITEBOARD* canvas
+  // (tldraw / Excalidraw / React Flow trial); all share the RTC/Yjs stack.
   @IsOptional()
   @IsIn(DOCUMENT_TYPES)
   type?: DocumentTypeInput;

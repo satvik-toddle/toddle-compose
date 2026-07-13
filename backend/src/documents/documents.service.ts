@@ -38,7 +38,12 @@ type DocRow = Prisma.DocumentGetPayload<{ select: typeof SUMMARY_SELECT }>;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
-  type?: "DOC" | "SHEET" | "WHITEBOARD";
+  type?:
+    | "DOC"
+    | "SHEET"
+    | "WHITEBOARD"
+    | "WHITEBOARD_EXCALIDRAW"
+    | "WHITEBOARD_REACTFLOW";
   folderId?: string;
   // When set, folderId is ignored — a subdoc is located by its parent.
   parentId?: string;

@@ -17,6 +17,7 @@
     "update-ds-data-grid": "npx npm-check-updates -u \"/^@toddle-edu/ds-data-grid$/\" && pnpm i && git add package.json ../pnpm-lock.yaml && git commit -m \"chore: bump ds-data-grid\" && git push"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@tanstack/react-query": "5.59.16",
     "@toddle-edu/common-utils": "2.3.48",
     "@toddle-edu/ds-data-grid": "0.127.1",
@@ -29,7 +30,9 @@
     "react-dom": "18.3.1",
     "react-router-dom": "6.30.4",
     "tailwind-merge": "^3.6.0",
+    "@xyflow/react": "^12.11.2",
     "tldraw": "^5.2.2",
+    "y-excalidraw": "^2.0.12",
     "y-websocket": "2.0.4",
     "yjs": "^13.6.20",
     "zustand": "5.0.1"

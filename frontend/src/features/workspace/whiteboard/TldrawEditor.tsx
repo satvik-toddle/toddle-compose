@@ -57,7 +57,7 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
 // Real-time collaborative whiteboard (WHITEBOARD page type): binds the tldraw
 // canvas to Yjs via useYjsTldrawStore. Keyed by docId at the call site; the RTC
 // role drives editability (viewers get a read-only canvas).
-export function WhiteboardEditor({ docId }: Readonly<WhiteboardEditorProps>) {
+export function TldrawEditor({ docId }: Readonly<WhiteboardEditorProps>) {
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 
   if (isError) {

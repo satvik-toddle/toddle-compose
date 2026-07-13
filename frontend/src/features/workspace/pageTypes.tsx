@@ -1,9 +1,17 @@
-import { PageFoldPortraitOutlined, ShapesOutlined, SheetsOutlined } from '@toddle-edu/ds-icons';
+import {
+  HierarchyOutlined,
+  PageFoldPortraitOutlined,
+  PenOutlined,
+  ShapesOutlined,
+  SheetsOutlined,
+} from '@toddle-edu/ds-icons';
 import type { DocumentType } from '../../types/api';
 
 // The page kinds a user can create — the single source for every "new page"
 // dropdown (Doc vs Sheet). `Icon` is the component so each call site sizes it;
 // `description` is the one-line subtext shown under the label.
+// Three whiteboard kinds exist only for the library trial (tldraw vs Excalidraw
+// vs React Flow); one will remain once the team picks.
 export const PAGE_TYPES = [
   {
     type: 'DOC',
@@ -19,9 +27,21 @@ export const PAGE_TYPES = [
   },
   {
     type: 'WHITEBOARD',
-    label: 'Whiteboard',
-    description: 'Sketch and diagram on a canvas',
+    label: 'Whiteboard (tldraw)',
+    description: 'Canvas built on tldraw',
     Icon: ShapesOutlined,
+  },
+  {
+    type: 'WHITEBOARD_EXCALIDRAW',
+    label: 'Whiteboard (Excalidraw)',
+    description: 'Canvas built on Excalidraw',
+    Icon: PenOutlined,
+  },
+  {
+    type: 'WHITEBOARD_REACTFLOW',
+    label: 'Whiteboard (React Flow)',
+    description: 'Node-and-edge diagrams on React Flow',
+    Icon: HierarchyOutlined,
   },
 ] satisfies ReadonlyArray<{
   type: DocumentType;

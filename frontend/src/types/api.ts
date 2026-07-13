@@ -126,7 +126,12 @@ export interface JoinRequest {
   workspace?: { id: string; name: string; visibility: Visibility }; // present on the realm-wide listing (so a row can name its workspace)
 }
 
-export type DocumentType = 'DOC' | 'SHEET' | 'WHITEBOARD';
+export type DocumentType =
+  | 'DOC'
+  | 'SHEET'
+  | 'WHITEBOARD'
+  | 'WHITEBOARD_EXCALIDRAW'
+  | 'WHITEBOARD_REACTFLOW';
 
 export interface DocumentDto {
   id: string;

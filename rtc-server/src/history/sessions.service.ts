@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
-import { SheetSnapshot, extractSheet } from "./versions.service";
+import { SheetSnapshot, extractSheet } from "../persistence/searchable-text";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 

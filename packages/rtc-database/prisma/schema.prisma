@@ -20,12 +20,13 @@ datasource db {
 model RtcDocument {
   id            String  @id
   // The CRDT source of truth: the encoded Yjs document. ALL content (DOC lexical
-  // tree or SHEET grid) lives here. We deliberately do NOT persist a derived
-  // content/plain-text projection — it would be redundant with yjsState and was
-  // write-only (nothing read it back). History/preview re-derive by replaying the
-  // update log, so a projection earns its place only once a reader (search,
-  // export, list previews) actually needs one.
+  // tree or SHEET grid) lives here. History/preview re-derive by replaying the
+  // update log against this snapshot.
   yjsState      Bytes?  @map("yjs_state")
+  // Plain-text projection of the doc content, refreshed on each snapshot write.
+  // Read by content search (contentText contains q); redundant with yjsState by
+  // design so search need not decode CRDT state. Null until first extraction.
+  contentText   String? @map("content_text")
   version       Int     @default(0)
   updatedAt     BigInt  @map("updated_at")
   snapshotAtSeq Int     @default(0) @map("snapshot_at_seq")

@@ -21,7 +21,7 @@ function StatusMessage({ message }: Readonly<{ message: string }>) {
 
 // Scrollable page hierarchy; the "Pages" heading + "New page" live in WorkspaceSidebar.
 export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController }>) {
-  const { isLoading, isEmpty, isSearching, searchResults, roots } = pages;
+  const { isLoading, isEmpty, roots } = pages;
 
   const renderPages = () => {
     if (isLoading) {
@@ -30,14 +30,6 @@ export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController
           <Loader size={28} />
         </div>
       );
-    }
-
-    // Active query: flat list of title matches in place of the tree.
-    if (isSearching) {
-      if (searchResults.length === 0) return <StatusMessage message="No pages found" />;
-      return searchResults.map((doc) => (
-        <PageRow key={doc.id} node={{ doc, children: [] }} depth={0} pages={pages} />
-      ));
     }
 
     if (isEmpty) return <StatusMessage message="No pages yet" />;

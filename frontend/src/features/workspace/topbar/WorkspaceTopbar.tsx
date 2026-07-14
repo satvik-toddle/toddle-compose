@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { IconButton } from '@toddle-edu/ds-web';
+import { SearchOutlined } from '@toddle-edu/ds-icons';
 import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
 import { useDocuments } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
+import { useUiStore } from '../../../stores/uiStore';
 import type { WorkspaceCtx } from '../context';
 import { SidebarToggle } from './SidebarToggle';
 import { DocBreadcrumb } from './DocBreadcrumb';
@@ -27,6 +30,7 @@ export function WorkspaceTopbar({
   onToggleSidebar: () => void;
 }>) {
   const currentUser = useAuthStore((state) => state.user);
+  const openModal = useUiStore((state) => state.openModal);
   const { data: realm } = useRealm();
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
@@ -46,6 +50,14 @@ export function WorkspaceTopbar({
         {doc && <DocBreadcrumb trail={trail} workspaceId={ctx.workspaceId} />}
       </div>
       <div className={styles.right}>
+        <IconButton
+          dsVersion="2.0"
+          variant="neutral"
+          type="plain"
+          icon={<SearchOutlined />}
+          aria-label="Search docs"
+          onClick={() => openModal({ type: 'search', workspaceId: ctx.workspaceId })}
+        />
         <DocActions ctx={ctx} doc={doc} user={currentUser} />
         <AccountMenu user={currentUser} realmRole={realm?.role} compact />
       </div>

@@ -29,6 +29,22 @@ function qInt(name: string, raw: string | undefined, fallback: number): number {
   return Math.trunc(n);
 }
 
+// Build a ~120-char search-result snippet centered on the first case-insensitive match of q.
+function makeSnippet(text: string, q: string): string {
+  const WINDOW = 120;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) {
+    const head = text.slice(0, WINDOW).replace(/\s+/g, " ").trim();
+    return head.length < text.trim().length ? `${head}…` : head;
+  }
+  const start = Math.max(0, idx - Math.floor((WINDOW - q.length) / 2));
+  const end = Math.min(text.length, start + WINDOW);
+  let snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) snippet = `…${snippet}`;
+  if (end < text.length) snippet = `${snippet}…`;
+  return snippet;
+}
+
 @Controller()
 export class HealthController {
   @Get("health")
@@ -59,6 +75,23 @@ export class InternalController {
     return { ok: true, docId };
   }
 
+  @Post("search")
+  async search(@Body() body: { ids?: string[]; q?: string; limit?: number }) {
+    const ids = Array.isArray(body?.ids)
+      ? body.ids.filter((x) => typeof x === "string")
+      : [];
+    const q = typeof body?.q === "string" ? body.q.trim() : "";
+    const limit = Math.max(1, Math.min(100, Number(body?.limit) || 30));
+    if (ids.length === 0 || q === "") return { matches: [] };
+    const rows = await this.repo.searchContent(ids, q, limit);
+    return {
+      matches: rows.map((r) => ({
+        docId: r.id,
+        snippet: makeSnippet(r.contentText, q),
+      })),
+    };
+  }
+
   @Get(":docId/versions")
   async listVersions(
     @Param("docId") docId: string,
@@ -74,6 +107,13 @@ export class InternalController {
     const cs = clientSub && clientSub.length > 0 ? clientSub : null;
     const rows = await this.repo.listDocUpdates(docId, fromN, toN, lim, cs);
     return { docId, head, count: rows.length, clientSub: cs, updates: rows };
+  }
+
+  // Read-only current-content projection at head, for the search modal's preview pane.
+  @Get(":docId/content")
+  async content(@Param("docId") docId: string) {
+    const head = await this.repo.getHeadSeq(docId);
+    return this.versions.previewAtSeq(docId, head);
   }
 
   @Get(":docId/versions/:seq")

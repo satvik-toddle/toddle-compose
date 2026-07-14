@@ -52,7 +52,8 @@ export class DocRepository {
   async persistRtcDoc(
     id: string,
     yjsState: Buffer,
-    snapshotAtSeq: number
+    snapshotAtSeq: number,
+    contentText?: string | null
   ): Promise<number> {
     await this.ensureRtcDoc(id);
     const row = await this.prisma.rtcDocument.update({
@@ -62,6 +63,7 @@ export class DocRepository {
         snapshotAtSeq,
         version: { increment: 1 },
         updatedAt: BigInt(Date.now()),
+        ...(contentText !== undefined ? { contentText } : {}),
       },
     });
     return row.version;
@@ -70,7 +72,8 @@ export class DocRepository {
   async writeSnapshotCheckpoint(
     id: string,
     yjsState: Buffer,
-    snapshotAtSeq: number
+    snapshotAtSeq: number,
+    contentText?: string | null
   ): Promise<void> {
     await this.ensureRtcDoc(id);
     await this.prisma.rtcDocument.update({
@@ -79,8 +82,26 @@ export class DocRepository {
         yjsState: asBytes(yjsState),
         snapshotAtSeq,
         updatedAt: BigInt(Date.now()),
+        ...(contentText !== undefined ? { contentText } : {}),
       },
     });
+  }
+
+  // Content search across a set of docs: substring match on the persisted plain-text projection.
+  async searchContent(
+    ids: string[],
+    q: string,
+    limit: number
+  ): Promise<{ id: string; contentText: string }[]> {
+    if (ids.length === 0 || !q) return [];
+    const rows = await this.prisma.rtcDocument.findMany({
+      where: { id: { in: ids }, contentText: { contains: q, mode: "insensitive" } },
+      select: { id: true, contentText: true },
+      take: limit,
+    });
+    return rows
+      .filter((r) => r.contentText != null)
+      .map((r) => ({ id: r.id, contentText: r.contentText as string }));
   }
 
   // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.

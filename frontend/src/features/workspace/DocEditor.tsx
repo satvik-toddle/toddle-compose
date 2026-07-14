@@ -67,10 +67,13 @@ export function DocEditor({
   shareToken,
   awarenessName,
   awarenessColor,
+  viewOnly: forceViewOnly,
 }: {
   docId: string;
   canEdit?: boolean;
   shareToken?: string;
+  // Force read-only regardless of the RTC role (e.g. the search preview pane).
+  viewOnly?: boolean;
   // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
   awarenessName?: string;
   awarenessColor?: string;
@@ -172,8 +175,10 @@ export function DocEditor({
       <DsDocEditor
         collab={collab}
         uploadToServer={uploadToServer}
-        viewOnly={rtc.role !== 'editor'}
-        placeholder={rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'}
+        viewOnly={forceViewOnly ?? rtc.role !== 'editor'}
+        placeholder={
+          !forceViewOnly && rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'
+        }
         config={EDITOR_CONFIG}
         minHeight={0}
         styles={EDITOR_STYLES}

@@ -1,5 +1,7 @@
 import { http } from '../lib/http';
 import type {
+  DocPreviewDto,
+  DocSearchPage,
   DocumentDto,
   DocumentPermission,
   DocumentShareLink,
@@ -14,6 +16,16 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
   get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
+  // Title + content search, keyset-paginated. workspaceId scopes to one workspace, else global.
+  // cursor comes from a prior page's nextCursor (omitted for the first page).
+  search: (q: string, workspaceId?: string, take = 25, cursor?: string | null) =>
+    http.get<DocSearchPage>(
+      `/documents/search?q=${encodeURIComponent(q)}&take=${take}` +
+        (workspaceId ? `&workspaceId=${encodeURIComponent(workspaceId)}` : '') +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''),
+    ),
+  // Head-of-log content for the split-modal read-only preview.
+  preview: (id: string) => http.get<DocPreviewDto>(`/documents/${id}/preview`),
   listStarred: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
   listAllSharedWithMe: () => http.get<DocumentDto[]>('/documents/shared-with-me'), // Global: shared pages across all workspaces (each row carries its workspace).

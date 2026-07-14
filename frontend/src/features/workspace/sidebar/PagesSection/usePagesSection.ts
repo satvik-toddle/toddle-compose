@@ -4,7 +4,7 @@ import { useCreateDocument, useDocuments } from '../../../../hooks/usePages';
 import { useAuthStore } from '../../../../stores/authStore';
 import { wsAtLeast } from '../../../../lib/roles';
 import type { WorkspaceCtx } from '../../WorkspaceLayout';
-import { buildDocTree, filterDocuments, getAncestorIds, mapDocsById } from '../../pagesModel';
+import { buildDocTree, getAncestorIds, mapDocsById } from '../../pagesModel';
 import type { DocumentType } from '../../../../types/api';
 import type { WorkspaceRole } from '../../../../types/roles';
 
@@ -26,11 +26,6 @@ export function usePagesSection(ctx: WorkspaceCtx) {
   // Pages start collapsed; this set tracks the ones explicitly expanded.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const canCreate = wsAtLeast(ctx.role, 'EDIT');
-
-  // While a query is active the tree is replaced by these flat title matches.
-  const [query, setQuery] = useState('');
-  const isSearching = query.trim().length > 0;
-  const searchResults = useMemo(() => filterDocuments(docs, query), [docs, query]);
 
   const { roots, isEmpty } = buildDocTree(docs);
   const byId = useMemo(() => mapDocsById(docs), [docs]);
@@ -74,9 +69,6 @@ export function usePagesSection(ctx: WorkspaceCtx) {
     isLoading,
     roots,
     isEmpty,
-    isSearching,
-    searchResults,
-    setQuery,
     selectedPageId,
     expanded,
     canCreate,

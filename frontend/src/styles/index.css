@@ -2,6 +2,14 @@
    spacing / elevation token set + dark mode. This file adds the app-specific
    tokens, the shared rbac component styles, base typography, and a few helpers. */
 @import './rbac.css';
+@import './search.css';
+
+/* Neutralize Ant Design's blue ::selection (injected at runtime by antd's reset) with the
+   DS selection tint, app-wide. !important beats antd's later-injected rule regardless of order. */
+::selection {
+  background-color: color-mix(in srgb, var(--interactive-secondary) 25%, transparent) !important;
+  color: currentColor !important;
+}
 
 /* App-specific tokens (the DS uses different token names for these) */
 :root {

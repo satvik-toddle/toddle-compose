@@ -172,6 +172,151 @@ export class DocumentsService {
     });
   }
 
+  // Keyset (seek) pagination over the matched union, ordered (updatedAt desc, id desc) — no OFFSET scan.
+  // The same access filter gates every query, so a doc the user can't read never surfaces.
+  async search(
+    user: AuthUser,
+    input: { workspaceId?: string; q: string; cursor?: string | null },
+    take = 25
+  ) {
+    return trace("documents.search", async () => {
+      const empty = {
+        items: [],
+        total: 0,
+        titleTotal: 0,
+        contentTotal: 0,
+        nextCursor: null as string | null,
+      };
+      const q = input.q.trim();
+      if (q === "") return empty;
+
+      const global = input.workspaceId === undefined;
+
+      // Access filter reused by every query below, keeping title + content passes in lockstep.
+      let accessFilter: Prisma.DocumentWhereInput;
+      if (!global) {
+        const wsId = this.resolveWorkspaceId(user, input.workspaceId);
+        const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
+        // Grant-only guest (role null): only their granted docs in this workspace.
+        accessFilter =
+          wsRole === null
+            ? { workspaceId: wsId, permissions: { some: { userId: user.id } } }
+            : { workspaceId: wsId };
+      } else {
+        // Global: any member workspace (incl. realm OWNER/MAINTAINER overlay) OR a per-page grant.
+        const memberWsIds = await this.authz.memberWorkspaceIds(user.id);
+        accessFilter = {
+          OR: [
+            { workspaceId: { in: memberWsIds } },
+            { permissions: { some: { userId: user.id } } },
+          ],
+        };
+      }
+
+      // Global results carry workspace {id,name} so callers can navigate + label; workspace scope omits it.
+      const select = global
+        ? ({
+            ...SUMMARY_SELECT,
+            workspace: { select: { id: true, name: true } },
+          } as const)
+        : SUMMARY_SELECT;
+
+      // Content-match ids from rtc (bounded); the matched set = title-contains OR one of these ids.
+      const GATHER = 300;
+      const CONTENT_SEARCH_ID_CAP = 5000;
+      const titleClause: Prisma.DocumentWhereInput = {
+        title: { contains: q, mode: "insensitive" },
+      };
+      const accessibleIds = await this.prisma.document.findMany({
+        where: accessFilter,
+        select: { id: true },
+        take: CONTENT_SEARCH_ID_CAP,
+      });
+      const { matches } = await this.rtc.searchContent(
+        accessibleIds.map((d) => d.id),
+        q,
+        GATHER
+      );
+      const snippetById = new Map(matches.map((m) => [m.docId, m.snippet]));
+      const contentIds = matches.map((m) => m.docId);
+
+      const matchWhere: Prisma.DocumentWhereInput = {
+        AND: [
+          accessFilter,
+          {
+            OR: [
+              titleClause,
+              ...(contentIds.length ? [{ id: { in: contentIds } }] : []),
+            ],
+          },
+        ],
+      };
+
+      // Totals (one COUNT each, not per-row) for the "loaded / total" UI + scope chips.
+      const [total, titleTotal] = await Promise.all([
+        this.prisma.document.count({ where: matchWhere }),
+        this.prisma.document.count({ where: { AND: [accessFilter, titleClause] } }),
+      ]);
+      const totals = { total, titleTotal, contentTotal: matches.length };
+
+      // Keyset seek: page rows strictly "after" the cursor in (updatedAt desc, id desc) order.
+      const cur = this.decodeSearchCursor(input.cursor);
+      const seekClause: Prisma.DocumentWhereInput | null = cur
+        ? {
+            OR: [
+              { updatedAt: { lt: cur.updatedAt } },
+              { AND: [{ updatedAt: cur.updatedAt }, { id: { lt: cur.id } }] },
+            ],
+          }
+        : null;
+
+      const page = await this.prisma.document.findMany({
+        where: seekClause ? { AND: [matchWhere, seekClause] } : matchWhere,
+        select,
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take,
+      });
+
+      const ql = q.toLowerCase();
+      // A doc matching BOTH keeps match:"title" (badge) but also carries its content snippet.
+      const ordered = page.map((d) => ({
+        ...d,
+        match: d.title.toLowerCase().includes(ql) ? ("title" as const) : ("content" as const),
+        snippet: snippetById.get(d.id),
+      }));
+      const items = await this.attachMyRole(
+        user.id,
+        await this.attachStarred(user.id, ordered)
+      );
+
+      const last = page[page.length - 1];
+      const nextCursor =
+        page.length === take && last
+          ? this.encodeSearchCursor(last.updatedAt, last.id)
+          : null;
+      return { items, ...totals, nextCursor };
+    });
+  }
+
+  // Opaque keyset cursor over (updatedAt, id) — base64url so it survives a query string.
+  private encodeSearchCursor(updatedAt: Date, id: string): string {
+    return Buffer.from(`${updatedAt.toISOString()}|${id}`).toString("base64url");
+  }
+
+  private decodeSearchCursor(
+    cursor?: string | null
+  ): { updatedAt: Date; id: string } | null {
+    if (!cursor) return null;
+    try {
+      const [ts, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+      const updatedAt = new Date(ts);
+      if (!id || Number.isNaN(updatedAt.getTime())) return null;
+      return { updatedAt, id };
+    } catch {
+      return null;
+    }
+  }
+
   // Direct subdocs of a document; workspace READ on the parent gates the whole list.
   async listSubdocs(userId: string, parentId: string, skip = 0, take = 100) {
     const { doc: parent, wsRole, grant } = await this.requireDocRead(userId, parentId);
@@ -474,6 +619,24 @@ export class DocumentsService {
           plainText: preview.plainText,
         };
     }
+  }
+
+  // Read-only current-content preview for the search modal; gated identically to `get()`.
+  async preview(userId: string, docId: string) {
+    const doc = await this.get(userId, docId); // read gate + title/icon/breadcrumbs
+    const p = await this.rtc.getHeadContent(docId);
+    const base = {
+      docId,
+      type: doc.type,
+      title: doc.title,
+      icon: doc.icon,
+      breadcrumbs: doc.breadcrumbs,
+      updatedAt: doc.updatedAt,
+      headSeq: p.headSeq,
+    };
+    return doc.type === DocumentType.SHEET
+      ? { ...base, sheet: p.sheet }
+      : { ...base, lexicalJson: p.lexicalJson, plainText: p.plainText };
   }
 
   // Content/metadata edit — any workspace EDITor (or the creator).

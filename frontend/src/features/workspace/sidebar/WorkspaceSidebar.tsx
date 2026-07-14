@@ -1,5 +1,5 @@
 import { NavLink, useSearchParams } from 'react-router-dom';
-import { SearchInput, Badge } from '@toddle-edu/ds-web';
+import { Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
@@ -7,6 +7,7 @@ import {
   ChevronLeftOutlined,
   AddOutlined,
   DotsSixVerticalOutlined,
+  SearchOutlined,
 } from '@toddle-edu/ds-icons';
 import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
@@ -70,13 +71,16 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
         </div>
 
         <div className={styles.searchRow}>
-          <SearchInput
-            dsVersion="2.0"
-            size="medium"
-            placeholder="Search this workspace…"
-            aria-label="Search this workspace"
-            onChange={pages.setQuery}
-          />
+          <button
+            type="button"
+            className="gs-pill"
+            style={{ width: '100%', maxWidth: 'none' }}
+            aria-label="Search docs"
+            onClick={() => openModal({ type: 'search', workspaceId })}
+          >
+            <SearchOutlined style={{ width: 18, height: 18, flex: 'none' }} aria-hidden />
+            Search
+          </button>
         </div>
 
         <div className={styles.linkGroup}>

@@ -79,6 +79,14 @@ export class RtcInternalClient {
     ) as Promise<RtcVersionPreview>;
   }
 
+  /** Current head-seq content projection for the read-only preview pane (no websocket). */
+  getHeadContent(docId: string): Promise<RtcVersionPreview> {
+    return this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/content`
+    ) as Promise<RtcVersionPreview>;
+  }
+
   /** Delete the RTC row (yjs state + update log) for a document id. */
   deleteDoc(docId: string): Promise<unknown> {
     return this.call(
@@ -99,6 +107,20 @@ export class RtcInternalClient {
       { kickedAt: Math.floor(Date.now() / 1000) },
       3000
     ) as Promise<{ closed?: number }>;
+  }
+
+  // Full-text content search over the given doc ids; empty ids short-circuit without a call.
+  async searchContent(
+    ids: string[],
+    q: string,
+    limit = 30
+  ): Promise<RtcContentSearchResult> {
+    if (ids.length === 0) return { matches: [] };
+    return this.call("POST", "/internal/docs/search", {
+      ids,
+      q,
+      limit,
+    }) as Promise<RtcContentSearchResult>;
   }
 
   // If rtc-server is down, log and move on — the leftover row is orphaned, not harmful.
@@ -147,4 +169,9 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
+};
+
+/** Content-search hits: a snippet per matching doc id (empty ids/query → no matches). */
+export type RtcContentSearchResult = {
+  matches: Array<{ docId: string; snippet: string }>;
 };

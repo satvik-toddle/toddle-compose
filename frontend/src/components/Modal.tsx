@@ -51,22 +51,26 @@ export function Modal({
   onClose,
   children,
   wide,
+  width,
+  className,
 }: {
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  width?: string; // explicit box width; overrides `wide` when set (e.g. the search modal's 640/1000)
+  className?: string; // extra class on the .rbac.tc-modal content wrapper
 }) {
   return (
     <DsModal
       dsVersion="2.0"
       isOpen
       onClose={onClose}
-      width={wide ? '560px' : '440px'}
+      width={width ?? (wide ? '560px' : '440px')}
       hasOverlay
       shouldCloseOnOverlayClick
       shouldCloseOnEsc
     >
-      <div className="rbac tc-modal">{children}</div>
+      <div className={`rbac tc-modal${className ? ` ${className}` : ''}`}>{children}</div>
     </DsModal>
   );
 }

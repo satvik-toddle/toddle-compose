@@ -24,6 +24,7 @@ import {
   ListStarredDocumentsDto,
   MoveDocumentDto,
   RenameDocumentDto,
+  SearchDocumentsDto,
   UpdateDocumentPermissionDto,
   UpsertShareLinkDto,
 } from "./dto";
@@ -84,6 +85,21 @@ export class DocumentsController {
     return this.documents.listAllSharedWithMe(user, page.skip, page.take);
   }
 
+  // Search docs by title AND content, workspace-scoped or global.
+  // Declared before `:id` so "search" isn't matched as a document id.
+  @Get("search")
+  search(
+    @CurrentUser() user: AuthUser,
+    @Query() q: SearchDocumentsDto,
+    @Query() page: PaginationDto
+  ) {
+    return this.documents.search(
+      user,
+      { workspaceId: q.workspaceId, q: q.q, cursor: q.cursor },
+      page.take
+    );
+  }
+
   @Get(":id")
   get(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.documents.get(user.id, id);
@@ -119,6 +135,12 @@ export class DocumentsController {
     @Param("seq") seq: string
   ) {
     return this.documents.historySnapshot(user.id, id, Number(seq));
+  }
+
+  // Read-only current-content preview for the search modal's split layout.
+  @Get(":id/preview")
+  preview(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.documents.preview(user.id, id);
   }
 
   // Short-lived RTC token for this document; 403 if the caller has no access.

@@ -166,6 +166,44 @@ export interface DocumentDto {
   workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
 }
 
+// GET /documents/search — why a result matched.
+export type SearchMatch = 'title' | 'content';
+
+// A search hit: a document plus its match reason (workspace{id,name} on DocumentDto is populated for global rows).
+export interface SearchResultDto extends DocumentDto {
+  match: SearchMatch;
+  snippet?: string; // content-match excerpt; absent for title-only matches
+}
+
+// One keyset page of search results plus totals for the "loaded / total" UI and scope-chip counts.
+export interface DocSearchPage {
+  items: SearchResultDto[];
+  total: number; // distinct matches (title ∪ content), up to the server cap
+  titleTotal: number; // matches whose title contains the query
+  contentTotal: number; // matches whose content contains the query (may overlap titleTotal)
+  nextCursor: string | null; // opaque keyset cursor; null when there are no more pages
+}
+
+// Read-only projection of a SHEET's grid for the preview pane.
+export interface SheetPreviewDto {
+  rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
+  colTypes: Record<string, unknown>;
+}
+
+// GET /documents/:id/preview — head-of-log content for the split-modal preview.
+export interface DocPreviewDto {
+  docId: string;
+  type: DocumentType;
+  title: string;
+  icon: string;
+  breadcrumbs: Array<{ id: string; title: string; icon: string | null }>;
+  updatedAt: string;
+  headSeq: number;
+  lexicalJson?: string | null; // DOC body as stored Lexical editorState JSON
+  plainText?: string; // DOC plain-text projection
+  sheet?: SheetPreviewDto | null; // present only for SHEET docs
+}
+
 // GET /documents/:id/permissions row — EDIT/ADMIN granted on one document, independent of workspace membership.
 export interface DocumentPermission {
   userId: string;

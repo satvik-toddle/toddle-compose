@@ -9,6 +9,9 @@
                       "AvenirNextWorld", Arial, sans-serif, system-ui;
   --font-family-display: "Nunito", "AvenirNext", sans-serif;
   --font-weight-medium: 500;
+
+  /* Page canvas; at :root so <body> resolves it. Flipping DS surface. */
+  --app-bg: var(--surface-secondary-enabled);
 }
 
 html,
@@ -23,7 +26,7 @@ body {
   font-size: var(--font-size-100);
   line-height: var(--line-height-100);
   color: var(--text-primary);
-  background: var(--app-bg, #ececed);
+  background: var(--app-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -31,14 +34,29 @@ body {
   height: 100%;
 }
 
-/* Base headings — font-family inherits from body; size/weight are usually set by
-   the page container or a class, so these are just the fallback. */
+/* Base headings: size/weight fallback. Color set here (after antd.css) so headings
+   use the flipping token, not antd's fixed dark reset. */
+h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
 h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
 h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
 h3 { font-weight: 700; font-size: var(--font-size-600); line-height: var(--line-height-300); margin: 0; }
 h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-height-400); margin: 0; }
 h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
 h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
+
+/* ds-web fill buttons color label/icon with --text-inverse/--icon-inverse (black in
+   dark). Fine for the neutral fill, wrong on colored fills (bg stays saturated) —
+   force those to --text-on/--icon-on (white in both themes). */
+[class*='bg-interactive-primary'].text-inverse,
+[class*='bg-interactive-semantic'].text-inverse,
+[class*='bg-[var(--purple'].text-inverse {
+  color: var(--text-on);
+}
+[class*='bg-interactive-primary'] .icon-inverse,
+[class*='bg-interactive-semantic'] .icon-inverse,
+[class*='bg-[var(--purple'] .icon-inverse {
+  color: var(--icon-on);
+}
 
 /* ---- app-level helpers not in the design CSS ---- */
 .rbac .tc-center {

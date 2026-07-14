@@ -107,7 +107,6 @@ export function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          onTrailingIconClick={(e) => e.preventDefault()}
         />
         <PasswordStrength password={password} />
         <PasswordTextInput
@@ -118,7 +117,6 @@ export function RegisterPage() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={isPasswordMismatched ? ' ' : undefined}
           required
-          onTrailingIconClick={(e) => e.preventDefault()}
         />
 
         {isPasswordMismatched && (
@@ -128,7 +126,13 @@ export function RegisterPage() {
           </span>
         )}
 
-        <Button size="large" isFullWidth disabled={register.isPending}>
+        <Button
+          dsVersion="2.0"
+          htmlButtonType="submit"
+          size="large"
+          isFullWidth
+          disabled={register.isPending}
+        >
           {submitButtonLabel}
         </Button>
 

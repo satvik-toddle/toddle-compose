@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { WorkspaceRole } from "@app/database";
 import { AuthService } from "../auth/auth.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 import { AuthzService } from "./authz.service";
@@ -12,11 +13,16 @@ export class WorkspaceSessionService {
   ) {}
 
   async enter(user: AuthUser, workspaceId: string) {
-    const role = await this.authz.requireWorkspaceRole(user.id, workspaceId, "READ");
+    // Grant-only guests hold no workspace role but earn implicit entry scoped to their granted docs.
+    const { role: wsRole, isGuest: guest } = await this.authz.requireWorkspaceAccess(
+      user.id,
+      workspaceId
+    );
+    const role: WorkspaceRole = wsRole ?? "READ";
     const token = await this.auth.mintAccessToken(user, {
       activeWorkspaceId: workspaceId,
     });
-    return { ...token, workspaceId, role };
+    return { ...token, workspaceId, role, guest };
   }
 
   async leave(user: AuthUser) {

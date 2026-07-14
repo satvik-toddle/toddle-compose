@@ -9,6 +9,7 @@ import type { IncomingMessage, Server as HttpServer } from "http";
 import * as decoding from "lib0/decoding";
 import { getYDoc, setupWSConnection, setPersistence } from "y-websocket/bin/utils";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
+import { DocKickService } from "./doc-kick.service";
 import { DocStateService } from "../persistence/doc-state.service";
 import { createLogger, decodeYFrame, nextConnId } from "../logger";
 import type { Env } from "../config/env";
@@ -74,6 +75,7 @@ export class YjsServerService
 
   constructor(
     private readonly tokens: TokensService,
+    private readonly docKick: DocKickService,
     private readonly docState: DocStateService,
     private readonly config: ConfigService<Env, true>
   ) {}
@@ -142,6 +144,12 @@ export class YjsServerService
           const claims = await this.tokens.verify(parsed.token);
           if (claims.docId !== parsed.docId) {
             cb(false, 403, "docId mismatch");
+            return;
+          }
+          // Reject tokens minted before the last force-refresh so a kicked client can't reconnect on its cached token.
+          if (this.docKick.isRejected(parsed.docId, claims.iat)) {
+            log.warn(`verifyClient REJECT: access changed doc='${parsed.docId}'`);
+            cb(false, 401, "access changed");
             return;
           }
           (req as IncomingMessage & { rtcClaims: RtcClaims }).rtcClaims = claims;

@@ -49,7 +49,13 @@ export function ResetPasswordPage() {
   // No token in the URL → the link is malformed; treat as invalid.
   if (!token) {
     return (
-      <AuthShell foot={<span>Back to <Link to="/login">Sign in</Link></span>}>
+      <AuthShell
+        foot={
+          <span>
+            Back to <Link to="/login">Sign in</Link>
+          </span>
+        }
+      >
         <div className={styles.glyphBad}>
           <WarningTriangleOutlined size="small" variant="critical" />
         </div>
@@ -86,7 +92,13 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthShell foot={<span>Back to <Link to="/login">Sign in</Link></span>}>
+    <AuthShell
+      foot={
+        <span>
+          Back to <Link to="/login">Sign in</Link>
+        </span>
+      }
+    >
       <h1 className={styles.heading}>Choose a new password</h1>
       <p className={styles.subheading}>Pick a strong password you don't use elsewhere.</p>
 
@@ -111,7 +123,6 @@ export function ResetPasswordPage() {
           required
           minLength={6}
           autoFocus
-          onTrailingIconClick={(e) => e.preventDefault()}
         />
         <PasswordStrength password={password} />
         <PasswordTextInput
@@ -122,7 +133,6 @@ export function ResetPasswordPage() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           error={isPasswordMismatched ? ' ' : undefined}
           required
-          onTrailingIconClick={(e) => e.preventDefault()}
         />
 
         {isPasswordMismatched && (
@@ -132,7 +142,13 @@ export function ResetPasswordPage() {
           </span>
         )}
 
-        <Button size="large" isFullWidth disabled={reset.isPending}>
+        <Button
+          dsVersion="2.0"
+          htmlButtonType="submit"
+          size="large"
+          isFullWidth
+          disabled={reset.isPending}
+        >
           {resetButtonLabel}
         </Button>
       </form>

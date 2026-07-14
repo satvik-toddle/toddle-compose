@@ -14,7 +14,7 @@ import { RequestsTable } from '../../components/RequestsTable';
 import { AddWorkspaceMemberModal } from './AddWorkspaceMemberModal';
 import { ConfirmRemoveMemberModal } from './ConfirmRemoveMemberModal';
 import { RenameWorkspaceModal } from './RenameWorkspaceModal';
-import { WorkspaceAccessTokensTab } from './WorkspaceAccessTokensTab';
+import { WorkspacePersonalAccessTokensTab } from './WorkspacePersonalAccessTokensTab';
 import { useRealm, useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../../hooks/queries';
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -225,7 +225,7 @@ export function WorkspaceSettingsModal({
             />
           )}
           {tab === 'accessTokens' && isAdmin && (
-            <WorkspaceAccessTokensTab workspaceId={workspaceId} />
+            <WorkspacePersonalAccessTokensTab workspaceId={workspaceId} />
           )}
           {tab === 'danger' && isAdmin && (
             <DangerPanel workspaceId={workspaceId} workspaceName={name} memberCount={memberCount} />

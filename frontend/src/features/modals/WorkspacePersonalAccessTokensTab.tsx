@@ -6,16 +6,16 @@ import { Icon } from '../../components/Icon';
 import { IconButton } from '../../components/IconButton';
 import { RoleSelect } from '../../components/RoleSelect';
 import { PageLoader } from '../../components/Loader';
-import { useAccessTokens } from '../../hooks/queries';
-import { useCreateAccessToken } from '../../hooks/useAccessTokenMutations';
+import { usePersonalAccessTokens } from '../../hooks/queries';
+import { useCreatePersonalAccessToken } from '../../hooks/usePersonalAccessTokenMutations';
 import { pushToast } from '../../stores/uiStore';
 import { formatDate } from '../../lib/time';
 import { ConfirmRevokeTokenModal } from './ConfirmRevokeTokenModal';
-import type { AccessToken, AccessTokenPermission } from '../../types/api';
+import type { PersonalAccessToken, PersonalAccessTokenPermission } from '../../types/api';
 
 // MAINTAINER is realm-only; a workspace token tops out at ADMIN.
-const PERMISSIONS: AccessTokenPermission[] = ['VIEW', 'COMMENT', 'EDIT', 'ADMIN'];
-const PERMISSION_LABEL: Record<AccessTokenPermission, string> = {
+const PERMISSIONS: PersonalAccessTokenPermission[] = ['VIEW', 'COMMENT', 'EDIT', 'ADMIN'];
+const PERMISSION_LABEL: Record<PersonalAccessTokenPermission, string> = {
   VIEW: 'View',
   COMMENT: 'Comment',
   EDIT: 'Edit',
@@ -23,7 +23,7 @@ const PERMISSION_LABEL: Record<AccessTokenPermission, string> = {
   MAINTAINER: 'Maintainer',
 };
 const PERMISSION_COLOR: Record<
-  AccessTokenPermission,
+  PersonalAccessTokenPermission,
   'neutral' | 'blue' | 'teal' | 'violet' | 'orange'
 > = {
   VIEW: 'neutral',
@@ -73,27 +73,29 @@ const styles = {
 };
 
 // A revoked or past-expiry token stays listed (audit trail) but reads as inactive.
-function statusOf(token: AccessToken): { label: string; tone: 'green' | 'neutral' } {
+function statusOf(token: PersonalAccessToken): { label: string; tone: 'green' | 'neutral' } {
   if (token.revokedAt) return { label: 'Revoked', tone: 'neutral' };
   if (token.expiresAt && new Date(token.expiresAt).getTime() < Date.now())
     return { label: 'Expired', tone: 'neutral' };
   return { label: 'Active', tone: 'green' };
 }
 
-export interface WorkspaceAccessTokensTabProps {
+export interface WorkspacePersonalAccessTokensTabProps {
   workspaceId: string;
 }
 
-export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAccessTokensTabProps>) {
-  const { data: allTokens, isLoading } = useAccessTokens(true);
-  const create = useCreateAccessToken();
+export function WorkspacePersonalAccessTokensTab({
+  workspaceId,
+}: Readonly<WorkspacePersonalAccessTokensTabProps>) {
+  const { data: allTokens, isLoading } = usePersonalAccessTokens(true);
+  const create = useCreatePersonalAccessToken();
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
-  const [permission, setPermission] = useState<AccessTokenPermission>('EDIT');
+  const [permission, setPermission] = useState<PersonalAccessTokenPermission>('EDIT');
   const [expiresInDays, setExpiresInDays] = useState('90');
   // Token pending revoke confirmation; drives the stacked confirm modal.
-  const [revoking, setRevoking] = useState<AccessToken | null>(null);
+  const [revoking, setRevoking] = useState<PersonalAccessToken | null>(null);
   // The raw secret is returned exactly once; hold it here until dismissed.
   const [freshToken, setFreshToken] = useState<string | null>(null);
 
@@ -197,7 +199,7 @@ export function WorkspaceAccessTokensTab({ workspaceId }: Readonly<WorkspaceAcce
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Permission</span>
-              <RoleSelect<AccessTokenPermission>
+              <RoleSelect<PersonalAccessTokenPermission>
                 value={permission}
                 options={PERMISSION_OPTIONS}
                 onChange={setPermission}

@@ -3,17 +3,17 @@ import { Tag } from '@toddle-edu/ds-web';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import { useRevokeAccessToken } from '../../hooks/useAccessTokenMutations';
-import type { AccessToken } from '../../types/api';
+import { useRevokePersonalAccessToken } from '../../hooks/usePersonalAccessTokenMutations';
+import type { PersonalAccessToken } from '../../types/api';
 
 export function ConfirmRevokeTokenModal({
   onClose,
   token,
 }: {
   onClose: () => void;
-  token: AccessToken;
+  token: PersonalAccessToken;
 }) {
-  const revoke = useRevokeAccessToken();
+  const revoke = useRevokePersonalAccessToken();
 
   const submit = () => {
     if (revoke.isPending) return;

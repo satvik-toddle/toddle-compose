@@ -7,7 +7,7 @@ import { RealmRole, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
 import { currentTokenAuth } from "../auth/request-context";
-import { permissionToWorkspaceRole } from "../auth/access-token.util";
+import { permissionToWorkspaceRole } from "../auth/personal-access-token.util";
 
 // Rank per ladder; higher = more capable.
 const REALM_ORDER: Record<RealmRole, number> = {
@@ -107,6 +107,13 @@ export class AuthzService {
     }
   }
 
+  // The workspace a WORKSPACE-scoped token is confined to, else null (no confinement).
+  // Lets list endpoints filter results to the token's scope instead of throwing.
+  tokenWorkspaceScope(): string | null {
+    const token = currentTokenAuth();
+    return token && token.scope === "WORKSPACE" ? token.workspaceId : null;
+  }
+
   tokenAllowsWorkspaceRole(min: WorkspaceRole): boolean {
     const token = currentTokenAuth();
     if (!token) return true;
@@ -185,6 +192,11 @@ export class AuthzService {
     userId: string,
     doc: { id: string; ownerId: string; workspaceId: string }
   ): Promise<void> {
+    // Managing sharing is an ADMIN-level op: confine to the token's workspace and ceiling.
+    this.assertWorkspaceInScope(doc.workspaceId);
+    if (!this.tokenAllowsWorkspaceRole("ADMIN")) {
+      throw new ForbiddenException("requires document ADMIN to manage sharing");
+    }
     if (doc.ownerId === userId) return;
     const [wsRole, grant] = await Promise.all([
       this.effectiveWorkspaceRole(userId, doc.workspaceId),
@@ -200,6 +212,8 @@ export class AuthzService {
     userId: string,
     workspaceId: string
   ): Promise<{ role: WorkspaceRole | null; isGuest: boolean }> {
+    // A WORKSPACE-scoped token can't guest-enter a different workspace via a grant.
+    this.assertWorkspaceInScope(workspaceId);
     const role = await this.effectiveWorkspaceRole(userId, workspaceId);
     if (role !== null) return { role, isGuest: false };
     if (await this.hasDocGrantInWorkspace(userId, workspaceId)) {

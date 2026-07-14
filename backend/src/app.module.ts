@@ -12,7 +12,7 @@ import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { FoldersModule } from "./folders/folders.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
-import { AccessTokensModule } from "./access-tokens/access-tokens.module";
+import { PersonalAccessTokensModule } from "./personal-access-tokens/personal-access-tokens.module";
 import { RequestContextMiddleware } from "./auth/request-context";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { HealthController } from "./health.controller";
@@ -38,7 +38,7 @@ import { HealthController } from "./health.controller";
     FoldersModule,
     DocumentsModule,
     StorageModule,
-    AccessTokensModule,
+    PersonalAccessTokensModule,
     RealtimeModule,
   ],
   controllers: [HealthController],

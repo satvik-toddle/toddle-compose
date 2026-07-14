@@ -27,7 +27,7 @@ export class AuthTokensGcScheduler {
     };
     const [refresh, access, verif, resets] = await Promise.all([
       this.prisma.refreshToken.deleteMany({ where: staleRevocable }),
-      this.prisma.accessToken.deleteMany({ where: staleRevocable }),
+      this.prisma.personalAccessToken.deleteMany({ where: staleRevocable }),
       this.prisma.emailVerificationToken.deleteMany({ where: staleSingleUse }),
       this.prisma.passwordResetToken.deleteMany({ where: staleSingleUse }),
     ]);

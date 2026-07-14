@@ -50,19 +50,23 @@ enum JoinRequestState {
 }
 
 // REALM-wide (every workspace) or confined to a single WORKSPACE.
-enum AccessTokenScope {
+enum PersonalAccessTokenScope {
   REALM
   WORKSPACE
+
+  @@map("AccessTokenScope")
 }
 
-// Capability ceiling for an access token. VIEW < COMMENT < EDIT < ADMIN mirror
-// WorkspaceRole (VIEW == READ); MAINTAINER (realm-admin) is REALM-scope only.
-enum AccessTokenPermission {
+// Capability ceiling for a personal access token. VIEW < COMMENT < EDIT < ADMIN
+// mirror WorkspaceRole (VIEW == READ); MAINTAINER (realm-admin) is REALM-scope only.
+enum PersonalAccessTokenPermission {
   VIEW
   COMMENT
   EDIT
   ADMIN
   MAINTAINER
+
+  @@map("AccessTokenPermission")
 }
 
 // Reach of a document share link: REALM → any logged-in realm member with the
@@ -110,7 +114,7 @@ model Workspace {
   joinRequests JoinRequest[]
   folders      Folder[]
   documents    Document[]
-  accessTokens AccessToken[]
+  personalAccessTokens PersonalAccessToken[]
 
   @@index([realmId])
   @@map("workspaces")
@@ -167,7 +171,7 @@ model User {
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
-  accessTokens         AccessToken[]
+  personalAccessTokens PersonalAccessToken[]
   documentStars        DocumentStar[]
   documentPermissions  DocumentPermission[]
 
@@ -221,14 +225,14 @@ model RefreshToken {
 
 // Opaque Bearer credential that authenticates as its creator, capped to
 // `permission` and confined to `scope`. Only the sha256 hash is stored.
-model AccessToken {
-  id          String                @id @default(cuid())
+model PersonalAccessToken {
+  id          String                        @id @default(cuid())
   name        String
-  tokenHash   String                @unique @map("token_hash")
+  tokenHash   String                        @unique @map("token_hash")
   prefix      String
-  scope       AccessTokenScope
-  permission  AccessTokenPermission
-  workspaceId String?               @map("workspace_id")
+  scope       PersonalAccessTokenScope
+  permission  PersonalAccessTokenPermission
+  workspaceId String?                       @map("workspace_id")
   workspace   Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdById String                @map("created_by_id")
   createdBy   User                  @relation(fields: [createdById], references: [id], onDelete: Cascade)

@@ -1,11 +1,14 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { Injectable, NestMiddleware } from "@nestjs/common";
-import type { AccessTokenPermission, AccessTokenScope } from "@app/database";
+import type {
+  PersonalAccessTokenPermission,
+  PersonalAccessTokenScope,
+} from "@app/database";
 
 export type TokenAuthContext = {
-  scope: AccessTokenScope;
+  scope: PersonalAccessTokenScope;
   workspaceId: string | null;
-  permission: AccessTokenPermission;
+  permission: PersonalAccessTokenPermission;
 };
 
 type Store = { tokenAuth: TokenAuthContext | null };

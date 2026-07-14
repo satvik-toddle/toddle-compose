@@ -5,7 +5,10 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { hashAccessToken, looksLikeAccessToken } from "./access-token.util";
+import {
+  hashPersonalAccessToken,
+  looksLikePersonalAccessToken,
+} from "./personal-access-token.util";
 import { setTokenAuth } from "./request-context";
 import { AccessTokenService } from "./access-token.service";
 
@@ -27,8 +30,8 @@ export class JwtAuthGuard implements CanActivate {
     const token = header.slice(7);
     // ctk_ programmatic API token → our scoped path; otherwise it's a login JWT,
     // which we delegate to the shared resolver so token policy can't fork.
-    if (looksLikeAccessToken(token)) {
-      return this.authenticateAccessToken(req, token);
+    if (looksLikePersonalAccessToken(token)) {
+      return this.authenticatePersonalAccessToken(req, token);
     }
     const user = await this.accessTokens.resolveAccessToken(header);
     if (!user) throw new UnauthorizedException("invalid token");
@@ -37,9 +40,9 @@ export class JwtAuthGuard implements CanActivate {
     return true;
   }
 
-  private async authenticateAccessToken(req: any, raw: string): Promise<boolean> {
-    const record = await this.prisma.accessToken.findUnique({
-      where: { tokenHash: hashAccessToken(raw) },
+  private async authenticatePersonalAccessToken(req: any, raw: string): Promise<boolean> {
+    const record = await this.prisma.personalAccessToken.findUnique({
+      where: { tokenHash: hashPersonalAccessToken(raw) },
       include: { createdBy: true },
     });
     if (!record || record.revokedAt) {
@@ -69,7 +72,7 @@ export class JwtAuthGuard implements CanActivate {
     if (lastUsedAt && Date.now() - lastUsedAt.getTime() < LAST_USED_THROTTLE_MS) {
       return;
     }
-    await this.prisma.accessToken
+    await this.prisma.personalAccessToken
       .update({ where: { id }, data: { lastUsedAt: new Date() } })
       .catch(() => undefined);
   }

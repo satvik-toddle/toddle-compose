@@ -20,7 +20,7 @@ export function ConfirmRestoreVersionModal({
   seq: number;
   versionLabel: string;
 }) {
-  // Plain snapshot (no diff): restore always writes the version's own content, never a merged diff state.
+  // No diffAgainst: restore writes the version's own content, never a merged diff state.
   const { data: snapshot } = useDocSnapshot(docId, seq);
   const { data: rtc } = useRtcToken(docId);
   const [pending, setPending] = useState(false);
@@ -41,7 +41,6 @@ export function ConfirmRestoreVersionModal({
         token: rtc!.token,
         editorState: snapshot!.lexicalJson as string,
       });
-      // The restore write lands as a brand-new edit session; refresh the timeline.
       void qc.invalidateQueries({ queryKey: qk.docHistory(docId) });
       pushToast({ kind: 'success', message: 'Version restored' });
       // Leave history mode so the live editor shows the restored content.

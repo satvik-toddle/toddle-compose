@@ -227,9 +227,13 @@ export class DocumentsService {
       const titleClause: Prisma.DocumentWhereInput = {
         title: { contains: q, mode: "insensitive" },
       };
+      // Stable order so the capped id window is deterministic across page requests
+      // (an unordered take would let Postgres return a different 5000-id subset per page,
+      // making content-match pagination flicker for scopes above the cap).
       const accessibleIds = await this.prisma.document.findMany({
         where: accessFilter,
         select: { id: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: CONTENT_SEARCH_ID_CAP,
       });
       const { matches } = await this.rtc.searchContent(

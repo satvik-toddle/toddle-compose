@@ -33,3 +33,7 @@ generated
 # local object storage
 .storage/
 /.claude/
+scripts/.superhuman/
+
+# Large local migration snapshots (Coda export → toddle-compose)
+migration-data.json

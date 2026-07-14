@@ -25,11 +25,14 @@ import {
   $setSelection,
   type ElementNode,
   type Klass,
+  type LexicalEditor,
   type LexicalNode,
   type RangeSelection,
   type TextFormatType,
   type TextNode,
 } from "lexical";
+import { $generateNodesFromDOM } from "@lexical/html";
+import { parseHTML } from "linkedom";
 import {
   $createHeadingNode,
   $createQuoteNode,
@@ -866,20 +869,70 @@ export function buildOpsUpdate(
   baseState: Uint8Array | null,
   ops: ContentOp[]
 ): Uint8Array {
+  return buildUpdate(baseState, (editor) => {
+    editor.update(
+      () => {
+        const root = $getRoot();
+        for (const op of ops) applyOp(op, root);
+      },
+      { discrete: true }
+    );
+  });
+}
+
+// Replace the WHOLE doc body with the parsed HTML, atomically: clear the root then append the
+// nodes @lexical/html produces from the HTML. Emitted as one Yjs delta on top of `baseState`, so
+// the CRDT merges it regardless of who is connected (unlike destructive `clear`, no live-editor gate).
+export function buildHtmlReplaceUpdate(
+  baseState: Uint8Array | null,
+  html: string
+): Uint8Array {
+  return buildUpdate(baseState, (editor) => {
+    editor.update(
+      () => {
+        const root = $getRoot();
+        const dom = htmlToDom(html);
+        const nodes = $generateNodesFromDOM(
+          editor,
+          dom as unknown as Parameters<typeof $generateNodesFromDOM>[1]
+        );
+        root.clear();
+        for (const node of nodes) {
+          // Root may hold only ElementNodes/DecoratorNodes — never a bare inline TextNode
+          // ($generateNodesFromDOM wraps top-level inlines, but guard the odd leftover).
+          if ($isElementNode(node) || !$isTextNode(node)) {
+            root.append(node);
+          } else {
+            const p = $createParagraphNode();
+            p.append(node);
+            root.append(p);
+          }
+        }
+      },
+      { discrete: true }
+    );
+  });
+}
+
+// Shared temp-doc lifecycle: run `mutate` (which performs the editor.update that emits the delta) and
+// return the incremental Yjs update, always destroying the temp doc (a throwing mutate included) so
+// the stub Awareness cleanup interval and retained graph never leak.
+function buildUpdate(
+  baseState: Uint8Array | null,
+  mutate: (editor: LexicalEditor, beforeSV: Uint8Array) => void
+): Uint8Array {
   const doc = new Y.Doc();
-  // finally-destroy the temp doc on every path (incl. an op that throws): destroy() clears the
-  // stub Awareness's cleanup interval, otherwise each call leaks a timer + the retained graph.
   try {
-    return buildOpsUpdateInner(doc, baseState, ops);
+    return buildUpdateInner(doc, baseState, mutate);
   } finally {
     doc.destroy();
   }
 }
 
-function buildOpsUpdateInner(
+function buildUpdateInner(
   doc: Y.Doc,
   baseState: Uint8Array | null,
-  ops: ContentOp[]
+  mutate: (editor: LexicalEditor, beforeSV: Uint8Array) => void
 ): Uint8Array {
   const editor = createHeadlessEditor({
     namespace: NAMESPACE,
@@ -954,15 +1007,26 @@ function buildOpsUpdateInner(
   );
 
   const beforeSV = Y.encodeStateVector(doc);
-  editor.update(
-    () => {
-      const root = $getRoot();
-      for (const op of ops) applyOp(op, root);
-    },
-    { discrete: true }
-  );
+  mutate(editor, beforeSV);
 
   const delta = Y.encodeStateAsUpdate(doc, beforeSV);
-  log.debug(`built ${ops.length} op(s) → ${delta.byteLength}B delta`);
+  log.debug(`built delta → ${delta.byteLength}B`);
   return delta;
+}
+
+// Parse an HTML string into a linkedom DOM document. linkedom does not auto-wrap a body-fragment
+// (a leading block tag lands outside <body>), so wrap in a document skeleton; body-level <meta>/
+// wrapper tags with no Lexical conversion are simply ignored by $generateNodesFromDOM.
+function htmlToDom(html: string) {
+  const { document } = parseHTML(
+    `<!DOCTYPE html><html><head></head><body>${normalizeHtmlPre(html)}</body></html>`
+  );
+  return document;
+}
+
+// Minimal pre-parse normalization ported from the editor's paste converter
+// (doc-editor CustomPastePlugin/utils.js $parseHtmlToNodes): downgrade h4–h6 to h3 since the
+// editor only supports h1–h3. Kept intentionally small; extend here as fidelity needs grow.
+function normalizeHtmlPre(html: string): string {
+  return html.replace(/<(\/?)h[4-6]([\s>])/gi, "<$1h3$2");
 }

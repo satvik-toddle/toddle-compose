@@ -6,6 +6,7 @@ import { createLogger } from "../logger";
 import { extractFromBytesSync, type ExtractResult } from "./lexical-extract.core";
 import {
   buildOpsUpdate,
+  buildHtmlReplaceUpdate,
   ContentOpError,
   type ContentOp,
 } from "../content/content-builder";
@@ -78,6 +79,35 @@ export class LexicalExtractService implements OnApplicationShutdown {
       this.queue.push({
         id,
         send: (w) => w.postMessage({ id, kind: "build", base, ops }),
+        settleFromWorker: (msg) => {
+          if (msg.kind === "build") resolve(msg.delta);
+          else if (msg.kind === "error")
+            reject(msg.opError ? new ContentOpError(msg.message) : new Error(msg.message));
+          else inline();
+        },
+        settleInline: inline,
+      });
+      this.dispatch();
+    });
+  }
+
+  // Build a whole-doc HTML-replace delta off the main thread (same worker path as buildOps;
+  // buildHtmlReplaceUpdate parses HTML → Lexical → an atomic Yjs delta and is CPU-heavy).
+  async buildHtmlReplace(base: Uint8Array | null, html: string): Promise<Uint8Array> {
+    this.ensurePool();
+    if (this.poolBroken) return buildHtmlReplaceUpdate(base, html);
+    return new Promise<Uint8Array>((resolve, reject) => {
+      const id = this.nextId++;
+      const inline = () => {
+        try {
+          resolve(buildHtmlReplaceUpdate(base, html));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      this.queue.push({
+        id,
+        send: (w) => w.postMessage({ id, kind: "buildHtml", base, html }),
         settleFromWorker: (msg) => {
           if (msg.kind === "build") resolve(msg.delta);
           else if (msg.kind === "error")

@@ -197,6 +197,21 @@ export class DocStateService {
     });
   }
 
+  // Replace the ENTIRE doc body from an HTML string, as one atomic Yjs delta. Unlike editDoc's
+  // destructive `clear`, this is ALWAYS APPLIED regardless of connected editors: the clear+append
+  // is emitted as a single CRDT update that merges cleanly, so it never races a live editor into
+  // a corrupt/empty state the way an interactive clear can.
+  replaceHtml(docId: string, html: string): Promise<number> {
+    return this.withWarmDoc(docId, async (ydoc) => {
+      const base = Y.encodeStateAsUpdate(ydoc);
+      // Off the main thread (same rationale as editDoc): the HTML→Lexical hydration is CPU-heavy;
+      // withWarmDoc serializes per doc so the await gap can't race another edit/teardown.
+      const delta = await this.extract.buildHtmlReplace(base, html);
+      Y.applyUpdate(ydoc, delta, "content-builder");
+      return delta.byteLength;
+    });
+  }
+
   // Read the doc's current content as extracted Lexical JSON (block ids + text for in-place edits).
   readContent(docId: string): Promise<string> {
     return this.withWarmDoc(docId, async (ydoc) => {

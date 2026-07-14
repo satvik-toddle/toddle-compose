@@ -8,10 +8,19 @@ import {
   Param,
   Post,
   UnauthorizedException,
+  ValidationPipe,
 } from "@nestjs/common";
+import { IsNotEmpty, IsString } from "class-validator";
 import { TokensService, type RtcClaims } from "../tokens/tokens.service";
 import { DocStateService } from "../persistence/doc-state.service";
 import { ContentOpError, type ContentOp } from "./content-builder";
+
+// Body of POST /docs/:docId/replace-html — the full document body as an HTML string.
+class ReplaceHtmlDto {
+  @IsString()
+  @IsNotEmpty()
+  html!: string;
+}
 
 // RTC-token-authed writes keep the backend off the per-update hot path; auth matches the WS handshake (JWKS-verified RS256, scoped to docId + role).
 @Controller("docs")
@@ -85,6 +94,28 @@ export class ContentController {
       // rewriting correct ops, and so monitoring sees them as server faults.
       if (e instanceof ContentOpError) {
         throw new BadRequestException(`edit failed: ${e.message}`);
+      }
+      throw e;
+    }
+  }
+
+  // Override the ENTIRE doc body from an HTML string, server-side, in one atomic Yjs delta — the
+  // caller sends HTML, never Lexical/Yjs. Unlike `edit`'s destructive `clear`, this ALWAYS applies
+  // regardless of connected editors (the clear+append merges as one CRDT update). Same editor auth.
+  @Post(":docId/replace-html")
+  async replaceHtml(
+    @Param("docId") docId: string,
+    @Headers("authorization") authorization: string | undefined,
+    @Body(new ValidationPipe({ transform: true, whitelist: true }))
+    body: ReplaceHtmlDto
+  ) {
+    await this.requireEditor(authorization, docId);
+    try {
+      const applied = await this.docState.replaceHtml(docId, body.html);
+      return { ok: true, docId, applied };
+    } catch (e) {
+      if (e instanceof ContentOpError) {
+        throw new BadRequestException(`replace-html failed: ${e.message}`);
       }
       throw e;
     }

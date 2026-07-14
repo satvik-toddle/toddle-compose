@@ -1,9 +1,11 @@
 import { Suspense, lazy } from 'react';
 import { EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
+import { Button } from '../../../components/Button';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
-import { useDocSnapshot } from '../../../hooks/usePages';
+import { useDocSnapshot, useRtcToken } from '../../../hooks/usePages';
+import { useUiStore } from '../../../stores/uiStore';
 import type { DocumentDto, DocHistorySession } from '../../../types/api';
 import { PageTitle } from '../content/PageTitle';
 import { useHistoryMode } from './useHistoryMode';
@@ -17,9 +19,9 @@ const styles = {
   // min-h-0 lets the editor pane shrink to the viewport so its own overflow scroll engages (long docs).
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   center: 'flex-1 flex items-center justify-center',
-  // Read-only banner marking this as a past version (matches the doc title inset).
+  // Read-only banner marking this as a past version (matches the doc title inset); the restore action sits at its right edge.
   banner:
-    'flex-none w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 text-body-xs text-secondary',
+    'flex-none w-full max-w-[760px] mx-auto mt-4 px-[88px] py-2 flex items-center justify-between gap-2 text-body text-secondary',
   // Same inset wrapper as PageView's docTitle so the reused PageTitle lines up with the live editor.
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
 };
@@ -52,6 +54,9 @@ function sessionLabel(session: DocHistorySession | undefined): string | null {
 // Content pane while a DOC is in history mode: the version's title + a read-only render at that seq (or a diff against the previous version when `?diff=true`).
 export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProps>) {
   const { diff } = useHistoryMode();
+  const openModal = useUiStore((s) => s.openModal);
+  // Same query the live editor uses; its role gates the restore action to editors.
+  const { data: rtc } = useRtcToken(doc.id);
   const {
     sessions,
     isLoading: sessionsLoading,
@@ -97,12 +102,32 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
         ? `Comparing with previous version${label ? ` · ${label}` : ''}`
         : `Viewing version${label ? ` · ${label}` : ''}`;
 
+  const canRestore = rtc?.role === 'editor' && effectiveSeq != null && session != null;
+
   return (
     <main className={styles.contentShell}>
       <div className={styles.docTitle}>
         <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
       </div>
-      <div className={styles.banner}>{banner}</div>
+      <div className={styles.banner}>
+        <span>{banner}</span>
+        {canRestore && (
+          <Button
+            size="sm"
+            icon="ReloadArrowOutlined"
+            onClick={() =>
+              openModal({
+                type: 'confirmRestoreVersion',
+                docId: doc.id,
+                seq: effectiveSeq,
+                versionLabel: label ?? 'the selected version',
+              })
+            }
+          >
+            Restore
+          </Button>
+        )}
+      </div>
       {effectiveSeq != null && (
         <Suspense fallback={<PageLoader />}>
           {loading ? (

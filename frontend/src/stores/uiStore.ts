@@ -29,6 +29,7 @@ export type ModalState =
       role?: WorkspaceRole;
     }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
+  | { type: 'confirmRestoreVersion'; docId: string; seq: number; versionLabel: string }
   | {
       type: 'docPermissions';
       docId: string;

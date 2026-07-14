@@ -30,17 +30,13 @@ export function ConfirmRestoreVersionModal({
   const ready = !!snapshot?.lexicalJson && rtc?.role === 'editor' && !!rtc.token;
 
   const submit = async () => {
-    if (pending || !ready) return;
+    const editorState = snapshot?.lexicalJson;
+    if (pending || !editorState || rtc?.role !== 'editor' || !rtc.token) return;
     setPending(true);
     try {
       // Lazy import: the editor bundle is ~4MB and ModalRoot mounts at the app root.
       const { restoreCollabDocContent } = await import('@toddle-edu/ds-doc-editor');
-      await restoreCollabDocContent({
-        wsUrl: RTC_WS_URL,
-        docId,
-        token: rtc!.token,
-        editorState: snapshot!.lexicalJson as string,
-      });
+      await restoreCollabDocContent({ wsUrl: RTC_WS_URL, docId, token: rtc.token, editorState });
       void qc.invalidateQueries({ queryKey: qk.docHistory(docId) });
       pushToast({ kind: 'success', message: 'Version restored' });
       // Leave history mode so the live editor shows the restored content.

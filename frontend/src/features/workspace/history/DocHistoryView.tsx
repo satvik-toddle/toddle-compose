@@ -104,6 +104,16 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
 
   const canRestore = rtc?.role === 'editor' && effectiveSeq != null && session != null;
 
+  const openRestore = () => {
+    if (effectiveSeq == null) return;
+    openModal({
+      type: 'confirmRestoreVersion',
+      docId: doc.id,
+      seq: effectiveSeq,
+      versionLabel: label ?? 'the selected version',
+    });
+  };
+
   return (
     <main className={styles.contentShell}>
       <div className={styles.docTitle}>
@@ -112,18 +122,7 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
       <div className={styles.banner}>
         <span>{banner}</span>
         {canRestore && (
-          <Button
-            size="sm"
-            icon="ReloadArrowOutlined"
-            onClick={() =>
-              openModal({
-                type: 'confirmRestoreVersion',
-                docId: doc.id,
-                seq: effectiveSeq,
-                versionLabel: label ?? 'the selected version',
-              })
-            }
-          >
+          <Button size="sm" icon="ReloadArrowOutlined" onClick={openRestore}>
             Restore
           </Button>
         )}

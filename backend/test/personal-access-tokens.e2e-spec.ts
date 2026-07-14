@@ -4,6 +4,7 @@ import request from "supertest";
 import bcrypt from "bcrypt";
 import { createHash } from "crypto";
 import { PrismaClient } from "@app/database";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { AppModule } from "../src/app.module";
 
 /**
@@ -18,7 +19,10 @@ const REALM_ID = process.env.REALM_ID ?? "realm_toddle";
 const OWNER_EMAIL = "owner@toddle.test";
 const PASSWORD = "password123";
 const stamp = Date.now();
-const db = new PrismaClient();
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the test script.
+const db = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
@@ -30,7 +34,7 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
 }
 
-describe("Access tokens (e2e)", () => {
+describe("Personal access tokens (e2e)", () => {
   let app: INestApplication;
   let server: import("http").Server;
   let ownerToken = "";
@@ -40,9 +44,15 @@ describe("Access tokens (e2e)", () => {
 
   async function register(local: string) {
     const email = `tok_${local}_${stamp}@toddle.test`;
-    const res = await request(server)
+    // Sign-up no longer issues a session (email-verification flow). The suite runs
+    // with BYPASS_EMAIL_SERVICE, which auto-verifies the account, so log in for tokens.
+    await request(server)
       .post("/api/auth/register")
       .send({ email, password: PASSWORD, name: local })
+      .expect(201);
+    const res = await request(server)
+      .post("/api/auth/login")
+      .send({ email, password: PASSWORD })
       .expect(201);
     return { token: res.body.accessToken as string, id: res.body.user.id as string, email };
   }
@@ -51,7 +61,7 @@ describe("Access tokens (e2e)", () => {
     token: string,
     body: Record<string, unknown>
   ): request.Test {
-    return request(server).post("/api/access-tokens").set(auth(token)).send(body);
+    return request(server).post("/api/personal-access-tokens").set(auth(token)).send(body);
   }
 
   function createDoc(token: string, workspaceId?: string): request.Test {
@@ -126,7 +136,7 @@ describe("Access tokens (e2e)", () => {
   });
 
   afterAll(async () => {
-    await db.accessToken.deleteMany({ where: { name: { contains: `_${stamp}` } } });
+    await db.personalAccessToken.deleteMany({ where: { name: { contains: `_${stamp}` } } });
     await db.workspace.deleteMany({ where: { name: { contains: `_${stamp}` } } });
     await db.user.deleteMany({
       where: { email: { contains: `_${stamp}@toddle.test` } },
@@ -189,7 +199,7 @@ describe("Access tokens (e2e)", () => {
     expect(res.body.accessToken).not.toHaveProperty("tokenHash");
 
     const list = await request(server)
-      .get("/api/access-tokens")
+      .get("/api/personal-access-tokens")
       .set(auth(ownerToken))
       .expect(200);
     for (const t of list.body) {
@@ -452,18 +462,19 @@ describe("Access tokens (e2e)", () => {
       .send({ folderId: folder.id })
       .expect(200);
     await request(server)
-      .patch(`/api/documents/${doc.id}/visibility`)
-      .set(auth(tok))
-      .send({ visibility: "PUBLIC" })
-      .expect(200);
-    await request(server)
       .get(`/api/documents/${doc.id}/subdocs`)
       .set(auth(tok))
       .expect(200);
     // (/history proxies to the rtc-server, which isn't booted in this backend-only suite.)
+    // Deleting is an ADMIN op, so an EDIT-ceiling token can't — even for a doc it created (403).
     await request(server)
       .delete(`/api/documents/${doc.id}`)
       .set(auth(tok))
+      .expect(403);
+    // ...but the owner's ADMIN session (no token ceiling) can delete it.
+    await request(server)
+      .delete(`/api/documents/${doc.id}`)
+      .set(auth(ownerToken))
       .expect(200);
   });
 
@@ -684,7 +695,7 @@ describe("Access tokens (e2e)", () => {
       scope: "REALM",
       permission: "ADMIN",
     }).expect(403);
-    await request(server).get("/api/access-tokens").set(auth(tok)).expect(403);
+    await request(server).get("/api/personal-access-tokens").set(auth(tok)).expect(403);
   });
 
   it("revoked and expired tokens are rejected (401)", async () => {
@@ -698,14 +709,14 @@ describe("Access tokens (e2e)", () => {
     await createDoc(raw, wsA).expect(201);
 
     await request(server)
-      .delete(`/api/access-tokens/${created.body.accessToken.id}`)
+      .delete(`/api/personal-access-tokens/${created.body.accessToken.id}`)
       .set(auth(ownerToken))
       .expect(200);
     await createDoc(raw, wsA).expect(401);
 
     // Directly insert an already-expired token and confirm it's refused.
     const expiredRaw = `ctk_expired_${stamp}`;
-    await db.accessToken.create({
+    await db.personalAccessToken.create({
       data: {
         name: `expired_${stamp}`,
         tokenHash: createHash("sha256").update(expiredRaw).digest("hex"),

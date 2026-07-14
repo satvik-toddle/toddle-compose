@@ -165,19 +165,20 @@ describe("Workspaces (e2e)", () => {
       .expect(404);
   });
 
-  it("removes a member, and protects the last remaining ADMIN", async () => {
+  it("removes a member, and the realm owner's own membership is protected", async () => {
     // alice is ADMIN now → owner + alice = 2 admins; removing alice is allowed
     await http(app)
       .delete(`/api/workspaces/${privWs}/users/${aliceUserId}`)
       .set(auth(ownerTok))
       .expect(200);
 
-    // owner is now the last ADMIN → removing them is blocked
+    // The realm owner's workspace membership is off-limits outright → 403 (this
+    // supersedes the last-admin 409 guard, which is exercised in realm.e2e).
     const ownerMe = await http(app).get("/api/auth/me").set(auth(ownerTok)).expect(200);
     await http(app)
       .delete(`/api/workspaces/${privWs}/users/${ownerMe.body.user.id}`)
       .set(auth(ownerTok))
-      .expect(409);
+      .expect(403);
   });
 
   // ---- PUBLIC self-join ----

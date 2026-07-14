@@ -165,19 +165,20 @@ function isSimpleTextBlock(node: SerializedLexicalNode): boolean {
   return children.every((child) => isTextNode(child) || isInlineAtomic(child));
 }
 
-// Sort CSS declarations so property order never causes a false diff; non-strings and empties normalize to "".
+// Sort CSS declarations so property order never causes a false diff; drop white-space (a Lexical serialization artifact, never a user edit); non-strings and empties normalize to "".
 function normalizeStyle(style: unknown): string {
   if (typeof style !== "string" || style.length === 0) return "";
   return style
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean)
+    .filter((s) => !s.toLowerCase().startsWith("white-space"))
     .sort()
     .join(";");
 }
 
-// Attrs excluded from a node's signature: children (recursed separately), version (bump-only), direction (auto-computed from content — would false-positive).
-const SIGNATURE_EXCLUDE = new Set(["children", "version", "direction"]);
+// Attrs excluded from a node's signature: children (recursed separately), version (bump-only), direction (auto-computed from content — would false-positive), uploadId (internal upload-registry ref, not content), textStyle/textFormat (pending caret state for future typing, not rendered content).
+const SIGNATURE_EXCLUDE = new Set(["children", "version", "direction", "uploadId", "textStyle", "textFormat"]);
 
 // Deterministic structural signature of a node and its subtree: captures type, all content-bearing own attrs (format/style/indent/checked/src/width/language/...), and recursively its children — so any meaningful change alters the key. Used as the block-level LCS key and the matched-block equality check.
 function nodeSignature(node: SerializedLexicalNode): string {
@@ -191,7 +192,16 @@ function nodeSignature(node: SerializedLexicalNode): string {
   for (const key of Object.keys(node).sort()) {
     if (SIGNATURE_EXCLUDE.has(key)) continue;
     if (key === "type") continue;
-    attrs.push(`${key}=${JSON.stringify(node[key])}`);
+    // style gets the same normalization as text nodes; element format "" ≡ "start" (both render as direction-default alignment); numbers AND strings coerce via String() so number/string type flips (e.g. filesize) don't false-positive (signatures are equality-only, never reconstructed).
+    if (key === "style") {
+      attrs.push(`${key}=${normalizeStyle(node[key])}`);
+    } else if (key === "format" && (node[key] === "" || node[key] === "start")) {
+      attrs.push(`${key}=start`);
+    } else if (typeof node[key] === "number" || typeof node[key] === "string") {
+      attrs.push(`${key}=${String(node[key])}`);
+    } else {
+      attrs.push(`${key}=${JSON.stringify(node[key])}`);
+    }
   }
   const children = Array.isArray(node.children) ? node.children : [];
   return `E${node.type}${attrs.join("")}[${children
@@ -568,28 +578,64 @@ interface ChangeEntry {
   node: SerializedLexicalNode;
 }
 
-// Resolve one change region: pair each removed block with an unused added block of the same type (an in-place edit → word diff at the removed's position); leftovers are pure removed/added, emitted in original document order.
+// Minimum token-overlap (Jaccard) for two same-type blocks to be treated as an in-place EDIT (word-diffed) rather than an unrelated remove+add. Below this, pairing unrelated paragraphs produces a misleading all-strike/all-green word diff and steals the added block from its real position.
+const BLOCK_PAIR_THRESHOLD = 0.25;
+
+// Whitespace-split word-token set of a block's descendant text (for content-similarity pairing).
+function blockTokens(node: SerializedLexicalNode): Set<string> {
+  const text = cellText(node);
+  return new Set(text ? text.split(" ").filter(Boolean) : []);
+}
+
+// Jaccard token overlap of two blocks; 1.0 when both have no text (pair same-type structural/empty blocks so their attrs still diff).
+function blockSimilarity(a: SerializedLexicalNode, b: SerializedLexicalNode): number {
+  const ta = blockTokens(a);
+  const tb = blockTokens(b);
+  if (ta.size === 0 && tb.size === 0) return 1;
+  let inter = 0;
+  for (const t of ta) if (tb.has(t)) inter++;
+  const union = ta.size + tb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+// Resolve one change region: pair each removed block with the most content-similar unused added block of the same type (an in-place edit → word/structure diff); unpaired removed blocks (gone from the after doc) are emitted first, then the after blocks IN DOCUMENT ORDER (paired → in-place diff, else purely added) so added content keeps its real position instead of being dumped at the end.
 function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
   const removed = entries.filter((e) => e.side === "before").map((e) => e.node);
   const added = entries.filter((e) => e.side === "after").map((e) => e.node);
   const pairedAdded = new Set<SerializedLexicalNode>();
   const pairFor = new Map<SerializedLexicalNode, SerializedLexicalNode>();
+  const pairForRev = new Map<SerializedLexicalNode, SerializedLexicalNode>();
   for (const b of removed) {
-    const match = added.find((a) => a.type === b.type && !pairedAdded.has(a));
-    if (match) {
-      pairedAdded.add(match);
-      pairFor.set(b, match);
+    const bSimple = isSimpleTextBlock(b);
+    let best: SerializedLexicalNode | null = null;
+    let bestScore = 0;
+    for (const a of added) {
+      if (pairedAdded.has(a) || a.type !== b.type) continue;
+      // Only simple text blocks (paragraph/heading/quote) gate on word similarity — that's where
+      // unrelated blocks mis-pair. Structural blocks (table/layout/media/list/…) pair by type, so
+      // their granular/whole-block differ still runs (their glued cell text defeats word overlap).
+      const score = bSimple && isSimpleTextBlock(a) ? blockSimilarity(b, a) : 1;
+      if (score > bestScore) {
+        bestScore = score;
+        best = a;
+      }
+    }
+    if (best && bestScore >= BLOCK_PAIR_THRESHOLD) {
+      pairedAdded.add(best);
+      pairFor.set(b, best);
+      pairForRev.set(best, b);
     }
   }
   const out: SerializedLexicalNode[] = [];
-  for (const entry of entries) {
-    if (entry.side === "before") {
-      const paired = pairFor.get(entry.node);
-      if (paired) out.push(...emitMatchedBlock(entry.node, paired));
-      else out.push(wrapBlock(cloneNode(entry.node), "removed"));
-    } else if (!pairedAdded.has(entry.node)) {
-      out.push(wrapBlock(cloneNode(entry.node), "added"));
-    }
+  // Removed-only blocks first, in original order (they have no anchor position in the after doc).
+  for (const b of removed) {
+    if (!pairFor.has(b)) out.push(wrapBlock(cloneNode(b), "removed"));
+  }
+  // Then the after doc in order: paired → in-place edit diff, unpaired → purely added.
+  for (const a of added) {
+    const partner = pairForRev.get(a);
+    if (partner) out.push(...emitMatchedBlock(partner, a));
+    else out.push(wrapBlock(cloneNode(a), "added"));
   }
   return out;
 }

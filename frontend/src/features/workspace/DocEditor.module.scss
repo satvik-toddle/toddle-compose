@@ -19,11 +19,6 @@
     min-height: 0;
   }
 
-  :global(.ds-de-anchor-element) {
-    width: 100% !important;
-    max-width: 760px !important;
-    margin: 0 auto !important;
-  }
   :global(.ds-de-contentEditable-bg-provider) {
     margin: 0 !important;
     border: 0 !important;

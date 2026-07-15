@@ -87,7 +87,7 @@ function PreviewBody({
   // Keyed by docId so switching results remounts on the correct room.
   return (
     <div className="gs-prev-doc">
-      <DocEditor key={docId} docId={docId} viewOnly />
+      <DocEditor key={docId} docId={docId} viewOnly preview />
     </div>
   );
 }

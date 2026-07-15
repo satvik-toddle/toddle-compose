@@ -4,9 +4,10 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
 import { useShareLinkRtcToken } from '../../hooks/useShareLink';
-import { uploadFile } from '../../api/uploads';
+import { uploadFileWithProgress } from '../../api/uploads';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
+import { uploadStore } from '../../stores/uploadStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
@@ -16,10 +17,19 @@ import s from './DocEditor.module.scss';
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
 const EDITOR_CONFIG = { toolbar: { enabled: false } };
-const EDITOR_STYLES = {
+// Full document page: centered 900px readable column, generous side padding.
+const DOC_STYLES = {
+  scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: '900px', margin: '0 auto' },
+  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
+};
+
+// Search preview pane: full-width in the narrow pane with tight 16px side padding.
+const PREVIEW_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: '100%' },
-  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
+  contentBgProvider: { minHeight: '100%', padding: '0 16px 80px', background: 'var(--panel-bg)' },
+  contentEditable: { paddingLeft: '16px', paddingRight: '16px' },
 };
 
 // The editor calls this for every image/file insert (device upload, paste,
@@ -46,10 +56,21 @@ async function uploadToServer(arg: UploadArg): Promise<string> {
   const file = arg instanceof Blob ? arg : arg?.file;
   if (!file) throw new Error('uploadToServer: no file provided');
   const attachment = arg instanceof Blob ? undefined : arg?.attachment;
+  const name = uploadName(file, attachment) ?? (file instanceof File ? file.name : 'upload');
+  // Register in the bottom-right progress panel and stream byte-progress into it.
+  const id = uploadStore().start({
+    name,
+    size: file.size ?? 0,
+    type: file.type || attachment?.mimeType || '',
+  });
   try {
-    const stored = await uploadFile(file, uploadName(file, attachment));
+    const stored = await uploadFileWithProgress(file, name, {
+      onProgress: (pct) => uploadStore().setProgress(id, pct),
+    });
+    uploadStore().complete(id);
     return stored.url;
   } catch (e) {
+    uploadStore().fail(id, messageOf(e));
     // The editor swallows upload rejections silently, so surface the failure before rethrowing.
     pushToast({ kind: 'error', message: `Image upload failed: ${messageOf(e)}` });
     throw e;
@@ -68,12 +89,15 @@ export function DocEditor({
   awarenessName,
   awarenessColor,
   viewOnly: forceViewOnly,
+  preview = false,
 }: {
   docId: string;
   canEdit?: boolean;
   shareToken?: string;
   // Force read-only regardless of the RTC role (e.g. the search preview pane).
   viewOnly?: boolean;
+  // Compact layout for the search preview pane (full-width, tight padding) vs the 900px doc page.
+  preview?: boolean;
   // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
   awarenessName?: string;
   awarenessColor?: string;
@@ -181,7 +205,9 @@ export function DocEditor({
         }
         config={EDITOR_CONFIG}
         minHeight={0}
-        styles={EDITOR_STYLES}
+        // 900px readable column on the full doc page; unset in the narrow preview pane (full-width).
+        width={preview ? undefined : 900}
+        styles={preview ? PREVIEW_STYLES : DOC_STYLES}
       />
     </div>
   );

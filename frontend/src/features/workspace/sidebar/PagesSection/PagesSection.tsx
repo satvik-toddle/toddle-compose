@@ -23,28 +23,31 @@ function StatusMessage({ message }: Readonly<{ message: string }>) {
 
 // Scrollable page hierarchy; the "Pages" heading + "New page" live in WorkspaceSidebar.
 export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController }>) {
-  const { isLoading, isEmpty, roots, isLoadingMore } = pages;
+  const { isLoading, isEmpty, roots, isLoadingMore, hasMore, loadMore } = pages;
 
-  // Lazy-load like search: fetch the next docs page as the sidebar scrolls near its
-  // bottom (same near-bottom listener as SearchModal). The scroll container is an
-  // ancestor (WorkspaceSidebar's body), so it's located from the list element; loadMore
-  // is read through a ref so the listener is attached exactly once.
+  // Lazy-load like search: fetch the next docs page as the sidebar nears its scroll bottom.
+  // The scroll container is an ancestor (WorkspaceSidebar's body), located from the list element.
   const listRef = useRef<HTMLDivElement>(null);
-  const loadMoreRef = useRef(pages.loadMore);
-  loadMoreRef.current = pages.loadMore;
+  const scrollerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     let sc: HTMLElement | null = listRef.current?.parentElement ?? null;
     while (sc && getComputedStyle(sc).overflowY !== 'auto') sc = sc.parentElement;
+    scrollerRef.current = sc;
     if (!sc) return;
-    const scroller = sc;
     const onScroll = () => {
-      if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 200) {
-        loadMoreRef.current();
-      }
+      if (sc.scrollHeight - sc.scrollTop - sc.clientHeight < 200) loadMore();
     };
-    scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => scroller.removeEventListener('scroll', onScroll);
-  }, []);
+    sc.addEventListener('scroll', onScroll, { passive: true });
+    return () => sc.removeEventListener('scroll', onScroll);
+  }, [loadMore]);
+
+  // Keep pulling pages until the list overflows: with few/collapsed rows the container never
+  // scrolls, so the scroll listener alone would never fire and later pages would never load.
+  useEffect(() => {
+    const sc = scrollerRef.current;
+    if (!sc || !hasMore || isLoadingMore) return;
+    if (sc.scrollHeight <= sc.clientHeight) loadMore();
+  }, [roots, hasMore, isLoadingMore, loadMore]);
 
   const renderPages = () => {
     if (isLoading) {

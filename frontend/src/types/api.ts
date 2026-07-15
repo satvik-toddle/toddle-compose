@@ -166,6 +166,12 @@ export interface DocumentDto {
   workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
 }
 
+// GET /documents/:id — a single doc plus its ancestor breadcrumb trail (the list summary
+// omits breadcrumbs; this is the authoritative trail for a doc not in the paginated list).
+export interface DocumentDetailDto extends DocumentDto {
+  breadcrumbs: Array<{ id: string; title: string; icon: string | null }>;
+}
+
 // GET /documents/search — why a result matched.
 export type SearchMatch = 'title' | 'content';
 

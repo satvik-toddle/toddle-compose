@@ -4,7 +4,7 @@ import { IconButton } from '@toddle-edu/ds-web';
 import { SearchOutlined } from '@toddle-edu/ds-icons';
 import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
-import { useDocument, useDocuments } from '../../../hooks/usePages';
+import { useDocuments, useOpenDoc } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
 import { useUiStore } from '../../../stores/uiStore';
 import type { WorkspaceCtx } from '../context';
@@ -35,14 +35,20 @@ export function WorkspaceTopbar({
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  // The currently open page, if any (driven by the ?doc= query param). The workspace list
-  // is paginated, so a doc outside it (deep link / search result) is fetched individually —
-  // otherwise the breadcrumb and Share/Delete actions silently vanish for those pages.
+  // The open page (?doc=). Resolved via useOpenDoc so a doc outside the paginated list still
+  // gets a breadcrumb + Share/Delete actions. For a fetched (out-of-list) doc, the trail comes
+  // from its authoritative backend breadcrumbs; the docs-list walk can't see unloaded ancestors.
   const openDocId = params.get('doc');
-  const fromList = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
-  const { data: fetched } = useDocument(fromList || !openDocId ? undefined : openDocId);
-  const doc = fromList ?? fetched;
-  const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
+  const { doc, fetched } = useOpenDoc(openDocId ?? undefined, docs);
+  const trail = useMemo(
+    () =>
+      fetched?.breadcrumbs
+        ? fetched.breadcrumbs.map((b) => ({ id: b.id, title: b.title }))
+        : doc
+          ? buildBreadcrumbTrail(doc, docs)
+          : [],
+    [doc, fetched, docs],
+  );
 
   if (!currentUser) return null;
 

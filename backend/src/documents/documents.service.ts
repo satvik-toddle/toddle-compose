@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
@@ -85,6 +86,54 @@ export class DocumentsService {
     private readonly events: WorkspaceEventsService
   ) {}
 
+  // Short-TTL memo of a search's phase-1 result (full content-match id set + total), so
+  // paging the SAME (user, scope, query) reuses it instead of re-running the id gather,
+  // the rtc round-trip, and the COUNT on every keyset page. Bounded; entries expire fast.
+  private readonly log = new Logger(DocumentsService.name);
+  private readonly searchPhase1 = new Map<
+    string,
+    { at: number; contentIds: string[]; total: number }
+  >();
+  private static readonly SEARCH_PHASE1_TTL_MS = 10_000;
+  private static readonly SEARCH_PHASE1_MAX = 500;
+
+  // Fresh phase-1 memo for this search key, or undefined if absent/expired.
+  private getSearchPhase1(
+    key: string
+  ): { contentIds: string[]; total: number } | undefined {
+    const hit = this.searchPhase1.get(key);
+    if (!hit) return undefined;
+    if (Date.now() - hit.at > DocumentsService.SEARCH_PHASE1_TTL_MS) {
+      this.searchPhase1.delete(key);
+      return undefined;
+    }
+    return hit;
+  }
+
+  private setSearchPhase1(
+    key: string,
+    v: { contentIds: string[]; total: number }
+  ): void {
+    if (this.searchPhase1.size >= DocumentsService.SEARCH_PHASE1_MAX) {
+      const oldest = this.searchPhase1.keys().next().value;
+      if (oldest !== undefined) this.searchPhase1.delete(oldest);
+    }
+    this.searchPhase1.set(key, { at: Date.now(), ...v });
+  }
+
+  private buildSearchMatchWhere(
+    accessFilter: Prisma.DocumentWhereInput,
+    titleClause: Prisma.DocumentWhereInput,
+    contentIds: string[]
+  ): Prisma.DocumentWhereInput {
+    return {
+      AND: [
+        accessFilter,
+        { OR: [titleClause, ...(contentIds.length ? [{ id: { in: contentIds } }] : [])] },
+      ],
+    };
+  }
+
   // Single funnel for by-id metadata-row reads: serve a fresh cached row, else load from the
   // DB and cache it (lazy fill). Returns null when the document does not exist (not cached).
   // The cached value is the summarySelect() shape; callers still gate access per-user on top.
@@ -132,7 +181,8 @@ export class DocumentsService {
         const granted = await this.prisma.document.findMany({
           where: { workspaceId: wsId, permissions: { some: { userId: user.id } } },
           select: this.summarySelect(),
-          orderBy: { updatedAt: "desc" },
+          // id tiebreaker so offset pages don't skip/dup docs sharing an updatedAt.
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
           skip,
           take,
         });
@@ -160,7 +210,8 @@ export class DocumentsService {
       const docs = await this.prisma.document.findMany({
         where: { workspaceId: wsId, ...folderScope, ...parentScope },
         select: this.summarySelect(),
-        orderBy: { updatedAt: "desc" },
+        // id tiebreaker so offset pages don't skip/dup docs sharing an updatedAt.
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         skip,
         take,
       });
@@ -219,48 +270,44 @@ export class DocumentsService {
           } as const)
         : SUMMARY_SELECT;
 
-      // Content matching is two-phase: (1) the FULL match set as bare ids — cheap even for
-      // thousands of matches, so `total` and pagination cover every match; (2) snippets are
-      // fetched later for just the page's rows. The only content cap left is this window
-      // over the most-recently-updated accessible docs (id payload ~29B/doc; rtc's idsOnly
-      // clamp and its 2mb body limit are sized to match).
+      // Two-phase: gather the FULL match-id set (so total + pagination cover every match), then fetch snippets per page. Cap = window over most-recent accessible docs, sized to rtc's 2mb body limit.
       const CONTENT_SEARCH_ID_CAP = 20000;
       const titleClause: Prisma.DocumentWhereInput = {
         title: { contains: q, mode: "insensitive" },
       };
-      // Stable order so the capped id window is deterministic across page requests
-      // (an unordered take would let Postgres return a different subset per page,
-      // making content-match pagination flicker for scopes above the cap).
-      const accessibleIds = await this.prisma.document.findMany({
-        where: accessFilter,
-        select: { id: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-        take: CONTENT_SEARCH_ID_CAP,
-      });
-      const contentIds = await this.rtc.searchContentIds(
-        accessibleIds.map((d) => d.id),
-        q,
-        CONTENT_SEARCH_ID_CAP
-      );
+      const cur = this.decodeSearchCursor(input.cursor);
 
-      const matchWhere: Prisma.DocumentWhereInput = {
-        AND: [
-          accessFilter,
-          {
-            OR: [
-              titleClause,
-              ...(contentIds.length ? [{ id: { in: contentIds } }] : []),
-            ],
-          },
-        ],
-      };
-
-      // One COUNT for the "loaded / total" UI.
-      const total = await this.prisma.document.count({ where: matchWhere });
+      // Phase 1 (id gather + rtc match + total) is identical for every page of one query, so
+      // reuse a fresh memo when paging; recompute + store on the first page (cursor absent).
+      const cacheKey = `${user.id}:${global ? "*" : input.workspaceId}:${q}`;
+      const memo = cur ? this.getSearchPhase1(cacheKey) : undefined;
+      let contentIds: string[];
+      let matchWhere: Prisma.DocumentWhereInput;
+      let total: number;
+      if (memo) {
+        contentIds = memo.contentIds;
+        matchWhere = this.buildSearchMatchWhere(accessFilter, titleClause, contentIds);
+        total = memo.total;
+      } else {
+        // Stable order keeps the capped id window deterministic across page requests.
+        const accessibleIds = await this.prisma.document.findMany({
+          where: accessFilter,
+          select: { id: true },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          take: CONTENT_SEARCH_ID_CAP,
+        });
+        contentIds = await this.rtc.searchContentIds(
+          accessibleIds.map((d) => d.id),
+          q,
+          CONTENT_SEARCH_ID_CAP
+        );
+        matchWhere = this.buildSearchMatchWhere(accessFilter, titleClause, contentIds);
+        total = await this.prisma.document.count({ where: matchWhere });
+        this.setSearchPhase1(cacheKey, { contentIds, total });
+      }
       const totals = { total };
 
       // Keyset seek: page rows strictly "after" the cursor in (updatedAt desc, id desc) order.
-      const cur = this.decodeSearchCursor(input.cursor);
       const seekClause: Prisma.DocumentWhereInput | null = cur
         ? {
             OR: [
@@ -277,11 +324,21 @@ export class DocumentsService {
         take,
       });
 
-      // Phase 2: snippets for just this page's rows (rtc re-matches these few ids).
-      const { matches } = page.length
-        ? await this.rtc.searchContent(page.map((d) => d.id), q, page.length)
-        : { matches: [] };
-      const snippetById = new Map(matches.map((m) => [m.docId, m.snippet]));
+      // Phase 2: snippets for just this page's rows. Best-effort — snippets are cosmetic, so a
+      // transient rtc failure here degrades to no-snippet results instead of failing the search.
+      let snippetById = new Map<string, string>();
+      if (page.length) {
+        try {
+          const { matches } = await this.rtc.searchContent(
+            page.map((d) => d.id),
+            q,
+            page.length
+          );
+          snippetById = new Map(matches.map((m) => [m.docId, m.snippet]));
+        } catch (e) {
+          this.log.warn(`search phase-2 snippet fetch failed: ${String(e)}`);
+        }
+      }
 
       const ql = q.toLowerCase();
       // A doc matching BOTH keeps match:"title" (badge) but also carries its content snippet.

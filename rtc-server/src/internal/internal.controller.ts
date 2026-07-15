@@ -75,9 +75,8 @@ export class InternalController {
     return { ok: true, docId };
   }
 
-  // Two modes: idsOnly returns the FULL match set as bare ids (bounded by the backend's
-  // accessible-id window) so totals/pagination see every match; the default mode builds
-  // snippets and is meant for a single page of rows (small id lists).
+  // idsOnly returns the FULL match set as bare ids (for totals/pagination); default mode builds
+  // snippets for a single page of rows.
   @Post("search")
   async search(
     @Body()
@@ -88,12 +87,11 @@ export class InternalController {
       : [];
     const q = typeof body?.q === "string" ? body.q.trim() : "";
     const idsOnly = body?.idsOnly === true;
-    // idsOnly cap tracks the backend's CONTENT_SEARCH_ID_CAP (documents.service.ts);
-    // a lower cap here would silently drop matches from search results and totals.
-    const limit = Math.max(
-      1,
-      Math.min(idsOnly ? 20000 : 500, Number(body?.limit) || 30)
-    );
+    // idsOnly can't return more than the ids the backend sent, so clamp to that — no magic
+    // number to keep in sync with the backend's cap. Snippet mode stays capped at one page-ish.
+    const limit = idsOnly
+      ? ids.length
+      : Math.max(1, Math.min(500, Number(body?.limit) || 30));
     if (ids.length === 0 || q === "") return idsOnly ? { ids: [] } : { matches: [] };
     if (idsOnly) {
       return { ids: await this.repo.searchContentIds(ids, q, limit) };

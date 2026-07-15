@@ -15,11 +15,8 @@ export interface DocTree {
   nodes: Map<string, TreeDoc>;
 }
 
-// Assemble the page tree from the flat document list, nesting by parentId.
-// `prevNodes` (the previous build's node index) enables structural sharing: a node whose
-// doc AND (recursively) children are unchanged keeps its previous object identity, so
-// memoized rows skip re-rendering untouched subtrees when pages append or one doc changes.
-// (React Query's structural sharing already preserves unchanged DocumentDto identities.)
+// Assemble the page tree from the flat document list, nesting by parentId. `prevNodes` (the
+// prior build's node index) enables structural sharing so memoized rows skip unchanged subtrees.
 export function buildDocTree(
   docs: DocumentDto[],
   prevNodes?: Map<string, TreeDoc>
@@ -35,9 +32,12 @@ export function buildDocTree(
     else roots.push(node); // no parent (or parent outside this list) → root page
   }
 
-  const byTitle = (a: TreeDoc, b: TreeDoc) => a.doc.title.localeCompare(b.doc.title);
+  // Sort by the SAME key the server paginates by (updatedAt desc, id tiebreaker) so a
+  // lazily loaded next page appends below what's shown instead of scattering by title.
+  const byRecency = (a: TreeDoc, b: TreeDoc) =>
+    b.doc.updatedAt.localeCompare(a.doc.updatedAt) || b.doc.id.localeCompare(a.doc.id);
   const sortRec = (nodes: TreeDoc[]) => {
-    nodes.sort(byTitle);
+    nodes.sort(byRecency);
     for (const n of nodes) sortRec(n.children);
   };
   sortRec(roots);

@@ -29,33 +29,37 @@ export function usePagesSection(ctx: WorkspaceCtx) {
   } = useDocuments(ws);
   const createDoc = useCreateDocument();
 
-  // Scroll-sentinel hook-up: load the next docs page when the list bottom becomes visible.
-  const loadMore = () => {
+  // Loads the next docs page when the sidebar nears its scroll bottom (driven by PagesSection).
+  const loadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Pages start collapsed; this set tracks the ones explicitly expanded.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const canCreate = wsAtLeast(ctx.role, 'EDIT');
 
-  // Rebuild the tree only when the docs actually change (not on toggle/selection renders),
-  // and thread the previous node index through so unchanged subtrees keep their identity —
-  // that's what lets memoized PageRows skip re-rendering when pages append.
+  // Rebuild the tree only when docs change, threading the previous node index for structural
+  // sharing. The cache is READ during render but WRITTEN in an effect (commit phase) so the
+  // render stays pure — StrictMode/concurrent double-invokes then reconcile against the same
+  // committed set instead of one just mutated mid-render.
   const treeCache = useRef<Map<string, TreeDoc>>(new Map());
-  const { roots, isEmpty } = useMemo(() => {
-    const tree = buildDocTree(docs, treeCache.current);
+  const tree = useMemo(() => buildDocTree(docs, treeCache.current), [docs]);
+  useEffect(() => {
     treeCache.current = tree.nodes;
-    return tree;
-  }, [docs]);
+  }, [tree]);
+  const { roots, isEmpty } = tree;
   const byId = useMemo(() => mapDocsById(docs), [docs]);
 
-  // Reveal a deep-linked page (?doc=…) by expanding its ancestor spine on load.
-  // We only ever add to the set, so the user's manual collapses aren't fought.
+  // Reveal a deep-linked page (?doc=…) by expanding its ancestor spine on load; only ever
+  // adds, so manual collapses aren't fought. Returns the same set when nothing new is added,
+  // so a docs-page append (byId changes) doesn't trigger a pointless re-render.
   useEffect(() => {
     if (!selectedPageId) return;
     setExpanded((prev) => {
+      const ids = getAncestorIds(selectedPageId, byId);
+      if (ids.every((id) => prev.has(id))) return prev;
       const next = new Set(prev);
-      for (const id of getAncestorIds(selectedPageId, byId)) next.add(id);
+      for (const id of ids) next.add(id);
       return next;
     });
   }, [selectedPageId, byId]);

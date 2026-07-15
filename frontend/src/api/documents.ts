@@ -2,6 +2,7 @@ import { http } from '../lib/http';
 import type {
   DocPreviewDto,
   DocSearchPage,
+  DocumentDetailDto,
   DocumentDto,
   DocumentPermission,
   DocumentShareLink,
@@ -18,7 +19,7 @@ export const documentsApi = {
     http.get<DocumentDto[]>(
       `/documents?workspaceId=${encodeURIComponent(workspaceId)}&skip=${skip}&take=${take}`,
     ),
-  get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
+  get: (id: string) => http.get<DocumentDetailDto>(`/documents/${id}`),
   // Title + content search, keyset-paginated. workspaceId scopes to one workspace, else global.
   // cursor comes from a prior page's nextCursor (omitted for the first page).
   search: (q: string, workspaceId?: string, take = 25, cursor?: string | null) =>

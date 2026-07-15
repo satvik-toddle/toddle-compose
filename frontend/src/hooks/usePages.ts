@@ -5,7 +5,7 @@ import { documentsApi } from '../api/documents';
 import { foldersApi } from '../api/folders';
 import { messageOf } from '../lib/errors';
 import { pushToast } from '../stores/uiStore';
-import type { DocumentType } from '../types/api';
+import type { DocumentDto, DocumentType } from '../types/api';
 
 // ---- queries ----
 export function useFolders(workspaceId: string | undefined, enabled = true) {
@@ -19,9 +19,7 @@ export function useFolders(workspaceId: string | undefined, enabled = true) {
 // Server page size for the workspace docs list (the backend caps take at 100).
 const DOCS_PAGE = 100;
 
-// Infinite offset-paged workspace docs. `data` stays a flat DocumentDto[] so existing
-// consumers (sidebar tree, topbar breadcrumb, search paths) are unaffected; the sidebar
-// drives fetchNextPage from a scroll sentinel to lazily load large workspaces.
+// Infinite offset-paged workspace docs; `data` stays a flat deduped DocumentDto[] so all consumers are unaffected while the sidebar lazily loads more.
 export function useDocuments(workspaceId: string | undefined, enabled = true) {
   const query = useInfiniteQuery({
     queryKey: workspaceId ? qk.documents(workspaceId) : ['documents', '_none'],
@@ -44,8 +42,7 @@ export function useDocuments(workspaceId: string | undefined, enabled = true) {
   return { ...query, data };
 }
 
-// Single doc by id — used when a deep link / search result points at a doc that isn't in
-// the paginated workspace list. Retries are off: a 404 means stale id, show it immediately.
+// Single doc by id — for a deep link / search result outside the paginated list. retry off: a 404 means stale id, show it now.
 export function useDocument(docId: string | undefined) {
   return useQuery({
     queryKey: docId ? qk.doc(docId) : ['doc', '_none'],
@@ -54,6 +51,18 @@ export function useDocument(docId: string | undefined) {
     retry: false,
     staleTime: 30_000,
   });
+}
+
+// Resolve the open doc: prefer the paginated list, else fetch it individually. `fetched` is
+// the single-doc result (with authoritative breadcrumbs) only when it wasn't in the list.
+export function useOpenDoc(docId: string | undefined, list: DocumentDto[]) {
+  const fromList = docId ? list.find((d) => d.id === docId) : undefined;
+  const single = useDocument(fromList || !docId ? undefined : docId);
+  return {
+    doc: (fromList ?? single.data) as DocumentDto | undefined,
+    fetched: fromList ? undefined : single.data,
+    isPending: !fromList && !!docId && single.isPending,
+  };
 }
 
 export function useStarredDocuments(workspaceId: string | undefined, enabled = true) {
@@ -76,6 +85,28 @@ export function useRtcToken(docId: string | undefined) {
     refetchIntervalInBackground: true,
     gcTime: 0,
   });
+}
+
+// Patch one doc across every cached list shape under ['documents', ws] — the infinite
+// workspace list ({pages}), the starred list ([]), and any folder-scoped list — plus the
+// single-doc ['doc', id] cache. Lets single-field edits skip refetching all loaded pages
+// AND keeps an out-of-list doc (served from ['doc', id]) in sync.
+function patchDocEverywhere(
+  qc: ReturnType<typeof useQueryClient>,
+  ws: string,
+  id: string,
+  patch: (d: DocumentDto) => DocumentDto,
+) {
+  const applyToList = (old: unknown): unknown => {
+    if (Array.isArray(old)) return old.map((d) => (d.id === id ? patch(d) : d));
+    if (old && typeof old === 'object' && 'pages' in old) {
+      const inf = old as { pages: DocumentDto[][] };
+      return { ...inf, pages: inf.pages.map((pg) => pg.map((d) => (d.id === id ? patch(d) : d))) };
+    }
+    return old;
+  };
+  qc.setQueriesData({ queryKey: ['documents', ws] }, applyToList);
+  qc.setQueryData(qk.doc(id), (old) => (old ? patch(old as DocumentDto) : old));
 }
 
 // ---- mutations (workspaceId carried for invalidation) ----
@@ -103,15 +134,19 @@ export function useCreateDocument() {
   });
 }
 
-// Star when currently unstarred, unstar otherwise; docs invalidation refreshes the starred list.
+// Star when currently unstarred, unstar otherwise. Patch isStarred in place (no full list
+// refetch) and invalidate only the starred list, whose membership actually changed.
 export function useToggleStar() {
-  const { docs } = useInvalidatePages();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (v: { workspaceId: string; id: string; isStarred: boolean }) => {
       if (v.isStarred) await documentsApi.unstar(v.id);
       else await documentsApi.star(v.id);
     },
-    onSuccess: (_d, v) => docs(v.workspaceId),
+    onSuccess: (_d, v) => {
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({ ...d, isStarred: !v.isStarred }));
+      qc.invalidateQueries({ queryKey: qk.starredDocuments(v.workspaceId) });
+    },
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }
@@ -126,21 +161,29 @@ export function useCreateFolder() {
   });
 }
 
+// Title-only change: patch every cache in place (incl. the ['doc', id] cache an out-of-list
+// open doc reads) rather than refetching all loaded list pages.
 export function useRenameDocument() {
-  const { docs } = useInvalidatePages();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { workspaceId: string; id: string; title: string }) =>
       documentsApi.rename(v.id, v.title),
-    onSuccess: (_d, v) => docs(v.workspaceId),
+    onSuccess: (_d, v) =>
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({ ...d, title: v.title })),
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }
 
 export function useDeleteDocument() {
-  const { docs } = useInvalidatePages();
+  const { docs, qc } = useInvalidatePages();
   return useMutation({
     mutationFn: (v: { workspaceId: string; id: string }) => documentsApi.remove(v.id),
-    onSuccess: (_d, v) => docs(v.workspaceId),
+    onSuccess: (_d, v) => {
+      // Drop the single-doc cache so an out-of-list open doc resolves to "not found" instead
+      // of rendering the deleted page (its subtree cascade is covered by the list invalidate).
+      qc.removeQueries({ queryKey: qk.doc(v.id) });
+      docs(v.workspaceId);
+    },
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }
@@ -158,11 +201,14 @@ export function useDeleteFolder() {
 }
 
 export function useMoveDocument() {
-  const { docs } = useInvalidatePages();
+  const { docs, qc } = useInvalidatePages();
   return useMutation({
     mutationFn: (v: { workspaceId: string; id: string; folderId: string | null }) =>
       documentsApi.move(v.id, { folderId: v.folderId }),
-    onSuccess: (_d, v) => docs(v.workspaceId),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: qk.doc(v.id) }); // parent/folder changed
+      docs(v.workspaceId);
+    },
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }

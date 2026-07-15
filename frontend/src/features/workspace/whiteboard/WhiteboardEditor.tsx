@@ -25,8 +25,7 @@ const styles = {
 type WhiteboardCanvasProps = { docId: string; token: string; canEdit: boolean };
 type WhiteboardEditorProps = { docId: string };
 
-// Inner canvas: binds a tldraw store to Yjs for one synced whiteboard. Mounted
-// only once the RTC token is ready.
+// Mounted only once the RTC token is ready.
 function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasProps>) {
   const user = useAuthStore((s) => s.user);
   const preference = useThemeStore((s) => s.preference);
@@ -54,9 +53,8 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
   );
 }
 
-// Real-time collaborative whiteboard (WHITEBOARD page type): binds the tldraw
-// canvas to Yjs via useYjsTldrawStore. Keyed by docId at the call site; the RTC
-// role drives editability (viewers get a read-only canvas).
+// Collaborative whiteboard (WHITEBOARD page type). Keyed by docId at the call
+// site; the RTC role drives editability.
 export function WhiteboardEditor({ docId }: Readonly<WhiteboardEditorProps>) {
   const { data: rtc, isLoading, isError } = useRtcToken(docId);
 

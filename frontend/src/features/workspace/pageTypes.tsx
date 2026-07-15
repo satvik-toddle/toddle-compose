@@ -2,8 +2,8 @@ import { PageFoldPortraitOutlined, ShapesOutlined, SheetsOutlined } from '@toddl
 import type { DocumentType } from '../../types/api';
 
 // The page kinds a user can create — the single source for every "new page"
-// dropdown (Doc vs Sheet). `Icon` is the component so each call site sizes it;
-// `description` is the one-line subtext shown under the label.
+// dropdown. `Icon` is the component so each call site sizes it; `description`
+// is the one-line subtext shown under the label.
 export const PAGE_TYPES = [
   {
     type: 'DOC',

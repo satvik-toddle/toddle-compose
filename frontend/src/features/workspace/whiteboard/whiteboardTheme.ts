@@ -4,11 +4,9 @@ import avenirItalic from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/A
 import avenirBold from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-Bold.ttf';
 import avenirDemiItalic from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-DemiIt.ttf';
 
-// Toddle DS brand hexes (ds-web tokens) mapped onto tldraw's named palette.
-// Same 13 color names as tldraw's default — only the hex values change — so the
-// synced store schema is untouched. light ≈ *-500 token, dark ≈ brighter *-600.
-// black/white keep tldraw defaults. tldraw "green" gets the DS teal (reads as a
-// true green); "light-green" gets the DS lime green.
+// Toddle DS brand hexes mapped onto tldraw's color names. Only hex values
+// change — keeping tldraw's names leaves the synced store schema untouched.
+// light ≈ *-500 token, dark ≈ brighter *-600; black/white keep tldraw defaults.
 const BRAND: Record<string, { light: string; dark: string }> = {
   grey: { light: '#8f8f8f', dark: '#adadad' }, // neutral
   'light-violet': { light: '#da8fff', dark: '#e7b9fe' }, // purple-700/800
@@ -105,7 +103,7 @@ const AVENIR_SANS = {
   ],
 };
 
-export const whiteboardTheme: TLTheme = {
+const whiteboardTheme: TLTheme = {
   ...DEFAULT_THEME,
   fonts: { ...DEFAULT_THEME.fonts, sans: AVENIR_SANS },
   colors: {

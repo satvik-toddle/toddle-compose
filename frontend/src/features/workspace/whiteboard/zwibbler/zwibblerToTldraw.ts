@@ -12,15 +12,8 @@ import {
 } from 'tldraw';
 import { WHITEBOARD_SOLIDS } from '../whiteboardTheme';
 
-// Converts a legacy Zwibbler workbook document (flat node array) into tldraw
-// shapes, for backward compatibility with old Toddle workbooks.
-//
-// Mapping: PageNode → x-offset only (pages flow left-to-right on the open
-// canvas — the whiteboard is freeform, no bounded frames), SvgNode → image
-// shape backed by the original workbook SVG asset with the doc's fill tint
-// applied (exact silhouette + exact color); falls back to a rough tldraw geo
-// shape if the asset can't be fetched. TextNode → text, BrushNode → draw.
-// Text/draw colors snap to tldraw's named palette (no arbitrary hex there).
+// Converts a legacy Zwibbler workbook (flat node array) into tldraw shapes.
+// Node mapping and rationale: README.md in this folder.
 
 export type ZwibblerNode = {
   type: string;
@@ -50,9 +43,6 @@ export type ZwibblerConversion = {
   // Zwibbler node types we had no mapping for
   skipped: string[];
 };
-
-// Whiteboard theme "solid" hexes, used for nearest-match.
-const PALETTE = WHITEBOARD_SOLIDS;
 
 const STROKE_SIZES: Record<TLDefaultSizeStyle, number> = { s: 2, m: 3.5, l: 5, xl: 10 };
 const FONT_SIZES: Record<TLDefaultSizeStyle, number> = { s: 18, m: 24, l: 36, xl: 44 };
@@ -87,12 +77,12 @@ function parseHex(color: string | undefined): [number, number, number] | null {
 }
 
 function nearestColor(color: string | undefined): TLDefaultColorStyle {
-  if (color && color in PALETTE) return color as TLDefaultColorStyle;
+  if (color && color in WHITEBOARD_SOLIDS) return color as TLDefaultColorStyle;
   const rgb = parseHex(color);
   if (!rgb) return 'black';
   let best: string = 'black';
   let bestDist = Infinity;
-  for (const [name, hex] of Object.entries(PALETTE)) {
+  for (const [name, hex] of Object.entries(WHITEBOARD_SOLIDS)) {
     const p = parseHex(hex)!;
     const dist = (rgb[0] - p[0]) ** 2 + (rgb[1] - p[1]) ** 2 + (rgb[2] - p[2]) ** 2;
     if (dist < bestDist) {
@@ -143,9 +133,8 @@ function svgDimensions(svg: string): { w: number; h: number } | null {
   return vb ? { w: +vb[1], h: +vb[2] } : null;
 }
 
-// Fetches each workbook SVG once and materializes a tinted data-URI asset per
-// unique (url, tint). Zwibbler's "custom" fill mode repaints the asset's path
-// fills with fillStyle, so we do the same textually.
+// Fetches each SVG once, then one tinted data-URI asset per unique (url, tint).
+// Zwibbler's "custom" fill mode repaints path fills with fillStyle; same here.
 async function loadSvgAssets(
   nodes: ZwibblerNode[],
 ): Promise<{ assets: TLAsset[]; byKey: Map<string, SvgAsset> }> {
@@ -258,7 +247,8 @@ function convertBrushNode(node: ZwibblerNode, m: Xform): TLShapePartial | null {
   if (flat.length < 2) return null;
   const pts: { x: number; y: number }[] = [];
   for (let i = 0; i + 1 < flat.length; i += 2) {
-    const [x, y] = [flat[i], flat[i + 1]];
+    const x = flat[i];
+    const y = flat[i + 1];
     pts.push({ x: m.a * x + m.c * y + m.tx, y: m.b * x + m.d * y + m.ty });
   }
   const origin = pts[0];
@@ -290,8 +280,7 @@ export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerC
   const skipped: string[] = [];
   const { assets, byKey } = await loadSvgAssets(nodes);
 
-  // No frames — the whiteboard is freeform. Each page just contributes an
-  // x-offset so pages flow left-to-right without overlapping.
+  // No frames — each page is just an x-offset so pages flow left-to-right.
   const PAGE_GAP = 80;
   const pageOffsets = new Map<ZwibblerNode['id'], number>();
   let pageX = 0;

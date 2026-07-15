@@ -27,6 +27,9 @@ export function useVirtualRows(
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
 
+  // Attach to the scroll container. `count` is a dep so this re-runs once the list actually
+  // mounts (the container is often null on the first render — e.g. before a query is typed —
+  // and the ref object's identity never changes, so without this the listener would never bind).
   useEffect(() => {
     const sc = scrollRef.current;
     if (!sc) return;
@@ -40,7 +43,7 @@ export function useVirtualRows(
       sc.removeEventListener('scroll', onScroll);
       ro.disconnect();
     };
-  }, [scrollRef]);
+  }, [scrollRef, count > 0]);
 
   // Prefix-sum of row offsets from measured sizes (or the estimate). Recomputed when the row
   // count changes or a measurement lands (version). Dropped measurements for out-of-range

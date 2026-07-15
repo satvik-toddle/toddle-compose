@@ -71,11 +71,16 @@ export function SearchModal({
   // Virtualize the result list (rows vary in height — title ± snippet ± path). ~64px is the
   // common title+snippet row; the hook measures real heights and re-lays out.
   const virtual = useVirtualRows(listRef, results.length, 64);
-  const scrollToIndex = virtual.scrollToIndex;
+  // Read scrollToIndex through a ref so re-layouts (which change its identity on every
+  // measurement) don't re-run the effect and yank the scroll back to the active row.
+  const scrollToIndexRef = useRef(virtual.scrollToIndex);
+  scrollToIndexRef.current = virtual.scrollToIndex;
 
+  // Only scroll to the active row on an actual selection/layout change (keyboard nav), never
+  // on measurement-driven re-renders.
   useEffect(() => {
-    scrollToIndex(activeIndex);
-  }, [activeIndex, showPreview, scrollToIndex]);
+    scrollToIndexRef.current(activeIndex);
+  }, [activeIndex, showPreview]);
 
   const openDoc = (r: SearchResultDto) => {
     navigate(`/w/${r.workspaceId}?doc=${r.id}`);

@@ -3,6 +3,13 @@ import { SearchOutlined } from '@toddle-edu/ds-icons';
 import { ShortcutHint } from '../../../components/ShortcutHint';
 import { PreviewToggle } from './PreviewToggle';
 
+const styles = {
+  field: 'flex items-center gap-3 h-[60px] px-[18px] flex-none border-b border-solid border-secondary',
+  mag: 'w-5.5 h-5.5 opacity-[0.55] flex-none text-secondary',
+  input:
+    'flex-1 border-0 outline-none focus:outline-none focus-visible:outline-none bg-transparent text-size-300 text-primary min-w-0 caret-[var(--red-400)] placeholder:text-placeholder',
+};
+
 // The 60px header row: search glyph, borderless autofocusing input, optional
 // preview toggle (in-workspace), and an Esc chip.
 export function SearchField({
@@ -26,11 +33,12 @@ export function SearchField({
   }, []);
 
   return (
-    <div className="gs-field">
-      <SearchOutlined className="mag" aria-hidden />
+    <div className={styles.field}>
+      <SearchOutlined className={styles.mag} aria-hidden />
       {/* Native input kept: bespoke 60px borderless field with inline toggle+hint — DS TextInput/SearchInput can't be made borderless at this geometry. */}
       <input
         ref={inputRef}
+        className={styles.input}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search docs by title or content…"

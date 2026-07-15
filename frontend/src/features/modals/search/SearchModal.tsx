@@ -13,6 +13,25 @@ import { ResultRow } from './ResultRow';
 import { SearchEmpty } from './SearchEmpty';
 import { PreviewPane } from './PreviewPane';
 
+const styles = {
+  search: 'flex flex-col w-full rounded-3 overflow-hidden',
+  sp: 'max-h-[74vh]',
+  split: 'h-[624px] max-h-[84vh]',
+  splitBody: 'flex-1 flex min-h-0',
+  splitList: 'w-[414px] flex-none flex flex-col min-h-0 border-r border-solid border-secondary',
+  listPane: 'relative flex-1 min-h-0 flex flex-col',
+  list: 'flex-1 overflow-auto p-2',
+  none: 'py-10 px-4 text-center text-size-100 text-secondary',
+  loadmore: 'absolute bottom-3 left-1/2 -translate-x-1/2 z-[2]',
+  foot: 'flex items-center gap-4 flex-none py-2.5 px-4 border-t border-solid border-secondary bg-surface-secondary-enabled',
+  hint: 'inline-flex items-center gap-1.5 text-size-50 text-secondary',
+  gap: 'flex-1',
+  error: 'flex-1 flex flex-col items-center justify-center gap-3 py-10 px-6 text-center',
+  errorMsg: 'text-size-100 text-secondary',
+  errorRetry:
+    'h-[34px] px-4 rounded-2 border border-solid border-primary bg-[var(--panel-bg)] text-primary text-size-75 font-weight-600 cursor-pointer hover:border-[var(--border-focus)]',
+};
+
 // Distinguish an offline/transport failure from a server error so the message is accurate.
 function searchErrorText(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e ?? '');
@@ -150,7 +169,7 @@ export function SearchModal({
   // manual pill or a loading/retry state — no in-flow row that eats list height.
   const loadMorePill =
     results.length > 0 && (hasNextPage || isError) ? (
-      <div className="gs-loadmore">
+      <div className={styles.loadmore}>
         <Button
           dsVersion="2.0"
           variant="neutral"
@@ -165,14 +184,14 @@ export function SearchModal({
     ) : null;
 
   const list = (
-    <div className="gs-list-pane">
-      <div className="gs-list" ref={listRef} onScroll={onListScroll}>
+    <div className={styles.listPane}>
+      <div className={styles.list} ref={listRef} onScroll={onListScroll}>
         {results.length > 0 ? (
           rows
         ) : isSearching ? (
-          <div className="gs-none">Searching…</div>
+          <div className={styles.none}>Searching…</div>
         ) : (
-          <div className="gs-none">No documents match “{qTrimmed}”.</div>
+          <div className={styles.none}>No documents match “{qTrimmed}”.</div>
         )}
       </div>
       {loadMorePill}
@@ -180,9 +199,9 @@ export function SearchModal({
   );
 
   const errorState = (
-    <div className="gs-error">
-      <div className="gs-error-msg">{searchErrorText(error)}</div>
-      <button type="button" className="gs-error-retry" onClick={() => void refetch()}>
+    <div className={styles.error}>
+      <div className={styles.errorMsg}>{searchErrorText(error)}</div>
+      <button type="button" className={styles.errorRetry} onClick={() => void refetch()}>
         Try again
       </button>
     </div>
@@ -195,8 +214,8 @@ export function SearchModal({
     body = errorState;
   } else if (showPreview) {
     body = (
-      <div className="gs-split-body">
-        <div className="gs-split-list">
+      <div className={styles.splitBody}>
+        <div className={styles.splitList}>
           {list}
         </div>
         <PreviewPane docId={selected?.id} onOpen={() => selected && openDoc(selected)} />
@@ -213,7 +232,7 @@ export function SearchModal({
   return (
     <Modal onClose={onClose} width={wide ? '1000px' : '640px'} className="gs-search-modal">
       <div
-        className={`gs-search ${wide ? 'gs-split' : 'gs-sp'}`}
+        className={`${styles.search} ${wide ? styles.split : styles.sp}`}
         onKeyDown={onKeyDown}
         role="dialog"
         aria-label="Search documents"
@@ -228,18 +247,18 @@ export function SearchModal({
 
         {body}
 
-        <div className="gs-foot">
-          <span className="hint">
+        <div className={styles.foot}>
+          <span className={styles.hint}>
             <ShortcutHint keys={['↑', '↓']} /> Navigate
           </span>
-          <span className="hint">
+          <span className={styles.hint}>
             <ShortcutHint keys={['↵']} /> Open
           </span>
-          <span className="hint">
+          <span className={styles.hint}>
             <ShortcutHint keys={['⌘', '↵']} /> Open in new tab
           </span>
-          <span className="gap" />
-          <span className="hint">
+          <span className={styles.gap} />
+          <span className={styles.hint}>
             {hasQuery
               ? `${results.length} / ${totals.total} shown`
               : isGlobal

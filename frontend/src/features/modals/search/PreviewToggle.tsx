@@ -1,5 +1,9 @@
 import { ToggleSwitch } from '@toddle-edu/ds-web';
 
+const styles = {
+  toggle: 'inline-flex items-center gap-2 flex-none text-size-75 font-weight-600 text-secondary cursor-pointer',
+};
+
 // Small "Preview" switch shown in the field header, in-workspace only.
 export function PreviewToggle({
   checked,
@@ -9,7 +13,7 @@ export function PreviewToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="gs-prevtoggle">
+    <label className={styles.toggle}>
       <span>Preview</span>
       <ToggleSwitch
         dsVersion="2.0"

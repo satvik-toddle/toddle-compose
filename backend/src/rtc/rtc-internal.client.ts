@@ -140,11 +140,18 @@ export type RtcSheetSnapshot = {
   colTypes: Record<string, unknown>;
 };
 
+export type RtcWhiteboardSnapshot = {
+  recordCount: number;
+  shapeCount: number;
+  pageCount: number;
+};
+
 export type RtcVersionPreview = {
   docId: string;
   seq: number;
   headSeq: number;
   sheet: RtcSheetSnapshot | null;
+  whiteboard: RtcWhiteboardSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
 };

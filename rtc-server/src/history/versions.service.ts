@@ -16,6 +16,15 @@ export type SheetSnapshot = {
   colTypes: Record<string, unknown>;
 };
 
+// Whiteboard Yjs model (mirrors frontend useYjsTldrawStore): 'tldraw' Map of TLRecords keyed by record id.
+const TLDRAW_KEY = "tldraw";
+
+export type WhiteboardSnapshot = {
+  recordCount: number;
+  shapeCount: number;
+  pageCount: number;
+};
+
 export type VersionPreview = {
   docId: string;
   seq: number;
@@ -27,6 +36,8 @@ export type VersionPreview = {
   rawTexts: Record<string, string>;
   // SHEET docs only: reconstructed grid at this seq; null for DOCs.
   sheet: SheetSnapshot | null;
+  // WHITEBOARD docs only: record/shape/page counts at this seq; null otherwise.
+  whiteboard: WhiteboardSnapshot | null;
   elapsedMs: number;
 };
 
@@ -49,6 +60,19 @@ export function extractSheet(ydoc: Y.Doc): SheetSnapshot | null {
   return { rows, colTypes };
 }
 
+// Whiteboard summary if this doc has the tldraw records root; null otherwise.
+export function extractWhiteboard(ydoc: Y.Doc): WhiteboardSnapshot | null {
+  if (!ydoc.share.has(TLDRAW_KEY)) return null;
+  const yrecords = ydoc.getMap(TLDRAW_KEY);
+  let shapeCount = 0;
+  let pageCount = 0;
+  for (const k of yrecords.keys()) {
+    if (k.startsWith("shape:")) shapeCount += 1;
+    else if (k.startsWith("page:")) pageCount += 1;
+  }
+  return { recordCount: yrecords.size, shapeCount, pageCount };
+}
+
 @Injectable()
 export class VersionsService {
   constructor(
@@ -69,8 +93,9 @@ export class VersionsService {
     }
     const yjsState = Y.encodeStateAsUpdate(ydoc);
 
-    // Extract sheet FIRST to fix 'rows'/'colTypes' to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce 'rows' to Y.Text and break later typed reads.
+    // Extract sheet/whiteboard FIRST to fix their roots to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce them to Y.Text and break later typed reads.
     const sheet = extractSheet(ydoc);
+    const whiteboard = extractWhiteboard(ydoc);
 
     const { lexicalJson, plainText: lexicalText } =
       await this.extract.extractFromBytes(yjsState);
@@ -85,10 +110,12 @@ export class VersionsService {
       }
     }
 
-    // Sheets yield empty lexical text (every session would look like a no-op), so use a canonical grid serialization; DOC docs keep lexical text.
+    // Sheets/whiteboards yield empty lexical text (every session would look like a no-op), so use a canonical serialization; DOC docs keep lexical text.
     const plainText = sheet
       ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-      : lexicalText;
+      : whiteboard
+        ? JSON.stringify(whiteboard)
+        : lexicalText;
 
     const elapsedMs = Date.now() - t0;
     log.debug(
@@ -104,6 +131,7 @@ export class VersionsService {
       plainText,
       rawTexts,
       sheet,
+      whiteboard,
       elapsedMs,
     };
   }

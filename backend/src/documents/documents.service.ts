@@ -462,10 +462,12 @@ export class DocumentsService {
     const preview = await this.rtc.getVersionPreview(docId, seq);
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
-    // Seam where DOC and SHEET data diverge.
+    // Seam where the per-kind payloads diverge.
     switch (doc.type) {
       case DocumentType.SHEET:
         return { ...base, sheet: preview.sheet };
+      case DocumentType.WHITEBOARD:
+        return { ...base, whiteboard: preview.whiteboard };
       case DocumentType.DOC:
       default:
         return {

@@ -1,8 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { InformationOutlined } from '@toddle-edu/ds-icons';
 import { Loader } from '../../../../components/Loader';
 import { PageRow } from './PageRow';
 import type { PagesSectionController } from './usePagesSection';
+
+// Cap the "keep loading until the list overflows" behavior: with a mostly-collapsed tree the
+// rendered rows never overflow, so without a bound this would eagerly fetch the whole workspace.
+const MAX_AUTO_FILL_PAGES = 10;
 
 const styles = {
   pageList: 'flex h-full flex-col gap-px',
@@ -22,32 +26,36 @@ function StatusMessage({ message }: Readonly<{ message: string }>) {
 }
 
 // Scrollable page hierarchy; the "Pages" heading + "New page" live in WorkspaceSidebar.
-export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController }>) {
+export function PagesSection({
+  pages,
+  scrollRef,
+}: Readonly<{ pages: PagesSectionController; scrollRef: RefObject<HTMLElement | null> }>) {
   const { isLoading, isEmpty, roots, isLoadingMore, hasMore, loadMore } = pages;
 
   // Lazy-load like search: fetch the next docs page as the sidebar nears its scroll bottom.
-  // The scroll container is an ancestor (WorkspaceSidebar's body), located from the list element.
-  const listRef = useRef<HTMLDivElement>(null);
-  const scrollerRef = useRef<HTMLElement | null>(null);
+  // The scroll container ref is supplied by WorkspaceSidebar (no DOM walking).
   useEffect(() => {
-    let sc: HTMLElement | null = listRef.current?.parentElement ?? null;
-    while (sc && getComputedStyle(sc).overflowY !== 'auto') sc = sc.parentElement;
-    scrollerRef.current = sc;
+    const sc = scrollRef.current;
     if (!sc) return;
     const onScroll = () => {
       if (sc.scrollHeight - sc.scrollTop - sc.clientHeight < 200) loadMore();
     };
     sc.addEventListener('scroll', onScroll, { passive: true });
     return () => sc.removeEventListener('scroll', onScroll);
-  }, [loadMore]);
+  }, [loadMore, scrollRef]);
 
-  // Keep pulling pages until the list overflows: with few/collapsed rows the container never
-  // scrolls, so the scroll listener alone would never fire and later pages would never load.
+  // Fill the initial viewport: with few/collapsed rows the container never scrolls, so the
+  // scroll listener alone would never fire. Bounded (MAX_AUTO_FILL_PAGES) so a mostly-collapsed
+  // tree can't eagerly pull the entire workspace.
+  const autoFills = useRef(0);
   useEffect(() => {
-    const sc = scrollerRef.current;
+    const sc = scrollRef.current;
     if (!sc || !hasMore || isLoadingMore) return;
-    if (sc.scrollHeight <= sc.clientHeight) loadMore();
-  }, [roots, hasMore, isLoadingMore, loadMore]);
+    if (sc.scrollHeight <= sc.clientHeight && autoFills.current < MAX_AUTO_FILL_PAGES) {
+      autoFills.current += 1;
+      loadMore();
+    }
+  }, [roots, hasMore, isLoadingMore, loadMore, scrollRef]);
 
   const renderPages = () => {
     if (isLoading) {
@@ -64,7 +72,7 @@ export function PagesSection({ pages }: Readonly<{ pages: PagesSectionController
   };
 
   return (
-    <div ref={listRef} className={styles.pageList}>
+    <div className={styles.pageList}>
       {renderPages()}
       {isLoadingMore && (
         <div className={styles.loadingMore}>

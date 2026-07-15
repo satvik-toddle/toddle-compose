@@ -161,15 +161,22 @@ export function useCreateFolder() {
   });
 }
 
-// Title-only change: patch every cache in place (incl. the ['doc', id] cache an out-of-list
-// open doc reads) rather than refetching all loaded list pages.
+// Title change: patch title + the server's new updatedAt into the list caches (so the row
+// re-sorts by recency without a full refetch), then invalidate the single-doc cache so its
+// breadcrumb leaf title refreshes (patching can't reach the nested breadcrumbs[] entry).
 export function useRenameDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { workspaceId: string; id: string; title: string }) =>
       documentsApi.rename(v.id, v.title),
-    onSuccess: (_d, v) =>
-      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({ ...d, title: v.title })),
+    onSuccess: (updated, v) => {
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({
+        ...d,
+        title: v.title,
+        updatedAt: updated.updatedAt,
+      }));
+      qc.invalidateQueries({ queryKey: qk.doc(v.id) });
+    },
     onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
   });
 }

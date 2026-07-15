@@ -32,10 +32,11 @@ export function buildDocTree(
     else roots.push(node); // no parent (or parent outside this list) → root page
   }
 
-  // Sort by the SAME key the server paginates by (updatedAt desc, id tiebreaker) so a
-  // lazily loaded next page appends below what's shown instead of scattering by title.
+  // Sort by the SAME key the server paginates by (updatedAt desc, id tiebreaker) so a lazily
+  // loaded next page appends below what's shown. Plain compares — updatedAt/id are fixed-format.
+  const cmp = (x: string, y: string) => (x < y ? 1 : x > y ? -1 : 0); // desc
   const byRecency = (a: TreeDoc, b: TreeDoc) =>
-    b.doc.updatedAt.localeCompare(a.doc.updatedAt) || b.doc.id.localeCompare(a.doc.id);
+    cmp(a.doc.updatedAt, b.doc.updatedAt) || cmp(a.doc.id, b.doc.id);
   const sortRec = (nodes: TreeDoc[]) => {
     nodes.sort(byRecency);
     for (const n of nodes) sortRec(n.children);

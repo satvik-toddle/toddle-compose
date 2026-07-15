@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
 import { Badge } from '@toddle-edu/ds-web';
 import {
@@ -60,6 +61,9 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   const hasPendingRequests = !!requests?.length;
   const pages = usePagesSection(ctx);
   const { width, isResizing, startResize, handleResizeKeyDown } = useSidebarWidth();
+  // The scroll container for the pages list; passed to PagesSection so lazy-load doesn't
+  // have to discover it by walking the DOM for a computed overflow style.
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
@@ -96,8 +100,8 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
         <div className={styles.sectionHeading}>Pages</div>
       </div>
 
-      <div className={styles.body}>
-        <PagesSection pages={pages} />
+      <div ref={bodyRef} className={styles.body}>
+        <PagesSection pages={pages} scrollRef={bodyRef} />
       </div>
 
       <div className={styles.footerGroup}>

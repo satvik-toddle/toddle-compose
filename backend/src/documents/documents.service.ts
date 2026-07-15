@@ -154,6 +154,10 @@ export class DocumentsService {
   private async writeThrough(update: Promise<DocRow>): Promise<DocRow> {
     const row = await update;
     this.cache.set(row.id, row);
+    // A title/membership change can alter search matches; drop memoized phase-1 results so
+    // subsequent paged searches recompute rather than serve stale totals/ids (covers
+    // rename/move; create/remove clear it directly).
+    this.searchPhase1.clear();
     return row;
   }
 
@@ -536,6 +540,7 @@ export class DocumentsService {
       });
       // Write-through: a freshly-created doc is hot, so seed the cache for the read that follows.
       this.cache.set(doc.id, doc);
+      this.searchPhase1.clear(); // a new doc may match an in-flight paged search
       if (doc.parentId) await this.invalidateChildSet(doc.parentId);
       // Best-effort, non-blocking RTC provisioning: the rtc-server also creates the row lazily on first connect.
       void this.rtc.initDocBestEffort(doc.id);
@@ -797,6 +802,7 @@ export class DocumentsService {
       const doc = await this.requireWorkspaceDocRole(userId, id, "ADMIN");
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
       await this.prisma.document.delete({ where: { id } });
+      this.searchPhase1.clear(); // deleted docs must drop out of paged search results
       for (const docId of ids) {
         this.cache.invalidate(docId);
         this.cache.invalidateChildren(docId);

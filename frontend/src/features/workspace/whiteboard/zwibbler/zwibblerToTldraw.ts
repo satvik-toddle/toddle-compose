@@ -68,22 +68,63 @@ const GEO_BY_NAME: Record<string, { geo: GeoType; aspect: number }> = {
   trapezoid: { geo: 'trapezoid', aspect: 1 },
 };
 
-function parseHex(color: string | undefined): [number, number, number] | null {
+// CSS named colors legacy Zwibbler docs are known to use (beyond WHITEBOARD_SOLIDS keys).
+const NAMED_COLORS: Record<string, string> = {
+  black: '#000000',
+  white: '#ffffff',
+  red: '#ff0000',
+  green: '#008000',
+  blue: '#0000ff',
+  yellow: '#ffff00',
+  orange: '#ffa500',
+  purple: '#800080',
+  pink: '#ffc0cb',
+  brown: '#a52a2a',
+  gray: '#808080',
+  grey: '#808080',
+  cyan: '#00ffff',
+  magenta: '#ff00ff',
+  violet: '#ee82ee',
+  indigo: '#4b0082',
+  lime: '#00ff00',
+  navy: '#000080',
+  teal: '#008080',
+  maroon: '#800000',
+  olive: '#808000',
+  silver: '#c0c0c0',
+  gold: '#ffd700',
+};
+
+// #rgb[a], #rrggbb[aa], rgb()/rgba(), and common named colors; alpha is ignored.
+function parseColor(color: string | undefined): [number, number, number] | null {
   if (!color) return null;
-  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
-  if (!m) return null;
-  const n = parseInt(m[1], 16);
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  let c = color.trim().toLowerCase();
+  c = NAMED_COLORS[c] ?? c;
+  const short = /^#([0-9a-f]{3,4})$/.exec(c);
+  if (short) {
+    const [r, g, b] = short[1];
+    return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
+  }
+  const long = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(c);
+  if (long) {
+    const n = parseInt(long[1], 16);
+    return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  }
+  const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/.exec(c);
+  if (rgb) {
+    return [Math.min(255, +rgb[1]), Math.min(255, +rgb[2]), Math.min(255, +rgb[3])];
+  }
+  return null;
 }
 
 function nearestColor(color: string | undefined): TLDefaultColorStyle {
   if (color && color in WHITEBOARD_SOLIDS) return color as TLDefaultColorStyle;
-  const rgb = parseHex(color);
+  const rgb = parseColor(color);
   if (!rgb) return 'black';
   let best: string = 'black';
   let bestDist = Infinity;
   for (const [name, hex] of Object.entries(WHITEBOARD_SOLIDS)) {
-    const p = parseHex(hex)!;
+    const p = parseColor(hex)!;
     const dist = (rgb[0] - p[0]) ** 2 + (rgb[1] - p[1]) ** 2 + (rgb[2] - p[2]) ** 2;
     if (dist < bestDist) {
       bestDist = dist;

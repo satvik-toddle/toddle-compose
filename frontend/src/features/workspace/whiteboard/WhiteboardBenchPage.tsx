@@ -46,6 +46,7 @@ export function WhiteboardBenchPage() {
     const times: number[] = [];
     let frame = 0;
     let last = 0;
+    let raf = 0;
     const step = () => {
       const z = 0.15 + 0.85 * Math.abs(Math.sin(frame / 20));
       editor.setCamera({ x: 200, y: 200, z });
@@ -53,7 +54,7 @@ export function WhiteboardBenchPage() {
       if (frame > 0) times.push(now - last);
       last = now;
       frame += 1;
-      if (frame < FRAMES) requestAnimationFrame(step);
+      if (frame < FRAMES) raf = requestAnimationFrame(step);
       else finish();
     };
 
@@ -73,11 +74,21 @@ export function WhiteboardBenchPage() {
         p95FrameMs: +sorted[Math.floor(sorted.length * 0.95)].toFixed(2),
         heapMB: mem ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null,
       });
+      document.getElementById('bench-results')?.remove();
       document.body.appendChild(el);
     };
 
     // settle two frames after create before measuring
-    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(step)));
+    raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        raf = requestAnimationFrame(step);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.getElementById('bench-results')?.remove();
+    };
   }, []);
 
   return (

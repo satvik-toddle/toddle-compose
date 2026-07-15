@@ -2,9 +2,9 @@
 
 Collaborative infinite-canvas page type built on [tldraw](https://tldraw.dev) 5.x, synced
 over the app's existing rtc-server/Yjs stack — same plumbing as DOC and SHEET, only the
-client surface differs. Decision background and library evaluation:
-`docs/whiteboard-library-comparison.md`; integration plan and E2E contract:
-`docs/whiteboard-integration.md`.
+client surface differs. tldraw was chosen over Excalidraw after a parity evaluation (both
+fully integrated and E2E-verified) — see PR #100 and the `feat/whiteboard-excalidraw`
+branch history for the decision record.
 
 > **Licensing:** we run tldraw unlicensed for now, which shows its watermark. A business
 > license is required before shipping to production.
@@ -17,7 +17,7 @@ client surface differs. Decision background and library evaluation:
 | `useYjsTldrawStore.ts` | The tldraw ⇄ Yjs binding (hand-rolled; tldraw has no first-party Yjs support). See below. |
 | `whiteboardTheme.ts` | Toddle brand palette mapped onto tldraw's named colors + Avenir Next World as the default text font. |
 | `zwibbler/` | Backward compatibility with legacy Zwibbler workbooks — converter, fixture, dev preview page. See `zwibbler/README.md`. |
-| `WhiteboardBenchPage.tsx` | Dev-only perf harness (`/whiteboard-bench?n=1000`, DEV builds only). Methodology + results: `docs/whiteboard-library-comparison.md` §Performance. |
+| `WhiteboardBenchPage.tsx` | Dev-only perf harness (`/whiteboard-bench?n=1000`, DEV builds only): seeds n shapes, reports create cost + frame times to `<pre id="bench-results">` for a headless runner. |
 
 ## Sync architecture (`useYjsTldrawStore.ts`)
 
@@ -42,7 +42,7 @@ same granularity tldraw's own sync service uses), over the shared
 
 Undo/redo is tldraw's built-in local history (not Yjs-scoped — undoing won't revert
 collaborators' work, but the scoping isn't shared-UndoManager precise either; known
-trade-off, see integration doc).
+trade-off).
 
 ## Theme & font (`whiteboardTheme.ts`)
 

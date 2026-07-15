@@ -28,7 +28,7 @@ const ZwibblerPreviewPage = lazy(() =>
   })),
 );
 
-// Dev-only whiteboard perf harness (docs/whiteboard-library-comparison.md §Performance).
+// Dev-only whiteboard perf harness.
 const WhiteboardBenchPage = lazy(() =>
   import('./features/workspace/whiteboard/WhiteboardBenchPage').then((m) => ({
     default: m.WhiteboardBenchPage,

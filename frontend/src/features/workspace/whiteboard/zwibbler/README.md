@@ -45,9 +45,6 @@ unknown node types end up in `skipped`.
 Run the dev server and open `/zwibbler-preview`. To try another document, replace
 `fixture.json` (a Zwibbler doc's `nodes` array as saved by the old workbook editor).
 
-A side-by-side comparison of this converter vs an Excalidraw equivalent (built on
-`feat/whiteboard-compare`) lives in `docs/whiteboard-library-comparison.md` §5.
-
 ## Not yet handled
 
 - Node types beyond the four above (e.g. lines/arrows/images if old workbooks contain

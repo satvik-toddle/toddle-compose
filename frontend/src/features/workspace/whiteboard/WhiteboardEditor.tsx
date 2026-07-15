@@ -47,7 +47,7 @@ function WhiteboardCanvas({ docId, token, canEdit }: Readonly<WhiteboardCanvasPr
           themes={WHITEBOARD_THEMES}
           onMount={onMount}
           // No license key for the trial — tldraw shows its watermark. A business
-          // license is required for production (docs/whiteboard-integration.md).
+          // license is required for production.
         />
       </div>
     </div>

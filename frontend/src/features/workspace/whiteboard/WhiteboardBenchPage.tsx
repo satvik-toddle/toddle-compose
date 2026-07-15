@@ -5,7 +5,6 @@ import 'tldraw/tldraw.css';
 // Dev-only perf harness (route /whiteboard-bench?n=1000): seeds n mixed shapes,
 // measures synchronous create cost, then frame times over a 120-frame zoom
 // oscillation. Results land in <pre id="bench-results"> for a headless runner.
-// Methodology + results: docs/whiteboard-library-comparison.md §Performance.
 export function WhiteboardBenchPage() {
   const onMount = useCallback((editor: Editor) => {
     const n = Number(new URLSearchParams(window.location.search).get('n')) || 1000;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppRoutes } from './routes';
 import { ModalRoot } from './app/ModalRoot';
 import { ToastHost } from './components/Toast';
+import { UploadNotifications } from './components/UploadNotifications';
 import { registerNavigate } from './lib/scopeGuard';
 import { useSearchShortcut } from './hooks/useSearchShortcut';
 
@@ -20,6 +21,7 @@ export function App() {
       <AppRoutes />
       <ModalRoot />
       <ToastHost />
+      <UploadNotifications />
     </>
   );
 }

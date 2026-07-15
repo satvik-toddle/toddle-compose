@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { DefaultFontStyle, Tldraw, type Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
-import zwibblerDoc from './zwibbler-fixture.json';
+import zwibblerDoc from './fixture.json';
 import { zwibblerToTldraw, type ZwibblerNode } from './zwibblerToTldraw';
-import { WHITEBOARD_THEMES } from './whiteboardTheme';
+import { WHITEBOARD_THEMES } from '../whiteboardTheme';
 
 // Dev-only harness (route /zwibbler-preview): renders a legacy Zwibbler workbook
 // on a local, non-synced tldraw canvas to validate the backward-compat converter.

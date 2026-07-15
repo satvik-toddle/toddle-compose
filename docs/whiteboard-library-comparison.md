@@ -130,7 +130,9 @@ strokes, text nodes, arbitrary hex colors and continuous sizes, plus our custom 
 
 ### Status: a working converter exists — on the tldraw branch
 
-`zwibblerToTldraw.ts` (verified end-to-end against a real workbook fixture on `/zwibbler-preview`):
+`frontend/src/features/workspace/whiteboard/zwibbler/zwibblerToTldraw.ts` (verified
+end-to-end against a real workbook fixture on `/zwibbler-preview` — see that folder's
+README for the module docs):
 
 | Zwibbler concept | tldraw mapping | Status |
 | --- | --- | --- |

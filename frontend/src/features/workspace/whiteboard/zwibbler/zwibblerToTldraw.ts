@@ -10,7 +10,7 @@ import {
   type TLGeoShape,
   type TLShapePartial,
 } from 'tldraw';
-import { WHITEBOARD_SOLIDS } from './whiteboardTheme';
+import { WHITEBOARD_SOLIDS } from '../whiteboardTheme';
 
 // Converts a legacy Zwibbler workbook document (flat node array) into tldraw
 // shapes, for backward compatibility with old Toddle workbooks.

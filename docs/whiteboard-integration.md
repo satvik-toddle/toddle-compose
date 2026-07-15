@@ -2,21 +2,28 @@
 
 ## Status
 
+**`feat/whiteboard-tldraw` is the branch going forward** — `tldraw` 5.2.2 + a hand-rolled
+~180-line Yjs binding (`useYjsTldrawStore.ts`; no maintained community binding exists —
+tldraw pushes its own sync service). Runs unlicensed with a "Get a license for production"
+watermark; a business license (~$6k/yr) is required to ship.
+
+Module architecture and file map: `frontend/src/features/workspace/whiteboard/README.md`.
+Zwibbler backward compatibility (converter + dev preview):
+`frontend/src/features/workspace/whiteboard/zwibbler/README.md`. Default text font is
+**Avenir Next World** (brand font, same ttf files ds-web ships), wired through the tldraw
+theme so exports embed it too.
+
+The parity branch `feat/whiteboard-excalidraw` (`@excalidraw/excalidraw` 0.18.1 +
+`y-excalidraw` 2.0.12) was built for the evaluation and is kept only as a reference —
+see `whiteboard-library-comparison.md` for the decision record.
+
 Both branches implement v1 and pass the same 14-step E2E verification against the live dev stack
 (2 editors + 1 viewer, real browser): create from menu, draw, live two-way sync, remote cursors,
 persistence across reload, read-only viewer, DOC/SHEET regression.
 
-- `feat/whiteboard-excalidraw` — `@excalidraw/excalidraw` 0.18.1 + `y-excalidraw` 2.0.12.
-  Fonts load from Excalidraw's CDN fallback — self-host via `EXCALIDRAW_ASSET_PATH` before
-  production. y-excalidraw's peer range says ^0.17 (audited: its API usage is 0.18-safe).
-- `feat/whiteboard-tldraw` — `tldraw` 5.2.2 + a hand-rolled ~180-line Yjs binding
-  (`useYjsTldrawStore.ts`; no maintained community binding exists — tldraw pushes its own sync
-  service). Runs unlicensed with a "Get a license for production" watermark; a business license
-  (~$6k/yr) is required to ship.
-
-Not yet exercised on either: undo/redo under concurrency, export, copy/paste, offline merge,
-dark theme, large boards. Undo/redo parity gap: Excalidraw branch shares a `Y.UndoManager`
-(undo only your own ops); tldraw branch uses tldraw's built-in local history.
+Not yet exercised: undo/redo under concurrency, export, copy/paste, offline merge,
+large boards. Undo/redo note: tldraw uses its built-in local history (not Yjs-scoped,
+unlike the Excalidraw branch's shared `Y.UndoManager`).
 
 ## Goal
 

@@ -23,7 +23,7 @@ import { StarredPagesView } from './features/workspace/content/StarredPagesView'
 
 // Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
 const ZwibblerPreviewPage = lazy(() =>
-  import('./features/workspace/whiteboard/ZwibblerPreviewPage').then((m) => ({
+  import('./features/workspace/whiteboard/zwibbler/ZwibblerPreviewPage').then((m) => ({
     default: m.ZwibblerPreviewPage,
   })),
 );

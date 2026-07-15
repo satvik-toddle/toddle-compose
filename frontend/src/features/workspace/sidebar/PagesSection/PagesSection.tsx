@@ -68,7 +68,16 @@ export function PagesSection({
 
     if (isEmpty) return <StatusMessage message="No pages yet" />;
 
-    return roots.map((node) => <PageRow key={node.doc.id} node={node} depth={0} pages={pages} />);
+    return roots.map((node) => (
+      <PageRow
+        key={node.doc.id}
+        node={node}
+        depth={0}
+        pages={pages}
+        isSelected={pages.selectedPageId === node.doc.id}
+        isExpanded={pages.expanded.has(node.doc.id)}
+      />
+    ));
   };
 
   return (

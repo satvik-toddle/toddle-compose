@@ -15,12 +15,23 @@ import type { PagesSectionController } from './usePagesSection';
 const BASE_INDENT = 8;
 const INDENT_STEP = 15;
 
+// isSelected/isExpanded are passed as per-row primitives (not read off pages.selectedPageId/
+// pages.expanded) so a selection or expand change re-renders only the affected rows, not every
+// loaded row — critical once thousands of docs are paged in.
 function PageRowInner({
   node,
   depth,
   pages,
-}: Readonly<{ node: TreeDoc; depth: number; pages: PagesSectionController }>) {
-  const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
+  isSelected,
+  isExpanded,
+}: Readonly<{
+  node: TreeDoc;
+  depth: number;
+  pages: PagesSectionController;
+  isSelected: boolean;
+  isExpanded: boolean;
+}>) {
+  const { canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
   const renameDoc = useRenameDocument();
@@ -28,7 +39,6 @@ function PageRowInner({
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
   const hasChildren = children.length > 0;
-  const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
@@ -68,7 +78,7 @@ function PageRowInner({
     row: cn(
       'group',
       sidebarRow.base,
-      selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
+      isSelected ? sidebarRow.selected : sidebarRow.default,
     ),
     // Leaf pages keep the (hidden) chevron so icons stay aligned.
     chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
@@ -188,26 +198,30 @@ function PageRowInner({
 
       {isExpanded &&
         children.map((child) => (
-          <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
+          <PageRow
+            key={child.doc.id}
+            node={child}
+            depth={depth + 1}
+            pages={pages}
+            isSelected={pages.selectedPageId === child.doc.id}
+            isExpanded={pages.expanded.has(child.doc.id)}
+          />
         ))}
     </>
   );
 }
 
-// Memoized against everything this row's RENDERED SUBTREE reads (children mount inside the
-// parent, so skipping a parent skips its descendants too). `node` identity is structurally
-// shared by buildDocTree — unchanged subtrees keep their object — and the handlers are
-// useCallback-stable, so appending a docs page re-renders only the NEW rows instead of all
-// loaded ones. Controller fields rows don't read (isLoading, roots, loadMore, …) are
-// deliberately ignored. `expanded`/`selectedPageId` are compared by identity/value because a
-// change anywhere in the subtree must re-render from this row down.
+// Re-render a row only when ITS own inputs change: node identity (structurally shared by
+// buildDocTree, so unchanged subtrees keep their object), depth, and the per-row isSelected/
+// isExpanded primitives. Selecting or expanding one page thus re-renders just the rows whose
+// flag flipped, not every loaded row. The pages.* handlers are useCallback/primitive-stable.
 export const PageRow = memo(
   PageRowInner,
   (prev, next) =>
     prev.node === next.node &&
     prev.depth === next.depth &&
-    prev.pages.expanded === next.pages.expanded &&
-    prev.pages.selectedPageId === next.pages.selectedPageId &&
+    prev.isSelected === next.isSelected &&
+    prev.isExpanded === next.isExpanded &&
     prev.pages.canCreate === next.pages.canCreate &&
     prev.pages.ws === next.pages.ws &&
     prev.pages.toggle === next.pages.toggle &&

@@ -34,7 +34,8 @@ type UseYjsTldrawStoreArgs = {
 // Binds a tldraw store to Yjs over the app's rtc-server websocket: document-scope
 // records sync through a Y.Map; cursors/selections ride Yjs awareness as tldraw
 // presence records. Returns a TLStoreWithStatus so <Tldraw> shows its own loading
-// state until the first server sync.
+// state until the first server sync. Undo/redo stays tldraw's local history —
+// not Yjs-scoped, so it can't precisely exclude collaborators' concurrent ops.
 export function useYjsTldrawStore({ docId, token, user }: UseYjsTldrawStoreArgs) {
   // y-websocket re-reads params.token on every reconnect; mutating this ref keeps a
   // long-lived session authed with a fresh token without tearing down the live doc.

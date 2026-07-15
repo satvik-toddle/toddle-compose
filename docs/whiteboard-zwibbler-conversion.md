@@ -3,7 +3,9 @@
 Backward compatibility for legacy Toddle workbooks drawn with
 [Zwibbler](https://zwibbler.com). A Zwibbler document is a flat array of nodes
 (`PageNode`, `SvgNode`, `TextNode`, `BrushNode`, …) each carrying an affine transform
-matrix; `zwibblerToTldraw.ts` converts that array into tldraw shapes + assets.
+matrix; the converter turns that array into tldraw shapes + assets.
+
+Code lives in `frontend/src/features/workspace/whiteboard/zwibbler/`.
 
 ## Files
 

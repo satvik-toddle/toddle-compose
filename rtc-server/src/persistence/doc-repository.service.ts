@@ -118,39 +118,6 @@ export class DocRepository {
     });
   }
 
-  // Id-only content match (no text pulled): lets the caller learn the FULL match set
-  // cheaply, then fetch snippets for just the rows it will render via searchContent.
-  async searchContentIds(ids: string[], q: string, limit: number): Promise<string[]> {
-    if (ids.length === 0 || !q) return [];
-    const rows = await this.prisma.rtcDocument.findMany({
-      where: { id: { in: ids }, contentText: { contains: q, mode: "insensitive" } },
-      select: { id: true },
-      orderBy: { id: "asc" },
-      take: limit,
-    });
-    return rows.map((r) => r.id);
-  }
-
-  // Content search across a set of docs: substring match on the persisted plain-text projection.
-  async searchContent(
-    ids: string[],
-    q: string,
-    limit: number
-  ): Promise<{ id: string; contentText: string }[]> {
-    if (ids.length === 0 || !q) return [];
-    const rows = await this.prisma.rtcDocument.findMany({
-      where: { id: { in: ids }, contentText: { contains: q, mode: "insensitive" } },
-      select: { id: true, contentText: true },
-      // Stable order: an unordered take returns a different subset per call above the
-      // limit, which would make the backend's keyset pages disagree about the match set.
-      orderBy: { id: "asc" },
-      take: limit,
-    });
-    return rows
-      .filter((r) => r.contentText != null)
-      .map((r) => ({ id: r.id, contentText: r.contentText as string }));
-  }
-
   // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.
   async appendDocUpdate(
     docId: string,

@@ -109,33 +109,6 @@ export class RtcInternalClient {
     ) as Promise<{ closed?: number }>;
   }
 
-  // Full match set as bare ids (no snippets) — cheap even for thousands of matches, so
-  // totals and pagination can cover everything; snippets come from searchContent per page.
-  async searchContentIds(ids: string[], q: string, limit: number): Promise<string[]> {
-    if (ids.length === 0) return [];
-    const res = (await this.call("POST", "/internal/docs/search", {
-      ids,
-      q,
-      limit,
-      idsOnly: true,
-    })) as { ids?: string[] };
-    return res.ids ?? [];
-  }
-
-  // Full-text content search over the given doc ids; empty ids short-circuit without a call.
-  async searchContent(
-    ids: string[],
-    q: string,
-    limit = 30
-  ): Promise<RtcContentSearchResult> {
-    if (ids.length === 0) return { matches: [] };
-    return this.call("POST", "/internal/docs/search", {
-      ids,
-      q,
-      limit,
-    }) as Promise<RtcContentSearchResult>;
-  }
-
   // If rtc-server is down, log and move on — the leftover row is orphaned, not harmful.
   async deleteDocBestEffort(docId: string): Promise<void> {
     try {
@@ -182,9 +155,4 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
-};
-
-/** Content-search hits: a snippet per matching doc id (empty ids/query → no matches). */
-export type RtcContentSearchResult = {
-  matches: Array<{ docId: string; snippet: string }>;
 };

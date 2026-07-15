@@ -29,22 +29,6 @@ function qInt(name: string, raw: string | undefined, fallback: number): number {
   return Math.trunc(n);
 }
 
-// Build a ~120-char search-result snippet centered on the first case-insensitive match of q.
-function makeSnippet(text: string, q: string): string {
-  const WINDOW = 120;
-  const idx = text.toLowerCase().indexOf(q.toLowerCase());
-  if (idx < 0) {
-    const head = text.slice(0, WINDOW).replace(/\s+/g, " ").trim();
-    return head.length < text.trim().length ? `${head}…` : head;
-  }
-  const start = Math.max(0, idx - Math.floor((WINDOW - q.length) / 2));
-  const end = Math.min(text.length, start + WINDOW);
-  let snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
-  if (start > 0) snippet = `…${snippet}`;
-  if (end < text.length) snippet = `${snippet}…`;
-  return snippet;
-}
-
 @Controller()
 export class HealthController {
   @Get("health")
@@ -73,36 +57,6 @@ export class InternalController {
     }
     await this.repo.ensureRtcDoc(docId);
     return { ok: true, docId };
-  }
-
-  // idsOnly returns the FULL match set as bare ids (for totals/pagination); default mode builds
-  // snippets for a single page of rows.
-  @Post("search")
-  async search(
-    @Body()
-    body: { ids?: string[]; q?: string; limit?: number; idsOnly?: boolean }
-  ) {
-    const ids = Array.isArray(body?.ids)
-      ? body.ids.filter((x) => typeof x === "string")
-      : [];
-    const q = typeof body?.q === "string" ? body.q.trim() : "";
-    const idsOnly = body?.idsOnly === true;
-    // idsOnly can't return more than the ids the backend sent, so clamp to that — no magic
-    // number to keep in sync with the backend's cap. Snippet mode stays capped at one page-ish.
-    const limit = idsOnly
-      ? ids.length
-      : Math.max(1, Math.min(500, Number(body?.limit) || 30));
-    if (ids.length === 0 || q === "") return idsOnly ? { ids: [] } : { matches: [] };
-    if (idsOnly) {
-      return { ids: await this.repo.searchContentIds(ids, q, limit) };
-    }
-    const rows = await this.repo.searchContent(ids, q, limit);
-    return {
-      matches: rows.map((r) => ({
-        docId: r.id,
-        snippet: makeSnippet(r.contentText, q),
-      })),
-    };
   }
 
   @Get(":docId/versions")

@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
 import { extractSearchText } from "./searchable-text";
+import { BackendInternalClient } from "./backend-internal.client";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
 import { trace } from "../tracing/trace";
@@ -55,6 +56,7 @@ export class DocStateService {
   constructor(
     private readonly repo: DocRepository,
     private readonly compaction: CompactionService,
+    private readonly backend: BackendInternalClient,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -346,6 +348,7 @@ export class DocStateService {
           plainText
         );
         state.snapshotAtSeq = flushedSeq;
+        void this.backend.pushContent(docName, plainText); // fire-and-forget; search lives in backend
         log.info(
           `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
@@ -397,6 +400,7 @@ export class DocStateService {
         state.lastAppendedSeq,
         plainText
       );
+      void this.backend.pushContent(docName, plainText); // keep backend search index fresh
       persistLog.info(
         `'${docName}' checkpoint reason=${reason} → snapshot=${blob.byteLength}B at_seq=${state.lastAppendedSeq}`
       );

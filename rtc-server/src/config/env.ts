@@ -8,6 +8,8 @@ export const envSchema = z.object({
     process.env.NODE_ENV === "production"
       ? z.string().min(32)
       : z.string().default("dev-internal-secret-change-me"),
+  // Backend base URL for pushing the content-search projection (X-Internal-Token authed).
+  BACKEND_INTERNAL_URL: z.string().url().default("http://localhost:4000"),
   RTC_PORT: z.coerce.number().default(4001),
   RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
   // Per-connection token bucket for inbound WS messages: bucket size (burst) and steady refill rate per second.

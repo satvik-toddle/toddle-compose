@@ -5,7 +5,7 @@
    ============================================================ */
 
 .rbac {
-  --app-bg: #ececed;
+  /* --app-bg is set at :root (index.css) and inherited here. */
   --panel-bg: var(--surface-primary-enabled); /* white / neutral-100 */
   --line: var(--border-secondary);
   --line-strong: var(--border-primary);
@@ -18,11 +18,6 @@
   flex-direction: column;
   position: relative;
   -webkit-font-smoothing: antialiased;
-}
-.rbac.dark,
-.dark.rbac,
-.dark .rbac {
-  --app-bg: #141414;
 }
 .rbac * {
   box-sizing: border-box;
@@ -81,7 +76,7 @@
 }
 .rbac .inp:focus-within {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(0, 176, 194, 0.16);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 16%, transparent);
 }
 .rbac .inp input {
   border: 0;
@@ -104,7 +99,7 @@
   border-color: var(--border-semantic-error);
 }
 .rbac .inp.err:focus-within {
-  box-shadow: 0 0 0 3px rgba(214, 58, 63, 0.16);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-semantic-error) 16%, transparent);
 }
 .rbac .err-text {
   font-size: 12px;
@@ -133,10 +128,9 @@
   gap: 10px;
 }
 .rbac .appbar .brand .logo {
+  /* No tile: the logo SVG is self-contained; the box just sizes/centers it. */
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--red-950);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -188,7 +182,7 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--neutral-600);
+  background: var(--icon-secondary);
   display: inline-block;
 }
 
@@ -448,15 +442,10 @@
 .rbac .auth-row a,
 .rbac .auth-foot a,
 .rbac .auth-fine a {
-  color: var(--blue-400);
+  color: var(--text-link-default);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-}
-.rbac.dark .auth-row a,
-.rbac.dark .auth-foot a,
-.dark .rbac a {
-  color: var(--blue-600);
 }
 .rbac .auth-check {
   display: flex;
@@ -540,7 +529,7 @@
    ADMIN CONSOLE
    ============================================================ */
 /* Moved to co-located CSS Modules:
-     .ad-subbar/.ad-title/.ad-crumb → AdminConsolePage.module.scss
+     .ad-subbar/.ad-title           → AdminConsolePage.module.scss
      .ad-ws-tbl/.ad-foot            → WorkspacesTab.module.scss
      .ad-mem-tbl                    → RealmMembersTab.module.scss
      .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss
@@ -550,17 +539,12 @@
 .rbac .you-tag {
   font-size: 10px;
   font-weight: 700;
-  color: var(--blue-400);
+  color: var(--text-highlight);
   background: var(--surface-primary-selected);
   border-radius: 5px;
   padding: 1px 6px;
   margin-left: 6px;
   vertical-align: middle;
-}
-.rbac.dark .you-tag,
-.dark .rbac .you-tag {
-  background: rgba(0, 176, 194, 0.16);
-  color: var(--blue-600);
 }
 
 /* ============================================================
@@ -716,7 +700,7 @@
 }
 .rbac .emoji-cell.on {
   border-color: var(--border-selected);
-  box-shadow: 0 0 0 2px rgba(0, 176, 194, 0.18);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--border-selected) 18%, transparent);
 }
 /* .role-radios → RoleRadios.module.scss */
 .rbac .invite-fallback {

@@ -50,6 +50,13 @@ enum JoinRequestState {
   REJECTED
 }
 
+// Reach of a document share link: REALM → any logged-in realm member with the
+// link; ANYONE → works logged-out, no auth at all.
+enum ShareLinkScope {
+  REALM
+  ANYONE
+}
+
 model Realm {
   id         String        @id @default(cuid())
   name       String
@@ -145,6 +152,7 @@ model User {
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
   documentStars        DocumentStar[]
+  documentPermissions  DocumentPermission[]
 
   @@map("users")
 }
@@ -243,15 +251,16 @@ model Document {
   children    Document[]   @relation("DocumentTree")
   // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
   stars       DocumentStar[]
-  // PUBLIC additionally exposes the doc to any realm member, across workspaces.
-  visibility  Visibility   @default(PRIVATE)
+  // Per-page permission grants on this doc; deleting the doc removes them (cascade).
+  permissions DocumentPermission[]
+  // At most one live share link per doc (cascade on doc delete).
+  shareLink   DocumentShareLink?
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   // Collaborative content (yjsState / update log) lives in the SEPARATE
   // @app/rtc-database, keyed by this id. No FK relation here by design.
 
   @@index([ownerId])
-  @@index([visibility])
   @@index([folderId])
   @@index([parentId])
   @@index([workspaceId])
@@ -277,4 +286,44 @@ model DocumentStar {
   @@id([userId, documentId])
   @@index([documentId])
   @@map("document_stars")
+}
+
+// A per-page (per-document) permission grant: one row = this user holds `role`
+// on this specific document, independent of workspace membership. The grant does
+// NOT cascade to sub-pages (lookups are by exact documentId). The role reuses the
+// WorkspaceRole enum (any of READ/COMMENT/EDIT/ADMIN may be granted). Effective
+// doc role = MAX(workspace-derived role, grant) — a grant only ever elevates.
+// Composite PK [userId, documentId] makes a grant idempotent per (user, doc).
+// Cascades on both sides, so deleting the user or the document drops the grant.
+// Mirrors the DocumentStar/WorkspaceMember join-table shape used elsewhere.
+model DocumentPermission {
+  userId     String        @map("user_id")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String        @map("document_id")
+  document   Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  role       WorkspaceRole @default(EDIT)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@id([userId, documentId])
+  @@index([documentId])
+  @@map("document_permissions")
+}
+
+// "Anyone with the link" sharing: at most one live link per document (documentId
+// is unique). The token is a crypto-random capability — knowing it (plus, for
+// REALM scope, being a logged-in realm member) grants `role` on this one doc.
+// Role is capped at EDIT (never ADMIN), enforced at the DTO layer. Regenerating
+// replaces the token, instantly invalidating the old URL. createdById is a plain
+// audit field (no relation), mirroring JoinRequest.decidedById.
+model DocumentShareLink {
+  id          String         @id @default(cuid())
+  documentId  String         @unique @map("document_id")
+  document    Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  token       String         @unique
+  role        WorkspaceRole  @default(READ)
+  scope       ShareLinkScope @default(REALM)
+  createdById String         @map("created_by_id")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@map("document_share_links")
 }

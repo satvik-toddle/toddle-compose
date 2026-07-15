@@ -20,6 +20,7 @@ import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
+import { LinkDocView } from './features/link/LinkDocView';
 
 // Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
 const ZwibblerPreviewPage = lazy(() =>
@@ -45,6 +46,9 @@ export function AppRoutes() {
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+      {/* public share link (works logged-out for ANYONE-scope links) */}
+      <Route path="/link/:token" element={<LinkDocView />} />
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>

@@ -3,7 +3,7 @@ import { EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { cn } from '../../../lib/cn';
 import { PageLoader } from '../../../components/Loader';
-import { wsAtLeast } from '../../../lib/roles';
+import { maxWsRole, wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { PageTitle } from './PageTitle';
@@ -53,7 +53,8 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   }
 
   const { id: openDocId, title: pageTitle } = openDoc;
-  const canEdit = wsAtLeast(ctx.role, 'EDIT');
+  // Max of workspace role and per-page grant — else an EDIT-grantee guest would get a read-only editor.
+  const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
   // Sheets and whiteboards fill the width; only docs center a readable column.
   const isFullWidth = openDoc.type !== 'DOC';
 

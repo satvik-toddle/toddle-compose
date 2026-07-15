@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Badge, Button as DsButton, SearchInput, Tooltip } from '@toddle-edu/ds-web';
+import type { ReactElement } from 'react';
+import { Alert, Badge, Button as DsButton, SearchInput, Table, Tooltip } from '@toddle-edu/ds-web';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
@@ -10,15 +11,14 @@ import { PageLoader } from '../../components/Loader';
 import { PersonCell } from '../../components/PersonCell';
 import { WorkspaceBadge } from '../../components/WorkspaceBadge';
 import { RequestsTable } from '../../components/RequestsTable';
-import { tableStyles as t } from '../../components/tableStyles';
 import { AddWorkspaceMemberModal } from './AddWorkspaceMemberModal';
 import { ConfirmRemoveMemberModal } from './ConfirmRemoveMemberModal';
 import { RenameWorkspaceModal } from './RenameWorkspaceModal';
-import { useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../../hooks/queries';
+import { useRealm, useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../../hooks/queries';
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
 import { useAuthStore } from '../../stores/authStore';
 import { useUiStore } from '../../stores/uiStore';
-import { WS_ROLE_OPTIONS } from '../../lib/roles';
+import { WS_ROLE_OPTIONS, isRealmAdmin } from '../../lib/roles';
 import { formatDate } from '../../lib/time';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { cn } from '../../lib/cn';
@@ -31,7 +31,17 @@ type RemoveTarget = { userId: string; name: string; email: string; role: Workspa
 // Child dialogs rendered locally (stacked over this modal) so settings survives.
 type Child = 'addMember' | 'rename' | { kind: 'removeMember'; member: RemoveTarget };
 
-const MEM_GRID = 'grid-cols-[2fr_220px_120px]';
+// ds Table row cells mirror PagesListView's PageRow (no null/boolean ReactNode members).
+type MemberRow = {
+  id: string;
+  rowData: { key: string; value: string | number | ReactElement | undefined }[];
+};
+
+const MEMBER_HEADERS = [
+  { key: 'person', value: 'Person' },
+  { key: 'role', value: 'Workspace role' },
+  { key: 'remove', value: 'Remove' },
+];
 
 const styles = {
   wsHead: 'flex items-center gap-2.75 px-[18px] pb-4 pt-[18px]',
@@ -42,7 +52,7 @@ const styles = {
   navList: 'flex flex-col gap-0.5 px-2.5',
   dangerZone: 'mt-auto px-2.5 pb-3 pt-3',
   bar: 'flex items-center gap-3 border-b border-secondary px-5.5 py-4',
-  barTitle: 'text-[16px] font-bold leading-tight',
+  barTitle: 'text-heading-6 text-primary',
   barDesc: 'mt-1 text-body-s text-secondary',
   scroll: 'min-h-0 flex-1 overflow-auto px-5.5 py-5',
   group: 'flex flex-col gap-[18px]',
@@ -56,6 +66,7 @@ const styles = {
   statKey: 'text-label-xs font-semibold text-secondary',
   statVal: 'mt-1 font-bold tracking-tight',
   memToolbar: 'mb-3.5 flex items-center gap-2',
+  memTableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2', // Bordered scroll area under the fixed header.
   navItem: 'hover:bg-surface-secondary-hover hover:text-primary',
   navItemActive: 'bg-surface-secondary-hover text-primary',
   navDangerText: 'text-semantic-error'
@@ -334,7 +345,7 @@ function Stat({ k, v, small }: { k: string; v: string; small?: boolean }) {
   return (
     <div className={styles.statCard}>
       <div className={styles.statKey}>{k}</div>
-      <div className={cn(styles.statVal, small ? 'text-body' : 'text-[22px]')}>{v}</div>
+      <div className={cn(styles.statVal, small ? 'text-body' : 'text-heading-4')}>{v}</div>
     </div>
   );
 }
@@ -353,8 +364,15 @@ function MembersTab({
   onRemove: (member: RemoveTarget) => void;
 }) {
   const me = useAuthStore((s) => s.user);
+  const { data: realm } = useRealm();
+  const actorIsRealmAdmin = isRealmAdmin(realm?.role);
   const setRole = useSetWorkspaceMemberRole();
   const [query, setQuery] = useState('');
+
+  // Plain workspace admins can't hand out the Admin role — that's realm-admin controlled.
+  const roleOptions = actorIsRealmAdmin
+    ? WS_ROLE_OPTIONS
+    : WS_ROLE_OPTIONS.filter((o) => o.value !== 'ADMIN');
 
   const list = members ?? [];
   const adminCount = list.filter((m) => m.role === 'ADMIN').length;
@@ -366,6 +384,61 @@ function MembersTab({
     : list;
 
   if (isLoading) return <PageLoader />;
+
+  const rows: MemberRow[] = filtered.map((m) => {
+    const isYou = m.userId === me?.id;
+    const soleAdmin = m.role === 'ADMIN' && adminCount <= 1;
+    // Mirror backend rules 1-3: owner untouchable, maintainer owner-only, ws-admin realm-admin controlled (self exempt).
+    const blockedByRealm =
+      m.realmRole === 'OWNER' || (m.realmRole === 'MAINTAINER' && realm?.role !== 'OWNER');
+    const blockedByAdminRule = !isYou && !actorIsRealmAdmin && m.role === 'ADMIN';
+    const manageable = !blockedByRealm && !blockedByAdminRule;
+    return {
+      id: m.userId,
+      rowData: [
+        {
+          key: 'person',
+          value: (
+            <PersonCell name={m.user.name} email={m.user.email} color={m.user.color} youTag={isYou} />
+          ),
+        },
+        {
+          key: 'role',
+          value: (
+            <RoleSelect<WorkspaceRole>
+              value={m.role}
+              // Keep the row's current role listed even when ADMIN isn't offerable, so the select can render it.
+              options={roleOptions.some((o) => o.value === m.role) ? roleOptions : [...roleOptions, ...WS_ROLE_OPTIONS.filter((o) => o.value === m.role)]}
+              locked={soleAdmin || !manageable}
+              onChange={(role) => setRole.mutate({ workspaceId, userId: m.userId, role })}
+              renderValue={(r) => <WSChip role={r} />}
+            />
+          ),
+        },
+        {
+          key: 'remove',
+          value: !manageable ? (
+            <span aria-hidden />
+          ) : soleAdmin ? (
+            <Tooltip dsVersion="2.0" placement="top" showArrow tooltip="Can't remove the last admin">
+              <span className="inline-flex opacity-40">
+                <IconButton icon="DeleteOutlined" red disabled />
+              </span>
+            </Tooltip>
+          ) : (
+            <IconButton
+              icon="DeleteOutlined"
+              red
+              title="Remove from workspace"
+              onClick={() =>
+                onRemove({ userId: m.userId, name: m.user.name, email: m.user.email, role: m.role })
+              }
+            />
+          ),
+        },
+      ],
+    };
+  });
 
   return (
     <>
@@ -388,65 +461,8 @@ function MembersTab({
           onClick={onAdd}
         />
       </div>
-      <div className={t.table}>
-        <div className={cn(t.thead, MEM_GRID)}>
-          <div className={t.th}>Person</div>
-          <div className={t.th}>Workspace role</div>
-          <div className={cn(t.th, t.cellRight)}>Remove</div>
-        </div>
-        {filtered.map((m) => {
-          const isYou = m.userId === me?.id;
-          const soleAdmin = m.role === 'ADMIN' && adminCount <= 1;
-          return (
-            <div key={m.userId} className={cn(t.trow, MEM_GRID)}>
-              <div className={t.td}>
-                <PersonCell
-                  name={m.user.name}
-                  email={m.user.email}
-                  color={m.user.color}
-                  youTag={isYou}
-                />
-              </div>
-              <div className={t.td}>
-                <RoleSelect<WorkspaceRole>
-                  value={m.role}
-                  options={WS_ROLE_OPTIONS}
-                  locked={soleAdmin}
-                  onChange={(role) => setRole.mutate({ workspaceId, userId: m.userId, role })}
-                  renderValue={(r) => <WSChip role={r} />}
-                />
-              </div>
-              <div className={cn(t.td, t.cellRight)}>
-                {soleAdmin ? (
-                  <Tooltip
-                    dsVersion="2.0"
-                    placement="top"
-                    showArrow
-                    tooltip="Can't remove the last admin"
-                  >
-                    <span className="inline-flex opacity-40">
-                      <IconButton icon="DeleteOutlined" red disabled />
-                    </span>
-                  </Tooltip>
-                ) : (
-                  <IconButton
-                    icon="DeleteOutlined"
-                    red
-                    title="Remove from workspace"
-                    onClick={() =>
-                      onRemove({
-                        userId: m.userId,
-                        name: m.user.name,
-                        email: m.user.email,
-                        role: m.role,
-                      })
-                    }
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className={styles.memTableWrap}>
+        <Table dsVersion="2.0" headers={MEMBER_HEADERS} data={rows} isHeaderFixed />
       </div>
     </>
   );

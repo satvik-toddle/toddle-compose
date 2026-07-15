@@ -18,9 +18,15 @@ export const WORKSPACE_ICONS: IconName[] = [
   'SettingsOutlined',
 ];
 
-export const BRAND_PALETTE = [
-  '#5a5ae2', '#00ac8a', '#ef4371', '#d67d00', '#6d9c00',
-  '#00b0c2', '#b646ee', '#e8653a', '#a43dd7', '#f04c54',
+// DS tag hue → --tag-background/foreground-{hue} (flips with theme).
+export type WorkspaceHue =
+  | 'violet' | 'teal' | 'pink' | 'yellow' | 'green'
+  | 'blue' | 'purple' | 'orange' | 'red';
+
+// One hue per slot; mirrors dsAvatar.ts COLOR_BY_HEX so ids keep their old color.
+const HUE_PALETTE: WorkspaceHue[] = [
+  'violet', 'teal', 'pink', 'yellow', 'green',
+  'blue', 'purple', 'orange', 'purple', 'red',
 ];
 
 function hash(s: string): number {
@@ -29,10 +35,10 @@ function hash(s: string): number {
   return Math.abs(h);
 }
 
-export function workspaceVisual(id: string): { icon: IconName; color: string } {
+export function workspaceVisual(id: string): { icon: IconName; hue: WorkspaceHue } {
   const h = hash(id);
   return {
     icon: WORKSPACE_ICONS[h % WORKSPACE_ICONS.length],
-    color: BRAND_PALETTE[h % BRAND_PALETTE.length],
+    hue: HUE_PALETTE[h % HUE_PALETTE.length],
   };
 }

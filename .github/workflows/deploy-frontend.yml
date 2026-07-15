@@ -6,7 +6,8 @@ name: Deploy Frontend (Netlify)
 #   • On merge  → builds, then deploys dist/ to Netlify.
 #
 # Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
-# NETLIFY_AUTH_TOKEN. Optional repo variables: VITE_API_BASE_URL, VITE_RTC_WS_URL.
+# NETLIFY_AUTH_TOKEN. Required repo variables: VITE_API_BASE_URL, VITE_RTC_WS_URL
+# (the build hard-fails without them — frontend/vite.config.ts enforces both).
 on:
   pull_request:
     branches: [staging/frontend] # build-only check on the deploy PR

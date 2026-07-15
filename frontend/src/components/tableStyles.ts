@@ -12,5 +12,5 @@ export const tableStyles = {
   nm: 'text-[13px] font-semibold',
   rowSub: 'mt-px text-[12px] text-secondary',
   youTag:
-    'ml-1.5 rounded-[5px] bg-[var(--surface-primary-selected)] px-1.5 py-px align-middle text-[10px] font-bold text-[var(--blue-400)]',
+    'ml-1.5 rounded-[5px] bg-[var(--surface-primary-selected)] px-1.5 py-px align-middle text-[10px] font-bold text-[var(--text-highlight)]',
 } as const;

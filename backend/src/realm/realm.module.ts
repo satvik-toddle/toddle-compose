@@ -17,6 +17,7 @@ import { WorkspaceSessionController } from "./workspace-session.controller";
   ],
   controllers: [RealmController, WorkspaceSessionController],
   // Shared so WorkspacesModule reuses the same authz choke point.
-  exports: [ActiveRealmService, AuthzService],
+  // RealmService is exported so DocumentsModule can reuse searchDirectory for the doc picker.
+  exports: [ActiveRealmService, AuthzService, RealmService],
 })
 export class RealmModule {}

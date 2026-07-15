@@ -10,7 +10,7 @@ export type IconSize = 12 | 14 | 16 | 18 | 20 | 24;
 const COLOR = {
   muted: 'var(--text-secondary)',
   red: 'var(--text-semantic-error)',
-  white: 'var(--neutral-white)',
+  white: 'var(--icon-on)',
 } as const;
 
 export interface IconProps {

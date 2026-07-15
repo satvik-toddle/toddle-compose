@@ -5,6 +5,7 @@ import { Modal } from '../../../components/Modal';
 import { useDocSearch } from '../../../hooks/useDocSearch';
 import { usePreviewToggle } from '../../../hooks/usePreviewToggle';
 import { useDocuments } from '../../../hooks/usePages';
+import { useVirtualRows } from '../../../hooks/useVirtualRows';
 import type { SearchResultDto } from '../../../types/api';
 import { ShortcutHint } from '../../../components/ShortcutHint';
 import { SearchField } from './SearchField';
@@ -67,9 +68,14 @@ export function SearchModal({
   const activeIndex = Math.min(selectedIndex, Math.max(0, results.length - 1));
   const selected: SearchResultDto | undefined = results[activeIndex];
 
+  // Virtualize the result list (rows vary in height — title ± snippet ± path). ~64px is the
+  // common title+snippet row; the hook measures real heights and re-lays out.
+  const virtual = useVirtualRows(listRef, results.length, 64);
+  const scrollToIndex = virtual.scrollToIndex;
+
   useEffect(() => {
-    listRef.current?.querySelector('.sr.on')?.scrollIntoView({ block: 'nearest' });
-  }, [activeIndex, showPreview]);
+    scrollToIndex(activeIndex);
+  }, [activeIndex, showPreview, scrollToIndex]);
 
   const openDoc = (r: SearchResultDto) => {
     navigate(`/w/${r.workspaceId}?doc=${r.id}`);
@@ -113,17 +119,27 @@ export function SearchModal({
     }
   };
 
-  const rows = results.map((r, i) => (
-    <ResultRow
-      key={r.id}
-      doc={r}
-      q={qTrimmed}
-      active={i === activeIndex}
-      isGlobal={isGlobal}
-      wsDocs={wsDocs}
-      onClick={() => onRowClick(r, i)}
-    />
-  ));
+  // Only the windowed rows are mounted; each is absolutely positioned at its measured offset.
+  const rows = (
+    <div style={{ position: 'relative', height: virtual.totalHeight }}>
+      {virtual.items.map(({ index, start, measureRef }) => {
+        const r = results[index];
+        if (!r) return null;
+        return (
+          <div key={r.id} ref={measureRef} style={{ position: 'absolute', top: start, left: 0, right: 0 }}>
+            <ResultRow
+              doc={r}
+              q={qTrimmed}
+              active={index === activeIndex}
+              isGlobal={isGlobal}
+              wsDocs={wsDocs}
+              onClick={() => onRowClick(r, index)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
 
   // Loaded-so-far vs total matches, so the count is never mistaken for "all there is".
   const count = (

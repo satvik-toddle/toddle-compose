@@ -109,6 +109,19 @@ export class RtcInternalClient {
     ) as Promise<{ closed?: number }>;
   }
 
+  // Full match set as bare ids (no snippets) — cheap even for thousands of matches, so
+  // totals and pagination can cover everything; snippets come from searchContent per page.
+  async searchContentIds(ids: string[], q: string, limit: number): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const res = (await this.call("POST", "/internal/docs/search", {
+      ids,
+      q,
+      limit,
+      idsOnly: true,
+    })) as { ids?: string[] };
+    return res.ids ?? [];
+  }
+
   // Full-text content search over the given doc ids; empty ids short-circuit without a call.
   async searchContent(
     ids: string[],

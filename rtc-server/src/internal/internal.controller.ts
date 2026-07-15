@@ -75,16 +75,29 @@ export class InternalController {
     return { ok: true, docId };
   }
 
+  // Two modes: idsOnly returns the FULL match set as bare ids (bounded by the backend's
+  // accessible-id window) so totals/pagination see every match; the default mode builds
+  // snippets and is meant for a single page of rows (small id lists).
   @Post("search")
-  async search(@Body() body: { ids?: string[]; q?: string; limit?: number }) {
+  async search(
+    @Body()
+    body: { ids?: string[]; q?: string; limit?: number; idsOnly?: boolean }
+  ) {
     const ids = Array.isArray(body?.ids)
       ? body.ids.filter((x) => typeof x === "string")
       : [];
     const q = typeof body?.q === "string" ? body.q.trim() : "";
-    // Cap must stay >= the backend's GATHER (documents.service.ts, currently 300) or
-    // content matches past the clamp silently vanish from search results and totals.
-    const limit = Math.max(1, Math.min(500, Number(body?.limit) || 30));
-    if (ids.length === 0 || q === "") return { matches: [] };
+    const idsOnly = body?.idsOnly === true;
+    // idsOnly cap tracks the backend's CONTENT_SEARCH_ID_CAP (documents.service.ts);
+    // a lower cap here would silently drop matches from search results and totals.
+    const limit = Math.max(
+      1,
+      Math.min(idsOnly ? 20000 : 500, Number(body?.limit) || 30)
+    );
+    if (ids.length === 0 || q === "") return idsOnly ? { ids: [] } : { matches: [] };
+    if (idsOnly) {
+      return { ids: await this.repo.searchContentIds(ids, q, limit) };
+    }
     const rows = await this.repo.searchContent(ids, q, limit);
     return {
       matches: rows.map((r) => ({

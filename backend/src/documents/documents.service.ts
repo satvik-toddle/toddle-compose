@@ -219,14 +219,17 @@ export class DocumentsService {
           } as const)
         : SUMMARY_SELECT;
 
-      // Content-match ids from rtc (bounded); the matched set = title-contains OR one of these ids.
-      const GATHER = 300;
-      const CONTENT_SEARCH_ID_CAP = 5000;
+      // Content matching is two-phase: (1) the FULL match set as bare ids — cheap even for
+      // thousands of matches, so `total` and pagination cover every match; (2) snippets are
+      // fetched later for just the page's rows. The only content cap left is this window
+      // over the most-recently-updated accessible docs (id payload ~29B/doc; rtc's idsOnly
+      // clamp and its 2mb body limit are sized to match).
+      const CONTENT_SEARCH_ID_CAP = 20000;
       const titleClause: Prisma.DocumentWhereInput = {
         title: { contains: q, mode: "insensitive" },
       };
       // Stable order so the capped id window is deterministic across page requests
-      // (an unordered take would let Postgres return a different 5000-id subset per page,
+      // (an unordered take would let Postgres return a different subset per page,
       // making content-match pagination flicker for scopes above the cap).
       const accessibleIds = await this.prisma.document.findMany({
         where: accessFilter,
@@ -234,13 +237,11 @@ export class DocumentsService {
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take: CONTENT_SEARCH_ID_CAP,
       });
-      const { matches } = await this.rtc.searchContent(
+      const contentIds = await this.rtc.searchContentIds(
         accessibleIds.map((d) => d.id),
         q,
-        GATHER
+        CONTENT_SEARCH_ID_CAP
       );
-      const snippetById = new Map(matches.map((m) => [m.docId, m.snippet]));
-      const contentIds = matches.map((m) => m.docId);
 
       const matchWhere: Prisma.DocumentWhereInput = {
         AND: [
@@ -275,6 +276,12 @@ export class DocumentsService {
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         take,
       });
+
+      // Phase 2: snippets for just this page's rows (rtc re-matches these few ids).
+      const { matches } = page.length
+        ? await this.rtc.searchContent(page.map((d) => d.id), q, page.length)
+        : { matches: [] };
+      const snippetById = new Map(matches.map((m) => [m.docId, m.snippet]));
 
       const ql = q.toLowerCase();
       // A doc matching BOTH keeps match:"title" (badge) but also carries its content snippet.

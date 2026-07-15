@@ -1,4 +1,8 @@
-import { DEFAULT_THEME, type TLDefaultColor, type TLTheme } from 'tldraw';
+import { DEFAULT_THEME, type TLDefaultColor, type TLFontFace, type TLTheme } from 'tldraw';
+import avenirRegular from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-Regular.ttf';
+import avenirItalic from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-Italic.ttf';
+import avenirBold from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-Bold.ttf';
+import avenirDemiItalic from '@toddle-edu/ds-web/dist/assets/fonts/AvenirNextWorld/AvenirNextWorld-DemiIt.ttf';
 
 // Toddle DS brand hexes (ds-web tokens) mapped onto tldraw's named palette.
 // Same 13 color names as tldraw's default — only the hex values change — so the
@@ -80,8 +84,30 @@ const byMode = (mode: 'light' | 'dark') =>
     ]),
   );
 
+// Brand font for the default ("sans") text style. The same ttf files ds-web's
+// @font-face uses; registering them as theme faces makes tldraw preload them
+// and embed them in PNG/SVG exports. No Bold Italic cut exists — DemiIt (600)
+// is the closest.
+const avenirFace = (url: string, weight: string, style?: string): TLFontFace => ({
+  family: 'AvenirNextWorld',
+  src: { url, format: 'truetype' },
+  weight,
+  ...(style ? { style } : {}),
+});
+
+const AVENIR_SANS = {
+  fontFamily: "'AvenirNextWorld', 'Avenir Next', sans-serif",
+  faces: [
+    avenirFace(avenirRegular, 'normal'),
+    avenirFace(avenirBold, 'bold'),
+    avenirFace(avenirItalic, 'normal', 'italic'),
+    avenirFace(avenirDemiItalic, 'bold', 'italic'),
+  ],
+};
+
 export const whiteboardTheme: TLTheme = {
   ...DEFAULT_THEME,
+  fonts: { ...DEFAULT_THEME.fonts, sans: AVENIR_SANS },
   colors: {
     light: { ...DEFAULT_THEME.colors.light, ...byMode('light') },
     dark: { ...DEFAULT_THEME.colors.dark, ...byMode('dark') },

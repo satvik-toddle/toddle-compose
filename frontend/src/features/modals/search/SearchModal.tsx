@@ -48,7 +48,10 @@ export function SearchModal({
   // Layout resolution — the single source of truth.
   const isGlobal = workspaceId === undefined;
   const [previewOn, setPreviewOn] = usePreviewToggle();
-  const hasQuery = q.trim().length > 0;
+  // The search runs on the trimmed query (useDocSearch trims before fetching), so
+  // highlighting must too — raw " page" would never match inside returned titles.
+  const qTrimmed = q.trim();
+  const hasQuery = qTrimmed.length > 0;
   const showToggle = !isGlobal;
   // Collapse the split (and its preview "Open doc" affordance) when there's nothing to
   // preview — no results means the narrow single-column no-results message, not a wide shell.
@@ -114,7 +117,7 @@ export function SearchModal({
     <ResultRow
       key={r.id}
       doc={r}
-      q={q}
+      q={qTrimmed}
       active={i === activeIndex}
       isGlobal={isGlobal}
       wsDocs={wsDocs}
@@ -148,7 +151,7 @@ export function SearchModal({
       ) : isSearching ? (
         <div className="gs-none">Searching…</div>
       ) : (
-        <div className="gs-none">No documents match “{q.trim()}”.</div>
+        <div className="gs-none">No documents match “{qTrimmed}”.</div>
       )}
     </div>
   );
@@ -182,7 +185,7 @@ export function SearchModal({
           {list}
           {loadMorePill}
         </div>
-        <PreviewPane docId={selected?.id} q={q} onOpen={() => selected && openDoc(selected)} />
+        <PreviewPane docId={selected?.id} onOpen={() => selected && openDoc(selected)} />
       </div>
     );
   } else {

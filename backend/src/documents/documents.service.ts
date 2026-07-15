@@ -183,8 +183,6 @@ export class DocumentsService {
       const empty = {
         items: [],
         total: 0,
-        titleTotal: 0,
-        contentTotal: 0,
         nextCursor: null as string | null,
       };
       const q = input.q.trim();
@@ -256,12 +254,9 @@ export class DocumentsService {
         ],
       };
 
-      // Totals (one COUNT each, not per-row) for the "loaded / total" UI + scope chips.
-      const [total, titleTotal] = await Promise.all([
-        this.prisma.document.count({ where: matchWhere }),
-        this.prisma.document.count({ where: { AND: [accessFilter, titleClause] } }),
-      ]);
-      const totals = { total, titleTotal, contentTotal: matches.length };
+      // One COUNT for the "loaded / total" UI.
+      const total = await this.prisma.document.count({ where: matchWhere });
+      const totals = { total };
 
       // Keyset seek: page rows strictly "after" the cursor in (updatedAt desc, id desc) order.
       const cur = this.decodeSearchCursor(input.cursor);

@@ -76,9 +76,9 @@ const shot = async (p, name) => { await p.screenshot({ path: `${ART}/${name}.png
   pass('5-ON preview toggle default ON → split layout + preview + /preview fired', isSplit && hasPreview && net.preview.length > 0, `split=${isSplit} prev=${hasPreview} previewReqs=${net.preview.length}`);
   await shot(page, '02-split-preview-on');
 
-  // Check 4: scope chips present with counts
-  const chipCount = await page.locator('.gs-chip').count();
-  pass('4 scope chips (All/Titles/In content)', chipCount >= 3, `chips=${chipCount}`);
+  // Check 4: loaded/total count is rendered
+  const countText = await page.locator('.gs-count').first().textContent().catch(() => '');
+  pass('4 loaded/total count shown', /\d+\s*\/\s*\d+/.test(countText ?? ''), `count="${countText}"`);
 
   // Check 5-OFF: toggle preview off → narrow, no preview, no new /preview request
   const previewReqsBeforeOff = net.preview.length;

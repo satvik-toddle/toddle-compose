@@ -72,9 +72,11 @@ export class AuthzService {
     const overlay: WorkspaceRole | null =
       realmRole === "OWNER" || realmRole === "MAINTAINER" ? "ADMIN" : null;
     const direct = member?.role ?? null;
-    // PUBLIC workspaces are readable by any realm member at the workspace default role (no join needed).
+    // PUBLIC workspaces are READABLE by any realm member without joining — read only,
+    // regardless of defaultRole (an EDIT/ADMIN defaultRole applies on join, not by visibility;
+    // an unclamped overlay would hand write/manage rights to non-members).
     const publicOverlay: WorkspaceRole | null =
-      ws.visibility === "PUBLIC" && realmRole !== null ? ws.defaultRole : null;
+      ws.visibility === "PUBLIC" && realmRole !== null ? "READ" : null;
 
     return this.maxWorkspaceRole(this.maxWorkspaceRole(overlay, direct), publicOverlay);
   }

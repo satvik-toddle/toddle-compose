@@ -121,36 +121,6 @@
   flex: none;
   border-bottom: 1px solid var(--line);
 }
-.rbac .gs-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--panel-bg);
-  color: var(--text-secondary);
-  font-size: var(--font-size-75);
-  font-weight: var(--font-weight-600);
-  cursor: pointer;
-}
-.rbac .gs-chip .n {
-  color: var(--text-placeholder);
-  font-weight: var(--font-weight-700);
-}
-.rbac .gs-chip.on {
-  background: var(--red-950);
-  border-color: transparent;
-  color: var(--red-400);
-}
-.rbac .gs-chip.on .n {
-  color: var(--red-400);
-}
-.rbac.dark .gs-chip.on,
-.dark .rbac .gs-chip.on {
-  background: rgba(214, 58, 63, 0.18);
-}
 .rbac .gs-scope .gap {
   flex: 1;
 }

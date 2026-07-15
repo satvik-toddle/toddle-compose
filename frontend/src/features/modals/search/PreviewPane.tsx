@@ -16,7 +16,6 @@ export function PreviewPane({
   onOpen,
 }: {
   docId?: string;
-  q: string;
   onOpen: () => void;
 }) {
   const { data, isLoading, isError } = useDocPreview(docId, true);

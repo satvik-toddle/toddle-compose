@@ -81,7 +81,9 @@ export class InternalController {
       ? body.ids.filter((x) => typeof x === "string")
       : [];
     const q = typeof body?.q === "string" ? body.q.trim() : "";
-    const limit = Math.max(1, Math.min(100, Number(body?.limit) || 30));
+    // Cap must stay >= the backend's GATHER (documents.service.ts, currently 300) or
+    // content matches past the clamp silently vanish from search results and totals.
+    const limit = Math.max(1, Math.min(500, Number(body?.limit) || 30));
     if (ids.length === 0 || q === "") return { matches: [] };
     const rows = await this.repo.searchContent(ids, q, limit);
     return {

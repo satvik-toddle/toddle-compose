@@ -175,12 +175,10 @@ export interface SearchResultDto extends DocumentDto {
   snippet?: string; // content-match excerpt; absent for title-only matches
 }
 
-// One keyset page of search results plus totals for the "loaded / total" UI and scope-chip counts.
+// One keyset page of search results plus the total for the "loaded / total" UI.
 export interface DocSearchPage {
   items: SearchResultDto[];
   total: number; // distinct matches (title ∪ content), up to the server cap
-  titleTotal: number; // matches whose title contains the query
-  contentTotal: number; // matches whose content contains the query (may overlap titleTotal)
   nextCursor: string | null; // opaque keyset cursor; null when there are no more pages
 }
 

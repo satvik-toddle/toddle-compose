@@ -22,12 +22,10 @@ const { PrismaClient } = require(
 );
 // Prisma 7 requires a driver adapter to instantiate the client.
 const { PrismaPg } = require('@prisma/adapter-pg');
-// Compiled server extractor (the same code the running server uses); requires a prior `nest build`.
-const { extractFromBytesSync } = require(
-  path.resolve(__dirname, '../dist/persistence/lexical-extract.core.js'),
-);
-// Compiled sheet extractor (same branch the server's extractText uses); requires a prior `nest build`.
-const { probeSheet, sheetToSearchText } = require(
+// Compiled projection — the SAME extractSearchText the live persist path and boot
+// backfill use (registry-free Yjs walk), so reindexed rows can't diverge from live
+// writes or get blanked by unknown node types. Requires a prior `nest build`.
+const { extractSearchText } = require(
   path.resolve(__dirname, '../dist/persistence/searchable-text.js'),
 );
 
@@ -47,15 +45,13 @@ async function main() {
     for (const doc of docs) {
       scanned += 1;
       try {
-        const bytes = new Uint8Array(doc.yjsState);
-        const sheet = probeSheet(bytes);
-        const text = sheet ? sheetToSearchText(sheet) : extractFromBytesSync(bytes).plainText;
+        const text = extractSearchText(new Uint8Array(doc.yjsState));
         await prisma.rtcDocument.update({
           where: { id: doc.id },
           data: { contentText: text },
         });
         updated += 1;
-        console.log(`  [${scanned}/${docs.length}] ${doc.id} → ${text.length}ch${sheet ? ' (sheet)' : ''}`);
+        console.log(`  [${scanned}/${docs.length}] ${doc.id} → ${text.length}ch`);
       } catch (e) {
         failed += 1;
         console.error(`  [${scanned}/${docs.length}] ${doc.id} FAILED:`, e && e.message ? e.message : e);

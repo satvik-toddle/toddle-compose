@@ -128,6 +128,9 @@ export class DocRepository {
     const rows = await this.prisma.rtcDocument.findMany({
       where: { id: { in: ids }, contentText: { contains: q, mode: "insensitive" } },
       select: { id: true, contentText: true },
+      // Stable order: an unordered take returns a different subset per call above the
+      // limit, which would make the backend's keyset pages disagree about the match set.
+      orderBy: { id: "asc" },
       take: limit,
     });
     return rows

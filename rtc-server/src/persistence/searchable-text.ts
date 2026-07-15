@@ -30,20 +30,17 @@ export function extractSheet(ydoc: Y.Doc): SheetSnapshot | null {
   return { rows, colTypes };
 }
 
-// Build a throwaway doc from a state update and extract the sheet grid, or null for DOCs.
-export function probeSheet(stateUpdate: Uint8Array): SheetSnapshot | null {
-  const ydoc = new Y.Doc();
-  Y.applyUpdate(ydoc, stateUpdate);
-  return extractSheet(ydoc); // guarded internally by ydoc.share.has("rows")
-}
-
 // Unified content-search projection: sheet grid text for SHEET docs, else DOC tree text.
 // Never throws — a bad projection yields "" rather than breaking persistence/backfill.
+// Single decode: flush/checkpoint call this on the main thread, so the sheet probe and
+// the DOC walk share one throwaway Y.Doc instead of applying the full state twice.
 export function extractSearchText(stateUpdate: Uint8Array): string {
   try {
-    const sheet = probeSheet(stateUpdate);
+    const ydoc = new Y.Doc();
+    Y.applyUpdate(ydoc, stateUpdate);
+    const sheet = extractSheet(ydoc);
     if (sheet) return sheetToSearchText(sheet);
-    return docToSearchText(stateUpdate);
+    return docTreeToSearchText(ydoc);
   } catch {
     return "";
   }
@@ -54,9 +51,8 @@ export function extractSearchText(stateUpdate: Uint8Array): string {
 // it needs no node registry, so a new/unknown node type can never blank the whole doc.
 // Text runs within a node concatenate directly (so inline-formatting splits don't break
 // words); block elements are separated by newline.
-export function docToSearchText(stateUpdate: Uint8Array): string {
-  const ydoc = new Y.Doc();
-  Y.applyUpdate(ydoc, stateUpdate);
+// NOTE: coerces the 'root' shared type — only call on a throwaway Y.Doc, never a live one.
+export function docTreeToSearchText(ydoc: Y.Doc): string {
   const out: string[] = [];
   const seen = new Set<unknown>();
   const visit = (node: unknown): void => {

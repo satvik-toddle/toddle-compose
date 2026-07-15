@@ -11,8 +11,6 @@ export const DOC_SEARCH_PAGE = 25;
 
 export interface DocSearchTotals {
   total: number;
-  titleTotal: number;
-  contentTotal: number;
 }
 
 // Debounced, keyset-paginated title + content search. `workspaceId` scopes to one workspace; omit for global.
@@ -39,11 +37,7 @@ export function useDocSearch(q: string, workspaceId?: string) {
   const pages = query.data?.pages ?? [];
   const results: SearchResultDto[] = pages.flatMap((p) => p.items);
   const first = pages[0];
-  const totals: DocSearchTotals = {
-    total: first?.total ?? 0,
-    titleTotal: first?.titleTotal ?? 0,
-    contentTotal: first?.contentTotal ?? 0,
-  };
+  const totals: DocSearchTotals = { total: first?.total ?? 0 };
 
   return {
     results,

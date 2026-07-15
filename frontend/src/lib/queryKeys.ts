@@ -35,13 +35,9 @@ export const qk = {
 // A query key that becomes invalid when the caller loses access to a workspace
 // (used by the global access-lost guard). Excludes the realm-wide listings.
 export function isWorkspaceScopedKey(key: readonly unknown[]): boolean {
-  if (
-    key[0] === 'documents' ||
-    key[0] === 'folders' ||
-    key[0] === 'docSearch' ||
-    key[0] === 'docPreview'
-  )
-    return true;
+  // docPreview is deliberately excluded: a 403/404 there means ONE stale search result
+  // (doc deleted / grant revoked), not lost workspace access — the pane shows its own error.
+  if (key[0] === 'documents' || key[0] === 'folders' || key[0] === 'docSearch') return true;
   return (
     key[0] === 'workspaces' &&
     typeof key[1] === 'string' &&

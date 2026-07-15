@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { memo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
@@ -15,7 +15,7 @@ import type { PagesSectionController } from './usePagesSection';
 const BASE_INDENT = 8;
 const INDENT_STEP = 15;
 
-export function PageRow({
+function PageRowInner({
   node,
   depth,
   pages,
@@ -193,3 +193,25 @@ export function PageRow({
     </>
   );
 }
+
+// Memoized against everything this row's RENDERED SUBTREE reads (children mount inside the
+// parent, so skipping a parent skips its descendants too). `node` identity is structurally
+// shared by buildDocTree — unchanged subtrees keep their object — and the handlers are
+// useCallback-stable, so appending a docs page re-renders only the NEW rows instead of all
+// loaded ones. Controller fields rows don't read (isLoading, roots, loadMore, …) are
+// deliberately ignored. `expanded`/`selectedPageId` are compared by identity/value because a
+// change anywhere in the subtree must re-render from this row down.
+export const PageRow = memo(
+  PageRowInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.depth === next.depth &&
+    prev.pages.expanded === next.pages.expanded &&
+    prev.pages.selectedPageId === next.pages.selectedPageId &&
+    prev.pages.canCreate === next.pages.canCreate &&
+    prev.pages.ws === next.pages.ws &&
+    prev.pages.toggle === next.pages.toggle &&
+    prev.pages.selectPage === next.pages.selectPage &&
+    prev.pages.createPage === next.pages.createPage &&
+    prev.pages.canManage === next.pages.canManage,
+);

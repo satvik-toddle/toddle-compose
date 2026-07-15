@@ -11,10 +11,19 @@ export interface TreeDoc {
 export interface DocTree {
   roots: TreeDoc[];
   isEmpty: boolean;
+  // Node index for the NEXT build's structural sharing (pass back as prevNodes).
+  nodes: Map<string, TreeDoc>;
 }
 
 // Assemble the page tree from the flat document list, nesting by parentId.
-export function buildDocTree(docs: DocumentDto[]): DocTree {
+// `prevNodes` (the previous build's node index) enables structural sharing: a node whose
+// doc AND (recursively) children are unchanged keeps its previous object identity, so
+// memoized rows skip re-rendering untouched subtrees when pages append or one doc changes.
+// (React Query's structural sharing already preserves unchanged DocumentDto identities.)
+export function buildDocTree(
+  docs: DocumentDto[],
+  prevNodes?: Map<string, TreeDoc>
+): DocTree {
   const byId = new Map<string, TreeDoc>();
   for (const d of docs) byId.set(d.id, { doc: d, children: [] });
 
@@ -33,7 +42,24 @@ export function buildDocTree(docs: DocumentDto[]): DocTree {
   };
   sortRec(roots);
 
-  return { roots, isEmpty: docs.length === 0 };
+  // Bottom-up identity reconciliation against the previous build.
+  const nodes = new Map<string, TreeDoc>();
+  const reuse = (node: TreeDoc): TreeDoc => {
+    const children = node.children.map(reuse);
+    const prev = prevNodes?.get(node.doc.id);
+    const unchanged =
+      prev &&
+      prev.doc === node.doc &&
+      prev.children.length === children.length &&
+      prev.children.every((c, i) => c === children[i]);
+    const out = unchanged ? prev : node;
+    if (!unchanged) out.children = children;
+    nodes.set(out.doc.id, out);
+    return out;
+  };
+  const sharedRoots = roots.map(reuse);
+
+  return { roots: sharedRoots, isEmpty: docs.length === 0, nodes };
 }
 
 // Index the flat document list by id, for parent/ancestor lookups.

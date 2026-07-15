@@ -233,6 +233,8 @@ export function SearchModal({
     <Modal onClose={onClose} width={wide ? '1000px' : '640px'} className="gs-search-modal">
       <div
         className={`${styles.search} ${wide ? styles.split : styles.sp}`}
+        data-testid="gs-search"
+        data-layout={wide ? 'split' : 'spotlight'}
         onKeyDown={onKeyDown}
         role="dialog"
         aria-label="Search documents"
@@ -258,7 +260,7 @@ export function SearchModal({
             <ShortcutHint keys={['⌘', '↵']} /> Open in new tab
           </span>
           <span className={styles.gap} />
-          <span className={styles.hint}>
+          <span className={styles.hint} data-testid="gs-count">
             {hasQuery
               ? `${results.length} / ${totals.total} shown`
               : isGlobal

@@ -18,7 +18,7 @@ export function Hit({ t, q }: { t: string; q: string }) {
   while ((idx = low.indexOf(ql, i)) !== -1) {
     if (idx > i) out.push(<Fragment key={k++}>{t.slice(i, idx)}</Fragment>);
     out.push(
-      <mark key={k++} className={styles.hit}>
+      <mark key={k++} className={styles.hit} data-testid="sr-hit">
         {t.slice(idx, idx + q.length)}
       </mark>,
     );

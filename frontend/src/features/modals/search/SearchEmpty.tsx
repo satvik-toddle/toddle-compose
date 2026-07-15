@@ -11,7 +11,7 @@ const styles = {
 // Pre-typing minimal prompt (both scopes). No recents, no data fetching.
 export function SearchEmpty() {
   return (
-    <div className={styles.empty}>
+    <div className={styles.empty} data-testid="gs-empty">
       <SearchOutlined className={styles.glyph} aria-hidden />
       <div className={styles.prompt}>Search docs by title or content</div>
       <div className={styles.tips}>

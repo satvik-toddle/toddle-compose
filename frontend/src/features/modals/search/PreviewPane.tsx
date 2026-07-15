@@ -41,7 +41,7 @@ export function PreviewPane({
     .join(' / ');
 
   return (
-    <div className={styles.prev}>
+    <div className={styles.prev} data-testid="gs-prev">
       <div className={styles.bar}>
         <span className={styles.barIc}>{data?.icon || '📄'}</span>
         <div className={styles.meta}>

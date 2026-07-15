@@ -56,6 +56,7 @@ export function ResultRow({
     <button
       type="button"
       className={cn(styles.row, active ? styles.rowActive : styles.rowIdle)}
+      data-testid="sr"
       onClick={onClick}
     >
       <span className={styles.ic}>
@@ -67,7 +68,7 @@ export function ResultRow({
             <Hit t={doc.title} q={q} />
           </span>
           {doc.match === 'title' && (
-            <span className={styles.badge}>
+            <span className={styles.badge} data-testid="sr-badge">
               <Tag color="teal" size="small">
                 Title
               </Tag>
@@ -82,7 +83,7 @@ export function ResultRow({
         )}
         {/* Subtext = in-workspace ancestor trail only; workspace name is intentionally not shown. */}
         {!isGlobal && ancestorTrail && (
-          <div className={styles.path}>
+          <div className={styles.path} data-testid="sr-path">
             <span className={styles.trail}>{ancestorTrail}</span>
           </div>
         )}

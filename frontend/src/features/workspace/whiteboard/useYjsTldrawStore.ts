@@ -4,7 +4,7 @@ import { WebsocketProvider } from 'y-websocket';
 import {
   InstancePresenceRecordType,
   UserRecordType,
-  computed,
+  atom,
   createPresenceStateDerivation,
   createTLStore,
   createUserId,
@@ -29,6 +29,8 @@ type UseYjsTldrawStoreArgs = {
   docId: string;
   token: string;
   user: { id: string; name: string; color: string } | null;
+  // Re-mints the RTC token; the fresh token reaches the provider via paramsRef.
+  refetchToken?: () => Promise<unknown>;
 };
 
 // Binds a tldraw store to Yjs over the app's rtc-server websocket: document-scope
@@ -36,11 +38,16 @@ type UseYjsTldrawStoreArgs = {
 // presence records. Returns a TLStoreWithStatus so <Tldraw> shows its own loading
 // state until the first server sync. Undo/redo stays tldraw's local history —
 // not Yjs-scoped, so it can't precisely exclude collaborators' concurrent ops.
-export function useYjsTldrawStore({ docId, token, user }: UseYjsTldrawStoreArgs) {
+export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTldrawStoreArgs) {
   // y-websocket re-reads params.token on every reconnect; mutating this ref keeps a
   // long-lived session authed with a fresh token without tearing down the live doc.
   const paramsRef = useRef<{ token: string }>({ token });
   paramsRef.current.token = token;
+  const refetchTokenRef = useRef(refetchToken);
+  refetchTokenRef.current = refetchToken;
+  // Set by the session effect; lets name/color changes update presence in place
+  // instead of tearing down the live store/provider.
+  const setPresenceUserRef = useRef<((u: { name: string; color: string }) => void) | null>(null);
 
   const [storeWithStatus, setStoreWithStatus] = useState<TLStoreWithStatus>({ status: 'loading' });
 
@@ -98,14 +105,17 @@ export function useYjsTldrawStore({ docId, token, user }: UseYjsTldrawStoreArgs)
     // publish it; mirror other clients' presence records into the store.
     const awareness = provider.awareness;
     const presenceId = InstancePresenceRecordType.createId(String(awareness.clientID));
-    const userSignal = computed('user', () =>
+    const presenceUser = atom(
+      'presence user',
       UserRecordType.create({
         id: createUserId(String(awareness.clientID)),
         name: user?.name ?? 'Anonymous',
         color: user?.color ?? '#4f52d9',
       }),
     );
-    const presenceSignal = createPresenceStateDerivation(userSignal, {
+    setPresenceUserRef.current = ({ name, color }) =>
+      presenceUser.update((u) => ({ ...u, name, color }));
+    const presenceSignal = createPresenceStateDerivation(presenceUser, {
       instanceId: presenceId,
     })(store);
     unsubs.push(
@@ -141,48 +151,90 @@ export function useYjsTldrawStore({ docId, token, user }: UseYjsTldrawStoreArgs)
     awareness.on('change', onAwareness);
     unsubs.push(() => awareness.off('change', onAwareness));
 
-    // First server sync: adopt the server's document records (dropping the fresh
-    // store's default page so boards don't grow a duplicate), or leave the local
-    // defaults in place for a brand-new board — they sync on first edit.
+    let hasSynced = false;
+    let failedConnects = 0;
+
+    // First server sync only: adopt the server's document records (dropping the
+    // fresh store's default page so boards don't grow a duplicate), or leave the
+    // local defaults in place for a brand-new board — they sync on first edit.
+    // Reconnects re-emit 'sync' but Yjs delivers diffs through the observer; re-
+    // running the adoption there would race the frame-throttled listener above.
     const onSync = (isSynced: boolean) => {
       if (!isSynced) return;
-      if (yRecords.size > 0) {
-        const remoteIds = new Set(yRecords.keys());
-        store.mergeRemoteChanges(() => {
-          store.remove(
-            store
-              .allRecords()
-              .filter((r) => isDocScope(r) && !remoteIds.has(r.id))
-              .map((r) => r.id),
-          );
-          store.put([...yRecords.values()]);
-        });
+      failedConnects = 0;
+      if (!hasSynced) {
+        hasSynced = true;
+        if (yRecords.size > 0) {
+          const remoteIds = new Set(yRecords.keys());
+          store.mergeRemoteChanges(() => {
+            store.remove(
+              store
+                .allRecords()
+                .filter((r) => isDocScope(r) && !remoteIds.has(r.id))
+                .map((r) => r.id),
+            );
+            store.put([...yRecords.values()]);
+          });
+        }
       }
       setStoreWithStatus({ store, status: 'synced-remote', connectionStatus: 'online' });
     };
     provider.on('sync', onSync);
     if (provider.synced) onSync(true);
+
     const onStatus = ({ status }: { status: string }) => {
-      if (provider.synced) {
+      if (status === 'connected') failedConnects = 0;
+      if (!hasSynced) return; // <Tldraw> keeps its loading UI until the first sync
+      setStoreWithStatus({
+        store,
+        status: 'synced-remote',
+        connectionStatus: status === 'connected' ? 'online' : 'offline',
+      });
+    };
+    provider.on('status', onStatus);
+
+    // Every failed attempt ends in 'connection-close'. 4001 = server force-refreshed
+    // access: re-mint immediately (mirrors DocEditor). Otherwise re-mint after 2
+    // consecutive failures, and if the socket never syncs at all, surface an error
+    // instead of loading forever.
+    const onConnClose = (e?: CloseEvent) => {
+      if (e?.code === 4001) {
+        failedConnects = 0;
+        void refetchTokenRef.current?.();
+        return;
+      }
+      failedConnects += 1;
+      if (failedConnects === 2) void refetchTokenRef.current?.();
+      if (!hasSynced && failedConnects >= 5) {
+        provider.disconnect();
         setStoreWithStatus({
-          store,
-          status: 'synced-remote',
-          connectionStatus: status === 'connected' ? 'online' : 'offline',
+          status: 'error',
+          error: new Error("Couldn't connect to the whiteboard server"),
         });
       }
     };
-    provider.on('status', onStatus);
+    provider.on('connection-close', onConnClose);
 
     return () => {
       unsubs.forEach((fn) => fn());
       provider.off('sync', onSync);
       provider.off('status', onStatus);
+      provider.off('connection-close', onConnClose);
+      setPresenceUserRef.current = null;
       setStoreWithStatus({ status: 'loading' });
       provider.destroy();
       ydoc.destroy();
       store.dispose();
     };
-  }, [docId, user?.id, user?.name, user?.color]);
+  }, [docId, user?.id]);
+
+  // Presence metadata rides the live session; never tears it down.
+  useEffect(() => {
+    setPresenceUserRef.current?.({
+      name: user?.name ?? 'Anonymous',
+      color: user?.color ?? '#4f52d9',
+    });
+  }, [user?.name, user?.color]);
 
   return storeWithStatus;
 }

@@ -12,8 +12,7 @@ import type {
 } from '@toddle-edu/ds-data-grid';
 import { AddOutlined } from '@toddle-edu/ds-icons';
 import { Tooltip } from '@toddle-edu/ds-web';
-import { useRtcToken } from '../../../hooks/usePages';
-import { PageLoader } from '../../../components/Loader';
+import { RtcGate } from '../RtcGate';
 import { RTC_WS_URL } from '../../../lib/env';
 import { cn } from '../../../lib/cn';
 import {
@@ -59,7 +58,6 @@ const styles = {
   addColBar: 'w-9 shrink-0',
   // mr-11 = add-column bar width (w-9) + gridRow gap-2, so the bar ends with the grid.
   addRowBar: 'h-9 mt-2 mr-11',
-  message: 'flex-1 flex items-center justify-center text-body-s text-secondary',
 };
 
 type SheetGridProps = { docId: string; token: string; canEdit: boolean };
@@ -308,19 +306,9 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
 // Real-time collaborative sheet (SHEET page type): binds a Yjs rows/colTypes model to
 // ds-data-grid. Keyed by docId at the call site; the RTC role drives editability.
 export function SheetEditor({ docId }: Readonly<SheetEditorProps>) {
-  const { data: rtc, isLoading, isError } = useRtcToken(docId);
-
-  if (isError) {
-    return <div className={styles.message}>Couldn&apos;t open this sheet for editing.</div>;
-  }
-
-  if (isLoading || !rtc) {
-    return (
-      <div className={styles.shell}>
-        <PageLoader />
-      </div>
-    );
-  }
-
-  return <SheetGrid docId={docId} token={rtc.token} canEdit={rtc.role === 'editor'} />;
+  return (
+    <RtcGate docId={docId} noun="sheet">
+      {({ token, canEdit }) => <SheetGrid docId={docId} token={token} canEdit={canEdit} />}
+    </RtcGate>
+  );
 }

@@ -236,6 +236,14 @@
 .rbac .gs-sp {
   max-height: 74vh;
 }
+/* Frame for the scroll list + the floating load-more pill (which overlays the bottom). */
+.rbac .gs-list-pane {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .rbac .gs-list {
   flex: 1;
   overflow: auto;
@@ -398,10 +406,13 @@
 }
 
 /* ---------- pagination: load-more pill, loading row, error state ---------- */
+/* Floats over the bottom of the list — the results scroll behind it. */
 .rbac .gs-loadmore {
-  flex: none;
-  align-self: center;
-  margin: 8px auto;
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -416,30 +427,12 @@
   cursor: pointer;
   box-shadow: var(--elevation-2-bottom);
 }
-.rbac .gs-loadmore:hover {
+.rbac .gs-loadmore:hover:not(:disabled) {
   border-color: var(--border-focus);
   color: var(--text-primary);
 }
-.rbac .gs-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-75);
-}
-.rbac .gs-inline-retry {
-  display: block;
-  margin: 6px auto 10px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line-strong);
-  background: var(--panel-bg);
-  color: var(--red-400);
-  font-size: var(--font-size-75);
-  font-weight: var(--font-weight-600);
-  cursor: pointer;
+.rbac .gs-loadmore:disabled {
+  cursor: default;
 }
 .rbac .gs-error {
   flex: 1;

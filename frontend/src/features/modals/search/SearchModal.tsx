@@ -153,36 +153,42 @@ export function SearchModal({
     </div>
   );
 
-  const list = (
-    <div className="gs-list" ref={listRef} onScroll={onListScroll}>
-      {results.length > 0 ? (
-        <>
-          {rows}
-          {isFetchingNextPage && (
-            <div className="gs-loading">
-              <SpinnerLoader size="small" /> Loading more…
-            </div>
-          )}
-          {isError && (
-            <button type="button" className="gs-inline-retry" onClick={loadMore}>
-              Couldn’t load more — retry
-            </button>
-          )}
-        </>
-      ) : isSearching ? (
-        <div className="gs-none">Searching…</div>
-      ) : (
-        <div className="gs-none">No documents match “{qTrimmed}”.</div>
-      )}
-    </div>
-  );
-
+  // Load-more floats over the bottom of the list (list scrolls behind it), showing either the
+  // manual pill or a loading/retry state — no in-flow row that eats list height.
   const loadMorePill =
-    hasNextPage && !isFetchingNextPage && results.length > 0 ? (
-      <button type="button" className="gs-loadmore" onClick={loadMore}>
-        Load more · {results.length} / {totals.total}
+    results.length > 0 && (hasNextPage || isError) ? (
+      <button
+        type="button"
+        className="gs-loadmore"
+        onClick={loadMore}
+        disabled={isFetchingNextPage}
+      >
+        {isFetchingNextPage ? (
+          <>
+            <SpinnerLoader size="small" /> Loading…
+          </>
+        ) : isError ? (
+          'Couldn’t load more — retry'
+        ) : (
+          `Load more · ${results.length} / ${totals.total}`
+        )}
       </button>
     ) : null;
+
+  const list = (
+    <div className="gs-list-pane">
+      <div className="gs-list" ref={listRef} onScroll={onListScroll}>
+        {results.length > 0 ? (
+          rows
+        ) : isSearching ? (
+          <div className="gs-none">Searching…</div>
+        ) : (
+          <div className="gs-none">No documents match “{qTrimmed}”.</div>
+        )}
+      </div>
+      {loadMorePill}
+    </div>
+  );
 
   const errorState = (
     <div className="gs-error">
@@ -204,7 +210,6 @@ export function SearchModal({
         <div className="gs-split-list">
           {count}
           {list}
-          {loadMorePill}
         </div>
         <PreviewPane docId={selected?.id} onOpen={() => selected && openDoc(selected)} />
       </div>
@@ -214,7 +219,6 @@ export function SearchModal({
       <>
         {count}
         {list}
-        {loadMorePill}
       </>
     );
   }

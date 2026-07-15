@@ -406,33 +406,14 @@
 }
 
 /* ---------- pagination: load-more pill, loading row, error state ---------- */
-/* Floats over the bottom of the list — the results scroll behind it. */
+/* Positioning wrapper: floats the (ds-web) load-more Button over the list bottom so results
+   scroll behind it. The Button provides its own look, hover, and loading spinner. */
 .rbac .gs-loadmore {
   position: absolute;
   bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--panel-bg);
-  color: var(--text-secondary);
-  font-size: var(--font-size-75);
-  font-weight: var(--font-weight-600);
-  cursor: pointer;
-  box-shadow: var(--elevation-2-bottom);
-}
-.rbac .gs-loadmore:hover:not(:disabled) {
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-}
-.rbac .gs-loadmore:disabled {
-  cursor: default;
 }
 .rbac .gs-error {
   flex: 1;
@@ -463,14 +444,6 @@
   border-color: var(--border-focus);
 }
 
-.rbac .gs-count {
-  flex: none;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--line);
-  text-align: right;
-  font-size: var(--font-size-75);
-  color: var(--text-secondary);
-}
 .rbac .gs-prev-doc {
   flex: 1;
   min-height: 0;

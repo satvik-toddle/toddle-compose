@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SpinnerLoader } from '@toddle-edu/ds-web';
+import { Button } from '@toddle-edu/ds-web';
 import { Modal } from '../../../components/Modal';
 import { useDocSearch } from '../../../hooks/useDocSearch';
 import { usePreviewToggle } from '../../../hooks/usePreviewToggle';
@@ -146,33 +146,22 @@ export function SearchModal({
     </div>
   );
 
-  // Loaded-so-far vs total matches, so the count is never mistaken for "all there is".
-  const count = (
-    <div className="gs-count">
-      {results.length} / {totals.total} shown
-    </div>
-  );
-
   // Load-more floats over the bottom of the list (list scrolls behind it), showing either the
   // manual pill or a loading/retry state — no in-flow row that eats list height.
   const loadMorePill =
     results.length > 0 && (hasNextPage || isError) ? (
-      <button
-        type="button"
-        className="gs-loadmore"
-        onClick={loadMore}
-        disabled={isFetchingNextPage}
-      >
-        {isFetchingNextPage ? (
-          <>
-            <SpinnerLoader size="small" /> Loading…
-          </>
-        ) : isError ? (
-          'Couldn’t load more — retry'
-        ) : (
-          `Load more · ${results.length} / ${totals.total}`
-        )}
-      </button>
+      <div className="gs-loadmore">
+        <Button
+          dsVersion="2.0"
+          variant="neutral"
+          type="outlined"
+          size="small"
+          isLoading={isFetchingNextPage}
+          onClick={loadMore}
+        >
+          {isError ? 'Couldn’t load more — retry' : `Load more · ${results.length} / ${totals.total}`}
+        </Button>
+      </div>
     ) : null;
 
   const list = (
@@ -208,7 +197,6 @@ export function SearchModal({
     body = (
       <div className="gs-split-body">
         <div className="gs-split-list">
-          {count}
           {list}
         </div>
         <PreviewPane docId={selected?.id} onOpen={() => selected && openDoc(selected)} />
@@ -217,7 +205,6 @@ export function SearchModal({
   } else {
     body = (
       <>
-        {count}
         {list}
       </>
     );
@@ -253,7 +240,11 @@ export function SearchModal({
           </span>
           <span className="gap" />
           <span className="hint">
-            {isGlobal ? 'Searching all workspaces you can access' : 'Searching this workspace'}
+            {hasQuery
+              ? `${results.length} / ${totals.total} shown`
+              : isGlobal
+                ? 'Searching all workspaces you can access'
+                : 'Searching this workspace'}
           </span>
         </div>
       </div>

@@ -2,8 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
-import { LexicalExtractService } from "./lexical-extract.service";
-import { probeSheet, sheetToSearchText } from "./searchable-text";
+import { extractSearchText } from "./searchable-text";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
 import { trace } from "../tracing/trace";
@@ -55,25 +54,12 @@ export class DocStateService {
 
   constructor(
     private readonly repo: DocRepository,
-    private readonly lexicalExtract: LexicalExtractService,
     private readonly compaction: CompactionService,
     private readonly config: ConfigService<Env, true>
   ) {}
 
   private env<K extends keyof Env>(k: K): Env[K] {
     return this.config.get(k, { infer: true });
-  }
-
-  // Plain-text projection for content search: sheet grid text if this is a SHEET, else Lexical text.
-  private async extractText(stateUpdate: Uint8Array): Promise<string> {
-    try {
-      const sheet = probeSheet(stateUpdate);
-      if (sheet) return sheetToSearchText(sheet);
-    } catch {
-      /* a bad probe must never break persistence */
-    }
-    const { plainText } = await this.lexicalExtract.extractFromBytes(stateUpdate);
-    return plainText;
   }
 
   registerClaims(ws: object, claims: RtcClaims): void {
@@ -352,7 +338,7 @@ export class DocStateService {
         }
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
-        const plainText = await this.extractText(update);
+        const plainText = extractSearchText(update);
         const version = await this.repo.persistRtcDoc(
           docName,
           yjsState,
@@ -404,7 +390,7 @@ export class DocStateService {
     try {
       const update = Y.encodeStateAsUpdate(ydoc);
       const blob = Buffer.from(update);
-      const plainText = await this.extractText(update);
+      const plainText = extractSearchText(update);
       await this.repo.writeSnapshotCheckpoint(
         docName,
         blob,

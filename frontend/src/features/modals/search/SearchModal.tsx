@@ -33,14 +33,6 @@ export function SearchModal({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Layout resolution — the single source of truth.
-  const isGlobal = workspaceId === undefined;
-  const [previewOn, setPreviewOn] = usePreviewToggle();
-  const hasQuery = q.trim().length > 0;
-  const showToggle = !isGlobal;
-  const showPreview = !isGlobal && previewOn && hasQuery;
-  const wide = showPreview; // 1000px vs 640px
-
   const {
     results,
     totals,
@@ -52,6 +44,16 @@ export function SearchModal({
     hasNextPage,
     isFetchingNextPage,
   } = useDocSearch(q, workspaceId);
+
+  // Layout resolution — the single source of truth.
+  const isGlobal = workspaceId === undefined;
+  const [previewOn, setPreviewOn] = usePreviewToggle();
+  const hasQuery = q.trim().length > 0;
+  const showToggle = !isGlobal;
+  // Collapse the split (and its preview "Open doc" affordance) when there's nothing to
+  // preview — no results means the narrow single-column no-results message, not a wide shell.
+  const showPreview = !isGlobal && previewOn && hasQuery && results.length > 0;
+  const wide = showPreview; // 1000px vs 640px
   const { data: wsDocs = [] } = useDocuments(workspaceId);
 
   // Reset selection on a NEW query — not when more pages append (that must not jump).

@@ -37,6 +37,72 @@ export function probeSheet(stateUpdate: Uint8Array): SheetSnapshot | null {
   return extractSheet(ydoc); // guarded internally by ydoc.share.has("rows")
 }
 
+// Unified content-search projection: sheet grid text for SHEET docs, else DOC tree text.
+// Never throws — a bad projection yields "" rather than breaking persistence/backfill.
+export function extractSearchText(stateUpdate: Uint8Array): string {
+  try {
+    const sheet = probeSheet(stateUpdate);
+    if (sheet) return sheetToSearchText(sheet);
+    return docToSearchText(stateUpdate);
+  } catch {
+    return "";
+  }
+}
+
+// Plain-text projection of a lexical-yjs DOC for content search, read straight off the
+// shared Y tree (the 'root' Y.XmlText). Version-proof: unlike headless-Lexical extraction
+// it needs no node registry, so a new/unknown node type can never blank the whole doc.
+// Text runs within a node concatenate directly (so inline-formatting splits don't break
+// words); block elements are separated by newline.
+export function docToSearchText(stateUpdate: Uint8Array): string {
+  const ydoc = new Y.Doc();
+  Y.applyUpdate(ydoc, stateUpdate);
+  const out: string[] = [];
+  const seen = new Set<unknown>();
+  const visit = (node: unknown): void => {
+    if (node == null || typeof node !== "object" || seen.has(node)) return;
+    seen.add(node);
+    const n = node as {
+      toDelta?: () => Array<{ insert?: unknown }>;
+      toArray?: () => unknown[];
+    };
+    if (typeof n.toDelta === "function") {
+      let delta: Array<{ insert?: unknown }> | null = null;
+      try {
+        delta = n.toDelta();
+      } catch {
+        /* not delta-coercible */
+      }
+      if (Array.isArray(delta)) {
+        for (const op of delta) {
+          if (typeof op.insert === "string") out.push(op.insert);
+          else if (op.insert && typeof op.insert === "object") {
+            visit(op.insert);
+            out.push("\n");
+          }
+        }
+      }
+    } else if (typeof n.toArray === "function") {
+      let arr: unknown[] | null = null;
+      try {
+        arr = n.toArray();
+      } catch {
+        /* not array-coercible */
+      }
+      if (Array.isArray(arr)) {
+        for (const c of arr) visit(c);
+        out.push("\n");
+      }
+    }
+  };
+  visit(ydoc.get("root", Y.XmlText));
+  return out
+    .join("")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
 // Flatten a sheet to searchable text: rows joined by "\n", string cell values by " ".
 export function sheetToSearchText(sheet: SheetSnapshot): string {
   return sheet.rows

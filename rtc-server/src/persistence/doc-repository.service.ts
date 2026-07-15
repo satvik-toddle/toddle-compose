@@ -87,6 +87,37 @@ export class DocRepository {
     });
   }
 
+  // Backfill support: docs that have a snapshot but no persisted search text yet
+  // (rows written before content_text existed). Ordered by id for stable cursoring.
+  async countDocsMissingContentText(): Promise<number> {
+    return this.prisma.rtcDocument.count({
+      where: { contentText: null, yjsState: { not: null } },
+    });
+  }
+
+  async listDocsMissingContentText(
+    afterId: string | null,
+    take: number
+  ): Promise<{ id: string; yjsState: Uint8Array | null }[]> {
+    return this.prisma.rtcDocument.findMany({
+      where: {
+        contentText: null,
+        yjsState: { not: null },
+        ...(afterId ? { id: { gt: afterId } } : {}),
+      },
+      select: { id: true, yjsState: true },
+      orderBy: { id: "asc" },
+      take,
+    });
+  }
+
+  async setContentText(id: string, contentText: string): Promise<void> {
+    await this.prisma.rtcDocument.update({
+      where: { id },
+      data: { contentText },
+    });
+  }
+
   // Content search across a set of docs: substring match on the persisted plain-text projection.
   async searchContent(
     ids: string[],

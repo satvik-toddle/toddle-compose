@@ -43,10 +43,9 @@ const shot = async (p, name) => { await p.screenshot({ path: `${ART}/${name}.png
   await page.goto(`${APP}/w/${WS}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
 
-  // Check 1a: sidebar trigger + topbar icon exist
-  const sidebarTrigger = await page.locator('.gs-pill').count();
+  // Check 1a: topbar icon exists (the sidebar search pill was removed by design)
   const topbarSearch = await page.locator('[aria-label="Search docs"]').count();
-  pass('1a entry points present (sidebar pill + topbar icon)', sidebarTrigger >= 1 && topbarSearch >= 1, `pill=${sidebarTrigger} topbarIcon=${topbarSearch}`);
+  pass('1a entry point present (topbar icon)', topbarSearch >= 1, `topbarIcon=${topbarSearch}`);
 
   // Check 1b: ⌘/Ctrl+K opens the modal
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k');
@@ -134,12 +133,13 @@ const shot = async (p, name) => { await p.screenshot({ path: `${ART}/${name}.png
 
   // ---- Launcher / global ----
   await page.goto(`${APP}/launcher`, { waitUntil: 'domcontentloaded' });
-  await page.locator('.gs-pill').first().waitFor({ timeout: 9000 }).catch(() => {});
+  const launcherBtn = page.getByRole('button', { name: 'Search', exact: true });
+  await launcherBtn.first().waitFor({ timeout: 9000 }).catch(() => {});
   await page.waitForTimeout(800);
-  const launcherPill = await page.locator('.gs-pill').count();
-  pass('7a launcher global search pill present', launcherPill >= 1, `pill=${launcherPill}`);
+  const launcherPill = await launcherBtn.count();
+  pass('7a launcher global search button present', launcherPill >= 1, `btn=${launcherPill}`);
   if (launcherPill) {
-    await page.locator('.gs-pill').first().click();
+    await launcherBtn.first().click();
     await page.locator('.gs-field input[placeholder]').waitFor({ timeout: 4000 }).catch(() => {});
     const globalNoToggle = await page.locator('.gs-field').getByRole('switch').count() === 0;
     await page.locator('.gs-field input[placeholder]').type('beta');

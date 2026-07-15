@@ -7,7 +7,6 @@ import {
   ChevronLeftOutlined,
   AddOutlined,
   DotsSixVerticalOutlined,
-  SearchOutlined,
 } from '@toddle-edu/ds-icons';
 import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
@@ -38,11 +37,10 @@ const styles = {
   resizeKnob:
     'pointer-events-none absolute right-0 top-1/2 flex h-6 w-4 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-1 border border-secondary bg-surface-primary-enabled text-secondary shadow-elevation-2-bottom opacity-0 transition-opacity duration-150 group-hover/resize:opacity-100 group-focus-visible/resize:opacity-100',
   resizeKnobActive: 'opacity-100',
-  // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
+  // Pinned top (nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
   // Full-bleed row (cancels the sidebar padding) so the switcher spans edge to edge.
   switcherRow: '-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full',
-  searchRow: 'mb-2',
   // -mx/px gives the scroll area room for the focus ring without misaligning rows.
   body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
@@ -68,19 +66,6 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
       <div className={styles.header}>
         <div className={styles.switcherRow}>
           <WorkspaceSwitcher ctx={ctx} />
-        </div>
-
-        <div className={styles.searchRow}>
-          <button
-            type="button"
-            className="gs-pill"
-            style={{ width: '100%', maxWidth: 'none' }}
-            aria-label="Search docs"
-            onClick={() => openModal({ type: 'search', workspaceId })}
-          >
-            <SearchOutlined style={{ width: 18, height: 18, flex: 'none' }} aria-hidden />
-            Search
-          </button>
         </div>
 
         <div className={styles.linkGroup}>

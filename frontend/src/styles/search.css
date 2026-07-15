@@ -24,30 +24,6 @@
   font-weight: var(--font-weight-700);
 }
 
-/* ---- launcher entry-point pill (Phase 4 consumes this) ---- */
-.rbac .gs-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 38px;
-  width: 340px;
-  max-width: 38vw;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line-strong);
-  background: var(--panel-bg);
-  color: var(--text-placeholder);
-  font-size: var(--font-size-100);
-  cursor: pointer;
-  text-align: left;
-}
-.rbac .gs-pill:hover {
-  border-color: var(--border-focus);
-}
-.rbac .gs-pill .gap {
-  flex: 1;
-}
-
 /* ============================================================
    Modal shell — top-align the ds-web modal (design pins 66px from
    top). rbac.css centers .tc-modal; this later, equal-specificity

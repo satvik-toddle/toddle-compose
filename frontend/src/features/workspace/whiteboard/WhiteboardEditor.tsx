@@ -10,10 +10,12 @@ import { WHITEBOARD_THEMES } from './whiteboardTheme';
 // tldraw's navigation panel starts with the minimap collapsed (localStorage
 // key "minimap", true = collapsed). Seed it once so the minimap is open by
 // default; later toggles by the user still persist.
-try {
-  if (localStorage.getItem('minimap') === null) localStorage.setItem('minimap', 'false');
-} catch {
-  // storage unavailable — tldraw falls back to collapsed
+function seedMinimapOpen() {
+  try {
+    if (localStorage.getItem('minimap') === null) localStorage.setItem('minimap', 'false');
+  } catch {
+    // storage unavailable — tldraw falls back to collapsed
+  }
 }
 
 const styles = {
@@ -35,6 +37,8 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
   const preference = useThemeStore((s) => s.preference);
   const storeWithStatus = useYjsTldrawStore({ docId, token, user, refetchToken });
   const [editor, setEditor] = useState<Editor | null>(null);
+  // Lazy initializer: runs once per mount, before <Tldraw> reads the key.
+  useState(seedMinimapOpen);
 
   const onMount = (editor: Editor) => {
     setEditor(editor);

@@ -318,7 +318,7 @@ function convertBrushNode(node: ZwibblerNode, m: Xform): TLShapePartial | null {
 
 export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerConversion> {
   const shapes: TLShapePartial[] = [];
-  const skipped: string[] = [];
+  const skipped = new Set<string>();
   const { assets, byKey } = await loadSvgAssets(nodes);
 
   // No frames — each page is just an x-offset so pages flow left-to-right.
@@ -340,12 +340,12 @@ export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerC
       shape = asset ? convertSvgImage(node, m, asset) : convertSvgNode(node, m);
     } else if (node.type === 'TextNode') shape = convertTextNode(node, m);
     else if (node.type === 'BrushNode') shape = convertBrushNode(node, m);
-    else skipped.push(node.type);
+    else skipped.add(node.type);
     if (!shape) continue;
     const dx = node.parent != null ? (pageOffsets.get(node.parent) ?? 0) : 0;
     if (dx) shape.x = (shape.x ?? 0) + dx;
     shapes.push(shape);
   }
 
-  return { shapes, assets, skipped };
+  return { shapes, assets, skipped: [...skipped] };
 }

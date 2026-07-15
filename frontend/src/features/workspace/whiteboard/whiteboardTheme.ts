@@ -118,7 +118,7 @@ export const WHITEBOARD_THEMES = { default: whiteboardTheme };
 
 // Light-mode solids, used for nearest-color matching in the Zwibbler converter.
 export const WHITEBOARD_SOLIDS: Record<string, string> = {
-  black: '#1d1d1d',
-  white: '#FFFFFF',
+  black: DEFAULT_THEME.colors.light.black.solid,
+  white: DEFAULT_THEME.colors.light.white.solid,
   ...Object.fromEntries(Object.entries(BRAND).map(([name, c]) => [name, c.light])),
 };

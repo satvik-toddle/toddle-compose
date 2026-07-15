@@ -8,6 +8,7 @@ import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
+import type { DocumentTypeInput } from "./dto";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
@@ -37,7 +38,7 @@ type DocRow = Prisma.DocumentGetPayload<{ select: typeof SUMMARY_SELECT }>;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
-  type?: "DOC" | "SHEET" | "WHITEBOARD";
+  type?: DocumentTypeInput;
   folderId?: string;
   // When set, folderId is ignored — a subdoc is located by its parent.
   parentId?: string;

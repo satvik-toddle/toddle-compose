@@ -9,7 +9,7 @@ import {
 import { WORKSPACE_ROLES } from "../workspaces/dto";
 
 const DOCUMENT_TYPES = ["DOC", "SHEET", "WHITEBOARD"] as const;
-type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
+export type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
 
 export class CreateDocumentDto {
   @IsOptional()

@@ -30,6 +30,10 @@ export const qk = {
   docSearch: (workspaceId: string | null, q: string) =>
     ['docSearch', workspaceId ?? 'global', q] as const,
   docPreview: (docId: string) => ['docPreview', docId] as const,
+  // Single-doc fetch for opening a page not in the (paginated) workspace list. Deliberately
+  // NOT under the 'documents' prefix: a 403/404 here means one stale doc id ("Page not
+  // found"), not lost workspace access — it must not trip the global eject guard.
+  doc: (docId: string) => ['doc', docId] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace

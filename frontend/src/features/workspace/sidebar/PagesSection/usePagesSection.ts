@@ -20,8 +20,19 @@ export function usePagesSection(ctx: WorkspaceCtx) {
   const [params] = useSearchParams();
   const selectedPageId = params.get('doc');
 
-  const { data: docs = [], isLoading } = useDocuments(ws);
+  const {
+    data: docs = [],
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useDocuments(ws);
   const createDoc = useCreateDocument();
+
+  // Scroll-sentinel hook-up: load the next docs page when the list bottom becomes visible.
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  };
 
   // Pages start collapsed; this set tracks the ones explicitly expanded.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -76,6 +87,9 @@ export function usePagesSection(ctx: WorkspaceCtx) {
     selectPage,
     createPage,
     canManage,
+    loadMore,
+    hasMore: hasNextPage ?? false,
+    isLoadingMore: isFetchingNextPage,
   };
 }
 

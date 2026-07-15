@@ -3,6 +3,7 @@ import { EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { cn } from '../../../lib/cn';
 import { PageLoader } from '../../../components/Loader';
+import { useDocument } from '../../../hooks/usePages';
 import { maxWsRole, wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
@@ -32,7 +33,19 @@ type PageViewProps = {
 // Reader: a single page is open (via the `?doc=` param). Renders the editable
 // title + the lazy editor, or a "not found" state for a stale/deleted id.
 export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
-  const openDoc = docs.find((doc) => doc.id === selDoc);
+  const fromList = docs.find((doc) => doc.id === selDoc);
+  // The workspace list is paginated — a deep link or search result can point at a doc
+  // outside it, so fall back to fetching the doc individually before declaring it missing.
+  const single = useDocument(fromList ? undefined : selDoc);
+  const openDoc: DocumentDto | undefined = fromList ?? single.data;
+
+  if (!openDoc && !fromList && single.isPending) {
+    return (
+      <main className={styles.contentShell}>
+        <PageLoader />
+      </main>
+    );
+  }
 
   if (!openDoc) {
     return (

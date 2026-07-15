@@ -4,7 +4,7 @@ import { IconButton } from '@toddle-edu/ds-web';
 import { SearchOutlined } from '@toddle-edu/ds-icons';
 import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
-import { useDocuments } from '../../../hooks/usePages';
+import { useDocument, useDocuments } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
 import { useUiStore } from '../../../stores/uiStore';
 import type { WorkspaceCtx } from '../context';
@@ -35,9 +35,13 @@ export function WorkspaceTopbar({
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  // The currently open page, if any (driven by the ?doc= query param).
+  // The currently open page, if any (driven by the ?doc= query param). The workspace list
+  // is paginated, so a doc outside it (deep link / search result) is fetched individually —
+  // otherwise the breadcrumb and Share/Delete actions silently vanish for those pages.
   const openDocId = params.get('doc');
-  const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
+  const fromList = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
+  const { data: fetched } = useDocument(fromList || !openDocId ? undefined : openDocId);
+  const doc = fromList ?? fetched;
   const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
 
   if (!currentUser) return null;

@@ -35,10 +35,10 @@ function PageRowInner({
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
   const renameDoc = useRenameDocument();
-  const { doc, children } = node;
+  const { doc } = node;
+  const hasChildren = node.children.length > 0;
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
-  const hasChildren = children.length > 0;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
@@ -123,15 +123,13 @@ function PageRowInner({
   );
 
   return (
-    <>
-      {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
-          but only when the title is actually clipped. */}
-      <Tooltip
-        dsVersion="2.0"
-        placement="right"
-        showArrow
-        tooltip={isTruncated && !isRenaming ? doc.title : ''}
-      >
+    // Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus, only when clipped.
+    <Tooltip
+      dsVersion="2.0"
+      placement="right"
+      showArrow
+      tooltip={isTruncated && !isRenaming ? doc.title : ''}
+    >
         <div
           className={styles.row}
           style={styles.rowStyle}
@@ -195,19 +193,6 @@ function PageRowInner({
           )}
         </div>
       </Tooltip>
-
-      {isExpanded &&
-        children.map((child) => (
-          <PageRow
-            key={child.doc.id}
-            node={child}
-            depth={depth + 1}
-            pages={pages}
-            isSelected={pages.selectedPageId === child.doc.id}
-            isExpanded={pages.expanded.has(child.doc.id)}
-          />
-        ))}
-    </>
   );
 }
 

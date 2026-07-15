@@ -8,6 +8,12 @@ import { buildDocTree, getAncestorIds, mapDocsById, type TreeDoc } from '../../p
 import type { DocumentType } from '../../../../types/api';
 import type { WorkspaceRole } from '../../../../types/roles';
 
+// One visible row in the flattened, virtualized page list.
+export interface FlatRow {
+  node: TreeDoc;
+  depth: number;
+}
+
 // Owns the pages section's data + interaction state for a workspace: builds the
 // page hierarchy, tracks which pages are expanded (auto-revealing a deep-linked
 // page's ancestors), and exposes the navigation/create handlers the rows need. The
@@ -49,6 +55,22 @@ export function usePagesSection(ctx: WorkspaceCtx) {
   }, [tree]);
   const { roots, isEmpty } = tree;
   const byId = useMemo(() => mapDocsById(docs), [docs]);
+
+  // Flatten the tree into the linear list of currently-VISIBLE rows (a node is visible when
+  // every ancestor is expanded). This is what the sidebar virtualizes. Recomputed only when
+  // the tree or the expanded set changes — NOT on selection — so selecting a doc doesn't
+  // re-flatten and the virtual window re-renders just the ~visible rows.
+  const flattened = useMemo(() => {
+    const out: FlatRow[] = [];
+    const walk = (nodes: TreeDoc[], depth: number) => {
+      for (const n of nodes) {
+        out.push({ node: n, depth });
+        if (n.children.length > 0 && expanded.has(n.doc.id)) walk(n.children, depth + 1);
+      }
+    };
+    walk(roots, 0);
+    return out;
+  }, [roots, expanded]);
 
   // Reveal a deep-linked page (?doc=…) by expanding its ancestor spine on load; only ever
   // adds, so manual collapses aren't fought. Returns the same set when nothing new is added,
@@ -102,7 +124,7 @@ export function usePagesSection(ctx: WorkspaceCtx) {
   return {
     ws,
     isLoading,
-    roots,
+    flattened,
     isEmpty,
     selectedPageId,
     expanded,

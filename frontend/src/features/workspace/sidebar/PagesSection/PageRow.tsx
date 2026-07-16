@@ -34,8 +34,7 @@ export function PageRow({
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
-  // Close the menu explicitly: entering rename unmounts the Dropdown, which
-  // would otherwise remount later with a stale visible=true.
+  // Close menu first: rename unmounts the Dropdown, which else remounts with stale visible=true.
   const handleRename = () => {
     setIsMenuOpen(false);
     setIsRenaming(true);
@@ -70,15 +69,13 @@ export function PageRow({
       sidebarRow.base,
       selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
     ),
-    // Leaf pages keep the (hidden) chevron so icons stay aligned. The negative
-    // margin absorbs the chevron's own padding + the row gap, pulling the file
-    // icon closer so the ~20px chevron column doesn't leave dead space.
+    // Leaf pages keep a hidden chevron for alignment; negative margin tightens the icon gap.
     chevronButton: cn('-mr-2 shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
-    // min-w-0 lets the flex item shrink below its content so truncate shows the ellipsis.
+    // min-w-0 lets the flex item shrink so truncate shows the ellipsis.
     label: 'min-w-0 flex-1 truncate',
     menuWrap: 'flex shrink-0',
-    // Transparent (but focusable) until row hover, keyboard focus, or menu open.
+    // Hidden (but focusable) until row hover, focus, or menu open.
     menuTrigger: cn(
       'opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100',
       isMenuOpen && 'opacity-100',
@@ -116,8 +113,7 @@ export function PageRow({
 
   return (
     <>
-      {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
-          but only when the title is actually clipped. */}
+      {/* Tooltip on the row: hover/focus, only when the title is clipped. */}
       <Tooltip
         dsVersion="2.0"
         placement="right"

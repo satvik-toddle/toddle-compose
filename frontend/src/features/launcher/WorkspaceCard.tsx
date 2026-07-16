@@ -16,9 +16,7 @@ export function WorkspaceCard({
 }) {
   const vis = workspaceVisual(ws.id);
   const visibilityLabel = ws.visibility === 'PUBLIC' ? 'Public' : 'Private';
-  // Explicit accessible name: otherwise the button's name is the concatenation of all
-  // inner text ("Private Edit Created 12 Jun 2026 Enter"). This keeps visibility + role
-  // in the announcement while dropping the noisy timestamp.
+  // Explicit a11y name; else it concatenates all inner text incl. the noisy timestamp.
   const ariaLabel =
     `Open ${ws.name} workspace. ${visibilityLabel}` +
     (showRoleBadge ? `. Your role: ${WS_ROLE_META[ws.role].label}` : '');
@@ -38,7 +36,7 @@ export function WorkspaceCard({
         }
       }}
     >
-      {/* Identity: icon + name (single-purpose header, no floating badge) */}
+      {/* Identity: icon + name */}
       <div className={s.wsCardTop}>
         <span className="ws-emoji" style={{ background: `var(--tag-background-${vis.hue}-default)` }}>
           <Icon name={vis.icon} size={20} style={{ color: `var(--tag-foreground-${vis.hue})` }} />
@@ -46,7 +44,7 @@ export function WorkspaceCard({
         <div className={s.wsCardNm}>{ws.name}</div>
       </div>
 
-      {/* Status: visibility + your role, as two quiet, equal-weight metadata items */}
+      {/* Status: visibility + role */}
       <div className={s.wsCardMeta}>
         <span>
           <Icon
@@ -64,7 +62,7 @@ export function WorkspaceCard({
         )}
       </div>
 
-      {/* Action: the single primary CTA */}
+      {/* Action */}
       <div className={s.wsCardFoot}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           Created {formatDate(ws.createdAt)}

@@ -1,12 +1,10 @@
-// ds-web Avatar takes a NAMED color enum + size enum (not the brand hex / pixels),
-// so we map the brand palette + our numeric sizes to the nearest ds-web token.
+// Map brand hex + numeric size to ds-web's named color/size enums.
 type DsColor =
   | 'violet' | 'blue' | 'yellow' | 'pink' | 'teal'
   | 'purple' | 'green' | 'orange' | 'red' | 'neutral';
 type DsSize = 'xxx-small' | 'xx-small' | 'x-small' | 'small' | 'medium' | 'large' | 'x-large';
 
-// Brand identity hexes → DS avatar hue. red (#f04c54) is omitted deliberately: it's the
-// CTA/destructive colour, so red identities rotate below instead of reading as an error.
+// Brand hex → DS hue. red is omitted (reserved for CTA/error), so it rotates below.
 const COLOR_BY_HEX: Record<string, DsColor> = {
   '#5a5ae2': 'violet',
   '#00ac8a': 'teal',
@@ -19,7 +17,7 @@ const COLOR_BY_HEX: Record<string, DsColor> = {
   '#a43dd7': 'purple',
 };
 
-// Decorative avatar hues for unknown brand hexes; excludes red (reserved) and neutral (grey).
+// Fallback hues for unknown hexes; excludes red and neutral.
 const AVATAR_HUES: readonly DsColor[] = [
   'violet',
   'blue',

@@ -1,6 +1,4 @@
-/* Workspace card (launcher grid). Co-located, auto-scoped CSS Module.
-   .ws-emoji stays global (shared cross-feature). The dashed ".add" tile is
-   rendered by LauncherPage, which imports this module. */
+/* Workspace card (launcher grid). .ws-emoji stays global; .add tile is rendered by LauncherPage. */
 
 .ws-card {
   background: var(--panel-bg);
@@ -57,8 +55,6 @@
 }
 
 .ws-card-top {
-  /* Two children now (emoji + name); name is flex:1 so justify-content is moot, and
-     position:relative only anchored the removed absolute role badge. */
   display: flex;
   align-items: center;
   margin-bottom: 14px;
@@ -68,7 +64,7 @@
 .ws-card-nm {
   font-size: 17px;
   font-weight: 700;
-  /* Shrinkable flex child so long workspace names truncate inside the card. */
+  /* Shrink so long names truncate. */
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -110,8 +106,7 @@
   }
 }
 
-/* Motion-only affordance cue: the chevron nudges right on card hover, reinforcing
-   "the whole card is a button" without introducing a second accent colour. */
+/* Chevron nudges right on card hover — affordance cue. */
 .ws-card:hover .enter {
   gap: 5px;
 }

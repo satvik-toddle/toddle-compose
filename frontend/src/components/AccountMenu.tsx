@@ -15,8 +15,7 @@ import type { RealmRole } from '../types/roles';
 import { isRealmAdmin, REALM_ROLE_META } from '../lib/roles';
 
 const styles = {
-  // Bare circular avatar — no pill/border chrome, no name or chevron. A subtle
-  // ring surfaces on hover/focus so it still reads as an interactive trigger.
+  // Bare circular avatar; ring on hover/focus signals it's interactive.
   trigger:
     'flex items-center justify-center rounded-full outline-none transition-shadow ' +
     'hover:shadow-[0_0_0_2px_var(--border-hover)] ' +

@@ -9,7 +9,7 @@ import { useVirtualRows } from '../../../hooks/useVirtualRows';
 import type { SearchResultDto } from '../../../types/api';
 import { ShortcutHint } from '../../../components/ShortcutHint';
 import { SearchField } from './SearchField';
-import { ResultRow } from './ResultRow';
+import { ResultRow, SEARCH_ROW_HEIGHT } from './ResultRow';
 import { SearchEmpty } from './SearchEmpty';
 import { PreviewPane } from './PreviewPane';
 
@@ -117,11 +117,10 @@ export function SearchModal({
   const activeIndex = Math.min(selectedIndex, Math.max(0, results.length - 1));
   const selected: SearchResultDto | undefined = results[activeIndex];
 
-  // Virtualize the result list (rows vary in height — title ± snippet ± path). ~64px is the
-  // common title+snippet row; the hook measures real heights and re-lays out.
-  const virtual = useVirtualRows(listEl, results.length, 64);
-  // Read scrollToIndex through a ref so re-layouts (which change its identity on every
-  // measurement) don't re-run the effect and yank the scroll back to the active row.
+  // Virtualize the result list — fixed-height rows, so windowing is pure arithmetic.
+  const virtual = useVirtualRows(listEl, results.length, SEARCH_ROW_HEIGHT);
+  // Read scrollToIndex through a ref so identity changes (e.g. pages appending) don't
+  // re-run the effect and yank the scroll back to the active row.
   const scrollToIndexRef = useRef(virtual.scrollToIndex);
   scrollToIndexRef.current = virtual.scrollToIndex;
 
@@ -175,11 +174,11 @@ export function SearchModal({
   // Only the windowed rows are mounted; each is absolutely positioned at its measured offset.
   const rows = (
     <div style={{ position: 'relative', height: virtual.totalHeight }}>
-      {virtual.items.map(({ index, start, measureRef }) => {
+      {virtual.items.map(({ index, start }) => {
         const r = results[index];
         if (!r) return null;
         return (
-          <div key={r.id} ref={measureRef} style={{ position: 'absolute', top: start, left: 0, right: 0 }}>
+          <div key={r.id} style={{ position: 'absolute', top: start, left: 0, right: 0 }}>
             <ResultRow
               doc={r}
               q={qTrimmed}

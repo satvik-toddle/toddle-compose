@@ -6,8 +6,11 @@ import { pageTypeIcon } from '../../workspace/pageTypes';
 import { buildBreadcrumbTrail } from '../../workspace/topbar/ancestorTrail';
 import { Hit } from './Hit';
 
+// Fixed row height — keeps the virtualizer arithmetic (no measurement) and layout-switch safe.
+export const SEARCH_ROW_HEIGHT = 64;
+
 const styles = {
-  row: 'group grid grid-cols-[auto_1fr_auto] w-full items-start gap-[13px] px-4 py-3 rounded-[11px] cursor-pointer text-left border-0',
+  row: 'group grid grid-cols-[auto_1fr_auto] w-full items-center overflow-hidden gap-[13px] px-4 rounded-[11px] cursor-pointer text-left border-0',
   rowIdle: 'bg-transparent hover:bg-surface-secondary-enabled',
   // --red-950 isn't a DS Tailwind utility; the selected tint + inset ring are design values.
   rowActive:
@@ -17,10 +20,10 @@ const styles = {
   nm: 'flex items-center gap-2 text-size-100 font-weight-600 text-primary tracking-[-0.005em]',
   nmText: 'truncate',
   badge: 'inline-flex items-center flex-none',
-  snip: 'mt-0.75 text-size-75 leading-[1.5] text-secondary line-clamp-2',
+  snip: 'mt-0.75 text-size-75 leading-[1.5] text-secondary truncate',
   path: 'flex items-center gap-1.5 min-w-0 mt-1.5 text-size-50 text-secondary',
   trail: 'truncate',
-  right: 'flex items-center gap-2 flex-none pt-0.5',
+  right: 'flex items-center gap-2 flex-none',
   enter: 'w-3.5 h-3.5 text-secondary opacity-0 group-hover:opacity-100',
 };
 
@@ -56,6 +59,7 @@ export function ResultRow({
     <button
       type="button"
       className={cn(styles.row, active ? styles.rowActive : styles.rowIdle)}
+      style={{ height: SEARCH_ROW_HEIGHT }}
       data-testid="sr"
       onClick={onClick}
     >
@@ -75,18 +79,16 @@ export function ResultRow({
             </span>
           )}
         </div>
-        {doc.snippet && (
-          // Shown for any row carrying a content hit — including title matches whose body also matches.
+        {/* One meta line: content snippet when present, else the in-workspace ancestor trail. */}
+        {doc.snippet ? (
           <div className={styles.snip}>
             …<Hit t={doc.snippet} q={q} />…
           </div>
-        )}
-        {/* Subtext = in-workspace ancestor trail only; workspace name is intentionally not shown. */}
-        {!isGlobal && ancestorTrail && (
+        ) : !isGlobal && ancestorTrail ? (
           <div className={styles.path} data-testid="sr-path">
             <span className={styles.trail}>{ancestorTrail}</span>
           </div>
-        )}
+        ) : null}
       </div>
       <div className={styles.right}>
         <ChevronRightOutlined

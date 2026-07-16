@@ -28,3 +28,9 @@
   /* the ds-web box centers itself with margin:auto — in flex, auto margins beat align-items */
   margin: 0 auto !important;
 }
+/* Width flip (640↔1000) animates; safe now that rows are fixed-height (nothing measured mid-tween). */
+@media (prefers-reduced-motion: no-preference) {
+  .ReactModal__Content:has(.gs-search-modal) {
+    transition: width 0.2s ease-out;
+  }
+}

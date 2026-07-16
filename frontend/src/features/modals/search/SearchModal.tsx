@@ -296,15 +296,11 @@ export function SearchModal({
             <ShortcutHint keys={['Esc']} /> Close
           </span>
           <span className={styles.gap} />
-          <span className={styles.hint} data-testid="gs-count">
-            {hasQuery
-              ? hasResponse
-                ? `${results.length} / ${totals.total} shown`
-                : 'Searching…'
-              : isGlobal
-                ? 'Searching all workspaces you can access'
-                : 'Searching this workspace'}
-          </span>
+          {hasQuery && (
+            <span className={styles.hint} data-testid="gs-count">
+              {hasResponse ? `${results.length} / ${totals.total} shown` : 'Searching…'}
+            </span>
+          )}
         </div>
       </div>
     </Modal>

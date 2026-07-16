@@ -16,11 +16,16 @@ import {
   type TLStoreWithStatus,
 } from 'tldraw';
 import { RTC_WS_URL } from '../../../lib/env';
+import { attachTokenRecovery } from '../rtcReconnect';
 
 // Yjs shared-type key for the whiteboard: one Y.Map of TLRecords keyed by record
 // id (per-record LWW, same granularity as tldraw's own sync). Distinct from the
 // sheet's 'rows' key, which rtc-server history uses to sniff doc kinds.
 const RECORDS_KEY = 'tldraw';
+
+// Presence identity for logged-out collaborators.
+const ANON_NAME = 'Anonymous';
+const ANON_COLOR = '#4f52d9';
 
 // Origin marker so our own Yjs transactions are ignored by the remote observer.
 const LOCAL_ORIGIN = 'tldraw-local';
@@ -109,8 +114,8 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       'presence user',
       UserRecordType.create({
         id: createUserId(String(awareness.clientID)),
-        name: user?.name ?? 'Anonymous',
-        color: user?.color ?? '#4f52d9',
+        name: user?.name ?? ANON_NAME,
+        color: user?.color ?? ANON_COLOR,
       }),
     );
     setPresenceUserRef.current = ({ name, color }) =>
@@ -152,7 +157,6 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
     unsubs.push(() => awareness.off('change', onAwareness));
 
     let hasSynced = false;
-    let failedConnects = 0;
 
     // First server sync only: adopt the server's document records (dropping the
     // fresh store's default page so boards don't grow a duplicate), or leave the
@@ -161,7 +165,6 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
     // running the adoption there would race the frame-throttled listener above.
     const onSync = (isSynced: boolean) => {
       if (!isSynced) return;
-      failedConnects = 0;
       if (!hasSynced) {
         hasSynced = true;
         if (yRecords.size > 0) {
@@ -183,7 +186,6 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
     if (provider.synced) onSync(true);
 
     const onStatus = ({ status }: { status: string }) => {
-      if (status === 'connected') failedConnects = 0;
       if (!hasSynced) return; // <Tldraw> keeps its loading UI until the first sync
       setStoreWithStatus({
         store,
@@ -193,33 +195,28 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
     };
     provider.on('status', onStatus);
 
-    // Every failed attempt ends in 'connection-close'. 4001 = server force-refreshed
-    // access: re-mint immediately (mirrors DocEditor). Otherwise re-mint after 2
-    // consecutive failures, and if the socket never syncs at all, surface an error
+    // Shared re-mint protocol; if the socket never syncs at all, surface an error
     // instead of loading forever.
-    const onConnClose = (e?: CloseEvent) => {
-      if (e?.code === 4001) {
-        failedConnects = 0;
-        void refetchTokenRef.current?.();
-        return;
-      }
-      failedConnects += 1;
-      if (failedConnects === 2) void refetchTokenRef.current?.();
-      if (!hasSynced && failedConnects >= 5) {
-        provider.disconnect();
-        setStoreWithStatus({
-          status: 'error',
-          error: new Error("Couldn't connect to the whiteboard server"),
-        });
-      }
-    };
-    provider.on('connection-close', onConnClose);
+    unsubs.push(
+      attachTokenRecovery(
+        provider,
+        () => refetchTokenRef.current?.(),
+        (failures) => {
+          if (!hasSynced && failures >= 5) {
+            provider.disconnect();
+            setStoreWithStatus({
+              status: 'error',
+              error: new Error("Couldn't connect to the whiteboard server"),
+            });
+          }
+        },
+      ),
+    );
 
     return () => {
       unsubs.forEach((fn) => fn());
       provider.off('sync', onSync);
       provider.off('status', onStatus);
-      provider.off('connection-close', onConnClose);
       setPresenceUserRef.current = null;
       setStoreWithStatus({ status: 'loading' });
       provider.destroy();
@@ -231,8 +228,8 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
   // Presence metadata rides the live session; never tears it down.
   useEffect(() => {
     setPresenceUserRef.current?.({
-      name: user?.name ?? 'Anonymous',
-      color: user?.color ?? '#4f52d9',
+      name: user?.name ?? ANON_NAME,
+      color: user?.color ?? ANON_COLOR,
     });
   }, [user?.name, user?.color]);
 

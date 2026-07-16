@@ -13,6 +13,7 @@ import type {
 import { AddOutlined } from '@toddle-edu/ds-icons';
 import { Tooltip } from '@toddle-edu/ds-web';
 import { RtcGate } from '../RtcGate';
+import { attachTokenRecovery } from '../rtcReconnect';
 import { RTC_WS_URL } from '../../../lib/env';
 import { cn } from '../../../lib/cn';
 import {
@@ -60,16 +61,23 @@ const styles = {
   addRowBar: 'h-9 mt-2 mr-11',
 };
 
-type SheetGridProps = { docId: string; token: string; canEdit: boolean };
+type SheetGridProps = {
+  docId: string;
+  token: string;
+  canEdit: boolean;
+  refetchToken: () => Promise<unknown>;
+};
 type SheetEditorProps = { docId: string };
 
 // Inner grid: owns the Y.Doc + websocket lifecycle for one synced sheet. Mounted only
 // once the RTC token is ready, so the provider can connect immediately.
-function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
+function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridProps>) {
   // y-websocket re-reads params.token on every reconnect; mutating this ref keeps a
   // long-lived session authed with a fresh token without tearing down the live doc.
   const paramsRef = useRef<{ token: string }>({ token });
   paramsRef.current.token = token;
+  const refetchTokenRef = useRef(refetchToken);
+  refetchTokenRef.current = refetchToken;
 
   const docRef = useRef<Y.Doc | null>(null);
   const rowsRef = useRef<SheetRows | null>(null);
@@ -195,6 +203,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
       params: paramsRef.current,
       connect: true,
     });
+    const detachRecovery = attachTokenRecovery(provider, () => refetchTokenRef.current?.());
 
     // Seed the default grid once — only after the server's initial state confirms the
     // sheet is genuinely empty, so an existing doc's rows are never duplicated.
@@ -211,6 +220,7 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
       yColTypes.unobserve(refresh);
       yOptionSets.unobserve(refresh);
       provider.off('sync', onSync);
+      detachRecovery();
       provider.destroy();
       ydoc.destroy();
       docRef.current = null;
@@ -308,7 +318,9 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
 export function SheetEditor({ docId }: Readonly<SheetEditorProps>) {
   return (
     <RtcGate docId={docId} noun="sheet">
-      {({ token, canEdit }) => <SheetGrid docId={docId} token={token} canEdit={canEdit} />}
+      {({ token, canEdit, refetchToken }) => (
+        <SheetGrid docId={docId} token={token} canEdit={canEdit} refetchToken={refetchToken} />
+      )}
     </RtcGate>
   );
 }

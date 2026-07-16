@@ -10,6 +10,7 @@ import { pushToast } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
+import { attachTokenRecovery } from './rtcReconnect';
 import s from './DocEditor.module.scss';
 
 // Hide the editor's built-in top toolbar — formatting comes from the floating
@@ -92,10 +93,6 @@ export function DocEditor({
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
-  // Consecutive failed connects (no intervening successful connect). The rtc-server rejects invalidated tokens at the HTTP upgrade too (401 → browser close code 1006, not 4001), so a client that missed the live kick would loop on its cached token until the 4-min refetch; re-mint after 2 failures instead.
-  const failedConnectsRef = useRef(0);
-  // Dedupes the connection-error + connection-close pair that a single failed attempt emits, so one attempt counts once.
-  const attemptCountedRef = useRef(false);
 
   const collab = useMemo(() => {
     return {
@@ -118,32 +115,8 @@ export function DocEditor({
           params: paramsRef.current,
           connect: false,
         });
-        // A successful (re)connect clears the failure streak.
-        provider.on('status', (e?: { status?: string }) => {
-          if (e?.status === 'connecting') attemptCountedRef.current = false;
-          else if (e?.status === 'connected') failedConnectsRef.current = 0;
-        });
-        provider.on('sync', (isSynced: boolean) => {
-          if (isSynced) failedConnectsRef.current = 0;
-        });
-        // 4001 = server force-refreshed access; re-mint immediately (fast path). Otherwise count this attempt once and re-mint after 2 consecutive failures (covers a re-mint rejected once for iat <= watermark within the kick's same second).
-        const onConnectFailure = (code?: number) => {
-          if (code === 4001) {
-            failedConnectsRef.current = 0;
-            attemptCountedRef.current = true;
-            void refetchRef.current?.();
-            return;
-          }
-          if (attemptCountedRef.current) return;
-          attemptCountedRef.current = true;
-          failedConnectsRef.current += 1;
-          if (failedConnectsRef.current >= 2) {
-            failedConnectsRef.current = 0;
-            void refetchRef.current?.();
-          }
-        };
-        provider.on('connection-close', (e?: CloseEvent) => onConnectFailure(e?.code));
-        provider.on('connection-error', () => onConnectFailure());
+        // Listeners live as long as the provider (the CollaborationPlugin destroys it); no detach needed.
+        attachTokenRecovery(provider, () => refetchRef.current?.());
         return provider;
       },
       username: awarenessName ?? name ?? 'User',

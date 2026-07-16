@@ -17,7 +17,13 @@ import s from './DocEditor.module.scss';
 // the full width and height of the page pane (no centered 800px column).
 const EDITOR_CONFIG = { toolbar: { enabled: false } };
 const EDITOR_STYLES = {
-  scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
+  // internal scrolling flattened — the page-level wrapper (title + editor) scrolls
+  scrollableContainer: {
+    height: 'auto',
+    maxHeight: 'none',
+    overflow: 'visible',
+    background: 'var(--panel-bg)',
+  },
   anchorElement: { width: '100%', maxWidth: '100%' },
   contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
 };

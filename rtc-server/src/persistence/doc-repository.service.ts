@@ -164,31 +164,57 @@ export class DocRepository {
     limit: number,
     clientSub: string | null = null
   ): Promise<RtcUpdateRow[]> {
-    const rows = await this.prisma.rtcDocumentUpdate.findMany({
-      where: {
-        docId,
-        seq: { gte: from, lte: to },
-        ...(clientSub ? { clientSub } : {}),
-      },
-      orderBy: { seq: "asc" },
-      take: limit,
-      select: {
-        seq: true,
-        byteLen: true,
-        origin: true,
-        clientSub: true,
-        createdAt: true,
-        mergedCount: true,
-      },
-    });
-    return rows.map((r) => ({
-      seq: r.seq,
-      byte_len: r.byteLen,
-      origin: r.origin,
-      client_sub: r.clientSub,
-      created_at: Number(r.createdAt),
-      merged_count: r.mergedCount,
-    }));
+    const where = {
+      docId,
+      seq: { gte: from, lte: to },
+      ...(clientSub ? { clientSub } : {}),
+    };
+    try {
+      const rows = await this.prisma.rtcDocumentUpdate.findMany({
+        where,
+        orderBy: { seq: "asc" },
+        take: limit,
+        select: {
+          seq: true,
+          byteLen: true,
+          origin: true,
+          clientSub: true,
+          createdAt: true,
+          mergedCount: true,
+        },
+      });
+      return rows.map((r) => ({
+        seq: r.seq,
+        byte_len: r.byteLen,
+        origin: r.origin,
+        client_sub: r.clientSub,
+        created_at: Number(r.createdAt),
+        merged_count: r.mergedCount,
+      }));
+    } catch (e) {
+      // Tolerate the merged_count column not being pushed yet (new code, stale schema); the compaction scheduler gates on the same skew.
+      if ((e as { code?: string }).code !== "P2022") throw e;
+      const rows = await this.prisma.rtcDocumentUpdate.findMany({
+        where,
+        orderBy: { seq: "asc" },
+        take: limit,
+        select: {
+          seq: true,
+          byteLen: true,
+          origin: true,
+          clientSub: true,
+          createdAt: true,
+        },
+      });
+      return rows.map((r) => ({
+        seq: r.seq,
+        byte_len: r.byteLen,
+        origin: r.origin,
+        client_sub: r.clientSub,
+        created_at: Number(r.createdAt),
+        merged_count: null,
+      }));
+    }
   }
 
   private async listCandidates(

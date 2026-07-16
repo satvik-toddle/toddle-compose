@@ -126,7 +126,9 @@ export class VersionsService {
       for (; idx < blobs.length && blobs[idx].seq <= baseSeq; idx++) {
         Y.applyUpdate(ydoc, new Uint8Array(blobs[idx].blob));
       }
-      const baseState = await this.renderState(ydoc);
+      // baseSeq === target: baseline and target are the same state, so extract once and self-diff (no marks) instead of running the worker twice.
+      const sameAsTarget = baseSeq === target;
+      const baseState = sameAsTarget ? null : await this.renderState(ydoc);
       for (; idx < blobs.length; idx++) {
         Y.applyUpdate(ydoc, new Uint8Array(blobs[idx].blob));
       }
@@ -134,12 +136,10 @@ export class VersionsService {
       lexicalJson = state ? JSON.stringify(state) : null;
       if (state) {
         // An empty/failed baseline diffs against the empty doc (everything reads as added).
-        diffJson = JSON.stringify(
-          diffEditorStates(
-            baseState ?? { root: { type: "root", children: [] } },
-            state
-          )
-        );
+        const base = sameAsTarget
+          ? state
+          : baseState ?? { root: { type: "root", children: [] } };
+        diffJson = JSON.stringify(diffEditorStates(base, state));
       }
     } else {
       for (const { blob } of blobs) {

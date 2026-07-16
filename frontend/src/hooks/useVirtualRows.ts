@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface VirtualRow {
   index: number;
@@ -17,7 +17,7 @@ export interface VirtualRows {
 // measured sizes, falling back to `estimate` for rows not yet measured. Fixed-height lists
 // don't need this — see the sidebar's inline windowing.
 export function useVirtualRows(
-  scrollRef: RefObject<HTMLElement | null>,
+  scrollEl: HTMLElement | null,
   count: number,
   estimate: number,
   overscan = 6,
@@ -27,11 +27,9 @@ export function useVirtualRows(
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
 
-  // Attach to the scroll container. `count` is a dep so this re-runs once the list actually
-  // mounts (the container is often null on the first render — e.g. before a query is typed —
-  // and the ref object's identity never changes, so without this the listener would never bind).
+  // Binding keys off the element so layout switches that remount the list rebind cleanly.
   useEffect(() => {
-    const sc = scrollRef.current;
+    const sc = scrollEl;
     if (!sc) return;
     const onScroll = () => setScrollTop(sc.scrollTop);
     setViewport(sc.clientHeight);
@@ -43,7 +41,7 @@ export function useVirtualRows(
       sc.removeEventListener('scroll', onScroll);
       ro.disconnect();
     };
-  }, [scrollRef, count > 0]);
+  }, [scrollEl]);
 
   // Prefix-sum of row offsets from measured sizes (or the estimate). Recomputed when the row
   // count changes or a measurement lands (version). Dropped measurements for out-of-range
@@ -79,14 +77,14 @@ export function useVirtualRows(
 
   const scrollToIndex = useCallback(
     (index: number) => {
-      const sc = scrollRef.current;
+      const sc = scrollEl;
       if (!sc || index < 0 || index >= count) return;
       const top = offsets[index];
       const bottom = offsets[index + 1];
       if (top < sc.scrollTop) sc.scrollTop = top;
       else if (bottom > sc.scrollTop + sc.clientHeight) sc.scrollTop = bottom - sc.clientHeight;
     },
-    [scrollRef, offsets, count],
+    [scrollEl, offsets, count],
   );
 
   return { items, totalHeight, scrollToIndex };

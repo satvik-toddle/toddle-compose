@@ -19,12 +19,16 @@
   --search-hit-fg: #f0c777;
 }
 
-/* Top-align the ds-web modal for search (design pins it 66px from top); rbac.css centers
+/* Pin the search modal 100px from the top so it only grows downward; rbac.css centers
    .tc-modal, so this later, equal-specificity rule wins for the search modal only. */
 .ReactModal__Overlay:has(.gs-search-modal) {
   align-items: flex-start;
-  padding-top: 66px;
+  padding-top: 100px;
 }
 .ReactModal__Content:has(.gs-search-modal) {
   max-width: 94vw;
+  /* the ds-web box centers itself with margin:auto — in flex, auto margins beat align-items */
+  margin: 0 auto !important;
+  /* the box width flips 640↔1000 when the preview split engages */
+  transition: width 0.2s ease-out;
 }

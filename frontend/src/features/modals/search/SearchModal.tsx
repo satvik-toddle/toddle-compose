@@ -15,8 +15,10 @@ import { PreviewPane } from './PreviewPane';
 
 const styles = {
   search: 'flex flex-col w-full rounded-3 overflow-hidden',
-  sp: 'max-h-[74vh]',
-  split: 'h-[624px] max-h-[84vh]',
+  grow: 'flex-none overflow-hidden motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out',
+  // Body caps = panel caps (74vh spotlight / 624px+84vh split) minus 101px chrome (60px field + ~41px footer).
+  growSpot: 'flex flex-col max-h-[calc(74vh-101px)]',
+  growSplit: 'flex flex-col h-[523px] max-h-[calc(84vh-101px)]',
   splitBody: 'flex-1 flex min-h-0',
   splitList: 'w-[414px] flex-none flex flex-col min-h-0 border-r border-solid border-secondary',
   listPane: 'relative flex-1 min-h-0 flex flex-col',
@@ -41,6 +43,33 @@ function searchErrorText(e: unknown): string {
   return 'Something went wrong while searching. Please try again.';
 }
 
+// Animates the spotlight body to its content height so the panel grows/shrinks smoothly
+// below the pinned top edge; inner renders at final size, the wrapper clips during the tween.
+function AnimatedHeight({
+  children,
+  innerClassName,
+}: {
+  children: React.ReactNode;
+  innerClassName: string;
+}) {
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>();
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div className={styles.grow} style={{ height: height ?? 'auto' }}>
+      <div ref={innerRef} className={innerClassName}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function SearchModal({
   onClose,
   workspaceId,
@@ -51,7 +80,7 @@ export function SearchModal({
   const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null);
 
   const {
     results,
@@ -63,6 +92,7 @@ export function SearchModal({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    hasResponse,
   } = useDocSearch(q, workspaceId);
 
   // Layout resolution — the single source of truth.
@@ -89,7 +119,7 @@ export function SearchModal({
 
   // Virtualize the result list (rows vary in height — title ± snippet ± path). ~64px is the
   // common title+snippet row; the hook measures real heights and re-lays out.
-  const virtual = useVirtualRows(listRef, results.length, 64);
+  const virtual = useVirtualRows(listEl, results.length, 64);
   // Read scrollToIndex through a ref so re-layouts (which change its identity on every
   // measurement) don't re-run the effect and yank the scroll back to the active row.
   const scrollToIndexRef = useRef(virtual.scrollToIndex);
@@ -185,7 +215,7 @@ export function SearchModal({
 
   const list = (
     <div className={styles.listPane}>
-      <div className={styles.list} ref={listRef} onScroll={onListScroll}>
+      <div className={styles.list} ref={setListEl} onScroll={onListScroll}>
         {results.length > 0 ? (
           rows
         ) : isSearching ? (
@@ -212,6 +242,9 @@ export function SearchModal({
     body = <SearchEmpty />;
   } else if (isError && results.length === 0) {
     body = errorState;
+  } else if (!hasResponse) {
+    // Hold the prompt during the first fetch so the panel expands once, not shrink→grow.
+    body = <SearchEmpty />;
   } else if (showPreview) {
     body = (
       <div className={styles.splitBody}>
@@ -232,7 +265,7 @@ export function SearchModal({
   return (
     <Modal onClose={onClose} width={wide ? '1000px' : '640px'} className="gs-search-modal">
       <div
-        className={`${styles.search} ${wide ? styles.split : styles.sp}`}
+        className={styles.search}
         data-testid="gs-search"
         data-layout={wide ? 'split' : 'spotlight'}
         onKeyDown={onKeyDown}
@@ -247,7 +280,7 @@ export function SearchModal({
           setPreviewOn={setPreviewOn}
         />
 
-        {body}
+        <AnimatedHeight innerClassName={wide ? styles.growSplit : styles.growSpot}>{body}</AnimatedHeight>
 
         <div className={styles.foot}>
           <span className={styles.hint}>

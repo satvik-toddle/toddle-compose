@@ -50,6 +50,8 @@ export function useDocSearch(q: string, workspaceId?: string) {
     fetchNextPage: query.fetchNextPage,
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
+    // Whether any page has landed for the current (or placeholder-carried) query.
+    hasResponse: query.data !== undefined,
   };
 }
 

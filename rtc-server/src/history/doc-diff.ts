@@ -180,13 +180,16 @@ function normalizeStyle(style: unknown): string {
 // Attrs excluded from a node's signature: children (recursed separately), version (bump-only), direction (auto-computed from content — would false-positive), uploadId (internal upload-registry ref, not content), textStyle/textFormat (pending caret state for future typing, not rendered content).
 const SIGNATURE_EXCLUDE = new Set(["children", "version", "direction", "uploadId", "textStyle", "textFormat"]);
 
+// Field separator for signature/token keys: a control byte that can't appear in user text/styles, so adjacent fields can never bleed into a colliding key (e.g. text "a1"+format 0 vs text "a"+format 10).
+const SIG_SEP = "\x01";
+
 // Deterministic structural signature of a node and its subtree: captures type, all content-bearing own attrs (format/style/indent/checked/src/width/language/...), and recursively its children — so any meaningful change alters the key. Used as the block-level LCS key and the matched-block equality check.
 function nodeSignature(node: SerializedLexicalNode): string {
   if (isTextNode(node)) {
     const text = typeof node.text === "string" ? node.text : "";
-    return `T${text}${node.format ?? 0}${normalizeStyle(
+    return `T${SIG_SEP}${text}${SIG_SEP}${node.format ?? 0}${SIG_SEP}${normalizeStyle(
       node.style
-    )}${node.mode ?? ""}${node.detail ?? 0}`;
+    )}${SIG_SEP}${node.mode ?? ""}${SIG_SEP}${node.detail ?? 0}`;
   }
   const attrs: string[] = [];
   for (const key of Object.keys(node).sort()) {
@@ -204,9 +207,9 @@ function nodeSignature(node: SerializedLexicalNode): string {
     }
   }
   const children = Array.isArray(node.children) ? node.children : [];
-  return `E${node.type}${attrs.join("")}[${children
+  return `E${SIG_SEP}${node.type}${SIG_SEP}${attrs.join(SIG_SEP)}${SIG_SEP}[${children
     .map(nodeSignature)
-    .join("")}]`;
+    .join(SIG_SEP)}]`;
 }
 
 // Deep-clone a plain-JSON node so we never mutate the caller's input.
@@ -300,7 +303,7 @@ function emitClassifiedTokens(
 function tokenKey(t: Token): string {
   if (t.node) return ` N${nodeSignature(t.node)}`;
   if (/^\s+$/.test(t.text)) return t.text;
-  return `${t.text}${t.format ?? 0}${normalizeStyle(t.style)}`;
+  return `${t.text}${SIG_SEP}${t.format ?? 0}${SIG_SEP}${normalizeStyle(t.style)}`;
 }
 
 // Word-level diff between two matched simple-text blocks; returns the after block with inline children replaced by the merged token runs, plus whether the alignment found any inline change.
@@ -467,8 +470,9 @@ function diffTable(
     const aligned = lcsAlign(colsB, colsA, colsB.map(colKey), colsA.map(colKey));
     // Per-row cell lists in the merged column order.
     const newRowCells: SerializedLexicalNode[][] = rowsA.map(() => []);
+    // One aligned pair = one emitted column; keep widths positional so a width-less column can't shift the rest.
     const mergedWidths: number[] = [];
-    let widthsSeen = false;
+    let allWidthsResolved = true;
     for (const pair of aligned) {
       for (let r = 0; r < Ra; r++) {
         if (pair.before && pair.after) {
@@ -480,10 +484,8 @@ function diffTable(
         }
       }
       const width = pair.after ? pair.after.width : pair.before?.width;
-      if (typeof width === "number") {
-        mergedWidths.push(width);
-        widthsSeen = true;
-      }
+      if (typeof width === "number") mergedWidths.push(width);
+      else allWidthsResolved = false;
     }
     const result = cloneNode(after);
     result.children = rowsA.map((r, idx) => {
@@ -491,9 +493,8 @@ function diffTable(
       rowClone.children = newRowCells[idx];
       return rowClone;
     });
-    if (widthsB || widthsA) {
-      if (widthsSeen) result.colWidths = mergedWidths;
-    }
+    // Only emit colWidths when every column resolved one; a partial array would misalign, so fall back to default widths.
+    if ((widthsB || widthsA) && allWidthsResolved) result.colWidths = mergedWidths;
     return result;
   }
 
@@ -581,16 +582,17 @@ interface ChangeEntry {
 // Minimum token-overlap (Jaccard) for two same-type blocks to be treated as an in-place EDIT (word-diffed) rather than an unrelated remove+add. Below this, pairing unrelated paragraphs produces a misleading all-strike/all-green word diff and steals the added block from its real position.
 const BLOCK_PAIR_THRESHOLD = 0.25;
 
+// Above this removed×added product, skip similarity pairing entirely (all blocks emitted unpaired) so a pathological region can't stall the shared rtc thread.
+const MAX_REGION_PAIRING = 10_000;
+
 // Whitespace-split word-token set of a block's descendant text (for content-similarity pairing).
 function blockTokens(node: SerializedLexicalNode): Set<string> {
   const text = cellText(node);
   return new Set(text ? text.split(" ").filter(Boolean) : []);
 }
 
-// Jaccard token overlap of two blocks; 1.0 when both have no text (pair same-type structural/empty blocks so their attrs still diff).
-function blockSimilarity(a: SerializedLexicalNode, b: SerializedLexicalNode): number {
-  const ta = blockTokens(a);
-  const tb = blockTokens(b);
+// Jaccard overlap of two precomputed token sets; 1.0 when both are empty (pair same-type structural/empty blocks so their attrs still diff).
+function jaccard(ta: Set<string>, tb: Set<string>): number {
   if (ta.size === 0 && tb.size === 0) return 1;
   let inter = 0;
   for (const t of ta) if (tb.has(t)) inter++;
@@ -605,25 +607,31 @@ function emitChangeRegion(entries: ChangeEntry[]): SerializedLexicalNode[] {
   const pairedAdded = new Set<SerializedLexicalNode>();
   const pairFor = new Map<SerializedLexicalNode, SerializedLexicalNode>();
   const pairForRev = new Map<SerializedLexicalNode, SerializedLexicalNode>();
-  for (const b of removed) {
-    const bSimple = isSimpleTextBlock(b);
-    let best: SerializedLexicalNode | null = null;
-    let bestScore = 0;
-    for (const a of added) {
-      if (pairedAdded.has(a) || a.type !== b.type) continue;
-      // Only simple text blocks (paragraph/heading/quote) gate on word similarity — that's where
-      // unrelated blocks mis-pair. Structural blocks (table/layout/media/list/…) pair by type, so
-      // their granular/whole-block differ still runs (their glued cell text defeats word overlap).
-      const score = bSimple && isSimpleTextBlock(a) ? blockSimilarity(b, a) : 1;
-      if (score > bestScore) {
-        bestScore = score;
-        best = a;
+  // Skip pairing above the cap; the emit loops below then wrap every removed/added block on its own.
+  if (removed.length * added.length <= MAX_REGION_PAIRING) {
+    // Tokenize each simple-text block once (map membership ⟺ simple-text), so Jaccard never re-walks a subtree per pair.
+    const tokensOf = new Map<SerializedLexicalNode, Set<string>>();
+    for (const b of removed) if (isSimpleTextBlock(b)) tokensOf.set(b, blockTokens(b));
+    for (const a of added) if (isSimpleTextBlock(a)) tokensOf.set(a, blockTokens(a));
+    for (const b of removed) {
+      const bTokens = tokensOf.get(b);
+      let best: SerializedLexicalNode | null = null;
+      let bestScore = 0;
+      for (const a of added) {
+        if (pairedAdded.has(a) || a.type !== b.type) continue;
+        // Only simple-text blocks (both sides tokenized) gate on word similarity; structural blocks pair by type so their granular/whole-block differ still runs.
+        const aTokens = tokensOf.get(a);
+        const score = bTokens && aTokens ? jaccard(bTokens, aTokens) : 1;
+        if (score > bestScore) {
+          bestScore = score;
+          best = a;
+        }
       }
-    }
-    if (best && bestScore >= BLOCK_PAIR_THRESHOLD) {
-      pairedAdded.add(best);
-      pairFor.set(b, best);
-      pairForRev.set(best, b);
+      if (best && bestScore >= BLOCK_PAIR_THRESHOLD) {
+        pairedAdded.add(best);
+        pairFor.set(b, best);
+        pairForRev.set(best, b);
+      }
     }
   }
   const out: SerializedLexicalNode[] = [];

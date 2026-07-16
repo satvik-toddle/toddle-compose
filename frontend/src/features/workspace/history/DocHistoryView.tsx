@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
-import { EmptyState } from '@toddle-edu/ds-web';
+import { Button, EmptyState } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
-import { Button } from '../../../components/Button';
+import { ReloadArrowOutlined } from '@toddle-edu/ds-icons';
 import { PageLoader } from '../../../components/Loader';
 import { relativeTime } from '../../../lib/time';
 import { useDocSnapshot, useRtcToken } from '../../../hooks/usePages';
@@ -28,17 +28,25 @@ const styles = {
 
 type DocHistoryViewProps = { doc: DocumentDto; workspaceId: string };
 
+// Centered error state; used inline (fills the pane below title/banner) and, wrapped in a
+// <main> shell by ErrorPane, as a top-level content pane.
+function ErrorState() {
+  return (
+    <div className={styles.center}>
+      <EmptyState
+        dsVersion="2.0"
+        illustration={EmptyStateIllustrations.Error404Illustration}
+        title="Couldn't load this version"
+        subtitle="Try selecting another version from the list."
+      />
+    </div>
+  );
+}
+
 function ErrorPane() {
   return (
     <main className={styles.contentShell}>
-      <div className={styles.center}>
-        <EmptyState
-          dsVersion="2.0"
-          illustration={EmptyStateIllustrations.Error404Illustration}
-          title="Couldn't load this version"
-          subtitle="Try selecting another version from the list."
-        />
-      </div>
+      <ErrorState />
     </main>
   );
 }
@@ -48,7 +56,7 @@ function sessionLabel(session: DocHistorySession | undefined): string | null {
   if (!session) return null;
   const when = relativeTime(session.endedAt);
   if (session.kind === 'archive') return `${when} · archived`;
-  return `${when} · edited by ${session.user?.name ?? 'unknown'}`;
+  return `${when} · edited by ${session.user?.name ?? 'Unknown editor'}`;
 }
 
 // Content pane while a DOC is in history mode: the version's title + a read-only render at that seq (or a diff against the previous version when `?diff=true`).
@@ -122,7 +130,14 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
       <div className={styles.banner}>
         <span>{banner}</span>
         {canRestore && (
-          <Button size="sm" icon="ReloadArrowOutlined" onClick={openRestore}>
+          <Button
+            dsVersion="2.0"
+            variant="neutral"
+            type="outlined"
+            size="small"
+            icon={<ReloadArrowOutlined />}
+            onClick={openRestore}
+          >
             Restore
           </Button>
         )}
@@ -137,7 +152,7 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
               editorStateJson={stateJson}
             />
           ) : (
-            <ErrorPane />
+            <ErrorState />
           )}
         </Suspense>
       )}

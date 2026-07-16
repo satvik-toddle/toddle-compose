@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@toddle-edu/ds-web';
+import { ReloadArrowOutlined } from '@toddle-edu/ds-icons';
 import { Modal, ModalHead } from '../../components/Modal';
-import { Button } from '../../components/Button';
 import { useDocSnapshot, useRtcToken } from '../../hooks/usePages';
 import { qk } from '../../lib/queryKeys';
 import { RTC_WS_URL } from '../../lib/env';
@@ -21,13 +22,19 @@ export function ConfirmRestoreVersionModal({
   versionLabel: string;
 }) {
   // No diffAgainst: restore writes the version's own content, never a merged diff state.
-  const { data: snapshot } = useDocSnapshot(docId, seq);
-  const { data: rtc } = useRtcToken(docId);
+  const { data: snapshot, isError: snapError } = useDocSnapshot(docId, seq);
+  const { data: rtc, isError: rtcError } = useRtcToken(docId);
   const [pending, setPending] = useState(false);
   const [, setParams] = useSearchParams();
   const qc = useQueryClient();
 
+  const loadError = snapError || rtcError;
   const ready = !!snapshot?.lexicalJson && rtc?.role === 'editor' && !!rtc.token;
+
+  // Block dismissal (Cancel, X, backdrop, Esc) while the async restore is in flight.
+  const close = () => {
+    if (!pending) onClose();
+  };
 
   const submit = async () => {
     const editorState = snapshot?.lexicalJson;
@@ -54,24 +61,44 @@ export function ConfirmRestoreVersionModal({
   };
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={close}>
       <ModalHead
         icon="ReloadArrowOutlined"
         title="Restore this version?"
-        onClose={onClose}
+        onClose={close}
       />
       <div className="m-body">
         <p className="text-body-s text-secondary">
           The document will be reset to the version from {versionLabel}. Everyone will see the
           restored content. The current content isn't lost — it stays available in version history.
         </p>
+        {loadError && (
+          <p className="text-body-s text-semantic-error">
+            Couldn't load this version. Close and try again.
+          </p>
+        )}
       </div>
       <div className="m-foot">
         <span className="gap" />
-        <Button variant="ghost" onClick={onClose}>
+        <Button
+          dsVersion="2.0"
+          variant="neutral"
+          type="plain"
+          size="medium"
+          disabled={pending}
+          onClick={close}
+        >
           Cancel
         </Button>
-        <Button variant="primary" icon="ReloadArrowOutlined" disabled={pending || !ready} onClick={() => void submit()}>
+        <Button
+          dsVersion="2.0"
+          variant="primary"
+          type="fill"
+          size="medium"
+          icon={<ReloadArrowOutlined />}
+          disabled={pending || !ready}
+          onClick={() => void submit()}
+        >
           {pending ? 'Restoring…' : 'Restore'}
         </Button>
       </div>

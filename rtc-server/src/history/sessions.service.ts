@@ -57,6 +57,49 @@ function diffSheetCells(
   return changed;
 }
 
+// Canonical Lexical empty paragraph: type 'paragraph', no indent, default alignment, no style, and no children beyond empty text nodes.
+function isDefaultEmptyParagraph(node: unknown): boolean {
+  if (!node || typeof node !== "object") return false;
+  const n = node as {
+    type?: unknown;
+    children?: unknown;
+    indent?: unknown;
+    format?: unknown;
+    style?: unknown;
+  };
+  if (n.type !== "paragraph") return false;
+  if (n.indent) return false;
+  // Element format: '', 0, undefined and 'start' all mean unaligned (see doc-diff nodeSignature).
+  if (n.format !== "" && n.format !== 0 && n.format !== undefined && n.format !== "start") return false;
+  if (n.style != null && (typeof n.style !== "string" || n.style.trim() !== "")) return false;
+  const kids = n.children;
+  if (kids === undefined) return true;
+  if (!Array.isArray(kids)) return false;
+  return kids.every((c) => {
+    if (!c || typeof c !== "object") return false;
+    const cn = c as { type?: unknown; text?: unknown };
+    return cn.type === "text" && cn.text === "";
+  });
+}
+
+// A boundary state that renders as an empty doc: "" (pre-first-open) or the canonical empty doc (root with one default-empty paragraph) the editor bootstraps on first open. Strict, so any real change still surfaces.
+function isVisuallyEmpty(content: string): boolean {
+  if (content === "") return true;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  const root = (parsed as { root?: unknown } | null)?.root;
+  // No root object: not a Lexical doc (e.g. SHEET grid serialization) — leave on the exact-equality path.
+  if (!root || typeof root !== "object") return false;
+  const children = (root as { children?: unknown }).children;
+  if (!Array.isArray(children) || children.length === 0) return true;
+  if (children.length !== 1) return false;
+  return isDefaultEmptyParagraph(children[0]);
+}
+
 export type SessionList = {
   docId: string;
   head: number;
@@ -143,7 +186,13 @@ export class SessionsService {
       const beforeText = before?.text ?? "";
       const afterText = after?.text ?? "";
       // Compare full structure, not plainText: media/embed/formatting-only edits add no text and would otherwise be dropped as no-ops.
-      const noop = (before?.content ?? "") === (after?.content ?? "");
+      // Both boundaries visually empty is also a noop: the pre-first-open state differs structurally from the bootstrapped canonical empty doc but renders identically.
+      // TODO: enhance diffing for known same-looking cases — a kept session whose minor structural change renders an unmarked diff (e.g. attr-only tweaks on empty paragraphs, direction flips).
+      const beforeContent = before?.content ?? "";
+      const afterContent = after?.content ?? "";
+      const noop =
+        beforeContent === afterContent ||
+        (isVisuallyEmpty(beforeContent) && isVisuallyEmpty(afterContent));
       const changedCells = diffSheetCells(
         before?.sheet ?? null,
         after?.sheet ?? null

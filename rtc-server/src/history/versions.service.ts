@@ -121,7 +121,12 @@ export class VersionsService {
     let lexicalJson: string | null = null;
     let diffJson: string | null = null;
     if (include === "render" && diffAgainstSeq != null) {
-      const baseSeq = Math.max(0, Math.min(diffAgainstSeq, target));
+      const requested = Math.max(0, Math.min(diffAgainstSeq, target));
+      // requested may fall inside a merged row's range; clamp up to the row that absorbed it (blobs sorted seq-asc) — clamping down could degrade to the empty doc and mark the whole doc added. 0 stays as the explicit empty-doc baseline; no row >= requested falls back to target (self-diff path).
+      const baseSeq =
+        requested === 0
+          ? 0
+          : (blobs.find((b) => b.seq >= requested)?.seq ?? target);
       let idx = 0;
       for (; idx < blobs.length && blobs[idx].seq <= baseSeq; idx++) {
         Y.applyUpdate(ydoc, new Uint8Array(blobs[idx].blob));

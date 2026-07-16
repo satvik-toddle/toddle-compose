@@ -5,11 +5,8 @@ type DsColor =
   | 'purple' | 'green' | 'orange' | 'red' | 'neutral';
 type DsSize = 'xxx-small' | 'xx-small' | 'x-small' | 'small' | 'medium' | 'large' | 'x-large';
 
-// Known brand identity hexes (assigned at signup) → the matching DS avatar hue, so a
-// user's chosen colour carries through. `red` (#f04c54) is intentionally NOT mapped: the
-// DS red is the --interactive-primary / destructive hue reserved for CTAs and error
-// states, so a red identity would render an avatar that reads as an error. Those fall
-// through to the decorative rotation below instead.
+// Brand identity hexes → DS avatar hue. red (#f04c54) is omitted deliberately: it's the
+// CTA/destructive colour, so red identities rotate below instead of reading as an error.
 const COLOR_BY_HEX: Record<string, DsColor> = {
   '#5a5ae2': 'violet',
   '#00ac8a': 'teal',
@@ -22,9 +19,7 @@ const COLOR_BY_HEX: Record<string, DsColor> = {
   '#a43dd7': 'purple',
 };
 
-// Decorative hues for data/owner avatars that have no known brand hex. Excludes `neutral`
-// (so unknown-colour avatars aren't an indistinct grey) and `red` (reserved, see above).
-// All are theme-aware in the DS (--decorative-background-subtle-{hue} flips light/dark).
+// Decorative avatar hues for unknown brand hexes; excludes red (reserved) and neutral (grey).
 const AVATAR_HUES: readonly DsColor[] = [
   'violet',
   'blue',
@@ -36,8 +31,7 @@ const AVATAR_HUES: readonly DsColor[] = [
   'purple',
 ];
 
-// Small deterministic string hash (djb2, unsigned) — stable across sessions/reloads so a
-// given person always maps to the same hue.
+// djb2 — stable hash so a person always maps to the same hue.
 function hashSeed(seed: string): number {
   let hash = 5381;
   for (let i = 0; i < seed.length; i += 1) {
@@ -46,9 +40,7 @@ function hashSeed(seed: string): number {
   return hash;
 }
 
-// Resolve a DS avatar hue: a known brand hex wins; otherwise rotate deterministically over
-// the decorative hues using a stable `seed` (a user/owner id, or name when no id exists).
-// Only when neither a known hex nor a seed is available do we fall back to neutral grey.
+// Known hex wins; else deterministic rotation by seed; else neutral.
 export function dsAvatarColor(hex?: string, seed?: string): DsColor {
   const known = hex ? COLOR_BY_HEX[hex.toLowerCase()] : undefined;
   if (known) return known;

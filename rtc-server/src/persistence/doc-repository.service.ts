@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@app/rtc-database";
 import { PrismaService } from "../prisma/prisma.service";
 import { createLogger } from "../logger";
 
@@ -56,17 +57,22 @@ export class DocRepository {
     contentText?: string | null
   ): Promise<number> {
     await this.ensureRtcDoc(id);
-    const row = await this.prisma.rtcDocument.update({
-      where: { id },
-      data: {
-        yjsState: asBytes(yjsState),
-        snapshotAtSeq,
-        version: { increment: 1 },
-        updatedAt: BigInt(Date.now()),
-        ...(contentText !== undefined ? { contentText } : {}),
-      },
+    // Snapshot write + stale-queue enqueue in ONE tx (G1): if the snapshot is durable, so is
+    // the fact that the search index is behind — nothing can leave the index permanently stale.
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.rtcDocument.update({
+        where: { id },
+        data: {
+          yjsState: asBytes(yjsState),
+          snapshotAtSeq,
+          version: { increment: 1 },
+          updatedAt: BigInt(Date.now()),
+          ...(contentText !== undefined ? { contentText } : {}),
+        },
+      });
+      await this.enqueueStale(tx, id, snapshotAtSeq);
+      return row.version;
     });
-    return row.version;
   }
 
   async writeSnapshotCheckpoint(
@@ -76,15 +82,72 @@ export class DocRepository {
     contentText?: string | null
   ): Promise<void> {
     await this.ensureRtcDoc(id);
-    await this.prisma.rtcDocument.update({
-      where: { id },
-      data: {
-        yjsState: asBytes(yjsState),
-        snapshotAtSeq,
-        updatedAt: BigInt(Date.now()),
-        ...(contentText !== undefined ? { contentText } : {}),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rtcDocument.update({
+        where: { id },
+        data: {
+          yjsState: asBytes(yjsState),
+          snapshotAtSeq,
+          updatedAt: BigInt(Date.now()),
+          ...(contentText !== undefined ? { contentText } : {}),
+        },
+      });
+      await this.enqueueStale(tx, id, snapshotAtSeq);
     });
+  }
+
+  // Coalescing enqueue: PK doc_id, overwrite seq with the newer flush seq (monotonic).
+  private enqueueStale(
+    tx: Prisma.TransactionClient,
+    docId: string,
+    seq: number
+  ): Promise<unknown> {
+    const dirtyAt = BigInt(Date.now());
+    return tx.staleDocument.upsert({
+      where: { docId },
+      create: { docId, seq, dirtyAt },
+      update: { seq, dirtyAt },
+    });
+  }
+
+  // ---- Search indexer worker: drain the stale queue ----
+
+  // Oldest-first claim; lock-free (G2/G3 make duplicated work harmless, so no FOR UPDATE).
+  async claimStale(take: number): Promise<{ docId: string; seq: number }[]> {
+    return this.prisma.staleDocument.findMany({
+      orderBy: { dirtyAt: "asc" },
+      take,
+      select: { docId: true, seq: true },
+    });
+  }
+
+  async getRtcStatesForIndex(
+    ids: string[]
+  ): Promise<{ id: string; yjsState: Uint8Array | null }[]> {
+    return this.prisma.rtcDocument.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, yjsState: true },
+    });
+  }
+
+  // Guarded delete (G2): clears the row only if no newer flush has bumped its seq since we
+  // claimed it; a concurrent re-flush (seq > claimed) leaves the row for the next sweep.
+  async deleteStaleUpTo(docId: string, seq: number): Promise<void> {
+    await this.prisma.staleDocument.deleteMany({
+      where: { docId, seq: { lte: seq } },
+    });
+  }
+
+  async countStale(): Promise<number> {
+    return this.prisma.staleDocument.count();
+  }
+
+  async oldestStaleDirtyAt(): Promise<number | null> {
+    const row = await this.prisma.staleDocument.findFirst({
+      orderBy: { dirtyAt: "asc" },
+      select: { dirtyAt: true },
+    });
+    return row ? Number(row.dirtyAt) : null;
   }
 
   // Backfill support: docs that have a snapshot but no persisted search text yet

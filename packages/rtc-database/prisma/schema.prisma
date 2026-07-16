@@ -34,6 +34,21 @@ model RtcDocument {
   @@map("rtc_documents")
 }
 
+// Durable dirty set (transactional outbox) for the search indexer. One row per doc whose
+// content projection is behind, upserted in the SAME tx as the snapshot flush (G1). The
+// detached indexer worker drains it, extracts text, and pushes to the backend. PK = doc_id
+// coalesces many edits into one pending row.
+model StaleDocument {
+  docId   String @id @map("doc_id")
+  // The flush seq this dirtiness represents; overwritten with the newer seq on re-flush.
+  seq     Int
+  // Epoch ms of the enqueue; drives the oldest-staleness-age metric.
+  dirtyAt BigInt @map("dirty_at")
+
+  @@index([dirtyAt])
+  @@map("stale_documents")
+}
+
 model RtcDocumentUpdate {
   id         BigInt  @id @default(autoincrement())
   docId      String  @map("doc_id")

@@ -18,9 +18,11 @@ import s from './DocEditor.module.scss';
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
 const EDITOR_CONFIG = { toolbar: { enabled: false } };
-// Full document page: centered 900px readable column, generous side padding.
+// Full document page: centered 900px readable column, generous side padding. The scroll
+// container's own overflow + viewport max-height are removed so the PAGE scrolls (title +
+// content together) — see .tc-editor-page and PageView's contentShell.
 const DOC_STYLES = {
-  scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
+  scrollableContainer: { overflow: 'visible', maxHeight: 'none', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: `${DOC_COLUMN_WIDTH}px`, margin: '0 auto' },
   contentBgProvider: { minHeight: '100%', padding: `0 ${DOC_SIDE_PADDING}px 80px`, background: 'var(--panel-bg)' },
 };
@@ -196,7 +198,7 @@ export function DocEditor({
   }
 
   return (
-    <div className={s.tcEditor}>
+    <div className={preview ? s.tcEditor : `${s.tcEditor} ${s.tcEditorPage}`}>
       <DsDocEditor
         collab={collab}
         uploadToServer={uploadToServer}
@@ -206,8 +208,8 @@ export function DocEditor({
         }
         config={EDITOR_CONFIG}
         minHeight={0}
-        // 900px readable column on the full doc page; unset in the narrow preview pane (full-width).
-        width={preview ? undefined : DOC_COLUMN_WIDTH}
+        // 900px readable column on the full doc page; full-width (100%) in the narrow preview pane.
+        width={preview ? '100%' : DOC_COLUMN_WIDTH}
         styles={preview ? PREVIEW_STYLES : DOC_STYLES}
       />
     </div>

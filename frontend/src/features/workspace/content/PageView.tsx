@@ -17,7 +17,9 @@ const SheetEditor = lazy(() =>
 );
 
 const styles = {
-  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
+  // Scroll happens HERE (title + editor together), below the fixed topbar; the editor's own
+  // scroll container is neutralized so this is the single scroller.
+  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
   // Doc: title mirrors the editor column via the shared constants (inline style below).
   docTitle: 'flex-none w-full mx-auto pt-7',

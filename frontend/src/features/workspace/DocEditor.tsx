@@ -11,6 +11,7 @@ import { uploadStore } from '../../stores/uploadStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
+import { DOC_COLUMN_WIDTH, DOC_SIDE_PADDING } from './constants';
 import s from './DocEditor.module.scss';
 
 // Hide the editor's built-in top toolbar — formatting comes from the floating
@@ -20,8 +21,8 @@ const EDITOR_CONFIG = { toolbar: { enabled: false } };
 // Full document page: centered 900px readable column, generous side padding.
 const DOC_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
-  anchorElement: { width: '100%', maxWidth: '900px', margin: '0 auto' },
-  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: `${DOC_COLUMN_WIDTH}px`, margin: '0 auto' },
+  contentBgProvider: { minHeight: '100%', padding: `0 ${DOC_SIDE_PADDING}px 80px`, background: 'var(--panel-bg)' },
 };
 
 // Search preview pane: full-width in the narrow pane with tight 16px side padding.
@@ -206,7 +207,7 @@ export function DocEditor({
         config={EDITOR_CONFIG}
         minHeight={0}
         // 900px readable column on the full doc page; unset in the narrow preview pane (full-width).
-        width={preview ? undefined : 900}
+        width={preview ? undefined : DOC_COLUMN_WIDTH}
         styles={preview ? PREVIEW_STYLES : DOC_STYLES}
       />
     </div>

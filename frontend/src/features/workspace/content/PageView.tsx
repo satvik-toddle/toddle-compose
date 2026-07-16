@@ -7,6 +7,7 @@ import { useOpenDoc } from '../../../hooks/usePages';
 import { maxWsRole, wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
+import { DOC_COLUMN_WIDTH, DOC_TEXT_INSET } from '../constants';
 import { PageTitle } from './PageTitle';
 
 // The editor bundles are large — load them only when a page is opened.
@@ -18,8 +19,8 @@ const SheetEditor = lazy(() =>
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
-  // Doc: title mirrors the editor column (900px anchor, 48px + 40px insets) so it sits on the text edge.
-  docTitle: 'flex-none w-full max-w-[900px] mx-auto pt-7 px-[88px]',
+  // Doc: title mirrors the editor column via the shared constants (inline style below).
+  docTitle: 'flex-none w-full mx-auto pt-7',
   // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
   sheetTitle: 'flex-none w-full pt-7 px-6',
 };
@@ -67,7 +68,10 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      <div className={isSheet ? styles.sheetTitle : styles.docTitle}>
+      <div
+        className={isSheet ? styles.sheetTitle : styles.docTitle}
+        style={isSheet ? undefined : { maxWidth: DOC_COLUMN_WIDTH, paddingLeft: DOC_TEXT_INSET, paddingRight: DOC_TEXT_INSET }}
+      >
         <PageTitle
           workspaceId={ctx.workspaceId}
           docId={openDocId}

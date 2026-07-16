@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
-import { SheetSnapshot, extractSheet } from "./versions.service";
+import {
+  SheetSnapshot,
+  extractSheet,
+  whiteboardCanonicalText,
+} from "./versions.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
@@ -159,7 +163,7 @@ export class SessionsService {
     };
   }
 
-  // Single-pass equivalent of previewAtSeq per boundary; for SHEET docs `text` is the grid's canonical serialization (so cell changes aren't seen as no-ops).
+  // Single-pass equivalent of previewAtSeq per boundary; for SHEET/WHITEBOARD docs `text` is a canonical serialization (so cell/shape changes aren't seen as no-ops).
   private async replayBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
@@ -172,14 +176,15 @@ export class SessionsService {
     let dirty = true;
     const capture = async (): Promise<Snap> => {
       if (dirty) {
-        // Read the grid off the live doc before worker extraction (see previewAtSeq).
+        // Read the grid/board off the live doc before worker extraction (see previewAtSeq).
         const sheet = extractSheet(ydoc);
+        const whiteboardText = whiteboardCanonicalText(ydoc);
         const { plainText } = await this.extract.extractFromBytes(
           Y.encodeStateAsUpdate(ydoc)
         );
         const text = sheet
           ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-          : plainText;
+          : plainText || whiteboardText || "";
         last = { text, sheet };
         dirty = false;
       }

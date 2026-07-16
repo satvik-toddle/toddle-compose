@@ -73,6 +73,16 @@ export function extractWhiteboard(ydoc: Y.Doc): WhiteboardSnapshot | null {
   return { recordCount: yrecords.size, shapeCount, pageCount };
 }
 
+// Canonical whiteboard text for no-op detection: full record contents keyed by
+// sorted id, so moves/resizes/recolors (count-preserving edits) register as changes.
+export function whiteboardCanonicalText(ydoc: Y.Doc): string | null {
+  if (!ydoc.share.has(TLDRAW_KEY)) return null;
+  const yrecords = ydoc.getMap(TLDRAW_KEY);
+  const records: Record<string, unknown> = {};
+  for (const k of [...yrecords.keys()].sort()) records[k] = yrecords.get(k);
+  return JSON.stringify(records);
+}
+
 @Injectable()
 export class VersionsService {
   constructor(
@@ -96,6 +106,7 @@ export class VersionsService {
     // Extract sheet/whiteboard FIRST to fix their roots to concrete Array/Map types: the rawTexts getText() loop below would otherwise coerce them to Y.Text and break later typed reads.
     const sheet = extractSheet(ydoc);
     const whiteboard = extractWhiteboard(ydoc);
+    const whiteboardText = whiteboardCanonicalText(ydoc);
 
     const { lexicalJson, plainText: lexicalText } =
       await this.extract.extractFromBytes(yjsState);
@@ -110,12 +121,10 @@ export class VersionsService {
       }
     }
 
-    // Sheets/whiteboards yield empty lexical text (every session would look like a no-op), so use a canonical serialization; DOC docs keep lexical text.
+    // Sheets/whiteboards yield empty lexical text (every session would look like a no-op), so use a canonical serialization. Non-empty lexical text wins over the whiteboard fallback so a DOC with a stray tldraw root keeps text previews.
     const plainText = sheet
       ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-      : whiteboard
-        ? JSON.stringify(whiteboard)
-        : lexicalText;
+      : lexicalText || whiteboardText || "";
 
     const elapsedMs = Date.now() - t0;
     log.debug(

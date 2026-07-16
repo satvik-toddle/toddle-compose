@@ -29,4 +29,20 @@ export class BackendInternalClient {
       log.warn(`pushContent '${docId}' failed: ${e instanceof Error ? e.message : e}`);
     }
   }
+
+  // Bulk index push from the indexer worker. Unlike pushContent, this THROWS on failure so the
+  // worker leaves the queue rows in place and retries them next sweep (crash/outage recovery).
+  async pushContentBulk(
+    items: { id: string; text: string; seq: number }[]
+  ): Promise<void> {
+    if (items.length === 0) return;
+    const base = this.config.get("BACKEND_INTERNAL_URL", { infer: true });
+    const token = this.config.get("INTERNAL_TOKEN", { infer: true });
+    const res = await fetch(`${base}/api/internal/documents/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Internal-Token": token },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) throw new Error(`bulk index push → ${res.status}`);
+  }
 }

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
+import { IndexerNotifier } from "./indexer-notifier";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
 import { trace } from "../tracing/trace";
@@ -54,6 +55,7 @@ export class DocStateService {
   constructor(
     private readonly repo: DocRepository,
     private readonly compaction: CompactionService,
+    private readonly notifier: IndexerNotifier,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -341,6 +343,7 @@ export class DocStateService {
         // indexer worker extracts + pushes search text — no extraction/HTTP on this path.
         const version = await this.repo.persistRtcDoc(docName, yjsState, flushedSeq);
         state.snapshotAtSeq = flushedSeq;
+        this.notifier.notify(); // enqueue committed; wake the indexer (debounced)
         log.info(
           `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
@@ -385,8 +388,9 @@ export class DocStateService {
     try {
       const update = Y.encodeStateAsUpdate(ydoc);
       const blob = Buffer.from(update);
-      // Same-tx enqueue (see flush); the indexer worker owns extraction + the backend push.
+      // Same-tx enqueue (see flush); the indexer worker owns extraction + the backend write.
       await this.repo.writeSnapshotCheckpoint(docName, blob, state.lastAppendedSeq);
+      this.notifier.notify();
       persistLog.info(
         `'${docName}' checkpoint reason=${reason} → snapshot=${blob.byteLength}B at_seq=${state.lastAppendedSeq}`
       );

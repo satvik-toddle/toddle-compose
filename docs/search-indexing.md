@@ -5,21 +5,33 @@ the rtc (collaboration) server**, and without losing index updates across crashe
 concurrent edits, or out-of-order delivery.
 
 Status: **target state shipped** — durable `stale_documents` queue + same-tx enqueue + a
-detached indexer worker process now populate the backend search projection. The old per-flush
-inline extraction/push is removed. Deferred (accepted, see §9): physical drop of the vestigial
-rtc `content_text` column, hash-partitioned multi-worker, the external-engine ports (§8), and
-the full metric set (§10 — the queue is observable via `stale_documents`, structured metrics
-TBD).
+detached indexer worker now populate the backend search projection. The worker is a **dual-DB
+process**: it reads the rtc DB (queue + `yjs_state`) and writes the backend `documents`
+projection **directly** (no internal HTTP hop). rtc **pings** the worker after each enqueue; the
+worker **coalesces** those pings into one sweep per `INDEXER_INTERVAL_MS` window (plus a slow
+safety sweep + startup catch-up). The old per-flush inline extraction/push AND the backend's
+internal content endpoints are removed. Deferred (accepted, §9): physical drop of the vestigial
+rtc `content_text` column, hash-partitioned multi-worker, external-engine ports (§8), structured
+metrics (§10 — the queue is observable via `stale_documents`).
+
+Design note (deliberate deviation from the original §7): the worker holds **both** DB
+connection strings (rtc read + backend write). This trades the "no cross-service DB creds"
+isolation for a simpler, HTTP-free write path — the worker is the one trusted process that
+bridges the two DBs. See §7 for the revised boundary.
 
 As-built pointers:
 - Queue + enqueue (G1): `packages/rtc-database` `StaleDocument`; `DocRepository.persistRtcDoc` /
   `writeSnapshotCheckpoint` wrap the snapshot write + `enqueueStale` in one `$transaction`.
-- Worker: `rtc-server/src/indexer/` (`indexer.service.ts` loop, `main.ts` headless bootstrap);
-  run with `pnpm --filter rtc-server indexer` (prod) / `dev:indexer` (watch), wired into
-  `scripts/dev-services.mjs`.
-- Guards: G2 `DocRepository.deleteStaleUpTo` (`seq <= claimed`); G3 backend
-  `InternalController` bulk `POST /api/internal/documents/content` (`UPDATE … WHERE
-  content_seq IS NULL OR content_seq < seq`) + `documents.content_seq`.
+  After commit, `DocStateService` calls `IndexerNotifier.notify()` (debounced ping).
+- Worker: `rtc-server/src/indexer/` — `indexer.service.ts` (schedule/coalesce/drain),
+  `search-index-writer.ts` (direct `pg` seq-guarded UPDATE to the backend DB),
+  `indexer.controller.ts` (`POST /wake` → `{ nextRunAt }`), `main.ts` (HTTP bootstrap on
+  `INDEXER_PORT`). Run: `pnpm --filter rtc-server indexer` (prod) / `dev:indexer` (watch);
+  wired into `scripts/dev-services.mjs`. Env: `DATABASE_URL`, `INDEXER_PORT` (4100),
+  `INDEXER_INTERVAL_MS` (5000), `INDEXER_SAFETY_SWEEP_MS` (60000); rtc: `INDEXER_WAKE_URL`.
+- Guards: G2 `DocRepository.deleteStaleUpTo` (`seq <= claimed`); G3 now in the worker's
+  `SearchIndexWriter.apply` (`UPDATE documents … WHERE content_seq IS NULL OR content_seq <
+  seq`) + `documents.content_seq`.
 
 ---
 
@@ -222,24 +234,32 @@ Capacity guidance:
 | ~5k–tens of k | N hash-partitioned workers; rtc read replica; search column moved to its own partitioned table; GIN tuning |
 | ≥ ~100k sustained | Postgres exits the index-write path: queue feeds an external search engine (§8) |
 
-**Freshness SLA:** flush (≤10 s) + sweep (~2–5 s) + push ≈ **≤ ~15 s** worst case. Document
-this; "I typed it and can't search it yet" inside that window is by design.
+**Freshness SLA:** flush (≤10 s) + coalesce window (`INDEXER_INTERVAL_MS`, 5 s) + sweep
+(sub-second) worst case. Measured: 1000 distinct docs enqueued/sec for 10 s held the queue at
+**1000 rows** (= distinct docs, NOT the 10 000 updates issued — PK coalescing), drained in a
+single **~0.86 s** sweep; a single change indexed in **~4 s** end-to-end. Lower
+`INDEXER_INTERVAL_MS` to trade freshness for more frequent sweeps.
 
 ---
 
-## 7. Isolation & security boundaries
+## 7. Isolation & security boundaries (revised — see the design note at the top)
 
 - The worker is a **separate process**: its CPU/memory never touches rtc's WebSocket loop or
-  backend request handlers.
-- Remaining coupling is **through the databases**, by design and bounded:
-  worker *reads* rtc DB (replica-able), *writes* backend only via the internal API.
-- **No cross-service DB credentials.** rtc/worker never hold the backend `DATABASE_URL`; the
-  only write capability exposed is "set one doc's search text, seq-guarded", authenticated by
-  `INTERNAL_TOKEN` (`X-Internal-Token`, constant-time compare).
-- Internal routes (`/api/internal/*`, rtc `/internal/*`) must be network-private in prod; the
-  shared secret is defense-in-depth, not the perimeter.
-- Blast radius of a leaked internal token: search-index poisoning (annoying, recoverable by
-  re-index) — not data read access.
+  backend request handlers. Verified: with the backend *service* killed the worker still indexes
+  (it writes Postgres directly); with rtc killed, search still serves (reads hit only the backend
+  DB).
+- **The worker holds BOTH DB connection strings** (`RTC_DATABASE_URL` read, `DATABASE_URL`
+  write). This is the deliberate change from the original design: it drops the internal-API hop
+  (and the backend's `/api/internal/documents/content` endpoints + token guard) in exchange for
+  the worker being the one trusted DB-bridging process. rtc itself still never touches the
+  backend DB — only the worker does.
+- Tradeoff: a compromised worker can read/write the backend DB directly (wider blast radius than
+  the old "set one doc's search text" capability). Mitigate by running the worker on a private
+  network segment with least-privilege DB credentials (ideally a role scoped to
+  `UPDATE (content_text, content_seq) ON documents` + `SELECT/DELETE ON stale_documents` +
+  `SELECT yjs_state`). The `/wake` route is unauthenticated and must be private in prod.
+- rtc's own `/internal/*` (backend → rtc: forceCheckpoint/evict/health) is unchanged and still
+  `INTERNAL_TOKEN`-guarded.
 
 ---
 
@@ -250,8 +270,8 @@ consumed idempotently**. Those three properties are what make every transport/si
 
 | Port | Adapter now | Adapter later |
 |---|---|---|
-| `ChangeQueue` (enqueue / drain / ack) | `stale_documents` table | Kafka topic, log-compacted, keyed by docId |
-| `SearchIndexWriter` (bulk upsert) | backend bulk API → Postgres GIN | OpenSearch/Meilisearch bulk ingest |
+| `ChangeQueue` (enqueue / drain / ack) | `stale_documents` table + `/wake` ping | Kafka topic, log-compacted, keyed by docId |
+| `SearchIndexWriter` (bulk upsert) | worker → direct seq-guarded `UPDATE` on Postgres (`SearchIndexWriter.apply`) | OpenSearch/Meilisearch bulk ingest |
 | `SearchIndexReader` (search/paginate) | Postgres trgm query | search-engine query (adds ranking, typo tolerance) |
 
 - rtc knows only `ChangeQueue.enqueue`. The search controller knows only
@@ -291,16 +311,27 @@ The failure mode of this pipeline is *silent, growing staleness*. Minimum signal
 
 ## 11. Rollout — DONE (this is how it was shipped)
 
-1. ✅ Backend: `content_seq` column (+ `sql/002_content_seq.sql`); bulk internal endpoint with
-   raised body limit (8mb); single-doc endpoint kept with an optional seq guard.
+1. ✅ Backend: `content_seq` column (+ `sql/002_content_seq.sql`). (An interim bulk internal
+   endpoint existed during the HTTP-push phase; it and the single-doc endpoint were **removed**
+   once the worker moved to direct DB writes — the backend has no incoming internal content
+   surface now.)
 2. ✅ rtc: `stale_documents` created; enqueue in the flush tx; inline extraction/push removed;
-   boot backfill + the `reindex-content` script deleted (single extraction path). rtc
-   `content_text` left in place as vestigial — physical drop deferred (needs
-   `--accept-data-loss`; nothing reads/writes it).
-3. ✅ Worker deployed as its own process; a fresh queue drains naturally (backlog = backfill).
-   In the incremental cutover here, already-indexed docs kept their projection and only
-   re-enqueue on the next edit.
-4. ✅ Verified locally: G1 live (edit → flush enqueue → worker drain → search hit); G2 guarded
-   delete (a bumped seq survives a stale-seq delete); G3 (older seq push is a no-op); backend
-   killed mid-run → queue rows persist → converge on restart. Structured metrics (§10) still
-   TBD; the queue itself is inspectable (`SELECT count(*), min(dirty_at) FROM stale_documents`).
+   boot backfill + `reindex-content` deleted (single extraction path). After commit,
+   `IndexerNotifier` pings the worker (debounced). rtc `content_text` left vestigial — physical
+   drop deferred (needs `--accept-data-loss`; nothing reads/writes it).
+3. ✅ Worker: own process, both DBs, HTTP `/wake`; a fresh queue drains naturally
+   (backlog = backfill). In the incremental cutover, already-indexed docs kept their projection
+   and re-enqueue on the next edit.
+4. ✅ Verified locally (empirical, against the running stack):
+   - Guards — G1 live (edit → flush enqueue → worker drain → search hit); G2 (a bumped seq
+     survives a `seq ≤ claimed` delete); G3 (a stale-seq push is a no-op, `applied:0`).
+   - Coalescing — 50 upserts to one doc → 1 row; 1000 distinct docs/sec × 10 s held the queue at
+     1000 rows (not 10 000) and drained in ~0.86 s; single-change latency ~4 s.
+   - No-drop — hammering climbing seqs across sweeps, the indexed seq == the final enqueued seq
+     every run (the "claimed@10, bumped to 12 before commit" case: 12 wins, nothing dropped).
+   - Resilience — worker down → rows persist → restart's startup sweep drains; backend *service*
+     down → worker still indexes (direct write); rtc down → search still serves; worker DB write
+     failing → rows persist (throw before the guarded delete) → converge on recovery; 60 s safety
+     sweep fires when no ping arrives.
+   Structured metrics (§10) still TBD; the queue is inspectable
+   (`SELECT count(*), min(dirty_at) FROM stale_documents`).

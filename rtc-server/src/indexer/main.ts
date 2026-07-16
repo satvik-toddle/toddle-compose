@@ -1,20 +1,26 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { IndexerAppModule } from "./indexer-app.module";
 import { IndexerService } from "./indexer.service";
+import type { Env } from "../config/env";
 
-// Headless worker: no HTTP/WS server, just the sweep loop over its own process. Kept separate
-// from the collab server so extraction CPU is isolated (search-indexing.md §7).
+// Detached indexer worker: its own process (extraction CPU isolated from the WS event loop),
+// with access to BOTH databases — reads the rtc queue/state, writes the backend projection.
+// Exposes a tiny /wake HTTP surface that rtc pings after enqueuing.
 async function bootstrap(): Promise<void> {
-  const ctx = await NestFactory.createApplicationContext(IndexerAppModule);
-  ctx.enableShutdownHooks();
-  ctx.get(IndexerService).start();
-  new Logger("indexer").log("search indexer worker up");
+  const app = await NestFactory.create(IndexerAppModule);
+  app.enableShutdownHooks();
+  const config = app.get<ConfigService<Env, true>>(ConfigService);
+  const port = config.get("INDEXER_PORT", { infer: true });
+  await app.listen(port);
+  app.get(IndexerService).start();
+  new Logger("indexer").log(`search indexer worker on :${port}`);
 }
 
-// On an uncaught error, log and exit non-zero so the supervisor restarts us; queue rows are
-// durable and pushes are idempotent (G3), so a restart just resumes the drain safely.
+// On an uncaught error, exit non-zero so the supervisor restarts us; queue rows are durable and
+// writes are idempotent (G3), so a restart just resumes the drain safely.
 function crash(kind: string, e: unknown): void {
   new Logger("indexer").error(kind, e instanceof Error ? e.stack : e);
   process.exit(1);

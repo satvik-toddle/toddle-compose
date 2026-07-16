@@ -18,8 +18,8 @@ const SheetEditor = lazy(() =>
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
-  // Doc: title centered over the editor's readable column (760px + 88px text inset).
-  docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
+  // Doc: title mirrors the editor column (900px anchor, 48px + 40px insets) so it sits on the text edge.
+  docTitle: 'flex-none w-full max-w-[900px] mx-auto pt-7 px-[88px]',
   // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
   sheetTitle: 'flex-none w-full pt-7 px-6',
 };

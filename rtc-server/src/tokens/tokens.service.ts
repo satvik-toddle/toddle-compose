@@ -13,6 +13,8 @@ export type RtcClaims = {
   role: Role;
   // JWT expiry (epoch seconds), used to close sockets at expiry.
   exp?: number;
+  // JWT issued-at (epoch seconds); compared against the per-doc kick watermark.
+  iat?: number;
 };
 
 @Injectable()
@@ -55,6 +57,7 @@ export class TokensService {
       docId: payload.docId as string,
       role: payload.role,
       exp: typeof payload.exp === "number" ? payload.exp : undefined,
+      iat: typeof payload.iat === "number" ? payload.iat : undefined,
     };
   }
 }

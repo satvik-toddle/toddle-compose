@@ -30,12 +30,10 @@ export type ModalState =
     }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
   | {
-      type: 'shareDocument';
-      workspaceId: string;
+      type: 'docPermissions';
       docId: string;
       docTitle: string;
-      canManage: boolean;
-      isAdmin: boolean;
+      owner: { id: string; name: string; email?: string; color?: string };
     };
 
 interface UiState {

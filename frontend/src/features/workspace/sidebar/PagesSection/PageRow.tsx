@@ -43,7 +43,7 @@ export function PageRow({
 
   const menuItems = buildPageMenuItems({
     canCreate,
-    canManage: canManage(doc.owner.id),
+    canManage: canManage(doc.owner.id, doc.myRole),
     isStarred,
     onAddSubpage: (type) => createPage(doc.id, type),
     onAddPage: (type) => createPage(doc.parentId ?? undefined, type),
@@ -96,7 +96,7 @@ export function PageRow({
   };
 
   const handleRowDoubleClick = () => {
-    if (canManage(doc.owner.id)) setIsRenaming(true);
+    if (canManage(doc.owner.id, doc.myRole)) setIsRenaming(true);
   };
 
   const commitRename = (value: string) => {

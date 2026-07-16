@@ -57,7 +57,7 @@ export function ConfirmRemoveMemberModal({
       <ModalHead tone="danger" icon="DeleteOutlined" title={title} sub={sub} onClose={onClose} />
       <div className="m-body">
         <div className="found">
-          <Avatar person={{ name, color: '#8f8f8f' }} size={34} />
+          <Avatar person={{ name }} size={34} />
           <div style={{ flex: 1 }}>
             <div className="nm">{name}</div>
             <div className="sub">{email}</div>

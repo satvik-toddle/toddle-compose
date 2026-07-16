@@ -99,6 +99,16 @@ declare module '@toddle-edu/ds-data-grid' {
     height: number;
   }
 
+  // One entry per selected cell, passed to onCellSelectionChange (the grid flattens
+  // the selection rectangle(s) into cells; empty array when the selection clears).
+  export interface DataGridSelectedCell {
+    row: number;
+    col: number;
+    rowId: string;
+    colId: string | number;
+    [key: string]: unknown;
+  }
+
   // The imperative handle exposed via ref — see Storybook "Data Grid > Ref API".
   export interface DataGridRef {
     selection: {
@@ -127,6 +137,7 @@ declare module '@toddle-edu/ds-data-grid' {
     headers: DataGridHeader[];
     data: DataGridRow[];
     onCellEdit?: (edits: DataGridCellEdit[]) => void;
+    onCellSelectionChange?: (cells: DataGridSelectedCell[]) => void;
     onAppendRowAtEnd?: () => void;
     isViewMode?: boolean;
     dataGridHeight?: number | string;

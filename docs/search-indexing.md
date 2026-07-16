@@ -4,8 +4,22 @@ Design for keeping document content searchable at scale **without putting any se
 the rtc (collaboration) server**, and without losing index updates across crashes, retries,
 concurrent edits, or out-of-order delivery.
 
-Status: **current state shipped** (denormalized column + per-flush push); **target state
-designed, not yet implemented** (durable queue + detached indexer worker).
+Status: **target state shipped** — durable `stale_documents` queue + same-tx enqueue + a
+detached indexer worker process now populate the backend search projection. The old per-flush
+inline extraction/push is removed. Deferred (accepted, see §9): physical drop of the vestigial
+rtc `content_text` column, hash-partitioned multi-worker, the external-engine ports (§8), and
+the full metric set (§10 — the queue is observable via `stale_documents`, structured metrics
+TBD).
+
+As-built pointers:
+- Queue + enqueue (G1): `packages/rtc-database` `StaleDocument`; `DocRepository.persistRtcDoc` /
+  `writeSnapshotCheckpoint` wrap the snapshot write + `enqueueStale` in one `$transaction`.
+- Worker: `rtc-server/src/indexer/` (`indexer.service.ts` loop, `main.ts` headless bootstrap);
+  run with `pnpm --filter rtc-server indexer` (prod) / `dev:indexer` (watch), wired into
+  `scripts/dev-services.mjs`.
+- Guards: G2 `DocRepository.deleteStaleUpTo` (`seq <= claimed`); G3 backend
+  `InternalController` bulk `POST /api/internal/documents/content` (`UPDATE … WHERE
+  content_seq IS NULL OR content_seq < seq`) + `documents.content_seq`.
 
 ---
 
@@ -46,23 +60,19 @@ One query. No rtc involvement. Scales with read replicas.
 
 ---
 
-## 3. Current state (shipped)
+## 3. Prior state (superseded — kept for context)
 
-- rtc extracts plain text on each snapshot flush/checkpoint (registry-free Yjs tree walk,
-  `searchable-text.ts`) and fire-and-forgets it to the backend:
-  `PUT /api/internal/documents/:id/content` (`X-Internal-Token` shared secret).
-- Backend writes `documents.content_text`; the GIN index absorbs it.
-- The old rtc search RPC (`POST /internal/docs/search`), id-shipping (20k-id window), and the
-  per-instance phase-1 memo are **removed**.
+The first shipped version extracted plain text on each snapshot flush (registry-free Yjs tree
+walk, `searchable-text.ts`) and fire-and-forgot it to `PUT /api/internal/documents/:id/content`.
+That endpoint still exists (now with an optional seq guard) but the collab server no longer
+calls it — the flush just enqueues, and the worker owns extraction + the push. The gaps that
+motivated the switch, all now closed by §4:
 
-Known gaps of the current state (what the target state fixes):
-
-1. **Crash staleness** — the push lives and dies with the flush. rtc crash before flush, or a
-   failed push, leaves the index stale until that doc happens to flush again. Nothing
-   reconciles.
-2. **Write amplification** — one HTTP call + one row update per flush per active doc; no
-   coalescing or batching.
-3. **rtc still pays extraction CPU** on every flush.
+1. **Crash staleness** — the push lived and died with the flush; a crash/failed push left the
+   index stale with nothing to reconcile. → same-tx enqueue (G1) + worker retry.
+2. **Write amplification** — one HTTP call + row update per flush per active doc. → PK
+   coalescing + batched bulk push.
+3. **rtc paid extraction CPU** on every flush. → extraction moved to the detached worker.
 
 ---
 
@@ -279,14 +289,18 @@ The failure mode of this pipeline is *silent, growing staleness*. Minimum signal
 - push failure counter (alert on sustained failures)
 - empty-extraction counter (corrupt/undecodable docs)
 
-## 11. Rollout
+## 11. Rollout — DONE (this is how it was shipped)
 
-1. Backend: `content_seq` column; bulk internal endpoint (raise its body limit); keep the
-   existing single-doc endpoint during transition.
-2. rtc: create `stale_documents`; enqueue in the flush tx; **stop** extracting/pushing inline
-   once the worker is live; drop rtc `content_text` + boot backfill (vestigial — and a second
-   extraction path is a drift bug waiting to happen).
-3. Deploy worker with `indexed`-nothing: on first run every doc with a snapshot is enqueued /
-   swept naturally — **the backlog drain IS the backfill** (rate-capped by batching).
-4. Verify: dirty-age metric ~0 in steady state; kill the worker mid-batch and confirm
-   convergence; kill backend during push and confirm retry.
+1. ✅ Backend: `content_seq` column (+ `sql/002_content_seq.sql`); bulk internal endpoint with
+   raised body limit (8mb); single-doc endpoint kept with an optional seq guard.
+2. ✅ rtc: `stale_documents` created; enqueue in the flush tx; inline extraction/push removed;
+   boot backfill + the `reindex-content` script deleted (single extraction path). rtc
+   `content_text` left in place as vestigial — physical drop deferred (needs
+   `--accept-data-loss`; nothing reads/writes it).
+3. ✅ Worker deployed as its own process; a fresh queue drains naturally (backlog = backfill).
+   In the incremental cutover here, already-indexed docs kept their projection and only
+   re-enqueue on the next edit.
+4. ✅ Verified locally: G1 live (edit → flush enqueue → worker drain → search hit); G2 guarded
+   delete (a bumped seq survives a stale-seq delete); G3 (older seq push is a no-op); backend
+   killed mid-run → queue rows persist → converge on restart. Structured metrics (§10) still
+   TBD; the queue itself is inspectable (`SELECT count(*), min(dirty_at) FROM stale_documents`).

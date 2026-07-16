@@ -61,7 +61,7 @@ function VersionRow({
 // newest first. Selecting a row previews that version in the content pane.
 export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
   const { select, exit, diff, setDiff } = useHistoryMode();
-  const { sessions, isLoading, isError, effectiveSeq } = useVersionSelection(docId);
+  const { sessions, isLoading, isError, effectiveSeq, session } = useVersionSelection(docId);
 
   return (
     <div>
@@ -89,7 +89,8 @@ export function VersionsSection({ docId }: Readonly<{ docId: string }>) {
           <span className={styles.toggleLabel}>Show changes</span>
           <ToggleSwitch
             dsVersion="2.0"
-            checked={diff}
+            // Mirror what's actually shown: a stale ?v (no matching session) degrades diff to the plain snapshot, so don't show checked then.
+            checked={diff && session != null}
             onChange={(e) => setDiff((e.target as HTMLInputElement).checked)}
             aria-label="Compare this version with the previous one"
           />

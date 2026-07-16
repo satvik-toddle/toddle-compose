@@ -80,10 +80,12 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
   const selectedIdx = sessions.findIndex((sess) => sess.lastSeq === effectiveSeq);
   const diffBaseline = selectedIdx >= 0 ? (sessions[selectedIdx + 1]?.lastSeq ?? 0) : null;
   const diffActive = diff && diffBaseline != null;
+  // In diff mode, hold the snapshot query (seq=null disables it) until sessions yield the baseline — else a diff deep link fetches once without it and refires.
+  const snapshotSeq = diff && sessionsLoading ? null : effectiveSeq;
   // One query returns the snapshot, plus the server-computed merged diff in diff mode.
   const { data: snapshot, isLoading: snapLoading, isError: snapError } = useDocSnapshot(
     doc.id,
-    effectiveSeq,
+    snapshotSeq,
     diffActive ? diffBaseline : undefined,
   );
 

@@ -10,6 +10,18 @@ import { RTC_WS_URL } from '../../lib/env';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
 
+type LexicalNode = { uploadId?: unknown; src?: unknown; children?: unknown };
+
+// Clear the preview's baked point-in-time URLs from registry-backed media (restore keeps the upload registry, so live rendering re-resolves src from uploadId).
+function stripMaterializedMediaUrls(state: { root?: LexicalNode }): { root?: LexicalNode } {
+  const walk = (node: LexicalNode) => {
+    if (node.uploadId && node.src) node.src = '';
+    if (Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  if (state.root) walk(state.root);
+  return state;
+}
+
 export function ConfirmRestoreVersionModal({
   onClose,
   docId,
@@ -37,10 +49,11 @@ export function ConfirmRestoreVersionModal({
   };
 
   const submit = async () => {
-    const editorState = snapshot?.lexicalJson;
-    if (pending || !editorState || rtc?.role !== 'editor' || !rtc.token) return;
+    const editorStateJson = snapshot?.lexicalJson;
+    if (pending || !editorStateJson || rtc?.role !== 'editor' || !rtc.token) return;
     setPending(true);
     try {
+      const editorState = stripMaterializedMediaUrls(JSON.parse(editorStateJson));
       // Lazy import: the editor bundle is ~4MB and ModalRoot mounts at the app root.
       const { restoreCollabDocContent } = await import('@toddle-edu/ds-doc-editor');
       await restoreCollabDocContent({ wsUrl: RTC_WS_URL, docId, token: rtc.token, editorState });

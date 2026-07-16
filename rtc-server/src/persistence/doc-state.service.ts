@@ -2,8 +2,6 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { DocRepository } from "./doc-repository.service";
-import { extractSearchText } from "./searchable-text";
-import { BackendInternalClient } from "./backend-internal.client";
 import { CompactionService } from "../compaction/compaction.service";
 import { createLogger } from "../logger";
 import { trace } from "../tracing/trace";
@@ -56,7 +54,6 @@ export class DocStateService {
   constructor(
     private readonly repo: DocRepository,
     private readonly compaction: CompactionService,
-    private readonly backend: BackendInternalClient,
     private readonly config: ConfigService<Env, true>
   ) {}
 
@@ -340,15 +337,10 @@ export class DocStateService {
         }
         const update = Y.encodeStateAsUpdate(ydoc);
         const yjsState = Buffer.from(update);
-        const plainText = extractSearchText(update);
-        const version = await this.repo.persistRtcDoc(
-          docName,
-          yjsState,
-          flushedSeq,
-          plainText
-        );
+        // persistRtcDoc enqueues this doc onto stale_documents in the same tx; the detached
+        // indexer worker extracts + pushes search text — no extraction/HTTP on this path.
+        const version = await this.repo.persistRtcDoc(docName, yjsState, flushedSeq);
         state.snapshotAtSeq = flushedSeq;
-        void this.backend.pushContent(docName, plainText); // fire-and-forget; search lives in backend
         log.info(
           `'${docName}' flush done v${version} reason=${reason} at_seq=${flushedSeq} yjs=${yjsState.byteLength}B in ${Date.now() - t0}ms`
         );
@@ -393,14 +385,8 @@ export class DocStateService {
     try {
       const update = Y.encodeStateAsUpdate(ydoc);
       const blob = Buffer.from(update);
-      const plainText = extractSearchText(update);
-      await this.repo.writeSnapshotCheckpoint(
-        docName,
-        blob,
-        state.lastAppendedSeq,
-        plainText
-      );
-      void this.backend.pushContent(docName, plainText); // keep backend search index fresh
+      // Same-tx enqueue (see flush); the indexer worker owns extraction + the backend push.
+      await this.repo.writeSnapshotCheckpoint(docName, blob, state.lastAppendedSeq);
       persistLog.info(
         `'${docName}' checkpoint reason=${reason} → snapshot=${blob.byteLength}B at_seq=${state.lastAppendedSeq}`
       );

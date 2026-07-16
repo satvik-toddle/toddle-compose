@@ -53,8 +53,7 @@ export class DocRepository {
   async persistRtcDoc(
     id: string,
     yjsState: Buffer,
-    snapshotAtSeq: number,
-    contentText?: string | null
+    snapshotAtSeq: number
   ): Promise<number> {
     await this.ensureRtcDoc(id);
     // Snapshot write + stale-queue enqueue in ONE tx (G1): if the snapshot is durable, so is
@@ -67,7 +66,6 @@ export class DocRepository {
           snapshotAtSeq,
           version: { increment: 1 },
           updatedAt: BigInt(Date.now()),
-          ...(contentText !== undefined ? { contentText } : {}),
         },
       });
       await this.enqueueStale(tx, id, snapshotAtSeq);
@@ -78,8 +76,7 @@ export class DocRepository {
   async writeSnapshotCheckpoint(
     id: string,
     yjsState: Buffer,
-    snapshotAtSeq: number,
-    contentText?: string | null
+    snapshotAtSeq: number
   ): Promise<void> {
     await this.ensureRtcDoc(id);
     await this.prisma.$transaction(async (tx) => {
@@ -89,7 +86,6 @@ export class DocRepository {
           yjsState: asBytes(yjsState),
           snapshotAtSeq,
           updatedAt: BigInt(Date.now()),
-          ...(contentText !== undefined ? { contentText } : {}),
         },
       });
       await this.enqueueStale(tx, id, snapshotAtSeq);
@@ -148,37 +144,6 @@ export class DocRepository {
       select: { dirtyAt: true },
     });
     return row ? Number(row.dirtyAt) : null;
-  }
-
-  // Backfill support: docs that have a snapshot but no persisted search text yet
-  // (rows written before content_text existed). Ordered by id for stable cursoring.
-  async countDocsMissingContentText(): Promise<number> {
-    return this.prisma.rtcDocument.count({
-      where: { contentText: null, yjsState: { not: null } },
-    });
-  }
-
-  async listDocsMissingContentText(
-    afterId: string | null,
-    take: number
-  ): Promise<{ id: string; yjsState: Uint8Array | null }[]> {
-    return this.prisma.rtcDocument.findMany({
-      where: {
-        contentText: null,
-        yjsState: { not: null },
-        ...(afterId ? { id: { gt: afterId } } : {}),
-      },
-      select: { id: true, yjsState: true },
-      orderBy: { id: "asc" },
-      take,
-    });
-  }
-
-  async setContentText(id: string, contentText: string): Promise<void> {
-    await this.prisma.rtcDocument.update({
-      where: { id },
-      data: { contentText },
-    });
   }
 
   // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.

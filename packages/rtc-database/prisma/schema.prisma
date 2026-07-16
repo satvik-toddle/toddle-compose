@@ -23,9 +23,9 @@ model RtcDocument {
   // tree or SHEET grid) lives here. History/preview re-derive by replaying the
   // update log against this snapshot.
   yjsState      Bytes?  @map("yjs_state")
-  // Plain-text projection of the doc content, refreshed on each snapshot write.
-  // Read by content search (contentText contains q); redundant with yjsState by
-  // design so search need not decode CRDT state. Null until first extraction.
+  // DEPRECATED / vestigial: search text now lives only in the backend DB, populated by the
+  // detached indexer worker via stale_documents. Nothing reads or writes this column anymore;
+  // the physical drop is deferred to a follow-up migration (needs --accept-data-loss).
   contentText   String? @map("content_text")
   version       Int     @default(0)
   updatedAt     BigInt  @map("updated_at")

@@ -13,7 +13,6 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "indexer": "node dist/indexer/main.js",
-    "reindex-content": "node scripts/reindex-content.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },

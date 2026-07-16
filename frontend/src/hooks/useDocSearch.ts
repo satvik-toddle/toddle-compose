@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { qk } from '../lib/queryKeys';
 import { documentsApi } from '../api/documents';
 import type { SearchResultDto } from '../types/api';
@@ -29,7 +29,12 @@ export function useDocSearch(q: string, workspaceId?: string) {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: debounced.length > 0,
-    placeholderData: keepPreviousData,
+    // Keep prior results only while refining a related query (prefix either way); after a clear or an unrelated query, drop them so the old list doesn't flash.
+    placeholderData: (prev, prevQuery) => {
+      const prevTerm = (prevQuery?.queryKey?.[2] as string | undefined) ?? '';
+      const refining = debounced.length > 0 && (debounced.startsWith(prevTerm) || prevTerm.startsWith(debounced));
+      return refining ? prev : undefined;
+    },
     staleTime: 30_000,
     retry: 1,
   });

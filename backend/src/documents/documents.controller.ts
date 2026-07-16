@@ -123,7 +123,7 @@ export class DocumentsController {
       user.id,
       id,
       Number(seq),
-      diff != null && diff !== "" ? Number(diff) : undefined
+      diff != null && diff.trim() !== "" ? Number(diff) : undefined
     );
   }
 

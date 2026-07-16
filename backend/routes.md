@@ -313,7 +313,7 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
     "sessions": [
       {
         "firstSeq": 30, "lastSeq": 42, "startedAt": 1717000000000, "endedAt": 1717000600000,
-        "updateCount": 13, "totalBytes": 2048, "origin": null,
+        "updateCount": 13, "totalBytes": 2048, "kind": "edit", "noop": false,
         "changedCells": [ { "rowId": "r1", "colId": "c2" } ],
         "user": { "id": "ckus…", "name": "Ada", "email": "ada@…", "color": "#5a5ae2" }
       }

@@ -464,10 +464,10 @@ export class DocumentsService {
     diffAgainst?: number
   ) {
     const doc = await this.get(userId, docId);
-    if (!Number.isFinite(seq) || seq < 0) {
+    if (!Number.isInteger(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    if (diffAgainst != null && (!Number.isFinite(diffAgainst) || diffAgainst < 0)) {
+    if (diffAgainst != null && (!Number.isInteger(diffAgainst) || diffAgainst < 0)) {
       throw new BadRequestException("diff must be a non-negative integer");
     }
     // Fetch only the slice each doc type renders: DOC gets server-extracted editorState JSON (+ optional diff), SHEET reads the grid snapshot.

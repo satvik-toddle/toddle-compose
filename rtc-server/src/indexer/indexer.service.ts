@@ -21,6 +21,7 @@ const EXTRACT_CONCURRENCY = 8;
 export class IndexerService implements OnApplicationShutdown {
   private readonly intervalMs: number;
   private readonly safetyMs: number;
+  private readonly backfillOnBoot: boolean;
   private scheduledAt: number | null = null;
   private scheduleTimer: NodeJS.Timeout | null = null;
   private safetyTimer: NodeJS.Timeout | null = null;
@@ -35,14 +36,44 @@ export class IndexerService implements OnApplicationShutdown {
   ) {
     this.intervalMs = config.get("INDEXER_INTERVAL_MS", { infer: true });
     this.safetyMs = config.get("INDEXER_SAFETY_SWEEP_MS", { infer: true });
+    this.backfillOnBoot = config.get("INDEXER_BACKFILL_ON_BOOT", { infer: true });
   }
 
   start(): void {
-    log.info(`indexer up: interval=${this.intervalMs}ms safety=${this.safetyMs}ms batch=${BATCH}`);
-    // Catch up on anything enqueued while the worker was down.
-    this.trigger("startup");
+    log.info(`indexer up: interval=${this.intervalMs}ms safety=${this.safetyMs}ms batch=${BATCH} backfill=${this.backfillOnBoot}`);
     // Blind safety net: sweep even if a wake ping was never delivered.
     this.safetyTimer = setInterval(() => this.trigger("safety"), this.safetyMs);
+    void this.bootstrap();
+  }
+
+  // Boot: optionally self-heal the index (enqueue docs missing from it), then drain whatever's
+  // queued (the backfill + anything left from downtime).
+  private async bootstrap(): Promise<void> {
+    try {
+      if (this.backfillOnBoot) await this.reconcileMissing();
+    } catch (e) {
+      log.error(`boot backfill failed: ${e instanceof Error ? e.message : e}`);
+    }
+    this.trigger("startup");
+  }
+
+  // Enqueue every doc that has an rtc snapshot but no backend index row yet. Paged + idempotent
+  // (skipDuplicates); ~zero work once the corpus is fully indexed.
+  private async reconcileMissing(): Promise<void> {
+    const PAGE = 1000;
+    let cursor: string | null = null;
+    let enqueued = 0;
+    for (;;) {
+      if (this.stopped) return;
+      const page = await this.repo.listSnapshotDocsAfter(cursor, PAGE);
+      if (page.length === 0) break;
+      cursor = page[page.length - 1].id;
+      const gap = new Set(await this.writer.unindexedAmong(page.map((p) => p.id)));
+      const rows = page.filter((p) => gap.has(p.id)).map((p) => ({ docId: p.id, seq: Math.max(0, p.seq) }));
+      enqueued += await this.repo.enqueueMany(rows);
+      if (page.length < PAGE) break;
+    }
+    log.info(enqueued > 0 ? `boot backfill: enqueued ${enqueued} unindexed doc(s)` : "boot backfill: index already complete");
   }
 
   async onApplicationShutdown(): Promise<void> {

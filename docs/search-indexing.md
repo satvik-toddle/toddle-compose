@@ -28,7 +28,9 @@ As-built pointers:
   `indexer.controller.ts` (`POST /wake` → `{ nextRunAt }`), `main.ts` (HTTP bootstrap on
   `INDEXER_PORT`). Run: `pnpm --filter rtc-server indexer` (prod) / `dev:indexer` (watch);
   wired into `scripts/dev-services.mjs`. Env: `DATABASE_URL`, `INDEXER_PORT` (4100),
-  `INDEXER_INTERVAL_MS` (5000), `INDEXER_SAFETY_SWEEP_MS` (60000); rtc: `INDEXER_WAKE_URL`.
+  `INDEXER_INTERVAL_MS` (5000), `INDEXER_SAFETY_SWEEP_MS` (60000),
+  `INDEXER_BACKFILL_ON_BOOT` (true — auto-enqueue never-indexed docs on boot); rtc:
+  `INDEXER_WAKE_URL`.
 - Guards: G2 `DocRepository.deleteStaleUpTo` (`seq <= claimed`); G3 now in the worker's
   `SearchIndexWriter.apply` (`UPDATE documents … WHERE content_seq IS NULL OR content_seq <
   seq`) + `documents.content_seq`.
@@ -319,9 +321,13 @@ The failure mode of this pipeline is *silent, growing staleness*. Minimum signal
    boot backfill + `reindex-content` deleted (single extraction path). After commit,
    `IndexerNotifier` pings the worker (debounced). rtc `content_text` left vestigial — physical
    drop deferred (needs `--accept-data-loss`; nothing reads/writes it).
-3. ✅ Worker: own process, both DBs, HTTP `/wake`; a fresh queue drains naturally
-   (backlog = backfill). In the incremental cutover, already-indexed docs kept their projection
-   and re-enqueue on the next edit.
+3. ✅ Worker: own process, both DBs, HTTP `/wake`. **Backfill is automatic**: on boot (gated by
+   `INDEXER_BACKFILL_ON_BOOT`, default on) `reconcileMissing()` pages every rtc doc with a
+   snapshot, asks the backend which of them have no index row yet (`content_seq IS NULL`, orphan
+   rtc ids excluded), and enqueues exactly that gap — the normal sweep then drains it. Idempotent
+   and self-healing: ~zero work once caught up; no manual step, no data migration. Verified from
+   scratch: wiped all `content_text`/`content_seq`, started the worker → it enqueued 10,074
+   unindexed docs and indexed them in ~8.3 s; a second restart logged "index already complete".
 4. ✅ Verified locally (empirical, against the running stack):
    - Guards — G1 live (edit → flush enqueue → worker drain → search hit); G2 (a bumped seq
      survives a `seq ≤ claimed` delete); G3 (a stale-seq push is a no-op, `applied:0`).

@@ -117,6 +117,32 @@ export class DocRepository {
     });
   }
 
+  // Boot backfill: page through all docs that have a snapshot (id-cursored, memory-bounded).
+  async listSnapshotDocsAfter(
+    afterId: string | null,
+    take: number
+  ): Promise<{ id: string; seq: number }[]> {
+    const rows = await this.prisma.rtcDocument.findMany({
+      where: { yjsState: { not: null }, ...(afterId ? { id: { gt: afterId } } : {}) },
+      select: { id: true, snapshotAtSeq: true },
+      orderBy: { id: "asc" },
+      take,
+    });
+    return rows.map((r) => ({ id: r.id, seq: r.snapshotAtSeq }));
+  }
+
+  // Bulk enqueue for backfill; skipDuplicates so a doc already queued by a live edit (possibly at
+  // a newer seq) is left untouched.
+  async enqueueMany(rows: { docId: string; seq: number }[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    const dirtyAt = BigInt(Date.now());
+    const res = await this.prisma.staleDocument.createMany({
+      data: rows.map((r) => ({ docId: r.docId, seq: r.seq, dirtyAt })),
+      skipDuplicates: true,
+    });
+    return res.count;
+  }
+
   async getRtcStatesForIndex(
     ids: string[]
   ): Promise<{ id: string; yjsState: Uint8Array | null }[]> {

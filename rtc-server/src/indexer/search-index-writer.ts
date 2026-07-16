@@ -40,4 +40,15 @@ export class SearchIndexWriter implements OnModuleDestroy {
     );
     log.debug(`applied ${items.length} projection row(s) to backend DB`);
   }
+
+  // Of the given ids, which EXIST in documents but have no index yet (content_seq null) — the
+  // true backfill gap. Orphan rtc ids with no backend row are excluded (they'd never index).
+  async unindexedAmong(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const res = await this.pool.query(
+      `SELECT id FROM documents WHERE id = ANY($1::text[]) AND content_seq IS NULL`,
+      [ids]
+    );
+    return res.rows.map((r) => r.id as string);
+  }
 }

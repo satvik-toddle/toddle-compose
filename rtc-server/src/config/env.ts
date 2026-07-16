@@ -18,6 +18,13 @@ export const envSchema = z.object({
   INDEXER_INTERVAL_MS: z.coerce.number().default(5000),
   INDEXER_SAFETY_SWEEP_MS: z.coerce.number().default(60000),
   INDEXER_WAKE_URL: z.string().url().default("http://localhost:4100/wake"),
+  // On worker boot, enqueue docs that have an rtc snapshot but no backend index row yet
+  // (never-indexed or fell behind) so the queue self-heals without a manual backfill. Idempotent
+  // (~zero work once caught up). Set false to skip the boot scan on large corpora / fast restarts.
+  INDEXER_BACKFILL_ON_BOOT: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   RTC_PORT: z.coerce.number().default(4001),
   RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
   // Per-connection token bucket for inbound WS messages: bucket size (burst) and steady refill rate per second.

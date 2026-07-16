@@ -14,11 +14,12 @@ import { SearchEmpty } from './SearchEmpty';
 import { PreviewPane } from './PreviewPane';
 
 const styles = {
-  search: 'flex flex-col w-full rounded-3 overflow-hidden',
+  // --gs-chrome = 60px field + 1px border + 2.5rem footer (py-2.5 + h-5 hints) — rem-aware so browser font scaling can't break the caps.
+  search: 'flex flex-col w-full rounded-3 overflow-hidden [--gs-chrome:calc(61px+2.5rem)]',
   grow: 'flex-none overflow-hidden motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out',
-  // Body caps = panel caps (74vh spotlight / 624px+84vh split) minus 101px chrome (60px field + ~41px footer).
-  growSpot: 'flex flex-col max-h-[calc(74vh-101px)]',
-  growSplit: 'flex flex-col h-[523px] max-h-[calc(84vh-101px)]',
+  // Body caps = panel caps (74vh spotlight / 624px+84vh split) minus the chrome var.
+  growSpot: 'flex flex-col max-h-[calc(74vh-var(--gs-chrome))]',
+  growSplit: 'flex flex-col h-[calc(624px-var(--gs-chrome))] max-h-[calc(84vh-var(--gs-chrome))]',
   splitBody: 'flex-1 flex min-h-0',
   splitList: 'w-[414px] flex-none flex flex-col min-h-0 border-r border-solid border-secondary',
   listPane: 'relative flex-1 min-h-0 flex flex-col',
@@ -43,8 +44,7 @@ function searchErrorText(e: unknown): string {
   return 'Something went wrong while searching. Please try again.';
 }
 
-// Animates the spotlight body to its content height so the panel grows/shrinks smoothly
-// below the pinned top edge; inner renders at final size, the wrapper clips during the tween.
+// Animates the body to its measured content height; inner renders at final size, the wrapper clips during the tween.
 function AnimatedHeight({
   children,
   innerClassName,
@@ -125,11 +125,10 @@ export function SearchModal({
   const scrollToIndexRef = useRef(virtual.scrollToIndex);
   scrollToIndexRef.current = virtual.scrollToIndex;
 
-  // Only scroll to the active row on an actual selection/layout change (keyboard nav), never
-  // on measurement-driven re-renders.
+  // Re-run on selection change AND on list remount (listEl identity), so toggles re-scroll the fresh element.
   useEffect(() => {
     scrollToIndexRef.current(activeIndex);
-  }, [activeIndex, showPreview]);
+  }, [activeIndex, listEl]);
 
   const openDoc = (r: SearchResultDto) => {
     navigate(`/w/${r.workspaceId}?doc=${r.id}`);
@@ -278,6 +277,7 @@ export function SearchModal({
           showToggle={showToggle}
           previewOn={previewOn}
           setPreviewOn={setPreviewOn}
+          isSearching={isSearching}
         />
 
         <AnimatedHeight innerClassName={wide ? styles.growSplit : styles.growSpot}>{body}</AnimatedHeight>
@@ -292,10 +292,15 @@ export function SearchModal({
           <span className={styles.hint}>
             <ShortcutHint keys={['⌘', '↵']} /> Open in new tab
           </span>
+          <span className={styles.hint}>
+            <ShortcutHint keys={['Esc']} /> Close
+          </span>
           <span className={styles.gap} />
           <span className={styles.hint} data-testid="gs-count">
             {hasQuery
-              ? `${results.length} / ${totals.total} shown`
+              ? hasResponse
+                ? `${results.length} / ${totals.total} shown`
+                : 'Searching…'
               : isGlobal
                 ? 'Searching all workspaces you can access'
                 : 'Searching this workspace'}

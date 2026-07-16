@@ -27,6 +27,17 @@ export function useVirtualRows(
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(0);
 
+  // Render-phase reset on element identity change: a remounted list must window from its real scroll state, not the previous element's.
+  const [prevEl, setPrevEl] = useState(scrollEl);
+  if (prevEl !== scrollEl) {
+    setPrevEl(scrollEl);
+    setScrollTop(scrollEl ? scrollEl.scrollTop : 0);
+    setViewport(scrollEl ? scrollEl.clientHeight : 0);
+    // Heights are width-dependent; drop measurements from the previous layout.
+    sizes.current.clear();
+    setVersion((v) => v + 1);
+  }
+
   // Binding keys off the element so layout switches that remount the list rebind cleanly.
   useEffect(() => {
     const sc = scrollEl;

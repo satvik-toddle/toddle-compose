@@ -264,6 +264,9 @@ model Document {
   // Backed by a pg_trgm GIN index (see migrations/…_search_content_trgm; not expressible
   // in Prisma schema). Null until the first flush after this shipped.
   contentText String?    @map("content_text")
+  // Monotonic seq (rtc snapshot seq) of the content_text projection — guards against a
+  // delayed/out-of-order index push overwriting newer text with older (see search-indexing.md G3).
+  contentSeq  Int?       @map("content_seq")
 
   @@index([ownerId])
   @@index([folderId])

@@ -13,7 +13,7 @@ import {
 import { WHITEBOARD_SOLIDS } from '../whiteboardTheme';
 
 // Converts a legacy Zwibbler workbook (flat node array) into tldraw shapes.
-// Node mapping and rationale: README.md in this folder.
+// Node mapping and rationale: docs/whiteboard-zwibbler-conversion.md.
 
 export type ZwibblerNode = {
   type: string;
@@ -117,14 +117,17 @@ function parseColor(color: string | undefined): [number, number, number] | null 
   return null;
 }
 
+const SOLID_RGB = Object.entries(WHITEBOARD_SOLIDS).map(
+  ([name, hex]) => [name, parseColor(hex)!] as const,
+);
+
 function nearestColor(color: string | undefined): TLDefaultColorStyle {
   if (color && color in WHITEBOARD_SOLIDS) return color as TLDefaultColorStyle;
   const rgb = parseColor(color);
   if (!rgb) return 'black';
   let best: string = 'black';
   let bestDist = Infinity;
-  for (const [name, hex] of Object.entries(WHITEBOARD_SOLIDS)) {
-    const p = parseColor(hex)!;
+  for (const [name, p] of SOLID_RGB) {
     const dist = (rgb[0] - p[0]) ** 2 + (rgb[1] - p[1]) ** 2 + (rgb[2] - p[2]) ** 2;
     if (dist < bestDist) {
       bestDist = dist;
@@ -331,6 +334,20 @@ export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerC
     pageX += (node.width ?? 800) + PAGE_GAP;
   }
 
+  // Walk the parent chain to the owning PageNode: containers (e.g. GroupNode) sit
+  // between shapes and their page.
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const pageOffsetOf = (node: ZwibblerNode): number => {
+    const seen = new Set<ZwibblerNode['id']>();
+    for (let id = node.parent; id != null && !seen.has(id); ) {
+      const off = pageOffsets.get(id);
+      if (off !== undefined) return off;
+      seen.add(id);
+      id = nodeById.get(id)?.parent;
+    }
+    return 0;
+  };
+
   for (const node of nodes) {
     if (node.type === 'PageNode' || node.type === 'BaseNode') continue;
     const m = xform(node);
@@ -342,7 +359,7 @@ export async function zwibblerToTldraw(nodes: ZwibblerNode[]): Promise<ZwibblerC
     else if (node.type === 'BrushNode') shape = convertBrushNode(node, m);
     else skipped.add(node.type);
     if (!shape) continue;
-    const dx = node.parent != null ? (pageOffsets.get(node.parent) ?? 0) : 0;
+    const dx = pageOffsetOf(node);
     if (dx) shape.x = (shape.x ?? 0) + dx;
     shapes.push(shape);
   }

@@ -1,5 +1,5 @@
-import { RequestsTable } from '../../components/RequestsTable';
-import { useRealmJoinRequests } from '../../hooks/queries';
+import { OrgRequestsTable } from '../../components/OrgRequestsTable';
+import { useRealmOrgRequests } from '../../hooks/queries';
 
 const styles = {
   page: 'flex flex-1 flex-col overflow-auto px-[30px] pt-[26px] pb-10',
@@ -9,25 +9,21 @@ const styles = {
   headSub: 'mt-1 text-[13px] text-secondary',
 };
 
-export function JoinRequestsTab() {
-  const { data: requests, isLoading } = useRealmJoinRequests();
+export function OrgRequestsTab() {
+  const { data: requests, isLoading } = useRealmOrgRequests();
 
   return (
     <div className={styles.page}>
       <div className={styles.pageWrap}>
         <div className={styles.pageHead}>
           <div>
-            <h1 className={styles.h1}>Workspace requests</h1>
+            <h1 className={styles.h1}>Org requests</h1>
             <div className={styles.headSub}>
-              People asking to join private workspaces across the realm. Approve to add them with a role.
+              People asking to join this organisation. Approve to add them as a member.
             </div>
           </div>
         </div>
-        <RequestsTable
-          requests={requests ?? []}
-          isLoading={isLoading}
-          showWorkspace
-        />
+        <OrgRequestsTable requests={requests ?? []} isLoading={isLoading} />
       </div>
     </div>
   );

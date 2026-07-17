@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { RealmRole } from "@app/database";
+import { Prisma, RealmRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
 import { AuthzService } from "./authz.service";
@@ -28,23 +28,48 @@ export class RealmService {
 
   async info(userId: string) {
     const role = await this.authz.realmRole(userId);
-    const base = { id: this.realm.id, name: this.realm.name, role };
+    const realm = await this.prisma.realm.findUnique({
+      where: { id: this.realm.id },
+      select: { joinRequestsEnabled: true },
+    });
+    // joinRequestsEnabled is public so non-members can see the request-to-join option.
+    const base = {
+      id: this.realm.id,
+      name: this.realm.name,
+      role,
+      joinRequestsEnabled: realm?.joinRequestsEnabled ?? false,
+    };
     // The allowlist is admin-only config; don't disclose it to members/non-members.
     if (role !== "OWNER" && role !== "MAINTAINER") return base;
-    const realm = await this.prisma.realm.findUnique({
+    const admin = await this.prisma.realm.findUnique({
       where: { id: this.realm.id },
       select: { allowedEmailDomains: true },
     });
-    return { ...base, allowedEmailDomains: realm?.allowedEmailDomains ?? [] };
+    return { ...base, allowedEmailDomains: admin?.allowedEmailDomains ?? [] };
   }
 
-  /** Update realm settings; OWNER only. Domains are normalised to bare lowercase hosts. */
-  async updateSettings(actorId: string, allowedEmailDomains: string[]) {
+  /** Update realm settings; OWNER only. Only provided keys are written; domains normalised. */
+  async updateSettings(
+    actorId: string,
+    settings: { allowedEmailDomains?: string[]; joinRequestsEnabled?: boolean }
+  ) {
     await this.authz.requireRealmRole(actorId, "OWNER");
+    const data: Prisma.RealmUpdateInput = {};
+    if (settings.allowedEmailDomains !== undefined) {
+      data.allowedEmailDomains = this.normalizeDomains(settings.allowedEmailDomains);
+    }
+    if (settings.joinRequestsEnabled !== undefined) {
+      data.joinRequestsEnabled = settings.joinRequestsEnabled;
+    }
     const realm = await this.prisma.realm.update({
       where: { id: this.realm.id },
-      data: { allowedEmailDomains: this.normalizeDomains(allowedEmailDomains) },
-      select: { id: true, name: true, allowedEmailDomains: true },
+      data,
+      select: {
+        id: true,
+        name: true,
+        allowedEmailDomains: true,
+        joinRequestsEnabled: true,
+      },
     });
     return { ...realm, role: "OWNER" as RealmRole };
   }
@@ -87,22 +112,49 @@ export class RealmService {
   // Raw user-directory query with NO authz — callers MUST gate first (realm-member for
   // the realm picker, doc-manage for the doc picker). Same shape as the realm search:
   // case-insensitive name/email substring, deterministic order, capped at 20 rows.
+  // Searches ALL registered users — use for add-member pickers that must find non-members.
   async searchDirectory(q: string | undefined, take = 20) {
+    return this.runDirectorySearch(q, take, undefined);
+  }
+
+  // Directory search restricted to realm members ("the org") — for the doc Share picker,
+  // which should only surface people who actually belong to this realm. Callers MUST gate first.
+  async searchRealmMembers(q: string | undefined, take = 20) {
+    return this.runDirectorySearch(q, take, {
+      realmMemberships: { some: { realmId: this.realm.id } },
+    });
+  }
+
+  private runDirectorySearch(
+    q: string | undefined,
+    take: number,
+    scope: Prisma.UserWhereInput | undefined
+  ) {
     const query = q?.trim() ?? "";
+    const match: Prisma.UserWhereInput = query
+      ? {
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            { email: { contains: query, mode: "insensitive" } },
+          ],
+        }
+      : {};
     return this.prisma.user.findMany({
-      where: query
-        ? {
-            OR: [
-              { name: { contains: query, mode: "insensitive" } },
-              { email: { contains: query, mode: "insensitive" } },
-            ],
-          }
-        : {},
+      where: { ...scope, ...match },
       select: USER_SELECT,
       // Tiebreak by id so the order is deterministic when names collide.
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: Math.min(take, 20),
     });
+  }
+
+  /** Whether a user belongs to the active realm ("the org"). */
+  async isMember(userId: string): Promise<boolean> {
+    const member = await this.prisma.realmMember.findUnique({
+      where: { realmId_userId: { realmId: this.realm.id, userId } },
+      select: { userId: true },
+    });
+    return member !== null;
   }
 
   // Owner manages maintainers; maintainers manage members. OWNER never assignable.

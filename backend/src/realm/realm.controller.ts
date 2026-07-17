@@ -35,7 +35,7 @@ export class RealmController {
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateRealmSettingsDto
   ) {
-    return this.realm.updateSettings(user.id, dto.allowedEmailDomains);
+    return this.realm.updateSettings(user.id, dto);
   }
 
   @Get("users")

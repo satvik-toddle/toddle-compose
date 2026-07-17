@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, TextInput, Tag } from '@toddle-edu/ds-web';
-import { EmailOutlined, GlobeOutlined, AddOutlined, TickSmallOutlined } from '@toddle-edu/ds-icons';
+import { Button, TextInput, Tag, ToggleSwitch } from '@toddle-edu/ds-web';
+import {
+  EmailOutlined,
+  GlobeOutlined,
+  AddOutlined,
+  TickSmallOutlined,
+  MultipleUsersOutlined,
+} from '@toddle-edu/ds-icons';
 import { useRealm } from '../../hooks/queries';
 import { useUpdateRealmSettings } from '../../hooks/useRealmMutations';
 import { PageLoader } from '../../components/Loader';
+import { cn } from '../../lib/cn';
 
 const styles = {
   page: 'flex-1 overflow-auto px-[30px] pt-[26px] pb-10',
@@ -20,7 +27,12 @@ const styles = {
   chips: 'flex flex-wrap gap-2',
   emptyHint: 'text-[13px] text-secondary',
   actions: 'flex justify-end gap-2 border-t border-[var(--line)] pt-3.5',
+  toggleRow: 'flex items-start gap-2.5',
+  toggleText: 'flex-1',
+  cardGap: 'mt-4',
 };
+
+const JOIN_REQUESTS_TOGGLE_LABEL_ID = 'realm-join-requests-toggle-label';
 
 // Bare lowercase host, "@"/whitespace stripped (mirrors the backend normaliser).
 function normalizeDomain(raw: string): string {
@@ -43,19 +55,29 @@ export function RealmSettingsTab() {
   const [editedDomains, setEditedDomains] = useState<string[]>([]);
   const [domainInput, setDomainInput] = useState('');
 
+  const savedJoinRequests = realm?.joinRequestsEnabled ?? false;
+  const [editedJoinRequests, setEditedJoinRequests] = useState(false);
+
   // Sync from the server while the user has no unsaved edits. A background refetch must not
-  // wipe edits, but must still pick up the real allowlist if the first payload was empty/stale.
+  // wipe edits, but must still pick up the real values if the first payload was empty/stale.
   const lastSyncedDomains = useRef<string[] | null>(null);
+  const lastSyncedJoinRequests = useRef<boolean | null>(null);
   useEffect(() => {
     if (!realm) return;
     const hasLocalEdits =
-      lastSyncedDomains.current !== null && !sameDomainSet(editedDomains, lastSyncedDomains.current);
+      (lastSyncedDomains.current !== null &&
+        !sameDomainSet(editedDomains, lastSyncedDomains.current)) ||
+      (lastSyncedJoinRequests.current !== null &&
+        editedJoinRequests !== lastSyncedJoinRequests.current);
     if (hasLocalEdits) return;
     setEditedDomains(savedDomains);
+    setEditedJoinRequests(savedJoinRequests);
     lastSyncedDomains.current = savedDomains;
-  }, [realm, savedDomains, editedDomains]);
+    lastSyncedJoinRequests.current = savedJoinRequests;
+  }, [realm, savedDomains, savedJoinRequests, editedDomains, editedJoinRequests]);
 
-  const hasUnsavedChanges = !sameDomainSet(editedDomains, savedDomains);
+  const hasUnsavedChanges =
+    !sameDomainSet(editedDomains, savedDomains) || editedJoinRequests !== savedJoinRequests;
 
   // Centralised so additional states (e.g. validating) can be added here later.
   const saveButtonLabel = useMemo(() => {
@@ -164,7 +186,10 @@ export function RealmSettingsTab() {
                 variant="neutral"
                 type="plain"
                 disabled={!hasUnsavedChanges || saveSettings.isPending}
-                onClick={() => setEditedDomains(savedDomains)}
+                onClick={() => {
+                  setEditedDomains(savedDomains);
+                  setEditedJoinRequests(savedJoinRequests);
+                }}
               >
                 Reset
               </Button>
@@ -173,12 +198,39 @@ export function RealmSettingsTab() {
                 type="fill"
                 icon={<TickSmallOutlined />}
                 disabled={!hasUnsavedChanges || saveSettings.isPending}
-                onClick={() => saveSettings.mutate({ allowedEmailDomains: editedDomains })}
+                onClick={() =>
+                  saveSettings.mutate({
+                    allowedEmailDomains: editedDomains,
+                    joinRequestsEnabled: editedJoinRequests,
+                  })
+                }
               >
                 {saveButtonLabel}
               </Button>
             </div>
           )}
+        </div>
+
+        <div className={cn(styles.card, styles.cardGap)}>
+          <div className={styles.toggleRow}>
+            <MultipleUsersOutlined size="xxx-small" variant="subtle" className="ic" />
+            <div className={styles.toggleText}>
+              <div id={JOIN_REQUESTS_TOGGLE_LABEL_ID} className={styles.cardTitle}>
+                Enable request to join organisation
+              </div>
+              <div className={styles.cardSubtitle}>
+                Let people ask to join this organisation. Approve a request to add them as a member.
+              </div>
+            </div>
+            <ToggleSwitch
+              dsVersion="2.0"
+              size="medium"
+              aria-labelledby={JOIN_REQUESTS_TOGGLE_LABEL_ID}
+              checked={editedJoinRequests}
+              disabled={!isOwner}
+              onChange={(e) => setEditedJoinRequests(e.target.checked)}
+            />
+          </div>
         </div>
       </div>
     </div>

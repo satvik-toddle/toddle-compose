@@ -18,6 +18,7 @@ export type RtcUpdateRow = {
   origin: string | null;
   client_sub: string | null;
   created_at: number;
+  merged_count: number | null;
 };
 
 export type CompactionCandidate = {
@@ -26,6 +27,7 @@ export type CompactionCandidate = {
   origin: string | null;
   client_sub: string | null;
   created_at: number;
+  merged_count: number | null;
 };
 
 @Injectable()
@@ -162,29 +164,57 @@ export class DocRepository {
     limit: number,
     clientSub: string | null = null
   ): Promise<RtcUpdateRow[]> {
-    const rows = await this.prisma.rtcDocumentUpdate.findMany({
-      where: {
-        docId,
-        seq: { gte: from, lte: to },
-        ...(clientSub ? { clientSub } : {}),
-      },
-      orderBy: { seq: "asc" },
-      take: limit,
-      select: {
-        seq: true,
-        byteLen: true,
-        origin: true,
-        clientSub: true,
-        createdAt: true,
-      },
-    });
-    return rows.map((r) => ({
-      seq: r.seq,
-      byte_len: r.byteLen,
-      origin: r.origin,
-      client_sub: r.clientSub,
-      created_at: Number(r.createdAt),
-    }));
+    const where = {
+      docId,
+      seq: { gte: from, lte: to },
+      ...(clientSub ? { clientSub } : {}),
+    };
+    try {
+      const rows = await this.prisma.rtcDocumentUpdate.findMany({
+        where,
+        orderBy: { seq: "asc" },
+        take: limit,
+        select: {
+          seq: true,
+          byteLen: true,
+          origin: true,
+          clientSub: true,
+          createdAt: true,
+          mergedCount: true,
+        },
+      });
+      return rows.map((r) => ({
+        seq: r.seq,
+        byte_len: r.byteLen,
+        origin: r.origin,
+        client_sub: r.clientSub,
+        created_at: Number(r.createdAt),
+        merged_count: r.mergedCount,
+      }));
+    } catch (e) {
+      // Tolerate the merged_count column not being pushed yet (new code, stale schema); the compaction scheduler gates on the same skew.
+      if ((e as { code?: string }).code !== "P2022") throw e;
+      const rows = await this.prisma.rtcDocumentUpdate.findMany({
+        where,
+        orderBy: { seq: "asc" },
+        take: limit,
+        select: {
+          seq: true,
+          byteLen: true,
+          origin: true,
+          clientSub: true,
+          createdAt: true,
+        },
+      });
+      return rows.map((r) => ({
+        seq: r.seq,
+        byte_len: r.byteLen,
+        origin: r.origin,
+        client_sub: r.clientSub,
+        created_at: Number(r.createdAt),
+        merged_count: null,
+      }));
+    }
   }
 
   private async listCandidates(
@@ -209,6 +239,7 @@ export class DocRepository {
         origin: true,
         clientSub: true,
         createdAt: true,
+        mergedCount: true,
       },
     });
     return rows.map((r) => ({
@@ -217,6 +248,7 @@ export class DocRepository {
       origin: r.origin,
       client_sub: r.clientSub,
       created_at: Number(r.createdAt),
+      merged_count: r.mergedCount,
     }));
   }
 
@@ -239,6 +271,43 @@ export class DocRepository {
     );
   }
 
+  // Newest compaction run by startedAt, or null if none recorded yet.
+  getLatestCompactionRun() {
+    return this.prisma.rtcCompactionRun.findFirst({
+      orderBy: { startedAt: "desc" },
+    });
+  }
+
+  // Opens a run row before a pass and returns its id for later finishing.
+  async recordCompactionRunStart(startedAt: number): Promise<bigint> {
+    const row = await this.prisma.rtcCompactionRun.create({
+      data: { startedAt: BigInt(startedAt) },
+    });
+    return row.id;
+  }
+
+  async finishCompactionRun(
+    id: bigint,
+    totals: {
+      finishedAt: number;
+      docsScanned: number;
+      tier1SessionsMerged: number;
+      tier2DocsArchived: number;
+      errors: number;
+    }
+  ): Promise<void> {
+    await this.prisma.rtcCompactionRun.update({
+      where: { id },
+      data: {
+        finishedAt: BigInt(totals.finishedAt),
+        docsScanned: totals.docsScanned,
+        tier1SessionsMerged: totals.tier1SessionsMerged,
+        tier2DocsArchived: totals.tier2DocsArchived,
+        errors: totals.errors,
+      },
+    });
+  }
+
   // Deletes exactly the merged rows, not a seq range: non-candidate rows (already-compacted/too-young) can sit between candidate seqs, and a range delete silently dropped them.
   async replaceSeqsWithMerged(args: {
     docId: string;
@@ -248,6 +317,7 @@ export class DocRepository {
     origin: string;
     clientSub: string | null;
     createdAt: number;
+    mergedCount?: number;
   }): Promise<number> {
     return this.prisma.$transaction(async (tx) => {
       const del = await tx.rtcDocumentUpdate.deleteMany({
@@ -265,6 +335,7 @@ export class DocRepository {
           origin: args.origin,
           clientSub: args.clientSub,
           createdAt: BigInt(args.createdAt),
+          mergedCount: args.mergedCount,
         },
       });
       return del.count;

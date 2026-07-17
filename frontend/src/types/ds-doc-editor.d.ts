@@ -42,4 +42,13 @@ declare module '@toddle-edu/ds-doc-editor' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export const WebsocketProvider: any;
   export function isClean(html: string): boolean;
+
+  // Overwrite a live collab doc's content with a serialized editorState (one collaborative edit); see restoreEditorState.ts in the package.
+  export function restoreCollabDocContent(options: {
+    wsUrl: string;
+    docId: string;
+    token: string;
+    editorState: string | object;
+    timeoutMs?: number;
+  }): Promise<void>;
 }

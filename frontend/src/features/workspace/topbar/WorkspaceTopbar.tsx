@@ -47,7 +47,7 @@ export function WorkspaceTopbar({
       </div>
       <div className={styles.right}>
         <DocActions ctx={ctx} doc={doc} user={currentUser} />
-        <AccountMenu user={currentUser} realmRole={realm?.role} compact />
+        <AccountMenu user={currentUser} realmRole={realm?.role} />
       </div>
     </div>
   );

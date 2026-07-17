@@ -256,7 +256,7 @@ function InviteSection({
               <DsAvatar
                 dsVersion="2.0"
                 name={u.name}
-                color={dsAvatarColor(u.color)}
+                color={dsAvatarColor(u.color, u.id)}
                 size="xxx-small"
                 shape="circle"
               />
@@ -306,7 +306,7 @@ function InviteSection({
             <DsAvatar
               dsVersion="2.0"
               name={g.user.name}
-              color={dsAvatarColor(g.user.color)}
+              color={dsAvatarColor(g.user.color, g.userId)}
               size="medium"
               shape="circle"
             />

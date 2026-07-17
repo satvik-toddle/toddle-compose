@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PageLoader } from '../../../components/Loader';
 import { useDocuments } from '../../../hooks/usePages';
 import { useWorkspaceCtx } from '../WorkspaceLayout';
+import { DocHistoryView, useHistoryMode } from '../history';
 import { AllPagesView } from './AllPagesView';
 import { PageView } from './PageView';
 
@@ -14,6 +15,7 @@ export function WorkspaceContent() {
   const ws = ctx.workspaceId;
   const [params] = useSearchParams();
   const selDoc = params.get('doc');
+  const history = useHistoryMode();
 
   const { data: docs = [], isLoading } = useDocuments(ws);
 
@@ -26,6 +28,10 @@ export function WorkspaceContent() {
   }
 
   if (selDoc) {
+    // useHistoryMode already resolved the open DOC (history.active ⇒ it's a DOC), so reuse it.
+    if (history.active && history.openDoc) {
+      return <DocHistoryView doc={history.openDoc} workspaceId={ws} />;
+    }
     return <PageView ctx={ctx} docs={docs} selDoc={selDoc} />;
   }
 

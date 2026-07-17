@@ -16,6 +16,12 @@
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    // lexical 0.45 packages are exports-map-only (no top-level main/types), which node10 resolution can't see; runtime require() uses the exports map fine, so these paths only teach TS where the types live.
+    "paths": {
+      "lexical": ["node_modules/lexical/dist/index.d.ts"],
+      "@lexical/headless": ["node_modules/@lexical/headless/dist/index.d.ts"],
+      "@lexical/yjs": ["node_modules/@lexical/yjs/dist/index.d.ts"]
+    }
   }
 }

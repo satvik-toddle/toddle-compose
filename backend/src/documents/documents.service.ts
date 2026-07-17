@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -445,7 +446,8 @@ export class DocumentsService {
           updateCount: s.updateCount,
           totalBytes: s.totalBytes,
           noop: s.noop,
-          origin: s.origin,
+          // Archive snapshot vs. real edit whose author no longer resolves (both leave user=null; the UI labels them differently).
+          kind: s.origin === "archive" ? ("archive" as const) : ("edit" as const),
           changedCells: s.changedCells ?? [],
           user: s.clientSub ? (byId.get(s.clientSub) ?? null) : null,
         }))
@@ -454,12 +456,28 @@ export class DocumentsService {
   }
 
   // Read-only preview of the document at a given seq; the kind is resolved from the doc, then dispatched on.
-  async historySnapshot(userId: string, docId: string, seq: number) {
+  async historySnapshot(
+    userId: string,
+    docId: string,
+    seq: number,
+    // Baseline seq to also return a merged server-computed diff (0 = empty doc); DOC only.
+    diffAgainst?: number
+  ) {
     const doc = await this.get(userId, docId);
-    if (!Number.isFinite(seq) || seq < 0) {
+    if (!Number.isInteger(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    const preview = await this.rtc.getVersionPreview(docId, seq);
+    if (diffAgainst != null && (!Number.isInteger(diffAgainst) || diffAgainst < 0)) {
+      throw new BadRequestException("diff must be a non-negative integer");
+    }
+    // Fetch only the slice each doc type renders: DOC gets server-extracted editorState JSON (+ optional diff), SHEET reads the grid snapshot.
+    const isSheet = doc.type === DocumentType.SHEET;
+    const preview = await this.rtc.getVersionPreview(
+      docId,
+      seq,
+      isSheet ? "text" : "render",
+      isSheet ? undefined : diffAgainst
+    );
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
     // Seam where DOC and SHEET data diverge.
@@ -468,10 +486,14 @@ export class DocumentsService {
         return { ...base, sheet: preview.sheet };
       case DocumentType.DOC:
       default:
+        // Fail loud on both skew shapes: extraction failure (lexicalJson null) AND an old rtc-server that silently ignored include=render — it returns a lexicalJson WITHOUT materialized upload srcs and never emits the diffJson key (the render path always sets it, even as null).
+        if (!preview.lexicalJson || preview.diffJson === undefined) {
+          throw new HttpException({ error: "rtc service error" }, 502);
+        }
         return {
           ...base,
           lexicalJson: preview.lexicalJson,
-          plainText: preview.plainText,
+          diffJson: preview.diffJson,
         };
     }
   }

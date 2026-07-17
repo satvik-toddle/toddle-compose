@@ -72,10 +72,20 @@ export class RtcInternalClient {
   }
 
   /** Reconstruct the doc state at a given seq (includes the sheet snapshot for SHEET docs). */
-  getVersionPreview(docId: string, seq: number): Promise<RtcVersionPreview> {
+  getVersionPreview(
+    docId: string,
+    seq: number,
+    include: RtcPreviewInclude = "all",
+    // Baseline seq for a merged diff render (include='render' only; 0 = empty doc).
+    diffAgainst?: number
+  ): Promise<RtcVersionPreview> {
+    const params = new URLSearchParams();
+    if (include !== "all") params.set("include", include);
+    if (diffAgainst != null) params.set("diffAgainst", String(diffAgainst));
+    const qs = params.toString();
     return this.call(
       "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}`
+      `/internal/docs/${encodeURIComponent(docId)}/versions/${seq}${qs ? `?${qs}` : ""}`
     ) as Promise<RtcVersionPreview>;
   }
 
@@ -140,6 +150,10 @@ export type RtcSheetSnapshot = {
   colTypes: Record<string, unknown>;
 };
 
+// Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.
+// (rtc also accepts a legacy 'state' value for older backends; this backend never sends it.)
+export type RtcPreviewInclude = "all" | "render" | "text";
+
 export type RtcVersionPreview = {
   docId: string;
   seq: number;
@@ -147,4 +161,7 @@ export type RtcVersionPreview = {
   sheet: RtcSheetSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
+  // include='render': merged diff editorState (baseline -> seq) or null; ABSENT (undefined) when
+  // talking to an older rtc-server that predates the render mode — the skew guard keys off this.
+  diffJson?: string | null;
 };

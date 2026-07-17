@@ -10,10 +10,12 @@ import {
   DeleteOutlined,
   EraserOutlined,
   ScissorOutlined,
+  SettingsOutlined,
 } from '@toddle-edu/ds-icons';
 import { pushToast } from '../../../stores/uiStore';
 import { commandModifierKey } from '../../../lib/platform';
 import { ShortcutHint } from '../../../components/ShortcutHint';
+import { SHEET_PANEL_SHORTCUT_KEY } from './constants';
 import {
   clearSheetCell,
   clearSheetColumn,
@@ -44,6 +46,7 @@ const SHEET_CELL_ACTION = {
   clearColumn: 'clear-column',
   deleteRow: 'delete-row',
   deleteColumn: 'delete-column',
+  moreCellOptions: 'more-cell-options',
 } as const;
 
 const MENU_WIDTH_PX = 240;
@@ -102,12 +105,20 @@ const SHEET_CELL_MENU_OPTIONS: DataGridContextMenuOption[] = [
     icon: <DeleteOutlined variant="critical" />,
     isDestructive: true,
   },
+  { key: 'divider-more-options', isDivider: true },
+  {
+    key: SHEET_CELL_ACTION.moreCellOptions,
+    label: 'More cell options',
+    icon: <SettingsOutlined />,
+    suffix: shortcutHint(SHEET_PANEL_SHORTCUT_KEY),
+  },
 ];
 
 export function createSheetCellContextMenu(
   ydoc: Y.Doc,
   yRows: SheetRows,
   yColTypes: SheetColTypes,
+  onMoreCellOptions: () => void,
 ): DataGridContextMenu {
   const copyCell = async (rowId: string, colId: string): Promise<boolean> => {
     try {
@@ -177,6 +188,9 @@ export function createSheetCellContextMenu(
         if (!deleteSheetColumn(ydoc, yColTypes, yRows, colId)) {
           pushToast({ kind: 'info', message: 'A sheet needs at least one column.' });
         }
+        break;
+      case SHEET_CELL_ACTION.moreCellOptions:
+        onMoreCellOptions();
         break;
     }
   };

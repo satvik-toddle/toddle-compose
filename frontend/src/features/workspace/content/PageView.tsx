@@ -17,6 +17,8 @@ const SheetEditor = lazy(() =>
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
+  // Doc: title + editor share this scroll container so the title scrolls with the content.
+  docScroll: 'flex-1 min-h-0 overflow-y-auto flex flex-col',
   // Doc: title centered over the editor's readable column (760px + 88px text inset).
   docTitle: 'flex-none w-full max-w-[760px] mx-auto pt-7 px-[88px]',
   // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
@@ -54,23 +56,29 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
   const isSheet = openDoc.type === 'SHEET';
 
+  const titleNode = (
+    <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
+  );
+
   return (
     <main className={styles.contentShell}>
-      <div className={isSheet ? styles.sheetTitle : styles.docTitle}>
-        <PageTitle
-          workspaceId={ctx.workspaceId}
-          docId={openDocId}
-          title={pageTitle}
-          canEdit={canEdit}
-        />
-      </div>
-      <Suspense fallback={<PageLoader />}>
-        {isSheet ? (
-          <SheetEditor key={openDocId} docId={openDocId} />
-        ) : (
-          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
-        )}
-      </Suspense>
+      {isSheet ? (
+        // Sheet: fixed title over the grid (the grid scrolls itself).
+        <>
+          <div className={styles.sheetTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>
+            <SheetEditor key={openDocId} docId={openDocId} />
+          </Suspense>
+        </>
+      ) : (
+        // Keyed so scroll position (and the editor) resets per document.
+        <div key={openDocId} className={styles.docScroll}>
+          <div className={styles.docTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>
+            <DocEditor docId={openDocId} canEdit={canEdit} />
+          </Suspense>
+        </div>
+      )}
     </main>
   );
 }

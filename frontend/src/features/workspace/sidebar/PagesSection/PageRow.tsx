@@ -12,7 +12,7 @@ import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './p
 import { RenameInput } from './RenameInput';
 import type { PagesSectionController } from './usePagesSection';
 
-const BASE_INDENT = 8;
+const BASE_INDENT = 4;
 const INDENT_STEP = 15;
 
 export function PageRow({
@@ -34,8 +34,7 @@ export function PageRow({
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
-  // Close the menu explicitly: entering rename unmounts the Dropdown, which
-  // would otherwise remount later with a stale visible=true.
+  // Close menu first: rename unmounts the Dropdown, which else remounts with stale visible=true.
   const handleRename = () => {
     setIsMenuOpen(false);
     setIsRenaming(true);
@@ -68,15 +67,19 @@ export function PageRow({
     row: cn(
       'group',
       sidebarRow.base,
-      selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
+      // [&_input]: the DS TextInput pins text-body (weight 500) on its inner input,
+      // so the selected row's semibold must be forced onto it for inline rename.
+      selectedPageId === doc.id
+        ? cn(sidebarRow.selected, '[&_input]:font-semibold')
+        : sidebarRow.default,
     ),
-    // Leaf pages keep the (hidden) chevron so icons stay aligned.
-    chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
+    // Leaf pages keep a hidden chevron for alignment; negative margin tightens the icon gap.
+    chevronButton: cn('-mr-2 shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
-    // min-w-0 lets the flex item shrink below its content so truncate shows the ellipsis.
+    // min-w-0 lets the flex item shrink so truncate shows the ellipsis.
     label: 'min-w-0 flex-1 truncate',
     menuWrap: 'flex shrink-0',
-    // Transparent (but focusable) until row hover, keyboard focus, or menu open.
+    // Hidden (but focusable) until row hover, focus, or menu open.
     menuTrigger: cn(
       'opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100',
       isMenuOpen && 'opacity-100',
@@ -114,8 +117,7 @@ export function PageRow({
 
   return (
     <>
-      {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
-          but only when the title is actually clipped. */}
+      {/* Tooltip on the row: hover/focus, only when the title is clipped. */}
       <Tooltip
         dsVersion="2.0"
         placement="right"
@@ -136,7 +138,6 @@ export function PageRow({
             type="plain"
             variant="neutral"
             size="x-small"
-            isCompact
             shouldStopPropagation
             className={styles.chevronButton}
             aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
@@ -173,7 +174,6 @@ export function PageRow({
                     type="plain"
                     variant="neutral"
                     size="x-small"
-                    isCompact
                     isActivated={isMenuOpen}
                     className={styles.menuTrigger}
                     aria-label="Page actions"

@@ -14,6 +14,7 @@ import { RequestsTable } from '../../components/RequestsTable';
 import { AddWorkspaceMemberModal } from './AddWorkspaceMemberModal';
 import { ConfirmRemoveMemberModal } from './ConfirmRemoveMemberModal';
 import { RenameWorkspaceModal } from './RenameWorkspaceModal';
+import { WorkspacePersonalAccessTokensTab } from './WorkspacePersonalAccessTokensTab';
 import { useRealm, useWorkspace, useWorkspaceMembers, useWorkspaceJoinRequests } from '../../hooks/queries';
 import { useSetWorkspaceMemberRole } from '../../hooks/useWorkspaceMemberMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -25,8 +26,12 @@ import { cn } from '../../lib/cn';
 import type { WorkspaceMember } from '../../types/api';
 import type { WorkspaceRole } from '../../types/roles';
 
-type SettingsTab = 'general' | 'members' | 'requests' | 'danger';
-type NavIcon = 'SettingsOutlined' | 'MultipleUsersOutlined' | 'BellRingOutlined';
+type SettingsTab = 'general' | 'members' | 'requests' | 'accessTokens' | 'danger';
+type NavIcon =
+  | 'SettingsOutlined'
+  | 'MultipleUsersOutlined'
+  | 'BellRingOutlined'
+  | 'KeyDiagonalOutlined';
 type RemoveTarget = { userId: string; name: string; email: string; role: WorkspaceRole };
 // Child dialogs rendered locally (stacked over this modal) so settings survives.
 type Child = 'addMember' | 'rename' | { kind: 'removeMember'; member: RemoveTarget };
@@ -113,6 +118,7 @@ export function WorkspaceSettingsModal({
               count: requestCount,
               alert: requestCount > 0,
             },
+            { id: 'accessTokens', icon: 'KeyDiagonalOutlined', label: 'Access tokens' },
           ] as const)
         : []),
     ];
@@ -126,6 +132,10 @@ export function WorkspaceSettingsModal({
     requests: {
       h: 'Requests',
       d: `${requestCount} ${requestCount === 1 ? 'person is' : 'people are'} waiting to join. Pick a role and approve, or decline.`,
+    },
+    accessTokens: {
+      h: 'Access tokens',
+      d: 'Programmatic access to this workspace. Only admins can create tokens.',
     },
     danger: { h: 'Danger zone', d: 'Irreversible actions for this workspace.' },
   };
@@ -213,6 +223,9 @@ export function WorkspaceSettingsModal({
               isLoading={requestsLoading}
               emptyText={`When someone asks to join ${name}, it'll show up here.`}
             />
+          )}
+          {tab === 'accessTokens' && isAdmin && (
+            <WorkspacePersonalAccessTokensTab workspaceId={workspaceId} />
           )}
           {tab === 'danger' && isAdmin && (
             <DangerPanel workspaceId={workspaceId} workspaceName={name} memberCount={memberCount} />

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "start": "node dist/main.js",
+    "db:deploy": "pnpm --filter @app/database exec prisma db push --skip-generate",
+    "start": "pnpm run db:deploy && node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"

@@ -27,6 +27,7 @@ export const qk = {
   shareLink: (token: string) => ['shareLink', token] as const, // public /link/:token resolve
   shareLinkRtc: (token: string) => ['shareLink', token, 'rtc'] as const,
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
+  personalAccessTokens: ['personalAccessTokens'] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace

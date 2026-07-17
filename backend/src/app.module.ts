@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerModule } from "@nestjs/throttler";
@@ -12,6 +12,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { FoldersModule } from "./folders/folders.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
+import { PersonalAccessTokensModule } from "./personal-access-tokens/personal-access-tokens.module";
+import { RequestContextMiddleware } from "./auth/request-context";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { HealthController } from "./health.controller";
 
@@ -36,8 +38,13 @@ import { HealthController } from "./health.controller";
     FoldersModule,
     DocumentsModule,
     StorageModule,
+    PersonalAccessTokensModule,
     RealtimeModule,
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes("*");
+  }
+}

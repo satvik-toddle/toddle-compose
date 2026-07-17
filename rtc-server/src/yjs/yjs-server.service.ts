@@ -84,10 +84,8 @@ export class YjsServerService
     setPersistence({
       provider: null,
       bindState: (docName: string, ydoc: unknown) => {
-        // Track the cold-load so a connecting client can await it (see verifyClient).
-        const loaded = this.docState.bindState(docName, ydoc as never);
-        this.docState.trackLoad(docName, loaded);
-        return loaded;
+        // bindState self-tracks the cold-load so a connecting client can await it (see verifyClient).
+        return this.docState.bindState(docName, ydoc as never);
       },
       writeState: async (docName: string) => {
         await this.docState.writeState(docName);
@@ -105,7 +103,18 @@ export class YjsServerService
     } catch (e) {
       log.error("shutdown flush error", e);
     }
-    this.wss?.close();
+    // Force-close client sockets first: wss.close() only waits for conns to drain,
+    // so a browser holding the doc open would hang the process on SIGTERM.
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        try {
+          client.terminate();
+        } catch {
+          /* socket already gone */
+        }
+      }
+      this.wss.close();
+    }
   }
 
   private startWss(server: HttpServer): WebSocketServer {
@@ -150,7 +159,7 @@ export class YjsServerService
           // empty — which makes the sheet re-seed its rows on every refresh.
           getYDoc(parsed.docId, true);
           await this.docState.whenLoaded(parsed.docId);
-          log.info(
+          log.debug(
             `verifyClient ACCEPT sub=${claims.sub} doc='${parsed.docId}' role=${claims.role}`
           );
           cb(true);
@@ -183,7 +192,7 @@ export class YjsServerService
       const cid = nextConnId();
       const clog = log.child(cid);
       this.docState.registerClaims(ws, claims);
-      clog.info(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
+      clog.debug(`OPEN sub=${sub} doc='${parsed.docId}' role=${role}`);
 
       // JWT is verified once at connect; close the socket at expiry so a stale token can't hold it open.
       let expiryTimer: NodeJS.Timeout | null = null;
@@ -210,7 +219,7 @@ export class YjsServerService
           awarenessTimer = null;
         }
         latestAwareness = null;
-        clog.info(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
+        clog.debug(`CLOSE sub=${sub} doc='${parsed.docId}' code=${code}`);
       });
       ws.on("error", (err) => clog.error(`socket error doc='${parsed.docId}'`, err));
 

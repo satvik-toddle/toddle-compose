@@ -22,18 +22,20 @@ export class AuthTokensGcScheduler {
     const staleSingleUse = {
       OR: [{ expiresAt: { lt: now } }, { consumedAt: { not: null } }],
     };
-    const [refresh, verif, resets] = await Promise.all([
-      this.prisma.refreshToken.deleteMany({
-        where: { OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }] },
-      }),
+    const staleRevocable = {
+      OR: [{ expiresAt: { lt: now } }, { revokedAt: { lt: revokedCutoff } }],
+    };
+    const [refresh, access, verif, resets] = await Promise.all([
+      this.prisma.refreshToken.deleteMany({ where: staleRevocable }),
+      this.prisma.personalAccessToken.deleteMany({ where: staleRevocable }),
       this.prisma.emailVerificationToken.deleteMany({ where: staleSingleUse }),
       this.prisma.passwordResetToken.deleteMany({ where: staleSingleUse }),
     ]);
 
-    const total = refresh.count + verif.count + resets.count;
+    const total = refresh.count + access.count + verif.count + resets.count;
     if (total > 0) {
       this.log.log(
-        `purged ${total} stale token(s) (refresh=${refresh.count} verify=${verif.count} reset=${resets.count})`
+        `purged ${total} stale token(s) (refresh=${refresh.count} access=${access.count} verify=${verif.count} reset=${resets.count})`
       );
     }
   }

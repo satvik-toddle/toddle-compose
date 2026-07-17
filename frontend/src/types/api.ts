@@ -191,3 +191,38 @@ export interface FolderDto {
 export interface OkResponse {
   ok: true;
 }
+
+// A token is scoped to a single workspace or to the whole realm.
+export type PersonalAccessTokenScope = 'REALM' | 'WORKSPACE';
+// Permission the token carries; MAINTAINER is REALM-only.
+export type PersonalAccessTokenPermission = 'VIEW' | 'COMMENT' | 'EDIT' | 'ADMIN' | 'MAINTAINER';
+
+// GET /personal-access-tokens — the safe view (never includes the raw token or its hash).
+export interface PersonalAccessToken {
+  id: string;
+  name: string;
+  prefix: string; // human-readable leading segment, shown so a token is recognisable
+  scope: PersonalAccessTokenScope;
+  permission: PersonalAccessTokenPermission;
+  workspaceId: string | null;
+  createdById: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+// POST /personal-access-tokens body.
+export interface CreatePersonalAccessTokenBody {
+  name: string;
+  scope: PersonalAccessTokenScope;
+  workspaceId?: string;
+  permission: PersonalAccessTokenPermission;
+  expiresInDays?: number;
+}
+
+// POST /personal-access-tokens response — `token` is the raw secret, shown exactly once.
+export interface CreatePersonalAccessTokenResult {
+  token: string;
+  accessToken: PersonalAccessToken;
+}

@@ -482,30 +482,45 @@ describe("Realm / Workspace RBAC (e2e)", () => {
     });
 
     it("the last ADMIN cannot be demoted or removed (409)", async () => {
-      const u = await register("soleadmin");
-      await addRealmUser(u.email, "MAINTAINER"); // can create; becomes the only ADMIN
-      const wsId = await createWorkspace(u.token, "soleadmin");
-
+      // The sole ADMIN must be a plain realm MEMBER for the last-admin guard (409) to
+      // be reachable: a realm OWNER/MAINTAINER admin trips the membership-protection
+      // rules (403) first. Maintainer bootstraps the workspace (only MAINTAINER+ can
+      // create), promotes a MEMBER to ADMIN, then is removed → the MEMBER is left sole ADMIN.
+      const soleAdmin = await register("soleadmin");
+      await addRealmUser(soleAdmin.email, "MEMBER");
+      const wsId = await createWorkspace(maintainer.token, "soleadmin");
       await request(server)
-        .patch(`/api/workspaces/${wsId}/users/${u.id}`)
-        .set(auth(u.token))
+        .post(`/api/workspaces/${wsId}/users`)
+        .set(auth(maintainer.token))
+        .send({ email: soleAdmin.email, role: "ADMIN" })
+        .expect(201);
+      // Two admins now, so the creator (maintainer) can be dropped by the realm owner.
+      await request(server)
+        .delete(`/api/workspaces/${wsId}/users/${maintainer.id}`)
+        .set(auth(ownerToken))
+        .expect(200);
+
+      // soleAdmin is now the only ADMIN — self-demote / self-remove are blocked (409).
+      await request(server)
+        .patch(`/api/workspaces/${wsId}/users/${soleAdmin.id}`)
+        .set(auth(soleAdmin.token))
         .send({ role: "READ" })
         .expect(409);
       await request(server)
-        .delete(`/api/workspaces/${wsId}/users/${u.id}`)
-        .set(auth(u.token))
+        .delete(`/api/workspaces/${wsId}/users/${soleAdmin.id}`)
+        .set(auth(soleAdmin.token))
         .expect(409);
 
-      // Add a second admin → now the first can be removed.
+      // Add a second admin (realm-admin op) → the guard lifts, first admin removable.
       const u2 = await register("secondadmin");
       await request(server)
         .post(`/api/workspaces/${wsId}/users`)
-        .set(auth(u.token))
+        .set(auth(ownerToken))
         .send({ email: u2.email, role: "ADMIN" })
         .expect(201);
       await request(server)
-        .delete(`/api/workspaces/${wsId}/users/${u.id}`)
-        .set(auth(u2.token))
+        .delete(`/api/workspaces/${wsId}/users/${soleAdmin.id}`)
+        .set(auth(ownerToken))
         .expect(200);
     });
   });

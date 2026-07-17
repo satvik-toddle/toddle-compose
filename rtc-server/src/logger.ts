@@ -11,7 +11,8 @@ const COLORS: Record<LogLevel, string> = {
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
 
-const envLevel = (process.env.LOG_LEVEL ?? "debug").toLowerCase() as LogLevel;
+// Default "info"; routine per-doc/per-update chatter is at "debug" (LOG_LEVEL=debug).
+const envLevel = (process.env.LOG_LEVEL ?? "info").toLowerCase() as LogLevel;
 const minIdx = Math.max(
   0,
   LEVELS.indexOf(LEVELS.includes(envLevel) ? envLevel : "debug")

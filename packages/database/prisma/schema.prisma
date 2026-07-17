@@ -49,6 +49,26 @@ enum JoinRequestState {
   REJECTED
 }
 
+// REALM-wide (every workspace) or confined to a single WORKSPACE.
+enum PersonalAccessTokenScope {
+  REALM
+  WORKSPACE
+
+  @@map("AccessTokenScope")
+}
+
+// Capability ceiling for a personal access token. VIEW < COMMENT < EDIT < ADMIN
+// mirror WorkspaceRole (VIEW == READ); MAINTAINER (realm-admin) is REALM-scope only.
+enum PersonalAccessTokenPermission {
+  VIEW
+  COMMENT
+  EDIT
+  ADMIN
+  MAINTAINER
+
+  @@map("AccessTokenPermission")
+}
+
 // Reach of a document share link: REALM → any logged-in realm member with the
 // link; ANYONE → works logged-out, no auth at all.
 enum ShareLinkScope {
@@ -94,6 +114,7 @@ model Workspace {
   joinRequests JoinRequest[]
   folders      Folder[]
   documents    Document[]
+  personalAccessTokens PersonalAccessToken[]
 
   @@index([realmId])
   @@map("workspaces")
@@ -150,6 +171,7 @@ model User {
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
+  personalAccessTokens PersonalAccessToken[]
   documentStars        DocumentStar[]
   documentPermissions  DocumentPermission[]
 
@@ -199,6 +221,29 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Opaque Bearer credential that authenticates as its creator, capped to
+// `permission` and confined to `scope`. Only the sha256 hash is stored.
+model PersonalAccessToken {
+  id          String                        @id @default(cuid())
+  name        String
+  tokenHash   String                        @unique @map("token_hash")
+  prefix      String
+  scope       PersonalAccessTokenScope
+  permission  PersonalAccessTokenPermission
+  workspaceId String?                       @map("workspace_id")
+  workspace   Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdById String                @map("created_by_id")
+  createdBy   User                  @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime?             @map("expires_at")
+  lastUsedAt  DateTime?             @map("last_used_at")
+  revokedAt   DateTime?             @map("revoked_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  @@index([createdById])
+  @@index([workspaceId])
+  @@map("access_tokens")
 }
 
 model Folder {

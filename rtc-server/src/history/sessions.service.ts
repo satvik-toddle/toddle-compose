@@ -144,7 +144,7 @@ export class SessionsService {
     const filtered = includeNoop
       ? sessions
       : sessions.filter((s) => !s.noop || s.origin === "archive");
-    log.info(
+    log.debug(
       `'${docId}' sessions: ${groups.length} total, ${filtered.length} after noop filter`
     );
 

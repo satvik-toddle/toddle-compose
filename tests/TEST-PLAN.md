@@ -104,4 +104,17 @@ there is no doc PUBLIC/PRIVATE visibility.
   reject, persistence to the separate rtc DB via the internal `versions` API.
 - Run (with backend :4000 + rtc-server :4001/4002 running): `node tests/rtc-multiuser.cjs`.
 
-Status: backend 86/86 e2e green; rtc-multiuser 6/6 green.
+**Content ops (AI authoring) — in-process, no servers**:
+- `tests/content-ops.cjs` — every ContentOp end-to-end through the real headless
+  binding + extractor: Part A targets each op (blocks, lists, tables, columns,
+  media incl. image captions, in-place insert/format/delete — forward, backward,
+  cross-block, offset-clamped — clear, guards, error 400s); Part B applies
+  seeded-random ops in batches to one live Y.Doc and verifies block structure +
+  per-block text against a model after every batch.
+- Run (after `pnpm --filter rtc-server build`): `node tests/content-ops.cjs`
+  (`SEED=n` other sequence, `OPS=n` op count, `BATCH=n` ops per delta).
+
+Status: backend 86/86 e2e green; rtc-multiuser 6/6 green; content-ops 48/48 green
+(incl. table row/col add/delete, cell edits + backgrounds, table/layout resize,
+image links/captions, alignment, h1-h6) across seeds 1-50 (55k+ ops), a 5000-op
+deep run, and BATCH=1 per-op-delta runs.

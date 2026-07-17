@@ -6,6 +6,8 @@ import {
 import { RealmRole, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
+import { currentTokenAuth } from "../auth/request-context";
+import { permissionToWorkspaceRole } from "../auth/personal-access-token.util";
 
 // Rank per ladder; higher = more capable.
 const REALM_ORDER: Record<RealmRole, number> = {
@@ -28,14 +30,23 @@ export class AuthzService {
     private readonly realm: ActiveRealmService
   ) {}
 
-  async realmRole(userId: string): Promise<RealmRole | null> {
+  // Live realm role from the DB, IGNORING any access-token cap. Private: only the
+  // workspace-overlay computation may use it, and only because it applies its own
+  // token confinement afterwards. Every other caller must use realmRole().
+  private async rawRealmRole(userId: string): Promise<RealmRole | null> {
     const member = await this.prisma.realmMember.findUnique({
       where: { realmId_userId: { realmId: this.realm.id, userId } },
     });
     return member?.role ?? null;
   }
 
-  /** Throws 403 unless the user holds at least `min` in the realm. Returns the actual role. */
+  // Realm role capped to what the current access token (if any) permits, so realm-wide
+  // reads (workspace list, join-request inbox, realm config) can't exceed a WORKSPACE- or
+  // permission-limited token's scope. This is the safe default for all external callers.
+  async realmRole(userId: string): Promise<RealmRole | null> {
+    return this.capRealmRole(await this.rawRealmRole(userId));
+  }
+
   async requireRealmRole(userId: string, min: RealmRole): Promise<RealmRole> {
     const role = await this.realmRole(userId);
     if (role === null || REALM_ORDER[role] < REALM_ORDER[min]) {
@@ -63,17 +74,50 @@ export class AuthzService {
     // round trip instead of three (the dominant fixed cost on every authed request).
     const [, realmRole, member] = await Promise.all([
       this.getWorkspaceInRealm(workspaceId), // 404s if the workspace isn't in this realm
-      this.realmRole(userId),
+      this.rawRealmRole(userId), // overlay: token confinement applied below, not the realm cap
+
       this.prisma.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId, userId } },
       }),
     ]);
 
+    const token = currentTokenAuth();
+    if (token && token.scope === "WORKSPACE" && token.workspaceId !== workspaceId) {
+      return null;
+    }
+
     const overlay: WorkspaceRole | null =
       realmRole === "OWNER" || realmRole === "MAINTAINER" ? "ADMIN" : null;
     const direct = member?.role ?? null;
 
-    return this.maxWorkspaceRole(overlay, direct);
+    let effective = this.maxWorkspaceRole(overlay, direct);
+    if (token) {
+      effective = this.minWorkspaceRole(
+        effective,
+        permissionToWorkspaceRole(token.permission)
+      );
+    }
+    return effective;
+  }
+
+  assertWorkspaceInScope(workspaceId: string): void {
+    const token = currentTokenAuth();
+    if (token && token.scope === "WORKSPACE" && token.workspaceId !== workspaceId) {
+      throw new NotFoundException("not found");
+    }
+  }
+
+  // The workspace a WORKSPACE-scoped token is confined to, else null (no confinement).
+  // Lets list endpoints filter results to the token's scope instead of throwing.
+  tokenWorkspaceScope(): string | null {
+    const token = currentTokenAuth();
+    return token && token.scope === "WORKSPACE" ? token.workspaceId : null;
+  }
+
+  tokenAllowsWorkspaceRole(min: WorkspaceRole): boolean {
+    const token = currentTokenAuth();
+    if (!token) return true;
+    return WS_ORDER[permissionToWorkspaceRole(token.permission)] >= WS_ORDER[min];
   }
 
   /** Throws 403 unless the user holds at least `min` in the workspace. Returns the actual role. */
@@ -96,6 +140,23 @@ export class AuthzService {
     if (a === null) return b;
     if (b === null) return a;
     return WS_ORDER[a] >= WS_ORDER[b] ? a : b;
+  }
+
+  private minWorkspaceRole(
+    a: WorkspaceRole | null,
+    b: WorkspaceRole | null
+  ): WorkspaceRole | null {
+    if (a === null || b === null) return null;
+    return WS_ORDER[a] <= WS_ORDER[b] ? a : b;
+  }
+
+  private capRealmRole(live: RealmRole | null): RealmRole | null {
+    const token = currentTokenAuth();
+    if (!token || live === null) return live;
+    if (token.scope === "WORKSPACE") return null;
+    const ceiling: RealmRole =
+      token.permission === "MAINTAINER" ? "MAINTAINER" : "MEMBER";
+    return REALM_ORDER[live] <= REALM_ORDER[ceiling] ? live : ceiling;
   }
 
   // Per-page grant for this user on this exact document (never cascades to sub-pages); null if none.
@@ -131,6 +192,11 @@ export class AuthzService {
     userId: string,
     doc: { id: string; ownerId: string; workspaceId: string }
   ): Promise<void> {
+    // Managing sharing is an ADMIN-level op: confine to the token's workspace and ceiling.
+    this.assertWorkspaceInScope(doc.workspaceId);
+    if (!this.tokenAllowsWorkspaceRole("ADMIN")) {
+      throw new ForbiddenException("requires document ADMIN to manage sharing");
+    }
     if (doc.ownerId === userId) return;
     const [wsRole, grant] = await Promise.all([
       this.effectiveWorkspaceRole(userId, doc.workspaceId),
@@ -146,6 +212,8 @@ export class AuthzService {
     userId: string,
     workspaceId: string
   ): Promise<{ role: WorkspaceRole | null; isGuest: boolean }> {
+    // A WORKSPACE-scoped token can't guest-enter a different workspace via a grant.
+    this.assertWorkspaceInScope(workspaceId);
     const role = await this.effectiveWorkspaceRole(userId, workspaceId);
     if (role !== null) return { role, isGuest: false };
     if (await this.hasDocGrantInWorkspace(userId, workspaceId)) {

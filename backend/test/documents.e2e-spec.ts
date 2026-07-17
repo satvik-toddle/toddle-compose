@@ -12,15 +12,15 @@ import {
 } from "./helpers";
 
 /**
- * Documents (e2e) — workspace-scoped CRUD, PRIVATE-by-default, the public toggle,
- * the full read/write authorization matrix, and the RTC token endpoint
- * (editor/viewer/denied resolution). Boots the real AppModule against DATABASE_URL.
+ * Documents (e2e) — workspace-scoped CRUD, the full read/write authorization matrix,
+ * per-page permission grants (the sharing model that replaced doc visibility), and the
+ * RTC token endpoint (editor/viewer/denied resolution). Boots the real AppModule.
  *
  * Cast of users:
  *   owner  — realm OWNER (workspace ADMIN via overlay)
  *   alice  — workspace EDIT member
  *   carol  — workspace READ member
- *   dave   — realm MEMBER, NOT in the workspace (for the PUBLIC cross-workspace case)
+ *   dave   — realm MEMBER, NOT in the workspace (gets a per-page grant mid-suite)
  *   bob    — neither realm nor workspace member
  */
 describe("Documents (e2e)", () => {
@@ -73,13 +73,12 @@ describe("Documents (e2e)", () => {
 
   // ---- create ----
 
-  it("creates a document, PRIVATE by default, in the active workspace", async () => {
+  it("creates a document in the active workspace", async () => {
     const res = await http(app)
       .post("/api/documents")
       .set(auth(ownerWs))
       .send({ title: "Design Notes", folderId })
       .expect(201);
-    expect(res.body.visibility).toBe("PRIVATE");
     expect(res.body.workspaceId).toBe(wsId);
     docId = res.body.id;
   });
@@ -110,9 +109,9 @@ describe("Documents (e2e)", () => {
       .expect(403);
   });
 
-  // ---- read matrix (PRIVATE) ----
+  // ---- read matrix ----
 
-  it("owner can read its private doc", async () => {
+  it("owner can read its doc", async () => {
     await http(app).get(`/api/documents/${docId}`).set(auth(ownerWs)).expect(200);
   });
 
@@ -120,12 +119,23 @@ describe("Documents (e2e)", () => {
     await http(app).get(`/api/documents/${docId}`).set(auth(carolWs)).expect(200);
   });
 
-  it("a realm member NOT in the workspace cannot read a PRIVATE doc → 404", async () => {
+  it("a realm member NOT in the workspace, with no grant, cannot read it → 404", async () => {
     await http(app).get(`/api/documents/${docId}`).set(auth(daveTok)).expect(404);
   });
 
   it("a complete outsider cannot read it → 404", async () => {
     await http(app).get(`/api/documents/${docId}`).set(auth(bobTok)).expect(404);
+  });
+
+  it("a per-page grant lets a non-member read it (→ 200)", async () => {
+    // No doc visibility toggle any more: access outside the workspace is granted
+    // per person via DocumentPermission. The grant persists for the RTC matrix below.
+    await http(app)
+      .post(`/api/documents/${docId}/permissions`)
+      .set(auth(ownerWs))
+      .send({ email: "dave@toddle.test", role: "READ" })
+      .expect(201);
+    await http(app).get(`/api/documents/${docId}`).set(auth(daveTok)).expect(200);
   });
 
   // ---- write matrix ----
@@ -329,18 +339,6 @@ describe("Documents (e2e)", () => {
     await http(app).get(`/api/documents/${child.body.id}`).set(auth(ownerWs)).expect(404);
   });
 
-  // ---- public toggle ----
-
-  it("owner makes it PUBLIC → a realm member outside the workspace can now read it", async () => {
-    await http(app).get(`/api/documents/${docId}`).set(auth(daveTok)).expect(404);
-    await http(app)
-      .patch(`/api/documents/${docId}/visibility`)
-      .set(auth(ownerWs))
-      .send({ visibility: "PUBLIC" })
-      .expect(200);
-    await http(app).get(`/api/documents/${docId}`).set(auth(daveTok)).expect(200);
-  });
-
   // ---- RTC token endpoint ----
 
   it("rtc-token: owner → editor", async () => {
@@ -375,7 +373,8 @@ describe("Documents (e2e)", () => {
     expect(res.body.role).toBe("viewer");
   });
 
-  it("rtc-token: realm member on a PUBLIC doc → viewer", async () => {
+  it("rtc-token: per-page grantee (READ) → viewer", async () => {
+    // dave holds a READ grant from the read-matrix section above.
     const res = await http(app)
       .post(`/api/documents/${docId}/rtc-token`)
       .set(auth(daveTok))
@@ -384,12 +383,7 @@ describe("Documents (e2e)", () => {
   });
 
   it("rtc-token: total outsider → 403 (no token minted)", async () => {
-    // flip back to PRIVATE so bob truly has no path in
-    await http(app)
-      .patch(`/api/documents/${docId}/visibility`)
-      .set(auth(ownerWs))
-      .send({ visibility: "PRIVATE" })
-      .expect(200);
+    // bob is neither a member nor a grantee, so there's no path in.
     await http(app)
       .post(`/api/documents/${docId}/rtc-token`)
       .set(auth(bobTok))

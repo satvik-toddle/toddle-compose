@@ -148,7 +148,7 @@ export class CompactionService {
       });
       stats.tier2Merged = true;
       stats.tier2RowsAfter = 1;
-      log.info(
+      log.debug(
         `'${docId}' tier2 archive: ${candidates.length} rows → 1 at seq=${maxSeq}`
       );
     } catch (e) {
@@ -166,7 +166,7 @@ export class CompactionService {
     await this.runTier1(docId, snapshotAtSeq, now - this.env("RTC_TIER1_AGE_MS"), stats);
     await this.runTier2(docId, snapshotAtSeq, now - this.env("RTC_TIER2_AGE_MS"), stats);
     if (stats.tier1SessionsMerged > 0 || stats.tier2Merged || stats.errors > 0) {
-      log.info(
+      log.debug(
         `'${docId}' compaction: t1=${stats.tier1SessionsMerged} t2=${stats.tier2Merged} errors=${stats.errors}`
       );
     }
@@ -187,7 +187,7 @@ export class CompactionService {
     const cutoff = Date.now() + 60 * 60 * 1000;
     if (opts.tier1) await this.runTier1(docId, snapshotAtSeq, cutoff, stats);
     if (opts.tier2) await this.runTier2(docId, snapshotAtSeq, cutoff, stats);
-    log.info(
+    log.debug(
       `'${docId}' FORCED compaction tier1=${!!opts.tier1} tier2=${!!opts.tier2} t1=${stats.tier1SessionsMerged} t2=${stats.tier2Merged}`
     );
     return stats;

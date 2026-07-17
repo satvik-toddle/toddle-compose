@@ -44,6 +44,7 @@ export const ICONS = {
   HamburgerOutlined: OutlinedIcons.HamburgerOutlined,
   GridOutlined: OutlinedIcons.GridOutlined,
   ImageSquareOutlined: OutlinedIcons.ImageSquareOutlined,
+  KeyDiagonalOutlined: OutlinedIcons.KeyDiagonalOutlined,
   BulbOutlined: OutlinedIcons.BulbOutlined,
 } as unknown as Record<string, ComponentType<SystemIconProps>>;
 

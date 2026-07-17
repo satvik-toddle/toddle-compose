@@ -121,7 +121,9 @@ export class DocumentsService {
     user: AuthUser,
     input: ListDocumentsInput = {},
     skip = 0,
-    take = 100
+    // No default cap: the sidebar builds the whole workspace tree from this one
+    // call, so an unset take must return every doc (undefined → Prisma no limit).
+    take?: number
   ) {
     return trace("documents.list", async () => {
       const wsId = this.resolveWorkspaceId(user, input.workspaceId);
@@ -230,8 +232,13 @@ export class DocumentsService {
   // newest grant first — powers the launcher's global "Shared with me" view. Each row
   // carries its workspace {id, name}, the grant date, and the caller's effective role.
   async listAllSharedWithMe(user: AuthUser, skip = 0, take = 200) {
+    // A WORKSPACE-scoped token only sees grants inside its workspace.
+    const tokenWs = this.authz.tokenWorkspaceScope();
     const grants = await this.prisma.documentPermission.findMany({
-      where: { userId: user.id, document: { NOT: { ownerId: user.id } } },
+      where: {
+        userId: user.id,
+        document: { NOT: { ownerId: user.id }, ...(tokenWs ? { workspaceId: tokenWs } : {}) },
+      },
       select: {
         role: true,
         createdAt: true,
@@ -342,7 +349,11 @@ export class DocumentsService {
     const doc = await this.loadDocRow(docId);
     if (!doc) throw new NotFoundException("document not found");
 
-    if (doc.owner.id === userId) return "editor";
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
+
+    if (doc.owner.id === userId) {
+      return this.authz.tokenAllowsWorkspaceRole("EDIT") ? "editor" : "viewer";
+    }
 
     // Effective doc role = MAX(workspace role, per-page grant) — grants only ever elevate,
     // so a READ/COMMENT grant on top of a member's EDIT still mints an editor token.
@@ -384,6 +395,10 @@ export class DocumentsService {
   }> {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
+
+    // API-token scope gate applies before ownership: a workspace-scoped token
+    // can't read a doc outside its workspace even if the caller owns it.
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
 
     if (doc.owner.id === userId) return { doc, wsRole: null, grant: null };
 
@@ -605,6 +620,8 @@ export class DocumentsService {
   ) {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
+    // A WORKSPACE-scoped token can't write to a doc outside its workspace, even via a grant.
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
     const [wsRole, grant] = await Promise.all([
       this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
       this.authz.docGrantRole(userId, id),
@@ -613,10 +630,19 @@ export class DocumentsService {
       if (wsRole === null && grant === null) {
         throw new ForbiddenException("requires workspace role READ or higher");
       }
+      // API-token ceiling still applies: an owner acting through a scoped token
+      // can't write above EDIT.
+      if (!this.authz.tokenAllowsWorkspaceRole("EDIT")) {
+        throw new ForbiddenException("requires workspace role EDIT or higher");
+      }
       return doc;
     }
     const effective = this.authz.maxWorkspaceRole(wsRole, grant);
     if (!this.authz.meetsWorkspaceRole(effective, min)) {
+      throw new ForbiddenException(`requires workspace role ${min} or higher`);
+    }
+    // Scoped API token can't exceed its permission ceiling for the requested op.
+    if (!this.authz.tokenAllowsWorkspaceRole(min)) {
       throw new ForbiddenException(`requires workspace role ${min} or higher`);
     }
     return doc;
@@ -632,7 +658,14 @@ export class DocumentsService {
   ) {
     const doc = await this.loadDocRow(id);
     if (!doc) throw new NotFoundException("document not found");
-    if (doc.owner.id === userId) return doc;
+    // Tree ops are confined to the token's workspace and capped by its permission ceiling.
+    this.authz.assertWorkspaceInScope(doc.workspaceId);
+    if (doc.owner.id === userId) {
+      if (!this.authz.tokenAllowsWorkspaceRole(min)) {
+        throw new ForbiddenException(`requires workspace role ${min} or higher`);
+      }
+      return doc;
+    }
     const [wsRole, grant] = await Promise.all([
       this.authz.effectiveWorkspaceRole(userId, doc.workspaceId),
       this.authz.docGrantRole(userId, id),

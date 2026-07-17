@@ -30,7 +30,7 @@ export class RealmService {
     const role = await this.authz.realmRole(userId);
     const realm = await this.prisma.realm.findUnique({
       where: { id: this.realm.id },
-      select: { joinRequestsEnabled: true },
+      select: { joinRequestsEnabled: true, allowedEmailDomains: true },
     });
     // joinRequestsEnabled is public so non-members can see the request-to-join option.
     const base = {
@@ -41,11 +41,7 @@ export class RealmService {
     };
     // The allowlist is admin-only config; don't disclose it to members/non-members.
     if (role !== "OWNER" && role !== "MAINTAINER") return base;
-    const admin = await this.prisma.realm.findUnique({
-      where: { id: this.realm.id },
-      select: { allowedEmailDomains: true },
-    });
-    return { ...base, allowedEmailDomains: admin?.allowedEmailDomains ?? [] };
+    return { ...base, allowedEmailDomains: realm?.allowedEmailDomains ?? [] };
   }
 
   /** Update realm settings; OWNER only. Only provided keys are written; domains normalised. */

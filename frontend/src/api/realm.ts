@@ -33,5 +33,5 @@ export const realmApi = {
   approveOrgRequest: (id: string) =>
     http.post<RealmMember>(`/realm/join-requests/${id}/approve`),
   rejectOrgRequest: (id: string) =>
-    http.post<OrgJoinRequest>(`/realm/join-requests/${id}/reject`),
+    http.post<OkResponse>(`/realm/join-requests/${id}/reject`),
 };

@@ -132,6 +132,8 @@ model OrgJoinRequest {
   createdAt   DateTime         @default(now()) @map("created_at")
   decidedAt   DateTime?        @map("decided_at")
 
+  // One request row per user per realm; re-requesting flips the row back to PENDING.
+  @@unique([realmId, userId])
   @@index([realmId, state])
   @@index([userId])
   @@map("org_join_requests")

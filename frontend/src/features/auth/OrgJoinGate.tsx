@@ -33,12 +33,19 @@ export function OrgJoinGate() {
   const isPending = myOrgRequest?.state === 'PENDING';
   const isRejected = myOrgRequest?.state === 'REJECTED';
 
-  // Approval promotes the caller to a realm member; refresh so the membership gate lets them through.
+  // Approval promotes the caller to a realm member. Wait for the refreshed realm
+  // (role → MEMBER) before navigating so the membership gate doesn't flash back.
   useEffect(() => {
     if (myOrgRequest?.state !== 'APPROVED') return;
-    queryClient.invalidateQueries({ queryKey: qk.realm });
-    queryClient.invalidateQueries({ queryKey: qk.workspaces });
-    navigate('/launcher', { replace: true });
+    let cancelled = false;
+    void (async () => {
+      await queryClient.refetchQueries({ queryKey: qk.realm });
+      queryClient.invalidateQueries({ queryKey: qk.workspaces });
+      if (!cancelled) navigate('/launcher', { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [myOrgRequest?.state, queryClient, navigate]);
 
   const signOut = async () => {

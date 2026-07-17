@@ -35,13 +35,19 @@ export class OrgJoinRequestsService {
     });
     if (member) throw new ConflictException("you are already a member of this organisation");
 
-    const pending = await this.prisma.orgJoinRequest.findFirst({
-      where: { realmId: this.realm.id, userId, state: "PENDING" },
+    // One row per (realm, user): a fresh request creates it, a re-request after a
+    // decision flips it back to PENDING. The @@unique makes this race-safe.
+    const existing = await this.prisma.orgJoinRequest.findUnique({
+      where: { realmId_userId: { realmId: this.realm.id, userId } },
     });
-    if (pending) throw new ConflictException("you already have a pending request");
+    if (existing?.state === "PENDING") {
+      throw new ConflictException("you already have a pending request");
+    }
 
-    return this.prisma.orgJoinRequest.create({
-      data: { realmId: this.realm.id, userId },
+    return this.prisma.orgJoinRequest.upsert({
+      where: { realmId_userId: { realmId: this.realm.id, userId } },
+      update: { state: "PENDING", decidedById: null, decidedAt: null, createdAt: new Date() },
+      create: { realmId: this.realm.id, userId },
     });
   }
 

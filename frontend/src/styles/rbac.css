@@ -476,6 +476,11 @@
   margin: 4px 0 0;
 }
 .rbac .auth-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   margin-top: 18px;
   font-size: 13px;
   color: var(--text-secondary);

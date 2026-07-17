@@ -13,14 +13,8 @@ import {
 } from '@toddle-edu/ds-icons';
 import { Icon } from '../../components/Icon';
 import { AuthShell } from './AuthShell';
-import {
-  useDiscoverableWorkspaces,
-  useMyJoinRequests,
-  useMyOrgRequest,
-  useRealm,
-} from '../../hooks/queries';
+import { useDiscoverableWorkspaces, useMyJoinRequests } from '../../hooks/queries';
 import { useJoinPublicWorkspace, useRequestAccess } from '../../hooks/useJoinRequestMutations';
-import { useRequestJoinOrg } from '../../hooks/useOrgJoinRequestMutations';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { workspaceVisual } from '../../lib/workspaceVisual';
 import { performLogout } from '../../lib/session';
@@ -51,24 +45,7 @@ const styles = {
     'bg-[var(--tag-background-teal-default)] text-[var(--tag-foreground-teal)]',
   visibilityBadgePrivate: 'bg-[var(--surface-tertiary-enabled)] text-secondary [&_.ic]:opacity-60',
   signedInEmail: 'text-primary font-semibold',
-  orgCard:
-    'mb-4 flex items-center gap-3 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-4 py-[13px]',
-  orgInfo: 'min-w-0 flex-1',
-  orgTitle: 'text-[14px] font-bold',
-  orgMeta: 'mt-px text-[12px] text-secondary',
 };
-
-// Labels/subtext for the org-join card mirror the per-workspace helpers below.
-function orgStatusText(isPending: boolean, isRejected: boolean): string {
-  if (isPending) return 'Your request is awaiting an admin’s approval';
-  if (isRejected) return 'Request declined — you can ask again';
-  return 'Approval required — an admin adds you as a member';
-}
-
-function orgButtonLabel(isRejected: boolean): string {
-  if (isRejected) return 'Request again';
-  return 'Request to join';
-}
 
 // Per-row labels live as pure helpers (a row can't hold its own useMemo).
 function workspaceStatusText(isPublicWorkspace: boolean, isRequestRejected: boolean): string {
@@ -88,11 +65,8 @@ export function RequestAccessPage() {
   const queryClient = useQueryClient();
   const { data: discoverableWorkspaces = [], isLoading } = useDiscoverableWorkspaces();
   const { data: myRequests } = useMyJoinRequests();
-  const { data: realm } = useRealm();
-  const { data: myOrgRequest } = useMyOrgRequest();
   const joinPublicWorkspace = useJoinPublicWorkspace();
   const requestAccess = useRequestAccess();
-  const requestJoinOrg = useRequestJoinOrg();
   const { mutate: enterWorkspace } = useEnterWorkspace();
   const [searchQuery, setSearchQuery] = useState('');
   // Optimistic "just requested here" flags; bridge the gap until the next poll reflects them.
@@ -187,42 +161,6 @@ export function RequestAccessPage() {
       <p className={styles.subheading}>
         Open a public workspace right away, or request access to a private one
       </p>
-
-      {realm?.joinRequestsEnabled &&
-        (() => {
-          const isPending = myOrgRequest?.state === 'PENDING';
-          const isRejected = myOrgRequest?.state === 'REJECTED';
-          return (
-            <div className={styles.orgCard}>
-              <div className={styles.orgInfo}>
-                <div className={styles.orgTitle}>Request to join {realm.name}</div>
-                <div className={styles.orgMeta}>{orgStatusText(isPending, isRejected)}</div>
-              </div>
-              {isPending ? (
-                <Button
-                  variant="neutral"
-                  type="outlined"
-                  size="small"
-                  disabled
-                  icon={<BellRingOutlined />}
-                >
-                  Awaiting approval
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  type="fill"
-                  size="small"
-                  icon={<SendOutlined />}
-                  disabled={requestJoinOrg.isPending}
-                  onClick={() => requestJoinOrg.mutate()}
-                >
-                  {orgButtonLabel(isRejected)}
-                </Button>
-              )}
-            </div>
-          );
-        })()}
 
       <div className={styles.search}>
         <TextInput

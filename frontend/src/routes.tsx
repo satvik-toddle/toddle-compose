@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './app/ProtectedRoute';
+import { MembershipGate } from './app/MembershipGate';
 import { RequireRealmAdmin } from './app/RequireRealmAdmin';
 import { WorkspaceScopeRoute } from './app/WorkspaceScopeRoute';
 import { RootRedirect } from './app/RootRedirect';
@@ -38,10 +39,7 @@ export function AppRoutes() {
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/access" element={<RequestAccessPage />} />
-        <Route path="/launcher" element={<LauncherPage />} />
-
-        {/* realm admin console */}
+        {/* realm admin console (its own admin gate; not behind the membership gate) */}
         <Route element={<RequireRealmAdmin />}>
           <Route path="/admin" element={<AdminConsolePage />}>
             <Route index element={<Navigate to="/admin/workspaces" replace />} />
@@ -53,11 +51,17 @@ export function AppRoutes() {
           </Route>
         </Route>
 
-        {/* inside a workspace (scope is entered before render) */}
-        <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
-          <Route element={<WorkspaceLayout />}>
-            <Route index element={<WorkspaceContent />} />
-            <Route path="starred" element={<StarredPagesView />} />
+        {/* non-members are held at the org join gate when join-requests are enabled */}
+        <Route element={<MembershipGate />}>
+          <Route path="/access" element={<RequestAccessPage />} />
+          <Route path="/launcher" element={<LauncherPage />} />
+
+          {/* inside a workspace (scope is entered before render) */}
+          <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
+            <Route element={<WorkspaceLayout />}>
+              <Route index element={<WorkspaceContent />} />
+              <Route path="starred" element={<StarredPagesView />} />
+            </Route>
           </Route>
         </Route>
       </Route>

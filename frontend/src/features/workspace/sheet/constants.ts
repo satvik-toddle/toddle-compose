@@ -14,6 +14,7 @@ export const SHEET_CELL_TYPE_OPTIONS: readonly SheetCellTypeOption[] = [
   { label: 'Dropdown', value: 'dropdown' },
   { label: 'Tag', value: 'tag' },
   { label: 'Date & time', value: 'dateTime' },
+  { label: 'Color picker', value: 'colorPicker' },
 ];
 
 export type SheetDateTimeVariantOption = { label: string; value: SheetDateTimeVariant };

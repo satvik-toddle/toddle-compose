@@ -167,12 +167,22 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       if (!hasSynced) {
         hasSynced = true;
         if (yRecords.size === 0) {
-          // Brand-new board: seed Yjs with the full doc-scope record set. The fresh
-          // store's baseline singletons (document, page) are created by store init,
-          // not a user edit, so the user-scoped listener above never writes them.
-          // Relying on the first edit would push only the drawn shape, leaving the
-          // remote doc without a page/document — so a joining client (or our own
-          // reload) would adopt orphaned shapes and render a blank canvas.
+          // Brand-new board: seed Yjs with the full doc-scope record set. The store
+          // is still empty here (the editor mounts only once we report synced), and
+          // the singletons it will create (document, page) come from
+          // ensureStoreIsUsable, not a user edit, so the user-scoped listener above
+          // never writes them. Relying on the first edit would push only the drawn
+          // shape, leaving the remote doc without a page/document — a joining client
+          // (or our own reload) would then adopt orphaned shapes onto a blank canvas.
+          //
+          // ensureStoreIsUsable() populates those singletons now, with tldraw's
+          // deterministic ids (document:document, page:page). That determinism is
+          // also what makes concurrent first-open safe: two clients that both see an
+          // empty remote doc seed the identical keys, so Yjs LWW converges to one
+          // document/page instead of duplicating the page. It's @internal in tldraw's
+          // types but present and stable across 5.x; cast rather than hand-replicate
+          // tldraw's default record construction (which would drift on upgrade).
+          (store as unknown as { ensureStoreIsUsable: () => void }).ensureStoreIsUsable();
           ydoc.transact(() => {
             for (const record of store.allRecords()) {
               if (isDocScope(record)) yRecords.set(record.id, record);
@@ -237,7 +247,12 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       ydoc.destroy();
       store.dispose();
     };
-  }, [docId, user?.id]);
+    // Only docId keys the binding. RtcGate gates on the RTC token, not the auth
+    // user, so this can mount with user === null while the auth store hydrates;
+    // keying on user?.id would tear the whole store/provider down and reconnect
+    // when it resolves null -> id. Presence identity uses awareness.clientID, and
+    // name/color update in place via the effect below, so user is not a dep here.
+  }, [docId]);
 
   // Presence metadata rides the live session; never tears it down.
   useEffect(() => {

@@ -42,6 +42,9 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
 
   const onMount = (editor: Editor) => {
     setEditor(editor);
+    // Set read-only before first paint: the effect below runs after mount, leaving
+    // a window where a viewer's local edits are accepted (then dropped server-side).
+    editor.updateInstanceState({ isReadonly: !canEdit });
     // Default text/labels to the normal sans font, not tldraw's handwritten one.
     editor.setStyleForNextShapes(DefaultFontStyle, 'sans');
   };

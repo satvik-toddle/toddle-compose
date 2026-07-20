@@ -17,45 +17,58 @@ type ProviderLike = {
 // the params object y-websocket re-reads on every reconnect.
 // `onFailure` receives the consecutive-failure count since the last successful
 // connect (not reset by re-mints), for "can't reach the server" UI.
+// `state` lets a caller persist the failure counters across provider recreation:
+// the doc editor's providerFactory can be re-invoked (StrictMode, collab re-memo)
+// mid-streak, and the 2-failure re-mint guarantee must not reset each time. Omit it
+// (sheet/whiteboard) to use per-call locals — those hold one provider per session.
 // Returns a detach function; call sites that destroy the provider may skip it.
+export type TokenRecoveryState = {
+  sinceRemint: number;
+  sinceConnect: number;
+  attemptCounted: boolean;
+};
+
 export function attachTokenRecovery(
   provider: ProviderLike,
   refetchToken: () => unknown,
   onFailure?: (consecutiveFailures: number) => void,
+  state?: TokenRecoveryState,
 ): () => void {
-  let sinceRemint = 0;
-  let sinceConnect = 0;
-  let attemptCounted = false;
+  const s: TokenRecoveryState =
+    state ?? { sinceRemint: 0, sinceConnect: 0, attemptCounted: false };
 
   const onStatus = (e?: { status?: string }) => {
-    if (e?.status === 'connecting') attemptCounted = false;
+    if (e?.status === 'connecting') s.attemptCounted = false;
     else if (e?.status === 'connected') {
-      sinceRemint = 0;
-      sinceConnect = 0;
+      s.sinceRemint = 0;
+      s.sinceConnect = 0;
     }
   };
   const onSync = (isSynced: boolean) => {
     if (isSynced) {
-      sinceRemint = 0;
-      sinceConnect = 0;
+      s.sinceRemint = 0;
+      s.sinceConnect = 0;
     }
   };
   const onConnectFailure = (code?: number) => {
+    // One attempt can emit both 'connection-error' and 'connection-close'; count it
+    // once. 4001s still count toward sinceConnect so a server stuck force-refreshing
+    // access surfaces the "can't reach the server" UI instead of looping silently.
+    if (s.attemptCounted) return;
+    s.attemptCounted = true;
+    s.sinceConnect += 1;
     if (code === 4001) {
-      sinceRemint = 0;
-      attemptCounted = true;
+      // Server force-refreshed access: re-mint immediately, don't wait for 2.
+      s.sinceRemint = 0;
       void refetchToken();
-      return;
+    } else {
+      s.sinceRemint += 1;
+      if (s.sinceRemint >= 2) {
+        s.sinceRemint = 0;
+        void refetchToken();
+      }
     }
-    if (attemptCounted) return;
-    attemptCounted = true;
-    sinceRemint += 1;
-    sinceConnect += 1;
-    if (sinceRemint >= 2) {
-      sinceRemint = 0;
-      void refetchToken();
-    }
-    onFailure?.(sinceConnect);
+    onFailure?.(s.sinceConnect);
   };
   const onClose = (e?: CloseEvent) => onConnectFailure(e?.code);
   const onError = () => onConnectFailure();

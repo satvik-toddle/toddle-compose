@@ -117,9 +117,12 @@ function parseColor(color: string | undefined): [number, number, number] | null 
   return null;
 }
 
-const SOLID_RGB = Object.entries(WHITEBOARD_SOLIDS).map(
-  ([name, hex]) => [name, parseColor(hex)!] as const,
-);
+// Drop any solid whose hex parseColor can't handle rather than laundering null via
+// `!` — WHITEBOARD_SOLIDS derives from tldraw's external theme, so a future value
+// change must not turn into a null deref in nearestColor's distance loop.
+const SOLID_RGB = Object.entries(WHITEBOARD_SOLIDS)
+  .map(([name, hex]) => [name, parseColor(hex)] as const)
+  .filter((entry): entry is readonly [string, [number, number, number]] => entry[1] !== null);
 
 function nearestColor(color: string | undefined): TLDefaultColorStyle {
   if (color && color in WHITEBOARD_SOLIDS) return color as TLDefaultColorStyle;

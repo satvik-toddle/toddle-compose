@@ -37,6 +37,7 @@ function mix(a: string, b: string, t: number): string {
 }
 
 function lightVariants(hex: string): TLDefaultColor {
+  const highlight = mix(hex, '#ffffff', 0.35);
   return {
     solid: hex,
     fill: hex,
@@ -50,12 +51,13 @@ function lightVariants(hex: string): TLDefaultColor {
     frameText: '#000000',
     noteFill: mix(hex, '#ffffff', 0.45),
     noteText: '#000000',
-    highlightSrgb: mix(hex, '#ffffff', 0.35),
-    highlightP3: mix(hex, '#ffffff', 0.35),
+    highlightSrgb: highlight,
+    highlightP3: highlight,
   };
 }
 
 function darkVariants(hex: string): TLDefaultColor {
+  const highlight = mix(hex, '#000000', 0.25);
   return {
     solid: hex,
     fill: hex,
@@ -69,8 +71,8 @@ function darkVariants(hex: string): TLDefaultColor {
     frameText: '#f2f2f2',
     noteFill: mix(hex, '#000000', 0.45),
     noteText: '#f2f2f2',
-    highlightSrgb: mix(hex, '#000000', 0.25),
-    highlightP3: mix(hex, '#000000', 0.25),
+    highlightSrgb: highlight,
+    highlightP3: highlight,
   };
 }
 

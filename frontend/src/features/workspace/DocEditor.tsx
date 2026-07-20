@@ -100,6 +100,8 @@ export function DocEditor({
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
+  // Failure counters shared across providerFactory re-invocations (StrictMode, collab re-memo) so the 2-failure re-mint streak survives provider recreation.
+  const recoveryStateRef = useRef({ sinceRemint: 0, sinceConnect: 0, attemptCounted: false });
 
   const collab = useMemo(() => {
     return {
@@ -123,7 +125,7 @@ export function DocEditor({
           connect: false,
         });
         // Listeners live as long as the provider (the CollaborationPlugin destroys it); no detach needed.
-        attachTokenRecovery(provider, () => refetchRef.current?.());
+        attachTokenRecovery(provider, () => refetchRef.current?.(), undefined, recoveryStateRef.current);
         return provider;
       },
       username: awarenessName ?? name ?? 'User',

@@ -69,6 +69,13 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
     });
     const unsubs: (() => void)[] = [];
     const isDocScope = (r: TLRecord) => store.scopedTypes.document.has(r.typeName);
+    // Apply a batch of incoming records (Yjs docs or awareness presence) to the
+    // local store as remote changes, so they don't echo back out to peers.
+    const applyRemote = (toRemove: TLRecord['id'][], toPut: TLRecord[]) =>
+      store.mergeRemoteChanges(() => {
+        if (toRemove.length) store.remove(toRemove);
+        if (toPut.length) store.put(toPut);
+      });
 
     // tldraw -> Yjs (document scope only; session/presence records stay local).
     unsubs.push(
@@ -98,10 +105,7 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
           if (record) toPut.push(record);
         }
       }
-      store.mergeRemoteChanges(() => {
-        if (toRemove.length) store.remove(toRemove);
-        if (toPut.length) store.put(toPut);
-      });
+      applyRemote(toRemove, toPut);
     };
     yRecords.observe(onYRecords);
     unsubs.push(() => yRecords.unobserve(onYRecords));
@@ -148,26 +152,36 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       const toRemove = removed.map((clientId) =>
         InstancePresenceRecordType.createId(String(clientId)),
       );
-      store.mergeRemoteChanges(() => {
-        if (toRemove.length) store.remove(toRemove);
-        if (toPut.length) store.put(toPut);
-      });
+      applyRemote(toRemove, toPut);
     };
     awareness.on('change', onAwareness);
     unsubs.push(() => awareness.off('change', onAwareness));
 
     let hasSynced = false;
 
-    // First server sync only: adopt the server's document records (dropping the
-    // fresh store's default page so boards don't grow a duplicate), or leave the
-    // local defaults in place for a brand-new board — they sync on first edit.
-    // Reconnects re-emit 'sync' but Yjs delivers diffs through the observer; re-
-    // running the adoption there would race the frame-throttled listener above.
+    // First server sync only. Reconnects re-emit 'sync' but Yjs delivers diffs
+    // through the observer; re-running the adoption there would race the frame-
+    // throttled listener above.
     const onSync = (isSynced: boolean) => {
       if (!isSynced) return;
       if (!hasSynced) {
         hasSynced = true;
-        if (yRecords.size > 0) {
+        if (yRecords.size === 0) {
+          // Brand-new board: seed Yjs with the full doc-scope record set. The fresh
+          // store's baseline singletons (document, page) are created by store init,
+          // not a user edit, so the user-scoped listener above never writes them.
+          // Relying on the first edit would push only the drawn shape, leaving the
+          // remote doc without a page/document — so a joining client (or our own
+          // reload) would adopt orphaned shapes and render a blank canvas.
+          ydoc.transact(() => {
+            for (const record of store.allRecords()) {
+              if (isDocScope(record)) yRecords.set(record.id, record);
+            }
+          }, LOCAL_ORIGIN);
+        } else {
+          // Existing board: adopt the server's records, dropping local doc-scope
+          // records the server lacks (e.g. the fresh store's default page) so boards
+          // don't grow a duplicate.
           const remoteIds = new Set(yRecords.keys());
           store.mergeRemoteChanges(() => {
             store.remove(
@@ -183,6 +197,7 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       setStoreWithStatus({ store, status: 'synced-remote', connectionStatus: 'online' });
     };
     provider.on('sync', onSync);
+    unsubs.push(() => provider.off('sync', onSync));
     if (provider.synced) onSync(true);
 
     const onStatus = ({ status }: { status: string }) => {
@@ -194,6 +209,7 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
       });
     };
     provider.on('status', onStatus);
+    unsubs.push(() => provider.off('status', onStatus));
 
     // Shared re-mint protocol; if the socket never syncs at all, surface an error
     // instead of loading forever.
@@ -215,8 +231,6 @@ export function useYjsTldrawStore({ docId, token, user, refetchToken }: UseYjsTl
 
     return () => {
       unsubs.forEach((fn) => fn());
-      provider.off('sync', onSync);
-      provider.off('status', onStatus);
       setPresenceUserRef.current = null;
       setStoreWithStatus({ status: 'loading' });
       provider.destroy();

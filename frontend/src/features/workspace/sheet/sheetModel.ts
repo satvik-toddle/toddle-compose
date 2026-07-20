@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import moment from 'moment';
 import type {
   DataGridCell,
   DataGridCellEdit,
@@ -33,6 +34,7 @@ export const SHEET_CELL_TYPES = [
   'radio',
   'dropdown',
   'tag',
+  'dateTime',
 ] as const;
 export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
 
@@ -233,6 +235,15 @@ function toGridCell(
       const setId = meta?.config?.optionSetId;
       return toOptionSetCell(type, stored, setId ? readOptionSet(yOptionSets, setId) : null);
     }
+    case 'dateTime': {
+      // Strict ISO parse so leftover text from a type switch reads as empty.
+      const parsed = typeof stored === 'string' ? moment(stored, moment.ISO_8601, true) : null;
+      return {
+        cellType: 'dateTime',
+        value: parsed?.isValid() ? parsed : null,
+        pickerProps: { type: 'dateTime', isClearable: true },
+      };
+    }
     default:
       return { cellType: 'text', value: toDisplayText(stored) };
   }
@@ -380,13 +391,17 @@ export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColType
 }
 
 // The radio cell reports its state via `checked` instead of `value`; the dropdown/tag
-// cells report selected option objects, of which only the ids are stored.
+// cells report selected option objects, of which only the ids are stored; the dateTime
+// cell reports a moment object (null when cleared), stored as an ISO string.
 function editedCellValue(newValue: DataGridCellEdit['newValue']): unknown {
   if (newValue?.cellType === 'radio' && typeof newValue.checked === 'boolean') {
     return newValue.checked;
   }
   if (isOptionSetCellType(newValue?.cellType) && Array.isArray(newValue?.value)) {
     return newValue.value.map((option) => (option as SheetDropdownOption).id);
+  }
+  if (newValue?.cellType === 'dateTime') {
+    return moment.isMoment(newValue.value) ? newValue.value.toISOString() : '';
   }
   return newValue?.value ?? '';
 }

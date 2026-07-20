@@ -141,10 +141,14 @@ backend needs them; the rtc-server just fetches the public JWK over HTTP.
 **New + → Web Service** → same repo, **branch `staging/backend-rtc-server`**, same region, root blank, **Auto-Deploy: No**.
 - **Build Command:**
   ```
-  npm install -g pnpm@9.12.3 && pnpm install --filter rtc-server... --frozen-lockfile --prod=false && pnpm --filter @app/rtc-database generate && pnpm --filter rtc-server build
+  npm install -g pnpm@9.12.3 && pnpm install --filter rtc-server... --frozen-lockfile --prod=false && pnpm --filter @app/rtc-database generate && pnpm --filter @app/rtc-database push && pnpm --filter rtc-server build
   ```
   (The Lexical server-nodes bundle is committed at `rtc-server/vendor/server-nodes.cjs`,
-  so no `doc-editor` checkout is needed.)
+  so no `doc-editor` checkout is needed. The `@app/rtc-database push` step syncs the
+  rtc schema — including the `rtc_compaction_runs` table — to the service's
+  `RTC_DATABASE_URL` before the build; the rtc-database is schema-first (`prisma db push`,
+  no migrations), and the push is additive-safe, so re-running it on every deploy is a no-op
+  once the schema is current.)
 - **Start Command:** `pnpm --filter rtc-server start`
 - **Environment:**
   ```

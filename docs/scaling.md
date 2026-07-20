@@ -27,8 +27,8 @@ What's already in place to stretch a single instance:
   CPU-heaviest step of every flush) runs in a worker-thread pool
   (`RTC_EXTRACT_WORKERS`, default 2).
 - **Append coalescing** — Yjs updates are merged per (doc, author) for
-  `RTC_APPEND_COALESCE_MS` (default 250ms) before hitting the DB, so typing
-  costs ~4 rows/sec/author instead of one row per keystroke. Crash exposure is
+  `RTC_APPEND_COALESCE_MS` (default 1000ms) before hitting the DB, so typing
+  costs ~1 row/sec/author instead of one row per keystroke. Crash exposure is
   bounded by the window.
 - **Awareness coalescing** — cursor/presence frames beyond 15/sec/connection
   are collapsed to the latest one (trailing 100ms), bounding the N² broadcast

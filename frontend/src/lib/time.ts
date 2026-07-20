@@ -3,18 +3,18 @@ const MONTHS = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-// "12 Jan 2025"
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
+// "12 Jan 2025". Accepts an ISO string or epoch-ms.
+export function formatDate(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '—';
+  const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// "just now" / "5 min ago" / "3 h ago" / "yesterday" / "12 Jan 2025"
-export function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const then = new Date(iso).getTime();
+// "just now" / "5 min ago" / "3 h ago" / "yesterday" / "12 Jan 2025". Accepts an ISO string or epoch-ms.
+export function relativeTime(value: string | number | null | undefined): string {
+  if (value == null || value === '') return '';
+  const then = new Date(value).getTime();
   if (Number.isNaN(then)) return '';
   const secs = Math.floor((Date.now() - then) / 1000);
   if (secs < 60) return 'just now';
@@ -25,7 +25,7 @@ export function relativeTime(iso: string | null | undefined): string {
   const days = Math.floor(hours / 24);
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;
-  return formatDate(iso);
+  return formatDate(value);
 }
 
 export function firstName(name: string): string {

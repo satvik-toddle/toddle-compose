@@ -313,7 +313,7 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
     "sessions": [
       {
         "firstSeq": 30, "lastSeq": 42, "startedAt": 1717000000000, "endedAt": 1717000600000,
-        "updateCount": 13, "totalBytes": 2048, "origin": null,
+        "updateCount": 13, "totalBytes": 2048, "kind": "edit", "noop": false,
         "changedCells": [ { "rowId": "r1", "colId": "c2" } ],
         "user": { "id": "ckus…", "name": "Ada", "email": "ada@…", "color": "#5a5ae2" }
       }
@@ -324,7 +324,12 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
   access required; `400` if `seq` is not a non-negative integer. This is a **generic id route**: the
   server resolves the document's `type` and dispatches to the matching handler, so the payload is
   kind-specific. The response always includes `type`. For a **SHEET**, `sheet` is the reconstructed
-  grid (`{ rows, colTypes }`); for a **DOC**, `lexicalJson` + `plainText` are the rich-text content.
+  grid (`{ rows, colTypes }`); for a **DOC**, `lexicalJson` is the server-extracted Lexical
+  editorState at that seq (upload URLs materialized), which the client feeds to a read-only editor.
+  Optional `?diff=<baselineSeq>` (DOC only, `400` if not a non-negative integer; `0` = empty doc)
+  additionally returns `diffJson` — a merged diff editorState (baseline → seq) with added/removed
+  content wrapped in `diff-mark` nodes; without `?diff`, `diffJson` is `null`. (`502` if extraction
+  fails or the rtc-server is too old to serve the render mode — deploy skew.)
   `200` (SHEET):
   ```json
   { "docId": "ckdo…", "type": "SHEET", "seq": 30, "headSeq": 42,
@@ -333,7 +338,7 @@ Document shape: `{ id, title, icon, type, workspaceId, folderId, parentId, creat
   `200` (DOC):
   ```json
   { "docId": "ckdo…", "type": "DOC", "seq": 30, "headSeq": 42,
-    "lexicalJson": "{\"root\":{…}}", "plainText": "…" }
+    "lexicalJson": "{\"root\":…}", "diffJson": null }
   ```
 - `PATCH /api/documents/:id` — `{ title }` → rename. `title` 1–200 chars.
 - `PATCH /api/documents/:id/move` — `{ folderId?, parentId? }` → relocate. `parentId` re-parents it

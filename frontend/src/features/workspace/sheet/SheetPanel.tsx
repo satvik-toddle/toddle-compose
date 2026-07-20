@@ -1,4 +1,4 @@
-import { useEffect, type ComponentType } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { EmptyState, IconButton, SelectDropdown, Tooltip } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { CloseOutlined } from '@toddle-edu/ds-icons';
@@ -7,11 +7,16 @@ import { ShortcutHint } from '../../../components/ShortcutHint';
 import { cn } from '../../../lib/cn';
 import {
   SHEET_CELL_TYPE_OPTIONS,
+  SHEET_DATE_TIME_VARIANT_OPTIONS,
   SHEET_PANEL_SHORTCUT_KEY,
-  type SheetCellTypeOption,
 } from './constants';
 import { SheetDropdownOptionsForm } from './SheetDropdownOptionsForm';
-import { isOptionSetCellType, type SheetCellType, type SheetOptionSet } from './sheetModel';
+import {
+  isOptionSetCellType,
+  type SheetCellType,
+  type SheetDateTimeVariant,
+  type SheetOptionSet,
+} from './sheetModel';
 
 const styles = {
   // Docked beside the grid, Google-Sheets style — opening it shrinks the grid so every column stays in the viewport instead of being covered.
@@ -33,19 +38,21 @@ const styles = {
 const closeShortcutKeys = [commandModifierKey, SHEET_PANEL_SHORTCUT_KEY];
 
 // SelectDropdown's version-union type drops value/onChange (same gap RoleSelect
-// works around); retype it narrowly for this picker.
-type CellTypeSelectProps = {
+// works around); retype it narrowly for the panel's pickers.
+type PanelSelectProps<Option> = {
   dsVersion: '2.0';
   label: string;
-  options: readonly SheetCellTypeOption[];
-  value?: SheetCellTypeOption;
-  onChange: (option: SheetCellTypeOption | null) => void;
+  options: readonly Option[];
+  value?: Option;
+  onChange: (option: Option | null) => void;
   placeholder?: string;
   isClearable?: boolean;
   isCreatable?: boolean;
   isSearchable?: boolean;
 };
-const CellTypeSelect = SelectDropdown as unknown as ComponentType<CellTypeSelectProps>;
+const PanelSelect = SelectDropdown as unknown as <Option>(
+  props: PanelSelectProps<Option>,
+) => ReactElement;
 
 // While the grid's inline cell editor (or any other text field) has focus, Escape
 // belongs to it — the panel only claims Escape from non-typing targets.
@@ -59,6 +66,8 @@ type SheetPanelProps = {
   selectionLabel: string | null;
   cellType: SheetCellType | 'mixed' | null;
   onCellTypeChange: (type: SheetCellType) => void;
+  dateTimeVariant: SheetDateTimeVariant | null;
+  onDateTimeVariantChange: (variant: SheetDateTimeVariant) => void;
   dropdownOptionSetId: string | null;
   dropdownOptionSet: SheetOptionSet | null;
   onSaveDropdownOptions: (optionSet: SheetOptionSet) => void;
@@ -71,6 +80,8 @@ export function SheetPanel({
   selectionLabel,
   cellType,
   onCellTypeChange,
+  dateTimeVariant,
+  onDateTimeVariantChange,
   dropdownOptionSetId,
   dropdownOptionSet,
   onSaveDropdownOptions,
@@ -125,7 +136,7 @@ export function SheetPanel({
                 <span className={styles.rangeLabel}>Applies to</span>
                 <span className={styles.rangeValue}>{selectionLabel}</span>
               </div>
-              <CellTypeSelect
+              <PanelSelect
                 dsVersion="2.0"
                 label="Cell type"
                 options={SHEET_CELL_TYPE_OPTIONS}
@@ -136,6 +147,23 @@ export function SheetPanel({
                 isCreatable={false}
                 isSearchable={false}
               />
+              {cellType === 'dateTime' && (
+                <PanelSelect
+                  dsVersion="2.0"
+                  label="Format"
+                  options={SHEET_DATE_TIME_VARIANT_OPTIONS}
+                  value={
+                    SHEET_DATE_TIME_VARIANT_OPTIONS.find(
+                      (option) => option.value === dateTimeVariant,
+                    ) ?? undefined
+                  }
+                  onChange={(option) => option && onDateTimeVariantChange(option.value)}
+                  placeholder="Mixed"
+                  isClearable={false}
+                  isCreatable={false}
+                  isSearchable={false}
+                />
+              )}
               {isOptionSetCellType(cellType) && (
                 <SheetDropdownOptionsForm
                   // Remount when the target set (or a set-less selection) changes so the

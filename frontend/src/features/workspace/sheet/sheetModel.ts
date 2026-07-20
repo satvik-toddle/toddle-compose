@@ -35,6 +35,7 @@ export const SHEET_CELL_TYPES = [
   'dropdown',
   'tag',
   'dateTime',
+  'colorPicker',
 ] as const;
 export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
 
@@ -264,6 +265,9 @@ function toGridCell(
         },
       };
     }
+    case 'colorPicker':
+      // Non-color leftovers from a type switch read as empty (placeholder swatch).
+      return { cellType: 'colorPicker', value: typeof stored === 'string' ? stored : '' };
     default:
       return { cellType: 'text', value: toDisplayText(stored) };
   }

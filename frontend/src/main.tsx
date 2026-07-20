@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
@@ -31,13 +30,11 @@ const queryClient = createQueryClient();
 void bootstrapAuth();
 
 createRoot(rootEl).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <DSProvider dsVersion="2.0">
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </DSProvider>
-    </QueryClientProvider>
-  </StrictMode>,
+  <QueryClientProvider client={queryClient}>
+    <DSProvider dsVersion="2.0">
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </DSProvider>
+  </QueryClientProvider>,
 );

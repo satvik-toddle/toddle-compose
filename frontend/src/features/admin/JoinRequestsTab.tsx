@@ -1,13 +1,6 @@
 import { RequestsTable } from '../../components/RequestsTable';
 import { useRealmJoinRequests } from '../../hooks/queries';
-
-const styles = {
-  page: 'flex flex-1 flex-col overflow-auto px-[30px] pt-[26px] pb-10',
-  pageWrap: 'mx-auto flex w-full max-w-[1040px] flex-1 flex-col',
-  pageHead: 'mb-5 flex items-end justify-between gap-[18px]',
-  h1: 'm-0 text-[25px] font-extrabold tracking-[-0.01em]',
-  headSub: 'mt-1 text-[13px] text-secondary',
-};
+import { adminTabStyles as styles } from './adminTabStyles';
 
 export function JoinRequestsTab() {
   const { data: requests, isLoading } = useRealmJoinRequests();

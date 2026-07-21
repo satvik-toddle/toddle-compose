@@ -11,13 +11,13 @@ import { useRealm } from '../../hooks/queries';
 import { useUpdateRealmSettings } from '../../hooks/useRealmMutations';
 import { PageLoader } from '../../components/Loader';
 import { cn } from '../../lib/cn';
+import { adminTabStyles } from './adminTabStyles';
 
 const styles = {
+  // Settings is a scrollable form (not a height-filling table), so it keeps its
+  // own page/pageWrap; the header block is shared via adminTabStyles.
   page: 'flex-1 overflow-auto px-[30px] pt-[26px] pb-10',
   pageWrap: 'mx-auto max-w-[1040px]',
-  pageHead: 'mb-5 flex items-end justify-between gap-[18px]',
-  pageTitle: 'm-0 text-[25px] font-extrabold tracking-[-0.01em]',
-  pageSubtitle: 'mt-1 text-[13px] text-secondary',
   card: 'flex max-w-[640px] flex-col gap-4 rounded-3 border border-[var(--line)] bg-[var(--panel-bg)] px-5 py-[18px]',
   cardHeader: 'flex items-start gap-2.5',
   cardTitle: 'text-[14px] font-semibold',
@@ -60,15 +60,27 @@ export function RealmSettingsTab() {
 
   // Sync from the server while the user has no unsaved edits. A background refetch must not
   // wipe edits, but must still pick up the real values if the first payload was empty/stale.
+  // The refs hold the last server values the form was reconciled with.
   const lastSyncedDomains = useRef<string[] | null>(null);
   const lastSyncedJoinRequests = useRef<boolean | null>(null);
   useEffect(() => {
     if (!realm) return;
+    const inSyncWithServer =
+      sameDomainSet(editedDomains, savedDomains) && editedJoinRequests === savedJoinRequests;
     const hasLocalEdits =
       (lastSyncedDomains.current !== null &&
         !sameDomainSet(editedDomains, lastSyncedDomains.current)) ||
       (lastSyncedJoinRequests.current !== null &&
         editedJoinRequests !== lastSyncedJoinRequests.current);
+    // Once the form matches the server again — first load, a successful save, or another
+    // admin making the same change — adopt that as the synced baseline. Without this the
+    // refs keep the pre-edit values after a save, so hasLocalEdits stays true forever and
+    // later server-side changes never sync in (and Save would clobber them).
+    if (inSyncWithServer) {
+      lastSyncedDomains.current = savedDomains;
+      lastSyncedJoinRequests.current = savedJoinRequests;
+      return;
+    }
     if (hasLocalEdits) return;
     setEditedDomains(savedDomains);
     setEditedJoinRequests(savedJoinRequests);
@@ -114,10 +126,10 @@ export function RealmSettingsTab() {
   return (
     <div className={styles.page}>
       <div className={styles.pageWrap}>
-        <div className={styles.pageHead}>
+        <div className={adminTabStyles.pageHead}>
           <div>
-            <h1 className={styles.pageTitle}>Realm settings</h1>
-            <div className={styles.pageSubtitle}>
+            <h1 className={adminTabStyles.h1}>Realm settings</h1>
+            <div className={adminTabStyles.headSub}>
               {isOwner
                 ? 'Restrict who can sign up by allowing only specific email domains.'
                 : 'Only the realm owner can change these settings.'}

@@ -89,6 +89,31 @@ export class RtcInternalClient {
     ) as Promise<RtcVersionPreview>;
   }
 
+  // Constrained, sanitized HTML for a doc, ready to push to Coda (migration worker).
+  // `atSeq` requests a point-in-time snapshot (the head seq captured at enqueue) so
+  // the migration pushes the version the user reviewed, not whatever is live at run
+  // time; omitted → latest. Returns the head seq actually read (the content cursor)
+  // + isEmpty so the worker records exactly what it pushed (D1/D2) and never pushes
+  // a blank doc (D7).
+  getCodaHtml(docId: string, atSeq?: number): Promise<RtcCodaHtml> {
+    const qs =
+      atSeq != null ? `?atSeq=${encodeURIComponent(String(atSeq))}` : "";
+    return this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/coda-html${qs}`
+    ) as Promise<RtcCodaHtml>;
+  }
+
+  // Current head seq (content cursor) for a doc — the enqueue captures this as the point-in-time
+  // version to sync later (D1/D2). Cheap: no extraction, just the max update-log seq.
+  async getHeadSeq(docId: string): Promise<number> {
+    const res = (await this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/head-seq`
+    )) as { headSeq: number };
+    return res.headSeq;
+  }
+
   /** Delete the RTC row (yjs state + update log) for a document id. */
   deleteDoc(docId: string): Promise<unknown> {
     return this.call(
@@ -124,6 +149,16 @@ export class RtcInternalClient {
     }
   }
 }
+
+/** Constrained-HTML export for the Coda migration worker (GET .../coda-html). */
+export type RtcCodaHtml = {
+  docId: string;
+  html: string;
+  // Head seq actually read — the content cursor the worker records (D1/D2).
+  headSeq: number;
+  // True for a null/empty/head===0 doc; the worker skips rather than push blank (D7).
+  isEmpty: boolean;
+};
 
 /** Shapes returned by the rtc-server history endpoints (subset we consume). */
 export type RtcSession = {

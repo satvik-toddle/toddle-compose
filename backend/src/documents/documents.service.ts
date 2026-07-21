@@ -398,6 +398,16 @@ export class DocumentsService {
     throw new NotFoundException("document not found");
   }
 
+  // Public per-doc read gate for cross-module callers (migration enqueue P5/C4): resolves the
+  // doc's workspace + type if the user can read it, else throws 404. Reuses requireDocRead.
+  async assertReadable(
+    userId: string,
+    docId: string
+  ): Promise<{ workspaceId: string; type: DocumentType }> {
+    const { doc } = await this.requireDocRead(userId, docId);
+    return { workspaceId: doc.workspaceId, type: doc.type };
+  }
+
   // Parent chain root → current; bounded by MAX_DOC_DEPTH + visited set so a corrupt chain can't loop.
   private async buildBreadcrumbs(id: string): Promise<Breadcrumb[]> {
     const chain: Breadcrumb[] = [];
@@ -592,7 +602,23 @@ export class DocumentsService {
     return trace("documents.remove", async () => {
       const doc = await this.requireWorkspaceDocRole(userId, id, "ADMIN");
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
-      await this.prisma.document.delete({ where: { id } });
+      // D7: cancel any in-flight migration items for the deleted subtree in the SAME
+      // transaction as the delete, so a running worker never pushes a just-deleted doc.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.migrationJobItem.updateMany({
+          where: {
+            sourceDocId: { in: ids },
+            status: { in: ["PENDING", "RUNNING"] },
+          },
+          data: {
+            status: "SKIPPED",
+            lastError: "source document deleted",
+            leasedBy: null,
+            leasedUntil: null,
+          },
+        });
+        await tx.document.delete({ where: { id } });
+      });
       for (const docId of ids) {
         this.cache.invalidate(docId);
         this.cache.invalidateChildren(docId);

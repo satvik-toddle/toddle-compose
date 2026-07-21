@@ -13,6 +13,7 @@ import { FoldersModule } from "./folders/folders.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { MigrationModule } from "./migration/migration.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -37,6 +38,7 @@ import { HealthController } from "./health.controller";
     DocumentsModule,
     StorageModule,
     RealtimeModule,
+    MigrationModule,
   ],
   controllers: [HealthController],
 })

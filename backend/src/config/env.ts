@@ -105,6 +105,47 @@ export const envSchema = z.object({
   STORAGE_S3_PUBLIC_URL: z.string().optional(),
   STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
 
+  // --- Coda migration ("Copy to Coda") ---------------------------------------
+  // Base URL of the Coda REST API; overridable only for tests/mocks.
+  CODA_API_BASE_URL: z.string().url().default("https://coda.io/apis/v1"),
+  // Optional DEV fallback token. Primary tokens live per-destination in the DB
+  // (decrypted by a later credentials phase and passed to CodaClient); this is
+  // only a convenience for local dev when no DB destination is configured.
+  CODA_API_TOKEN: z.string().min(1).optional(),
+  // Optional comma-separated dev fallback POOL; each token is a distinct Coda
+  // user with its own 5-writes/10s bucket. Falls back to CODA_API_TOKEN (H1).
+  CODA_API_TOKENS: z.string().optional(),
+  // Per-request network timeout for a single Coda HTTP call.
+  CODA_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  // Max 429/503 (Retry-After) retries before a call is surfaced as failed.
+  CODA_MAX_RETRIES: z.coerce.number().int().nonnegative().default(5),
+  // awaitMutation budget: total time to wait for an async mutation to complete,
+  // and the initial poll interval (backs off exponentially up to a cap). Coda
+  // import propagation is size-correlated (seconds → 45s+ on big docs, H2).
+  CODA_MUTATION_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
+  CODA_MUTATION_POLL_MS: z.coerce.number().int().positive().default(500),
+  // AES-256-GCM key encrypting per-destination Coda tokens at rest (base64 or
+  // hex, decoding to exactly 32 bytes). Optional here so the app boots without
+  // the migration feature; TokenCipher fail-fasts with a clear error the first
+  // time a destination token is encrypted/decrypted without a valid key.
+  MIGRATION_ENC_KEY: z.string().optional(),
+
+  // --- Migration worker (Phase 4c background job engine) ---------------------
+  // Poll interval of the self-re-arming worker tick. <=0 DISABLES the worker
+  // (mirrors RTC_COMPACT_INTERVAL_MS) — used in tests and single-purpose nodes.
+  MIGRATION_WORKER_INTERVAL_MS: z.coerce.number().int().default(5_000),
+  // Lease TTL (D9): how long a claimed item stays RUNNING before another worker
+  // may reclaim it. Must exceed the worst-case per-item push (createPage + a
+  // size-correlated awaitMutation, seconds → 45s+), so set it generously.
+  MIGRATION_LEASE_TTL_MS: z.coerce.number().int().positive().default(300_000),
+  // How many ready items a single claim grabs per round (SKIP LOCKED batch).
+  MIGRATION_BATCH_SIZE: z.coerce.number().int().positive().default(5),
+  // Per-item retry budget before the item is marked FAILED (job → PARTIAL/FAILED).
+  MIGRATION_MAX_ITEM_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // HTML byte budget per Coda content write (H8): a page whose HTML exceeds this
+  // is created/replaced with the first chunk, then streamed via paced appends.
+  CODA_MAX_HTML_BYTES: z.coerce.number().int().positive().default(80_000),
+
   // --- Request tracing --------------------------------------------------------
   // Logs per-request timing + per-query DB durations to the console. Off by
   // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
@@ -156,4 +197,17 @@ export function corsOrigins(value: string): string[] {
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
+}
+
+// Resolve the Coda token pool: CODA_API_TOKENS (comma-separated) wins, else the
+// single CODA_API_TOKEN, else empty (feature off — the client errors on use).
+export function codaTokens(
+  env: Pick<Env, "CODA_API_TOKEN" | "CODA_API_TOKENS">,
+): string[] {
+  const pool = (env.CODA_API_TOKENS ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (pool.length > 0) return pool;
+  return env.CODA_API_TOKEN ? [env.CODA_API_TOKEN] : [];
 }

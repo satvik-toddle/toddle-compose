@@ -56,14 +56,35 @@ enum ShareLinkScope {
   ANYONE
 }
 
+// Lifecycle of a "Copy to Coda" migration job. PARTIAL = finished with some
+// items failed/skipped (not a clean SUCCEEDED, not a total FAILED).
+enum MigrationJobStatus {
+  QUEUED
+  RUNNING
+  PARTIAL
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+// Per-item outcome within a migration job. SKIPPED = intentionally not migrated
+// (unchecked row, filtered SHEET, or deleted/empty source at run time).
+enum MigrationItemStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
 model Realm {
-  id         String        @id @default(cuid())
-  name       String
+  id                  String        @id @default(cuid())
+  name                String
   // Self-signup email allowlist (bare domains, e.g. "toddleapp.com"). Empty = any domain may register.
-  allowedEmailDomains String[] @default([]) @map("allowed_email_domains")
-  createdAt  DateTime      @default(now()) @map("created_at")
-  members    RealmMember[]
-  workspaces Workspace[]
+  allowedEmailDomains String[]      @default([]) @map("allowed_email_domains")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  members             RealmMember[]
+  workspaces          Workspace[]
 
   @@map("realms")
 }
@@ -82,18 +103,20 @@ model RealmMember {
 }
 
 model Workspace {
-  id        String            @id @default(cuid())
-  realmId   String            @map("realm_id")
-  realm     Realm             @relation(fields: [realmId], references: [id], onDelete: Cascade)
-  name      String
+  id              String            @id @default(cuid())
+  realmId         String            @map("realm_id")
+  realm           Realm             @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  name            String
   // PUBLIC → anyone in the realm self-joins as `defaultRole`; PRIVATE → request + approval.
-  visibility  Visibility    @default(PRIVATE)
-  defaultRole WorkspaceRole @default(READ) @map("default_role")
-  createdAt DateTime          @default(now()) @map("created_at")
-  members      WorkspaceMember[]
-  joinRequests JoinRequest[]
-  folders      Folder[]
-  documents    Document[]
+  visibility      Visibility        @default(PRIVATE)
+  defaultRole     WorkspaceRole     @default(READ) @map("default_role")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  members         WorkspaceMember[]
+  joinRequests    JoinRequest[]
+  folders         Folder[]
+  documents       Document[]
+  migrationScopes MigrationScope[]
+  migrationJobs   MigrationJob[]
 
   @@index([realmId])
   @@map("workspaces")
@@ -130,28 +153,28 @@ model WorkspaceMember {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String         @map("password_hash")
-  name          String
-  color         String         @default("#f04c54")
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  passwordHash            String                   @map("password_hash")
+  name                    String
+  color                   String                   @default("#f04c54")
   // Null until the user clicks the link in their sign-up verification email.
   // Login is refused while this is null (the "user not authenticated" state).
   // Added as a nullable column with NO backfill: pre-existing/legacy users are
   // intentionally treated as unverified and must verify (or reset password) to
   // sign in. See migrations/20260624_add_email_verification.sql.
-  emailVerifiedAt DateTime?    @map("email_verified_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  documents     Document[]
-  folders       Folder[]
-  refreshTokens RefreshToken[]
+  emailVerifiedAt         DateTime?                @map("email_verified_at")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  documents               Document[]
+  folders                 Folder[]
+  refreshTokens           RefreshToken[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
-  realmMemberships     RealmMember[]
-  workspaceMemberships WorkspaceMember[]
-  joinRequests         JoinRequest[]
-  documentStars        DocumentStar[]
-  documentPermissions  DocumentPermission[]
+  realmMemberships        RealmMember[]
+  workspaceMemberships    WorkspaceMember[]
+  joinRequests            JoinRequest[]
+  documentStars           DocumentStar[]
+  documentPermissions     DocumentPermission[]
 
   @@map("users")
 }
@@ -202,14 +225,14 @@ model RefreshToken {
 }
 
 model Folder {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   icon        String?
-  isPersonal  Boolean   @default(false) @map("is_personal")
+  isPersonal  Boolean    @default(false) @map("is_personal")
   // Owning workspace — read access is granted to anyone with READ on it
   // (workspace members + the realm OWNER/MAINTAINER → ADMIN overlay).
-  workspaceId String    @map("workspace_id")
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String     @map("workspace_id")
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Creator of the folder; used for owner-level write rules.
   ownerId     String     @map("owner_id")
   owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -230,32 +253,34 @@ model Folder {
 }
 
 model Document {
-  id          String     @id @default(cuid())
-  title       String     @default("Untitled")
-  icon        String?
-  type        DocumentType @default(DOC)
+  id                String               @id @default(cuid())
+  title             String               @default("Untitled")
+  icon              String?
+  type              DocumentType         @default(DOC)
   // Owning workspace — read access follows workspace READ (members + realm overlay).
-  workspaceId String     @map("workspace_id")
-  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId       String               @map("workspace_id")
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Creator; used for owner-level write rules.
-  ownerId     String       @map("owner_id")
-  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  folderId    String?      @map("folder_id")
-  folder      Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  ownerId           String               @map("owner_id")
+  owner             User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folderId          String?              @map("folder_id")
+  folder            Folder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
   // Nesting: a document may live inside another document (a "subdoc"). The tree is
   // workspace-scoped (enforced in the service). Deleting a parent cascade-deletes its
   // subtree; the service collects descendant ids first to clean up their RTC rows.
-  parentId    String?      @map("parent_id")
-  parent      Document?    @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Document[]   @relation("DocumentTree")
+  parentId          String?              @map("parent_id")
+  parent            Document?            @relation("DocumentTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children          Document[]           @relation("DocumentTree")
   // Per-user stars (favorites) on this doc; deleting the doc removes them (cascade).
-  stars       DocumentStar[]
+  stars             DocumentStar[]
   // Per-page permission grants on this doc; deleting the doc removes them (cascade).
-  permissions DocumentPermission[]
+  permissions       DocumentPermission[]
   // At most one live share link per doc (cascade on doc delete).
-  shareLink   DocumentShareLink?
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  shareLink         DocumentShareLink?
+  // Coda migration mappings where this doc is the source (cascade on doc delete, D7).
+  migrationMappings MigrationMapping[]
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
   // Collaborative content (yjsState / update log) lives in the SEPARATE
   // @app/rtc-database, keyed by this id. No FK relation here by design.
 
@@ -325,4 +350,135 @@ model DocumentShareLink {
   createdAt   DateTime       @default(now()) @map("created_at")
 
   @@map("document_share_links")
+}
+
+// A per-workspace Coda destination root ("scope") migrations may write under.
+// Replaces the old CODA_DEFAULT_FOLDER_PATH env var; scopes are strictly
+// per-workspace (no global scopes) to avoid cross-tenant reach via the shared
+// Coda token. The URL is resolved to (codaDocId, codaRootPageId) at save time.
+model MigrationScope {
+  id             String                @id @default(cuid())
+  workspaceId    String                @map("workspace_id")
+  workspace      Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Destination Coda doc. codaRootPageId null = WHOLE-doc scope (migrate as top-level
+  // pages; any page in the doc is in-scope). Set = page-root scope (nest under it).
+  codaDocId      String                @map("coda_doc_id")
+  codaRootPageId String?               @map("coda_root_page_id")
+  codaRootUrl    String                @map("coda_root_url")
+  label          String
+  // Audit only (no relation), mirrors DocumentShareLink.createdById.
+  createdById    String                @map("created_by_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  // Soft delete (P7/D8): scope deletes are soft so in-flight jobs/mappings never dangle.
+  deletedAt      DateTime?             @map("deleted_at")
+  tokens         MigrationScopeToken[]
+  mappings       MigrationMapping[]
+  jobs           MigrationJob[]
+
+  @@index([workspaceId])
+  @@map("migration_scopes")
+}
+
+// A Coda API token for a destination. A destination may hold SEVERAL tokens (each a
+// distinct Coda user with write access to the same doc) so the pacer can distribute
+// writes across them — Coda's 5-writes/10s cap is per-user, so N tokens ≈ N× throughput.
+model MigrationScopeToken {
+  id            String         @id @default(cuid())
+  scopeId       String         @map("scope_id")
+  scope         MigrationScope @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+  // Encrypted token (AES-256-GCM: iv+tag+ciphertext, base64); never returned to the client.
+  codaTokenEnc  String         @map("coda_token_enc")
+  // Last 4 chars for masked display; optional human label (which Coda user).
+  codaTokenHint String?        @map("coda_token_hint")
+  label         String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  @@index([scopeId])
+  @@map("migration_scope_tokens")
+}
+
+// Latest-wins record of where a source doc was last migrated within a scope.
+// Enables opt-in override via prefill on re-run; keyed (sourceDocId, scopeId).
+model MigrationMapping {
+  id             String         @id @default(cuid())
+  sourceDocId    String         @map("source_doc_id")
+  // Cascade on source delete (D7) so no dangling mappings survive.
+  sourceDoc      Document       @relation(fields: [sourceDocId], references: [id], onDelete: Cascade)
+  scopeId        String         @map("scope_id")
+  scope          MigrationScope @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+  codaPageId     String         @map("coda_page_id")
+  codaPageUrl    String         @map("coda_page_url")
+  // Head seq (D1) of the source at the time it was migrated — the content cursor.
+  migratedSeq    Int            @map("migrated_seq")
+  lastMigratedAt DateTime       @map("last_migrated_at")
+
+  @@unique([sourceDocId, scopeId])
+  @@index([scopeId])
+  @@map("migration_mappings")
+}
+
+// A durable "Copy to Coda" run over a doc subtree. Resumable/lease-driven;
+// the enqueuing user is persisted for run-time permission re-checks (P2).
+model MigrationJob {
+  id              String             @id @default(cuid())
+  workspaceId     String             @map("workspace_id")
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scopeId         String             @map("scope_id")
+  scope           MigrationScope     @relation(fields: [scopeId], references: [id], onDelete: Cascade)
+  // Subtree root the copy was initiated from (plain field, no relation).
+  sourceRootDocId String             @map("source_root_doc_id")
+  // Enqueuing user for run-time role re-check (P2); audit only, no relation (user may be removed).
+  createdById     String             @map("created_by_id")
+  status          MigrationJobStatus @default(QUEUED)
+  totalItems      Int                @default(0) @map("total_items")
+  succeededItems  Int                @default(0) @map("succeeded_items")
+  failedItems     Int                @default(0) @map("failed_items")
+  skippedItems    Int                @default(0) @map("skipped_items")
+  error           String?
+  createdAt       DateTime           @default(now()) @map("created_at")
+  startedAt       DateTime?          @map("started_at")
+  finishedAt      DateTime?          @map("finished_at")
+  items           MigrationJobItem[]
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("migration_jobs")
+}
+
+// One row per source doc in a job. Carries the user-arranged hierarchy and per-item
+// execution state; source is a plain field (no relation) since it may be deleted mid-job (D7).
+model MigrationJobItem {
+  id                 String              @id @default(cuid())
+  jobId              String              @map("job_id")
+  job                MigrationJob        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sourceDocId        String              @map("source_doc_id")
+  // User-arranged parent within this job (D10); null = directly under the scope root.
+  plannedParentDocId String?             @map("planned_parent_doc_id")
+  title              String
+  // Override/prefill target page; null = create a new page.
+  targetCodaPageId   String?             @map("target_coda_page_id")
+  override           Boolean             @default(false)
+  // Page actually created/updated this run — persisted immediately after create for idempotency (C3).
+  codaPageId         String?             @map("coda_page_id")
+  // Target snapshot: doc head seq captured AT ENQUEUE. The worker reconstructs the doc up to this seq
+  // so it syncs the version as of Start-Copy, not the later run time (point-in-time sync).
+  enqueuedSeq        Int?                @map("enqueued_seq")
+  // Head seq actually read+pushed, recorded at execution (== enqueuedSeq when set) (D1/D2).
+  migratedSeq        Int?                @map("migrated_seq")
+  status             MigrationItemStatus @default(PENDING)
+  attempts           Int                 @default(0)
+  lastError          String?             @map("last_error")
+  // Depth-first processing order within the job.
+  seq                Int
+  // Worker lease (D9): who holds this item and until when, backing the claim query.
+  leasedBy           String?             @map("leased_by")
+  leasedUntil        DateTime?           @map("leased_until")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  @@unique([jobId, sourceDocId])
+  @@index([jobId, seq])
+  @@index([status, leasedUntil])
+  @@map("migration_job_items")
 }

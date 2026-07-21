@@ -14,6 +14,7 @@ import { docs as ywsDocs } from "y-websocket/bin/utils";
 import { InternalTokenGuard } from "./internal-token.guard";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { DocStateService } from "../persistence/doc-state.service";
+import { CodaExtractService } from "../persistence/coda-extract.service";
 import { VersionsService } from "../history/versions.service";
 import { SessionsService } from "../history/sessions.service";
 import { CompactionService } from "../compaction/compaction.service";
@@ -46,7 +47,8 @@ export class InternalController {
     private readonly versions: VersionsService,
     private readonly sessions: SessionsService,
     private readonly compaction: CompactionService,
-    private readonly docKick: DocKickService
+    private readonly docKick: DocKickService,
+    private readonly codaExtract: CodaExtractService
   ) {}
 
   @Post("init")
@@ -118,6 +120,26 @@ export class InternalController {
       gapMs: gapMs ? qInt("gapMs", gapMs, 0) : undefined,
       includeNoop: includeNoop === "true" || includeNoop === "1",
     });
+  }
+
+  // Constrained, sanitized HTML for a doc, ready to push to Coda (Copy-to-Coda migration worker).
+  // atSeq (optional) reconstructs the point-in-time version captured at enqueue instead of latest (D2);
+  // returns the seq actually used as headSeq so the worker records exactly what it pushed.
+  @Get(":docId/coda-html")
+  async codaHtml(
+    @Param("docId") docId: string,
+    @Query("atSeq") atSeq?: string
+  ) {
+    const at =
+      atSeq != null && atSeq !== "" ? qInt("atSeq", atSeq, 0) : undefined;
+    return this.codaExtract.extractHtml(docId, at);
+  }
+
+  // Lightweight point-in-time cursor for the Copy-to-Coda enqueue: the current head seq, no extraction.
+  @Get(":docId/head-seq")
+  async headSeq(@Param("docId") docId: string) {
+    const headSeq = await this.repo.getHeadSeq(docId);
+    return { headSeq };
   }
 
   @Delete(":docId")

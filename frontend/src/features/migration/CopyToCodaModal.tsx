@@ -103,6 +103,12 @@ export function CopyToCodaModal({
     );
   }, [docId, docsLoading, seed]);
 
+  // Auto-select the destination (single, or the first) once scopes load, so
+  // Update-existing prefill can fetch saved links without a manual pick.
+  useEffect(() => {
+    if (scopeId === null && scopes && scopes.length > 0) setScopeId(scopes[0].id);
+  }, [scopes, scopeId]);
+
   const includedIds = useMemo(
     () => items.filter((i) => rows[i.id]?.include ?? true).map((i) => i.id),
     [items, rows],

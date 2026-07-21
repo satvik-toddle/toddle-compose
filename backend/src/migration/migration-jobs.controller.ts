@@ -49,6 +49,16 @@ export class MigrationJobsController {
     return this.jobs.listMappings(user.id, scopeId, docIds);
   }
 
+  // "Open in Coda" — this doc's live Coda destination(s) across its workspace's
+  // non-deleted scopes. Same EDIT+ gate as Copy-to-Coda / migrations visibility.
+  @Get("documents/:docId/coda-mappings")
+  listDocCodaMappings(
+    @CurrentUser() user: AuthUser,
+    @Param("docId") docId: string,
+  ) {
+    return this.jobs.listDocCodaMappings(user.id, docId);
+  }
+
   @Get("migration-jobs")
   list(@CurrentUser() user: AuthUser, @Query() q: ListMigrationJobsDto) {
     return this.jobs.list(user.id, q.workspaceId);

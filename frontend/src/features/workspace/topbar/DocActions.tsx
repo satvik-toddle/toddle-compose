@@ -5,9 +5,11 @@ import {
   DeleteOutlined,
   DotsHorizontalOutlined,
   ExportOutlined,
+  LinkOutlined,
   LockOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
+import { useDocCodaMappings } from '../../../hooks/useMigrations';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
@@ -25,6 +27,7 @@ const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 const HISTORY_KEY = 'history';
 const COPY_TO_CODA_KEY = 'copy-to-coda';
+const OPEN_IN_CODA_KEY = 'open-in-coda';
 
 export function DocActions({
   ctx,
@@ -39,6 +42,8 @@ export function DocActions({
   const canManage = !!doc && (isAdmin || doc.owner.id === user.id || doc.myRole === 'ADMIN');
   // Copy to Coda is a workspace editor+ action (grant-only guests are excluded).
   const canMigrate = wsAtLeast(role, 'EDIT') || isAdmin;
+  // "Open in Coda" shows only when this doc already has a saved Coda destination.
+  const { data: codaMappings } = useDocCodaMappings(doc?.id, canMigrate && !!doc);
 
   if (!doc) {
     return (
@@ -121,6 +126,30 @@ export function DocActions({
             icon: <ExportOutlined size="xxx-small" variant="subtle" />,
             onSelect: () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId }),
           },
+        ]
+      : []),
+    // Directly below Copy to Coda; only when this doc has ≥1 saved Coda destination.
+    // Exactly one → open its URL; several → a submenu of destinations (label → URL).
+    ...(canMigrate && codaMappings && codaMappings.length > 0
+      ? [
+          codaMappings.length === 1
+            ? {
+                key: OPEN_IN_CODA_KEY,
+                label: 'Open in Coda',
+                icon: <LinkOutlined size="xxx-small" variant="subtle" />,
+                onSelect: () => window.open(codaMappings[0].codaPageUrl, '_blank', 'noopener'),
+              }
+            : {
+                key: OPEN_IN_CODA_KEY,
+                label: 'Open in Coda',
+                icon: <LinkOutlined size="xxx-small" variant="subtle" />,
+                isSubMenu: true,
+                options: codaMappings.map((m) => ({
+                  key: `${OPEN_IN_CODA_KEY}:${m.scopeId}`,
+                  label: m.scopeLabel,
+                  onSelect: () => window.open(m.codaPageUrl, '_blank', 'noopener'),
+                })),
+              },
         ]
       : []),
     // Divider before Delete; Share (also canManage) always sits above it when Delete renders.

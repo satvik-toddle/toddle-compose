@@ -1,6 +1,7 @@
 import { http } from '../lib/http';
 import type {
   CreateMigrationScopeInput,
+  DocCodaMappingDto,
   EnqueueMigrationJobInput,
   MigrationJobDetail,
   MigrationJobSummary,
@@ -26,6 +27,10 @@ export const migrationsApi = {
     http.get<MigrationMappingDto[]>(
       `/migration-scopes/${scopeId}/mappings?docIds=${encodeURIComponent(docIds.join(','))}`,
     ),
+
+  // "Open in Coda" — a doc's live Coda destination(s) across its workspace's scopes.
+  docCodaMappings: (docId: string) =>
+    http.get<DocCodaMappingDto[]>(`/documents/${docId}/coda-mappings`),
 
   // Jobs (runs).
   enqueueJob: (scopeId: string, b: EnqueueMigrationJobInput) =>

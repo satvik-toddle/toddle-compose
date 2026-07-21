@@ -3,6 +3,7 @@ import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-ico
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
 import { useRenameDocument, useToggleStar } from '../../../../hooks/usePages';
+import { useDocCodaMappings } from '../../../../hooks/useMigrations';
 import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import { cn } from '../../../../lib/cn';
 import { sidebarRow } from '../sidebarRowStyles';
@@ -33,6 +34,10 @@ export function PageRow({
   const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
+
+  // "Open in Coda" destinations, fetched only once this row's menu opens (editor+),
+  // so we don't fire a query per page row up front.
+  const { data: codaMappings } = useDocCodaMappings(doc.id, canCreate && isMenuOpen);
 
   // Close menu first: rename unmounts the Dropdown, which else remounts with stale visible=true.
   const handleRename = () => {
@@ -65,6 +70,7 @@ export function PageRow({
     onCopyToCoda: canCreate
       ? () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId: pages.ws })
       : undefined,
+    codaMappings: canCreate ? codaMappings : undefined,
   });
 
   const styles = {

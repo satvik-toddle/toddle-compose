@@ -36,6 +36,8 @@ export const qk = {
   migrationScopes: (workspaceId?: string) => ['migrationScopes', workspaceId ?? null] as const,
   migrationMappings: (scopeId: string, docIds: string[]) =>
     ['migrationScopes', scopeId, 'mappings', [...docIds].sort()] as const,
+  docCodaMappings: (docId: string) =>
+    ['migrationScopes', 'docMappings', docId] as const,
   migrationJobs: (params: { workspaceId?: string }) =>
     ['migrationJobs', params.workspaceId ?? null] as const,
   migrationJob: (id: string) => ['migrationJobs', 'detail', id] as const,

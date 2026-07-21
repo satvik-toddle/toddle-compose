@@ -68,6 +68,15 @@ interface MappingView {
   lastMigratedAt: Date;
 }
 
+// A doc's live Coda destination(s) for the "Open in Coda" menu action — one row per
+// non-deleted scope this doc has been migrated to, with the scope's label to disambiguate.
+interface DocCodaMappingView {
+  codaPageUrl: string;
+  scopeId: string;
+  scopeLabel: string;
+  lastMigratedAt: Date;
+}
+
 @Injectable()
 export class MigrationJobsService {
   private readonly log = new Logger("MigrationJobs");
@@ -269,6 +278,37 @@ export class MigrationJobsService {
       where: { scopeId, sourceDocId: { in: docIds } },
     });
     return mappings.map(toMappingView);
+  }
+
+  // GET /documents/:docId/coda-mappings — this doc's Coda destination(s) for the
+  // "Open in Coda" action: one row per non-deleted scope in the doc's workspace the
+  // doc has been migrated to, with the scope label. Same EDIT+ gate as Copy-to-Coda.
+  async listDocCodaMappings(
+    userId: string,
+    docId: string,
+  ): Promise<DocCodaMappingView[]> {
+    const doc = await this.prisma.document.findUnique({
+      where: { id: docId },
+      select: { workspaceId: true },
+    });
+    if (!doc) throw new NotFoundException("document not found");
+
+    await this.authz.requireWorkspaceRole(userId, doc.workspaceId, "EDIT");
+
+    const mappings = await this.prisma.migrationMapping.findMany({
+      where: {
+        sourceDocId: docId,
+        scope: { workspaceId: doc.workspaceId, deletedAt: null },
+      },
+      include: { scope: { select: { id: true, label: true } } },
+      orderBy: { lastMigratedAt: "desc" },
+    });
+    return mappings.map((m) => ({
+      codaPageUrl: m.codaPageUrl,
+      scopeId: m.scope.id,
+      scopeLabel: m.scope.label,
+      lastMigratedAt: m.lastMigratedAt,
+    }));
   }
 
   // GET /migration-jobs?workspaceId= — workspace runs (EDIT+; non-admins see only

@@ -282,6 +282,15 @@ export interface MigrationMappingDto {
   lastMigratedAt: string;
 }
 
+// GET /documents/:docId/coda-mappings row — a live Coda destination this doc has been
+// migrated to, for the topbar/sidebar "Open in Coda" action.
+export interface DocCodaMappingDto {
+  codaPageUrl: string;
+  scopeId: string;
+  scopeLabel: string;
+  lastMigratedAt: string;
+}
+
 export type MigrationJobStatus =
   | 'QUEUED'
   | 'RUNNING'

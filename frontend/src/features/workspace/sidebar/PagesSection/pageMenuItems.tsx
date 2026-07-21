@@ -11,7 +11,7 @@ import {
   StarOutlined,
 } from '@toddle-edu/ds-icons';
 import { PAGE_TYPES } from '../../pageTypes';
-import type { DocumentType } from '../../../../types/api';
+import type { DocCodaMappingDto, DocumentType } from '../../../../types/api';
 
 // One entry in the per-page (⋯) actions menu, shaped for ds-web DropdownMenu options.
 export interface PageMenuOption {
@@ -67,6 +67,7 @@ export function buildPageMenuItems(opts: {
   onRename: () => void;
   onDelete: () => void;
   onCopyToCoda?: () => void; // present only for workspace editor+ (Copy to Coda)
+  codaMappings?: DocCodaMappingDto[]; // this doc's saved Coda destinations ("Open in Coda")
 }): PageMenuOption[] {
   const items: PageMenuOption[] = [];
 
@@ -118,6 +119,32 @@ export function buildPageMenuItems(opts: {
       icon: <ExportOutlined size="xx-small" />,
       onSelect: opts.onCopyToCoda,
     });
+  }
+
+  // Directly below Copy to Coda; only when this doc has ≥1 saved Coda destination.
+  // Exactly one → open its URL; several → a submenu of destinations (label → URL).
+  const mappings = opts.codaMappings;
+  if (opts.onCopyToCoda && mappings && mappings.length > 0) {
+    items.push(
+      mappings.length === 1
+        ? {
+            key: 'open-in-coda',
+            label: 'Open in Coda',
+            icon: <LinkOutlined size="xx-small" />,
+            onSelect: () => window.open(mappings[0].codaPageUrl, '_blank', 'noopener'),
+          }
+        : {
+            key: 'open-in-coda',
+            label: 'Open in Coda',
+            icon: <LinkOutlined size="xx-small" />,
+            isSubMenu: true,
+            options: mappings.map((m) => ({
+              key: `open-in-coda:${m.scopeId}`,
+              label: m.scopeLabel,
+              onSelect: () => window.open(m.codaPageUrl, '_blank', 'noopener'),
+            })),
+          },
+    );
   }
 
   if (opts.canManage) {

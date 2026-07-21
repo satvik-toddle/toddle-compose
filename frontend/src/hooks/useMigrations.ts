@@ -76,6 +76,19 @@ export function useMigrationMappings(scopeId: string | undefined, docIds: string
   });
 }
 
+// ---- Open in Coda (a doc's live destinations) ------------------------------
+
+// A doc's saved Coda destination(s), gated to workspace editor+. Fetched lazily
+// (pass enabled=false until needed, e.g. the row's menu opens) so it doesn't run
+// a query per doc row up front.
+export function useDocCodaMappings(docId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: docId ? qk.docCodaMappings(docId) : ['migrationScopes', 'docMappings', '_none'],
+    queryFn: () => migrationsApi.docCodaMappings(docId as string),
+    enabled: !!docId && enabled,
+  });
+}
+
 // ---- Jobs (runs) -----------------------------------------------------------
 
 export function useEnqueueMigration(scopeId: string) {

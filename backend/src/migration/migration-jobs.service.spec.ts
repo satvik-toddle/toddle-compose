@@ -46,6 +46,7 @@ function makeService(opts?: {
   txItemUpdateMany?: jest.Mock;
   txJobUpdate?: jest.Mock;
   mappingFindMany?: jest.Mock;
+  documentFindFirst?: jest.Mock;
 }) {
   const scope =
     opts?.scope === undefined ? { id: SCOPE, workspaceId: WS } : opts.scope;
@@ -71,6 +72,11 @@ function makeService(opts?: {
     },
     migrationMapping: {
       findMany: opts?.mappingFindMany ?? jest.fn().mockResolvedValue([]),
+    },
+    document: {
+      findUnique:
+        opts?.documentFindFirst ??
+        jest.fn().mockResolvedValue({ workspaceId: WS }),
     },
     $transaction: jest.fn(async (arg: any) =>
       typeof arg === "function" ? arg(tx) : Promise.all(arg),
@@ -403,6 +409,73 @@ describe("MigrationJobsService.listMappings (modal prefill)", () => {
         lastMigratedAt: now,
       },
     ]);
+  });
+});
+
+describe("MigrationJobsService.listDocCodaMappings (Open in Coda)", () => {
+  it("404s an unknown/deleted document", async () => {
+    const { svc } = makeService({
+      documentFindFirst: jest.fn().mockResolvedValue(null),
+    });
+    await expect(svc.listDocCodaMappings(USER, "d1")).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it("requires workspace EDIT+ on the doc's workspace (same gate as Copy-to-Coda)", async () => {
+    const requireWorkspaceRole = jest
+      .fn()
+      .mockRejectedValue(new ForbiddenException());
+    const { svc } = makeService({ requireWorkspaceRole });
+    await expect(svc.listDocCodaMappings(USER, "d1")).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(requireWorkspaceRole).toHaveBeenCalledWith(USER, WS, "EDIT");
+  });
+
+  it("queries only non-deleted in-workspace scopes and projects the scope label", async () => {
+    const now = new Date();
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        sourceDocId: "d1",
+        codaPageUrl: "https://coda.io/d/x/canvas-1",
+        lastMigratedAt: now,
+        scope: { id: "s1", label: "Marketing Coda" },
+      },
+      {
+        sourceDocId: "d1",
+        codaPageUrl: "https://coda.io/d/y/canvas-2",
+        lastMigratedAt: now,
+        scope: { id: "s2", label: "Engineering Coda" },
+      },
+    ]);
+    const { svc } = makeService({ mappingFindMany: findMany });
+    const res = await svc.listDocCodaMappings(USER, "d1");
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      sourceDocId: "d1",
+      scope: { workspaceId: WS, deletedAt: null },
+    });
+    expect(res).toEqual([
+      {
+        codaPageUrl: "https://coda.io/d/x/canvas-1",
+        scopeId: "s1",
+        scopeLabel: "Marketing Coda",
+        lastMigratedAt: now,
+      },
+      {
+        codaPageUrl: "https://coda.io/d/y/canvas-2",
+        scopeId: "s2",
+        scopeLabel: "Engineering Coda",
+        lastMigratedAt: now,
+      },
+    ]);
+  });
+
+  it("returns [] when the doc has no Coda mappings", async () => {
+    const { svc } = makeService({
+      mappingFindMany: jest.fn().mockResolvedValue([]),
+    });
+    await expect(svc.listDocCodaMappings(USER, "d1")).resolves.toEqual([]);
   });
 });
 

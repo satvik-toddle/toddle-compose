@@ -226,3 +226,127 @@ export interface FolderDto {
 export interface OkResponse {
   ok: true;
 }
+
+// ---- Copy to Coda / migrations ---------------------------------------------
+
+// One Coda token attached to a destination — masked; plaintext never leaves the server.
+export interface MigrationScopeToken {
+  id: string;
+  hint: string | null; // last-4 of the token
+  label: string | null;
+  createdAt: string;
+}
+
+// A migration destination (per-workspace): a scope root inside Coda + its token pool.
+export interface MigrationScope {
+  id: string;
+  workspaceId: string;
+  label: string;
+  codaDocId: string;
+  codaRootPageId: string | null; // null = whole-doc root (migrate as top-level pages)
+  codaRootUrl: string;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  tokens: MigrationScopeToken[];
+}
+
+// One token to attach when creating/updating a scope (plaintext on the wire only).
+export interface MigrationScopeTokenInput {
+  token: string;
+  label?: string;
+}
+
+// POST /migration-scopes body.
+export interface CreateMigrationScopeInput {
+  workspaceId: string;
+  label: string;
+  codaUrl: string;
+  tokens: MigrationScopeTokenInput[];
+}
+
+// PATCH /migration-scopes/:id body — rename and/or add/remove pool tokens.
+export interface UpdateMigrationScopeInput {
+  label?: string;
+  addTokens?: MigrationScopeTokenInput[];
+  removeTokenIds?: string[];
+}
+
+// GET /migration-scopes/:scopeId/mappings row — a saved (sourceDocId, scope) mapping
+// the modal prefills each row's destination from for the selected scope.
+export interface MigrationMappingDto {
+  sourceDocId: string;
+  codaPageId: string;
+  codaPageUrl: string;
+  migratedSeq: number;
+  lastMigratedAt: string;
+}
+
+export type MigrationJobStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'PARTIAL'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELED';
+
+export type MigrationItemStatus =
+  | 'PENDING'
+  | 'RUNNING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'SKIPPED';
+
+// GET /migration-jobs row — a run's summary + counts (no worker lease internals).
+export interface MigrationJobSummary {
+  id: string;
+  workspaceId: string;
+  scopeId: string;
+  sourceRootDocId: string;
+  status: MigrationJobStatus;
+  totalItems: number;
+  succeededItems: number;
+  failedItems: number;
+  skippedItems: number;
+  error: string | null;
+  createdById: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+// One row of a run — per-doc execution state (never exposes the worker lease).
+export interface MigrationJobItem {
+  id: string;
+  sourceDocId: string;
+  plannedParentDocId: string | null;
+  title: string;
+  targetCodaPageId: string | null;
+  override: boolean;
+  codaPageId: string | null;
+  migratedSeq: number | null;
+  status: MigrationItemStatus;
+  attempts: number;
+  lastError: string | null;
+  seq: number;
+}
+
+// GET /migration-jobs/:id — the run summary plus its items.
+export interface MigrationJobDetail extends MigrationJobSummary {
+  items: MigrationJobItem[];
+}
+
+// One row of the user-arranged migration plan (the modal's editable preview tree).
+export interface MigrationPlanItemInput {
+  sourceDocId: string;
+  plannedParentDocId?: string | null; // null/omitted = the subtree root
+  title: string;
+  destinationUrl?: string; // in-scope Coda URL to override/retarget; omit = create new
+  include: boolean; // unchecked rows are dropped before enqueue
+}
+
+// POST /migration-scopes/:scopeId/jobs body — the arranged plan snapshot.
+export interface EnqueueMigrationJobInput {
+  items: MigrationPlanItemInput[];
+  sourceRootDocId?: string;
+}

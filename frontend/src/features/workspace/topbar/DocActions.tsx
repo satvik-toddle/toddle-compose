@@ -4,6 +4,7 @@ import {
   ClockRecentsOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
+  ExportOutlined,
   LockOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
@@ -23,6 +24,7 @@ const SUB_PAGE_KEY = 'subpage';
 const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 const HISTORY_KEY = 'history';
+const COPY_TO_CODA_KEY = 'copy-to-coda';
 
 export function DocActions({
   ctx,
@@ -35,6 +37,8 @@ export function DocActions({
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
   const canManage = !!doc && (isAdmin || doc.owner.id === user.id || doc.myRole === 'ADMIN');
+  // Copy to Coda is a workspace editor+ action (grant-only guests are excluded).
+  const canMigrate = wsAtLeast(role, 'EDIT') || isAdmin;
 
   if (!doc) {
     return (
@@ -106,6 +110,16 @@ export function DocActions({
             label: history.active ? 'Exit version history' : 'Version history',
             icon: <ClockRecentsOutlined size="xxx-small" variant="subtle" />,
             onSelect: () => (history.active ? history.exit() : history.enter()),
+          },
+        ]
+      : []),
+    ...(canMigrate
+      ? [
+          {
+            key: COPY_TO_CODA_KEY,
+            label: 'Copy to Coda',
+            icon: <ExportOutlined size="xxx-small" variant="subtle" />,
+            onSelect: () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId }),
           },
         ]
       : []),

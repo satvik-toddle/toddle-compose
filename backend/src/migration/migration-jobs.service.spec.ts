@@ -45,6 +45,7 @@ function makeService(opts?: {
   jobFindUnique?: jest.Mock;
   txItemUpdateMany?: jest.Mock;
   txJobUpdate?: jest.Mock;
+  mappingFindMany?: jest.Mock;
 }) {
   const scope =
     opts?.scope === undefined ? { id: SCOPE, workspaceId: WS } : opts.scope;
@@ -67,6 +68,9 @@ function makeService(opts?: {
     migrationJob: {
       findMany: opts?.jobFindMany ?? jest.fn().mockResolvedValue([]),
       findUnique: opts?.jobFindUnique ?? jest.fn().mockResolvedValue(null),
+    },
+    migrationMapping: {
+      findMany: opts?.mappingFindMany ?? jest.fn().mockResolvedValue([]),
     },
     $transaction: jest.fn(async (arg: any) =>
       typeof arg === "function" ? arg(tx) : Promise.all(arg),
@@ -301,6 +305,64 @@ describe("MigrationJobsService.enqueue", () => {
       /version cursor/,
     );
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("MigrationJobsService.listMappings (modal prefill)", () => {
+  it("404s an unknown/deleted scope", async () => {
+    const { svc } = makeService({ scope: null });
+    await expect(svc.listMappings(USER, SCOPE, ["d1"])).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it("requires workspace EDIT+ on the scope's workspace (same gate as enqueue)", async () => {
+    const requireWorkspaceRole = jest
+      .fn()
+      .mockRejectedValue(new ForbiddenException());
+    const { svc } = makeService({ requireWorkspaceRole });
+    await expect(svc.listMappings(USER, SCOPE, ["d1"])).rejects.toThrow(
+      ForbiddenException,
+    );
+    expect(requireWorkspaceRole).toHaveBeenCalledWith(USER, WS, "EDIT");
+  });
+
+  it("returns [] without querying when no docIds are given", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const { svc } = makeService({ mappingFindMany: findMany });
+    const res = await svc.listMappings(USER, SCOPE, []);
+    expect(res).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it("returns only mapped docs for the scope, projected to the prefill view", async () => {
+    const now = new Date();
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        id: "m1",
+        sourceDocId: "d1",
+        scopeId: SCOPE,
+        codaPageId: "cp1",
+        codaPageUrl: "https://coda.io/d/x/canvas-1",
+        migratedSeq: 42,
+        lastMigratedAt: now,
+      },
+    ]);
+    const { svc } = makeService({ mappingFindMany: findMany });
+    const res = await svc.listMappings(USER, SCOPE, ["d1", "d2"]);
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      scopeId: SCOPE,
+      sourceDocId: { in: ["d1", "d2"] },
+    });
+    expect(res).toEqual([
+      {
+        sourceDocId: "d1",
+        codaPageId: "cp1",
+        codaPageUrl: "https://coda.io/d/x/canvas-1",
+        migratedSeq: 42,
+        lastMigratedAt: now,
+      },
+    ]);
   });
 });
 

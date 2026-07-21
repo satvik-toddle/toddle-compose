@@ -61,6 +61,10 @@ export function PageRow({
         id: doc.id,
         name: doc.title,
       }),
+    // Copy to Coda is a workspace editor+ action; canCreate is that same gate.
+    onCopyToCoda: canCreate
+      ? () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId: pages.ws })
+      : undefined,
   });
 
   const styles = {

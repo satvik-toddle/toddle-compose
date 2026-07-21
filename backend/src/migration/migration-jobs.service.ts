@@ -5,7 +5,12 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { MigrationJob, MigrationJobItem, Prisma } from "@app/database";
+import {
+  MigrationJob,
+  MigrationJobItem,
+  MigrationMapping,
+  Prisma,
+} from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { ActiveRealmService } from "../realm/active-realm.service";
@@ -50,6 +55,15 @@ interface JobItemView {
   attempts: number;
   lastError: string | null;
   seq: number;
+}
+
+// A saved (sourceDocId, scopeId) mapping the modal prefills a destination from.
+interface MappingView {
+  sourceDocId: string;
+  codaPageId: string;
+  codaPageUrl: string;
+  migratedSeq: number;
+  lastMigratedAt: Date;
 }
 
 @Injectable()
@@ -206,6 +220,31 @@ export class MigrationJobsService {
       });
       return { jobId: job.id };
     });
+  }
+
+  // GET /migration-scopes/:scopeId/mappings?docIds= — existing (sourceDocId, scopeId)
+  // mappings for the given docs, so the modal can prefill each row's destination for
+  // the selected scope. Same gate as enqueue (workspace EDIT+); only docs that already
+  // have a mapping are returned. Never exposes tokens or job internals.
+  async listMappings(
+    userId: string,
+    scopeId: string,
+    docIds: string[],
+  ): Promise<MappingView[]> {
+    const scope = await this.prisma.migrationScope.findFirst({
+      where: { id: scopeId, deletedAt: null },
+      select: { id: true, workspaceId: true },
+    });
+    if (!scope) throw new NotFoundException("destination not found");
+
+    await this.authz.requireWorkspaceRole(userId, scope.workspaceId, "EDIT");
+
+    if (docIds.length === 0) return [];
+
+    const mappings = await this.prisma.migrationMapping.findMany({
+      where: { scopeId, sourceDocId: { in: docIds } },
+    });
+    return mappings.map(toMappingView);
   }
 
   // GET /migration-jobs?workspaceId= — workspace runs (EDIT+; non-admins see only
@@ -394,6 +433,16 @@ function toJobSummary(job: MigrationJob): JobSummaryView {
     createdAt: job.createdAt,
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
+  };
+}
+
+function toMappingView(mapping: MigrationMapping): MappingView {
+  return {
+    sourceDocId: mapping.sourceDocId,
+    codaPageId: mapping.codaPageId,
+    codaPageUrl: mapping.codaPageUrl,
+    migratedSeq: mapping.migratedSeq,
+    lastMigratedAt: mapping.lastMigratedAt,
   };
 }
 

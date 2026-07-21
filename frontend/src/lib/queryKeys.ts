@@ -30,12 +30,27 @@ export const qk = {
   docHistory: (docId: string) => ['docHistory', docId] as const,
   docSnapshot: (docId: string, seq: number, diffAgainst?: number) =>
     ['docHistory', docId, seq, diffAgainst ?? null] as const,
+
+  // Copy to Coda / migrations. Destinations (scopes) and mappings are workspace-scoped;
+  // the org-wide admin-console listings (no workspaceId) are not.
+  migrationScopes: (workspaceId?: string) => ['migrationScopes', workspaceId ?? null] as const,
+  migrationMappings: (scopeId: string, docIds: string[]) =>
+    ['migrationScopes', scopeId, 'mappings', [...docIds].sort()] as const,
+  migrationJobs: (params: { workspaceId?: string }) =>
+    ['migrationJobs', params.workspaceId ?? null] as const,
+  migrationJob: (id: string) => ['migrationJobs', 'detail', id] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace
 // (used by the global access-lost guard). Excludes the realm-wide listings.
 export function isWorkspaceScopedKey(key: readonly unknown[]): boolean {
   if (key[0] === 'documents' || key[0] === 'folders') return true;
+  // Migration scopes/mappings/jobs tied to a workspace (or a scope/job within it):
+  // a string second segment is a workspaceId / scopeId / 'detail'; a null second
+  // segment is the realm-wide admin-console listing, which is not workspace-scoped.
+  if (key[0] === 'migrationScopes' || key[0] === 'migrationJobs') {
+    return typeof key[1] === 'string';
+  }
   return (
     key[0] === 'workspaces' &&
     typeof key[1] === 'string' &&

@@ -10,7 +10,11 @@ import {
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthUser, CurrentUser } from "../auth/current-user.decorator";
 import { MigrationJobsService } from "./migration-jobs.service";
-import { EnqueueMigrationJobDto, ListMigrationJobsDto } from "./dto";
+import {
+  EnqueueMigrationJobDto,
+  ListMigrationJobsDto,
+  ListMigrationMappingsDto,
+} from "./dto";
 
 // "Copy to Coda" job lifecycle (Phase 4b): enqueue a run from a destination, then
 // list/read/cancel/retry runs. Visibility is workspace-scoped (EDIT+; org-wide only
@@ -28,6 +32,21 @@ export class MigrationJobsController {
     @Body() dto: EnqueueMigrationJobDto,
   ) {
     return this.jobs.enqueue(user.id, scopeId, dto);
+  }
+
+  // Prefill source for the Copy-to-Coda modal — saved mappings for the selected
+  // destination, filtered to the docs in view. Same EDIT+ gate as enqueue.
+  @Get("migration-scopes/:scopeId/mappings")
+  listMappings(
+    @CurrentUser() user: AuthUser,
+    @Param("scopeId") scopeId: string,
+    @Query() q: ListMigrationMappingsDto,
+  ) {
+    const docIds = (q.docIds ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return this.jobs.listMappings(user.id, scopeId, docIds);
   }
 
   @Get("migration-jobs")

@@ -39,13 +39,14 @@ export function AdminConsolePage() {
   if (!me) return null;
 
   // Active tab = the /admin path segment, defaulting to Workspaces.
-  const TAB_SEGMENTS = ['members', 'requests', 'settings'] as const;
+  const TAB_SEGMENTS = ['members', 'requests', 'migrations', 'settings'] as const;
   const active = TAB_SEGMENTS.find((segment) => loc.pathname.includes(`/${segment}`)) ?? 'workspaces';
 
   const options = [
     { value: 'workspaces', label: 'Workspaces', suffix: <Count n={workspaces?.length} /> },
     { value: 'members', label: 'Realm members', suffix: <Count n={members?.length} /> },
     { value: 'requests', label: 'Join requests', suffix: <Count n={requests?.length} alert /> },
+    { value: 'migrations', label: 'Migrations' },
     { value: 'settings', label: 'Settings' },
   ];
 

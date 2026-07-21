@@ -123,3 +123,11 @@ export class ListMigrationJobsDto {
   @IsString()
   workspaceId?: string;
 }
+
+// GET /migration-scopes/:scopeId/mappings — comma-separated source doc ids whose
+// saved mapping (if any) the modal prefills from for the selected destination.
+export class ListMigrationMappingsDto {
+  @IsOptional()
+  @IsString()
+  docIds?: string;
+}

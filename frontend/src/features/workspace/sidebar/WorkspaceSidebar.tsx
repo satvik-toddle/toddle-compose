@@ -7,6 +7,7 @@ import {
   ChevronLeftOutlined,
   AddOutlined,
   DotsSixVerticalOutlined,
+  ExportOutlined,
 } from '@toddle-edu/ds-icons';
 import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
@@ -53,7 +54,8 @@ const styles = {
 type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
 
 export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarProps>) {
-  const { workspaceId, isAdmin } = ctx;
+  const { workspaceId, isAdmin, role } = ctx;
+  const canMigrate = role === 'EDIT' || role === 'ADMIN' || isAdmin;
   const leave = useLeaveWorkspace();
   const openModal = useUiStore((s) => s.openModal);
   const [searchParams] = useSearchParams();
@@ -106,6 +108,17 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
             <StarOutlined size="xxx-small" />
             Starred
           </NavLink>
+          {canMigrate && (
+            <NavLink
+              to={`/w/${workspaceId}/migrations`}
+              className={({ isActive }) =>
+                cn(sidebarRow.base, isActive ? sidebarRow.selected : sidebarRow.default)
+              }
+            >
+              <ExportOutlined size="xxx-small" />
+              Migrations
+            </NavLink>
+          )}
         </div>
 
         <div className={styles.sectionHeading}>Pages</div>

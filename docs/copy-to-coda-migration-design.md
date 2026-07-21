@@ -294,12 +294,13 @@ Kept in sync as the build proceeds. `[ ]` todo · `[~]` in progress · `[x]` don
 - [ ] Permanent public no-auth asset URLs; verify Coda rehost-vs-hotlink (H9)
 - [ ] Large-doc chunking; empty/`null` doc → skip, never push blank
 
-### Frontend (parked for designs)
-- **Styling convention (mandatory):** inline **Tailwind objects** in the `RegisterPage` style (no SCSS/CSS modules); use `@toddle-edu/ds-web` components directly with `dsVersion="2.0"`; DS typography tokens (`text-heading-*`/`text-body*`/`text-label*`), never raw px or generic Tailwind sizes.
-- [ ] Copy-to-Coda entry (`DocActions.tsx` / `pageMenuItems.tsx`)
-- [ ] Modal: editable preview tree (drag-rearrange, SHEET filtered), destination-root selector, per-row prefill/edit, bulk toggle, virtualized + batched prefill lookup
-- [ ] Migrations page (run list, per-item progress, retry/cancel), start toast + auto-nav
-- [ ] Admin → Migrations scope CRUD
+### Frontend (building from DS conventions — no designs; decisions locked)
+- **Styling (mandatory):** inline **Tailwind objects** in the `RegisterPage` style (no SCSS/CSS modules); `@toddle-edu/ds-web` components directly with `dsVersion="2.0"`; DS typography tokens, never raw px.
+- **Decisions:** entry = BOTH topbar `DocActions` + sidebar `pageMenuItems`; preview-tree rearrange = **dnd-kit drag-to-reparent** (new dep); destinations mgmt = **Admin console "Migrations" tab only** (realm admins); jobs page = **workspace `/w/:id/migrations` (sidebar link) + admin console org view** (shared component).
+- [x] Foundation: backend prefill endpoint (`GET /migration-scopes/:scopeId/mappings?docIds=…`, EDIT+); FE types, `api/migrations.ts`, `hooks/useMigrations.ts` (3s polling while non-terminal), `queryKeys`
+- [x] Copy-to-Coda modal (`ModalWithSideBar`): destination-root selector, dnd-kit nested drag-to-reparent tree (SHEET filtered + orphans re-anchored), include/exclude, per-row prefill/override URL, Create-new/Update-existing toggle → enqueue → toast → auto-nav; triggers in `DocActions` + sidebar `pageMenuItems`/`PageRow` (editor+ gated)
+- [x] Workspace Migrations page (`/w/:id/migrations` + `:jobId` + sidebar `NavLink`, editor+): reusable `MigrationJobsList`/`MigrationJobDetail` + status tags, cancel/retry, polling
+- [x] Admin console "Migrations" tab (`/admin/migrations` + `:jobId`): Destinations/Runs SegmentControl; destinations CRUD table + add/edit form (workspace picker, Coda URL, write-only token list, masked hints, delete-cancels-jobs); org-wide runs reuse `MigrationJobsList`/`Detail` — realm-admin gated. **Frontend typecheck + lint clean.**
 
 ### Testing
 - [ ] Coda API contract/integration tests: async `getMutationStatus` polling, ≤5/10s pacing, `resolveBrowserLink` type handling, doc-size/payload limits (H1–H8)

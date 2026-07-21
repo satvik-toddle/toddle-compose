@@ -16,9 +16,11 @@ import { WorkspacesTab } from './features/admin/WorkspacesTab';
 import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
 import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
+import { MigrationsAdminTab } from './features/admin/MigrationsAdminTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
+import { MigrationsPage } from './features/migration/MigrationsPage';
 import { LinkDocView } from './features/link/LinkDocView';
 
 export function AppRoutes() {
@@ -47,6 +49,8 @@ export function AppRoutes() {
             <Route path="workspaces" element={<WorkspacesTab />} />
             <Route path="members" element={<RealmMembersTab />} />
             <Route path="requests" element={<JoinRequestsTab />} />
+            <Route path="migrations" element={<MigrationsAdminTab />} />
+            <Route path="migrations/:jobId" element={<MigrationsAdminTab />} />
             <Route path="settings" element={<RealmSettingsTab />} />
           </Route>
         </Route>
@@ -56,6 +60,8 @@ export function AppRoutes() {
           <Route element={<WorkspaceLayout />}>
             <Route index element={<WorkspaceContent />} />
             <Route path="starred" element={<StarredPagesView />} />
+            <Route path="migrations" element={<MigrationsPage />} />
+            <Route path="migrations/:jobId" element={<MigrationsPage />} />
           </Route>
         </Route>
       </Route>

@@ -34,6 +34,9 @@ export const qk = {
   // NOT under the 'documents' prefix: a 403/404 here means one stale doc id ("Page not
   // found"), not lost workspace access — it must not trip the global eject guard.
   doc: (docId: string) => ['doc', docId] as const,
+  docHistory: (docId: string) => ['docHistory', docId] as const,
+  docSnapshot: (docId: string, seq: number, diffAgainst?: number) =>
+    ['docHistory', docId, seq, diffAgainst ?? null] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace

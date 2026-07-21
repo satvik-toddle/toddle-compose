@@ -217,6 +217,41 @@ export interface DocumentPermission {
   user: PublicUser;
 }
 
+// One edit "session": updates by a single author grouped by a time gap. `startedAt`
+// / `endedAt` are epoch-ms; `lastSeq` is the update seq to preview the doc's state at.
+export interface DocHistorySession {
+  firstSeq: number;
+  lastSeq: number;
+  startedAt: number;
+  endedAt: number;
+  updateCount: number;
+  totalBytes: number;
+  noop: boolean;
+  // 'archive' = a tier-2 archive snapshot (label "Archived"); 'edit' = a real edit session.
+  kind: 'archive' | 'edit';
+  changedCells: Array<{ rowId: string; colId: string }>;
+  user: { id: string; name: string; email: string; color: string } | null;
+}
+
+// GET /documents/:id/history — edit-session timeline, newest first.
+export interface DocHistoryResponse {
+  docId: string;
+  head: number;
+  sessions: DocHistorySession[];
+}
+
+// GET /documents/:id/history/:seq — read-only snapshot of the doc at an update seq.
+export interface DocSnapshot {
+  docId: string;
+  type: DocumentType;
+  seq: number;
+  headSeq: number;
+  // DOC docs: server-extracted Lexical editorState at this seq (upload URLs materialized). SHEET docs omit it.
+  lexicalJson?: string;
+  // DOC docs, when ?diff=<baselineSeq> was requested: merged diff editorState (baseline -> seq) with diff-mark nodes.
+  diffJson?: string | null;
+}
+
 export interface FolderDto {
   id: string;
   name: string;

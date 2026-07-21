@@ -14,6 +14,7 @@ import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { useUiStore } from '../../../stores/uiStore';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
+import { VersionsSection, useHistoryMode } from '../history';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import { sidebarRow } from './sidebarRowStyles';
@@ -64,9 +65,12 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   // The scroll container for the pages list; passed to PagesSection so lazy-load doesn't
   // have to discover it by walking the DOM for a computed overflow style.
   const bodyRef = useRef<HTMLDivElement>(null);
+  const history = useHistoryMode();
 
   return (
     <aside className={styles.sidebar} style={{ width, marginLeft: collapsed ? -width : 0 }}>
+      {/* History mode swaps the whole chrome for the versions panel: no search/nav/footer. */}
+      {!history.active && (
       <div className={styles.header}>
         <div className={styles.switcherRow}>
           <WorkspaceSwitcher ctx={ctx} />
@@ -99,11 +103,17 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
 
         <div className={styles.sectionHeading}>Pages</div>
       </div>
+      )}
 
       <div ref={bodyRef} className={styles.body}>
-        <PagesSection pages={pages} scrollRef={bodyRef} />
+        {history.active && history.docId ? (
+          <VersionsSection docId={history.docId} />
+        ) : (
+          <PagesSection pages={pages} scrollRef={bodyRef} />
+        )}
       </div>
 
+      {!history.active && (
       <div className={styles.footerGroup}>
         {pages.canCreate && (
           <CreatePageDropdown
@@ -146,6 +156,7 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           {isAdmin ? 'All workspaces' : 'Launcher'}
         </button>
       </div>
+      )}
 
       {!collapsed && (
         <div

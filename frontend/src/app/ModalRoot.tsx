@@ -7,6 +7,7 @@ import { WorkspaceSettingsModal } from '../features/modals/WorkspaceSettingsModa
 import { ConfirmDeleteWorkspaceModal } from '../features/modals/ConfirmDeleteWorkspaceModal';
 import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMemberModal';
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
+import { ConfirmRestoreVersionModal } from '../features/modals/ConfirmRestoreVersionModal';
 import { DocPermissionsModal } from '../features/modals/DocPermissionsModal';
 import { SearchModal } from '../features/modals/search/SearchModal';
 
@@ -72,6 +73,15 @@ export function ModalRoot() {
           workspaceId={modal.workspaceId}
           id={modal.id}
           name={modal.name}
+        />
+      );
+    case 'confirmRestoreVersion':
+      return (
+        <ConfirmRestoreVersionModal
+          onClose={close}
+          docId={modal.docId}
+          seq={modal.seq}
+          versionLabel={modal.versionLabel}
         />
       );
     case 'docPermissions':

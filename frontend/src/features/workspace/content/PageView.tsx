@@ -68,18 +68,17 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
   const isSheet = openDoc.type === 'SHEET';
 
+  const titleNode = (
+    <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
+  );
+
   return (
     <main className={styles.contentShell}>
       <div
         className={isSheet ? styles.sheetTitle : styles.docTitle}
         style={isSheet ? undefined : { maxWidth: DOC_COLUMN_WIDTH, paddingLeft: DOC_TEXT_INSET, paddingRight: DOC_TEXT_INSET }}
       >
-        <PageTitle
-          workspaceId={ctx.workspaceId}
-          docId={openDocId}
-          title={pageTitle}
-          canEdit={canEdit}
-        />
+        {titleNode}
       </div>
       <Suspense fallback={<PageLoader />}>
         {isSheet ? (

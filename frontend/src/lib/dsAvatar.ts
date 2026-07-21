@@ -1,10 +1,10 @@
-// ds-web Avatar takes a NAMED color enum + size enum (not the brand hex / pixels),
-// so we map the brand palette + our numeric sizes to the nearest ds-web token.
+// Map brand hex + numeric size to ds-web's named color/size enums.
 type DsColor =
   | 'violet' | 'blue' | 'yellow' | 'pink' | 'teal'
   | 'purple' | 'green' | 'orange' | 'red' | 'neutral';
 type DsSize = 'xxx-small' | 'xx-small' | 'x-small' | 'small' | 'medium' | 'large' | 'x-large';
 
+// Brand hex → DS hue. red is omitted (reserved for CTA/error), so it rotates below.
 const COLOR_BY_HEX: Record<string, DsColor> = {
   '#5a5ae2': 'violet',
   '#00ac8a': 'teal',
@@ -15,11 +15,35 @@ const COLOR_BY_HEX: Record<string, DsColor> = {
   '#b646ee': 'purple',
   '#e8653a': 'orange',
   '#a43dd7': 'purple',
-  '#f04c54': 'red',
 };
 
-export function dsAvatarColor(hex?: string): DsColor {
-  return (hex && COLOR_BY_HEX[hex.toLowerCase()]) || 'neutral';
+// Fallback hues for unknown hexes; excludes red and neutral.
+const AVATAR_HUES: readonly DsColor[] = [
+  'violet',
+  'blue',
+  'teal',
+  'green',
+  'yellow',
+  'orange',
+  'pink',
+  'purple',
+];
+
+// djb2 — stable hash so a person always maps to the same hue.
+function hashSeed(seed: string): number {
+  let hash = 5381;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 33 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+// Known hex wins; else deterministic rotation by seed; else neutral.
+export function dsAvatarColor(hex?: string, seed?: string): DsColor {
+  const known = hex ? COLOR_BY_HEX[hex.toLowerCase()] : undefined;
+  if (known) return known;
+  if (seed) return AVATAR_HUES[hashSeed(seed) % AVATAR_HUES.length];
+  return 'neutral';
 }
 
 export function dsAvatarSize(px: number): DsSize {

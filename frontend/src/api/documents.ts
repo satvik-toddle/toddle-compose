@@ -7,6 +7,8 @@ import type {
   DocumentPermission,
   DocumentShareLink,
   DocumentType,
+  DocHistoryResponse,
+  DocSnapshot,
   PublicUser,
   ShareLinkScope,
 } from '../types/api';
@@ -62,6 +64,14 @@ export const documentsApi = {
   remove: (id: string) => http.del<{ ok: true }>(`/documents/${id}`),
   star: (id: string) => http.post<DocumentDto>(`/documents/${id}/star`),
   unstar: (id: string) => http.del<{ ok: true }>(`/documents/${id}/star`),
+
+  // Per-author edit-session timeline for the version-history panel.
+  history: (id: string) => http.get<DocHistoryResponse>(`/documents/${id}/history`),
+  // Read-only snapshot of the document at a given update seq; diffAgainst also returns the server-computed merged diff (0 = empty doc).
+  historyAt: (id: string, seq: number, diffAgainst?: number) =>
+    http.get<DocSnapshot>(
+      `/documents/${id}/history/${seq}${diffAgainst != null ? `?diff=${diffAgainst}` : ''}`,
+    ),
 
   // Doc-scoped user-directory search for the Share picker; gated on doc-manage (not realm
   // membership) so a doc-ADMIN grantee who never joined a workspace can still find people.

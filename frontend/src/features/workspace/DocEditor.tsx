@@ -17,7 +17,9 @@ import s from './DocEditor.module.scss';
 // Hide the editor's built-in top toolbar — formatting comes from the floating
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
-const EDITOR_CONFIG = { toolbar: { enabled: false } };
+// Exported so the read-only history snapshot (DocSnapshotViewer) renders with identical chrome.
+export const EDITOR_CONFIG = { toolbar: { enabled: false } };
+
 // Full document page: centered 900px readable column, generous side padding. The scroll
 // container's own overflow + viewport max-height are removed so the PAGE scrolls (title +
 // content together) — see .tc-editor-page and PageView's contentShell.
@@ -30,6 +32,20 @@ const DOC_STYLES = {
 // Search preview pane: full-width in the narrow pane with tight 16px side padding.
 const PREVIEW_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: '100%' },
+  contentBgProvider: { minHeight: '100%', padding: '0 16px 80px', background: 'var(--panel-bg)' },
+  contentEditable: { paddingLeft: '16px', paddingRight: '16px' },
+};
+
+// Exported for the read-only history snapshot: full-width, internal scrolling flattened so the
+// page-level wrapper (title + editor) scrolls as one.
+export const EDITOR_STYLES = {
+  scrollableContainer: {
+    height: 'auto',
+    maxHeight: 'none',
+    overflow: 'visible',
+    background: 'var(--panel-bg)',
+  },
   anchorElement: { width: '100%', maxWidth: '100%' },
   contentBgProvider: { minHeight: '100%', padding: '0 16px 80px', background: 'var(--panel-bg)' },
   contentEditable: { paddingLeft: '16px', paddingRight: '16px' },

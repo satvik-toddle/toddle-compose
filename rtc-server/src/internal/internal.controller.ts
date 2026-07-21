@@ -84,12 +84,32 @@ export class InternalController {
   }
 
   @Get(":docId/versions/:seq")
-  async preview(@Param("docId") docId: string, @Param("seq") seq: string) {
+  async preview(
+    @Param("docId") docId: string,
+    @Param("seq") seq: string,
+    @Query("include") include?: string,
+    @Query("diffAgainst") diffAgainst?: string
+  ) {
     const n = Number(seq);
     if (!Number.isFinite(n) || n < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    return this.versions.previewAtSeq(docId, n);
+    const inc = include ?? "all";
+    if (inc !== "all" && inc !== "state" && inc !== "render" && inc !== "text") {
+      throw new BadRequestException(
+        "include must be 'all', 'state', 'render' or 'text'"
+      );
+    }
+    // Baseline seq for the merged diff; only meaningful with include='render'.
+    let diffSeq: number | null = null;
+    if (diffAgainst != null && diffAgainst !== "") {
+      const d = Number(diffAgainst);
+      if (!Number.isFinite(d) || d < 0) {
+        throw new BadRequestException("diffAgainst must be a non-negative integer");
+      }
+      diffSeq = d;
+    }
+    return this.versions.previewAtSeq(docId, n, inc, diffSeq);
   }
 
   @Get(":docId/sessions")

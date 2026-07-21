@@ -21,15 +21,84 @@ const ENTRY = path.isAbsolute(configured)
   : path.resolve(pkgDir, configured);
 const OUT = path.resolve(__dirname, "../vendor/server-nodes.cjs");
 
+// UI-only packages reachable ONLY through node decorate()/view components, which never run in
+// headless extraction. Stubbing them to an inert proxy strips ~90% of the bundle without touching
+// any data-path code. DENYLIST on purpose: a package we forget just stays bundled (safe/larger);
+// we never risk stubbing a lib used in importJSON/exportJSON (lodash, moment, crypto-js, mime-db,
+// micromark, he, axios are intentionally NOT here). Add a package here only if it is purely visual.
+const STUB_PACKAGES = [
+  "@toddle-edu/ds-icons",
+  "@toddle-edu/ds-web",
+  "@toddle-edu/ds-theme",
+  "@toddle-edu/react-mentions",
+  "antd",
+  "@ant-design/icons",
+  "@emoji-mart/data",
+  "@emoji-mart/react",
+  "react-select",
+  "react-beautiful-dnd",
+  "@dnd-kit/core",
+  "@dnd-kit/sortable",
+  "@dnd-kit/utilities",
+  "@react-aria/overlays",
+  "@react-aria/interactions",
+  "@react-aria/utils",
+  "@react-stately/color",
+  "@internationalized/date",
+  "rc-picker",
+  "rc-select",
+  "rc-tree",
+  "rc-table",
+  "cropperjs",
+  "gsap",
+];
+
+// Matches a bare `pkg` import or any deep `pkg/sub` path for every stubbed package.
+const stubFilter = new RegExp(
+  "^(" + STUB_PACKAGES.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(/|$)"
+);
+
+// A self-referential Proxy: any property access, call, or `new` yields the same inert proxy (or
+// null), so a stubbed module survives being imported/destructured/JSX-rendered without crashing at
+// load. Node decorate() still runs during headless reconciliation and renders these stubs, so under
+// NODE_ENV!=production React logs harmless "type is invalid" dev warnings; production is silent.
+// `__esModule`/`then`/symbols return undefined so esbuild's default-import interop routes
+// `import X from "pkg"` to the proxy itself (not an undefined `.default`) and the proxy is never
+// mistaken for a thenable/iterable; every other access, call, or `new` yields the inert proxy.
+const stubModule = `
+const stub = new Proxy(function () {}, {
+  get(_t, prop) {
+    return prop === "then" || prop === "__esModule" || typeof prop === "symbol" ? undefined : stub;
+  },
+  apply() { return null; },
+  construct() { return {}; },
+});
+module.exports = stub;
+`;
+
+const stubUiPlugin = {
+  name: "stub-ui-packages",
+  setup(build) {
+    build.onResolve({ filter: stubFilter }, (a) => ({ path: a.path, namespace: "stub-ui" }));
+    build.onLoad({ filter: /.*/, namespace: "stub-ui" }, () => ({
+      contents: stubModule,
+      loader: "js",
+    }));
+  },
+};
+
 await build({
+  plugins: [stubUiPlugin],
   entryPoints: [ENTRY],
   bundle: true,
   format: "cjs",
   platform: "node",
   target: "node20",
   outfile: OUT,
+  minify: true,
+  legalComments: "none",
   logLevel: "info",
-  loader: { ".js": "jsx", ".svg": "dataurl", ".png": "dataurl", ".css": "empty" },
+  loader: { ".js": "jsx", ".svg": "dataurl", ".png": "dataurl", ".css": "empty", ".scss": "empty" },
   jsx: "automatic",
   external: [
     "yjs",

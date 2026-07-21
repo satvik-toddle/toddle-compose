@@ -504,7 +504,7 @@
    LAUNCHER
    ============================================================ */
 /* .lc-greet/.lc-greet-actions/.lc-note/.lc-grid/.lc-waitcard → LauncherPage.module.scss
-   .ws-card* (+ .add tile, .add-glyph/.add-nm/.add-ds, .enter) → WorkspaceCard.module.scss
+   The workspace card + add tile are fully Tailwind in WorkspaceCard.tsx.
    The list layout (.lc-list/.lc-list-head/.lc-row*) was removed as dead — the
    launcher renders a card grid, not a list.
    Kept global: .ws-emoji (+ .sm), used cross-feature. */

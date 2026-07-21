@@ -38,12 +38,13 @@ export const envSchema = z.object({
   RTC_DEBOUNCE_IDLE_MS: z.coerce.number().default(2000),
   RTC_DEBOUNCE_MAX_MS: z.coerce.number().default(10000),
   // Coalesce Yjs updates per (doc, author) into one log row; crash exposure is bounded by this window.
-  RTC_APPEND_COALESCE_MS: z.coerce.number().default(250),
+  RTC_APPEND_COALESCE_MS: z.coerce.number().default(1000),
   // Headless-Lexical extraction worker threads (CPU-bound; keep small).
   RTC_EXTRACT_WORKERS: z.coerce.number().int().min(1).max(8).default(2),
   RTC_CHECKPOINT_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
-  RTC_COMPACT_INTERVAL_MS: z.coerce.number().default(60 * 60 * 1000),
-  RTC_TIER1_AGE_MS: z.coerce.number().default(7 * 24 * 60 * 60 * 1000),
+  RTC_COMPACT_INTERVAL_MS: z.coerce.number().default(6 * 60 * 60 * 1000),
+  // Raw keystroke-window rows dominate the table; 12h bounds them to ~half a day's worth per doc.
+  RTC_TIER1_AGE_MS: z.coerce.number().default(12 * 60 * 60 * 1000),
   RTC_TIER2_AGE_MS: z.coerce.number().default(30 * 24 * 60 * 60 * 1000),
   RTC_SESSION_GAP_MS: z.coerce.number().default(30 * 1000),
 

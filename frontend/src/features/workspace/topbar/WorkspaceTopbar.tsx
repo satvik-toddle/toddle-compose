@@ -86,7 +86,7 @@ export function WorkspaceTopbar({
           />
         </Tooltip>
         <DocActions ctx={ctx} doc={doc} user={currentUser} />
-        <AccountMenu user={currentUser} realmRole={realm?.role} compact />
+        <AccountMenu user={currentUser} realmRole={realm?.role} />
       </div>
     </div>
   );

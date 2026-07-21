@@ -76,6 +76,27 @@ export function useRealmJoinRequests(enabled = true) {
   });
 }
 
+export function useRealmOrgRequests(enabled = true) {
+  return useQuery({
+    queryKey: qk.orgRequests('PENDING'),
+    queryFn: () => realmApi.orgRequests('PENDING'),
+    enabled,
+  });
+}
+
+// The caller's own org-join request. Polls while PENDING so an admin's approval
+// (which makes them a realm member) is picked up without a manual refresh.
+export function useMyOrgRequest(enabled = true) {
+  return useQuery({
+    queryKey: qk.myOrgRequest,
+    queryFn: realmApi.myOrgRequest,
+    enabled,
+    refetchIntervalInBackground: false,
+    refetchInterval: (query) =>
+      query.state.data?.state === 'PENDING' ? MY_REQUESTS_POLL_MS : false,
+  });
+}
+
 export function useWorkspaceJoinRequests(id: string | undefined, enabled = true) {
   return useQuery({
     queryKey: id ? qk.wsRequests(id, 'PENDING') : ['workspaces', '_none', 'requests'],

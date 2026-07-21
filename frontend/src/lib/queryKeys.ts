@@ -14,6 +14,8 @@ export const qk = {
   workspaceMembers: (id: string) => ['workspaces', id, 'users'] as const,
   realmRequests: (state: JoinRequestState = 'PENDING') =>
     ['joinRequests', 'realm', state] as const,
+  orgRequests: (state: JoinRequestState = 'PENDING') => ['orgRequests', state] as const,
+  myOrgRequest: ['myOrgRequest'] as const,
   wsRequests: (id: string, state: JoinRequestState = 'PENDING') =>
     ['workspaces', id, 'requests', state] as const,
   documents: (workspaceId: string, folderId?: string | null) =>

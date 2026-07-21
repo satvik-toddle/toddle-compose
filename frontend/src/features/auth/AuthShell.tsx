@@ -11,6 +11,9 @@ const styles = {
   logoImage: 'h-6 w-6',
   word: 'font-[family-name:var(--font-family-display)] text-[18px] font-extrabold tracking-[-0.01em]',
   wordAccent: 'text-[var(--brand-educator)]',
+  // Layout for the footer row. The `auth-foot` class is kept only for the shared
+  // `.auth-foot a` link styling in rbac.css (used across every auth page).
+  foot: 'mt-[18px] flex flex-wrap items-center justify-center gap-1 text-[13px] text-secondary',
 };
 
 export function AuthShell({
@@ -40,7 +43,7 @@ export function AuthShell({
         </div>
         {children}
       </div>
-      {foot && <div className="auth-foot">{foot}</div>}
+      {foot && <div className={cn('auth-foot', styles.foot)}>{foot}</div>}
     </div>
   );
 }

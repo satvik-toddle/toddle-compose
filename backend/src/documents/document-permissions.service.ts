@@ -28,9 +28,9 @@ export class DocumentPermissionsService {
     private readonly config: ConfigService<Env, true>
   ) {}
 
-  // Doc-scoped user-directory search for the Share picker. Gated on doc-manage (not
-  // realm membership) so a doc-ADMIN grantee who never joined a workspace can still find
-  // people to grant — without exposing the directory to any authenticated user.
+  // Doc-scoped user-directory search for the Share picker. Gated on doc-manage, and
+  // restricted to realm ("org") members so registered users who never joined the org
+  // don't surface as grantees.
   async searchGrantable(
     actorId: string,
     documentId: string,
@@ -38,7 +38,7 @@ export class DocumentPermissionsService {
     take = 20
   ) {
     await this.requireManage(actorId, documentId);
-    return this.realm.searchDirectory(q, take);
+    return this.realm.searchRealmMembers(q, take);
   }
 
   // Explicit grants on this doc (managers only), each with the grantee's public profile.
@@ -66,6 +66,10 @@ export class DocumentPermissionsService {
     }
     if (user.id === doc.ownerId) {
       throw new ConflictException("the document owner already has full access");
+    }
+    // Only org (realm) members are grantable — matches the Share picker's scope.
+    if (!(await this.realm.isMember(user.id))) {
+      throw new NotFoundException("that user isn't a member of this organisation");
     }
 
     const existing = await this.prisma.documentPermission.findUnique({

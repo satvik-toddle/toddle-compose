@@ -78,6 +78,7 @@ export interface RealmInfo {
   name: string;
   role: RealmRole; // caller's realm role
   allowedEmailDomains?: string[]; // self-signup allowlist; empty = any domain, only returned to OWNER/MAINTAINER
+  joinRequestsEnabled?: boolean; // whether users can request to join the organisation
 }
 
 export interface RealmMember {
@@ -127,6 +128,24 @@ export interface JoinRequest {
   decidedAt: string | null;
   user: PublicUser;
   workspace?: { id: string; name: string; visibility: Visibility }; // present on the realm-wide listing (so a row can name its workspace)
+}
+
+// A request to join the organisation (realm). Approval grants realm MEMBER.
+export interface OrgJoinRequest {
+  id: string;
+  user: PublicUser;
+  state: JoinRequestState;
+  createdAt: string;
+  decidedAt?: string | null;
+}
+
+// The caller's own org-join request (no nested user); null when none exists.
+export interface MyOrgJoinRequest {
+  id: string;
+  userId: string;
+  state: JoinRequestState;
+  createdAt: string;
+  decidedAt?: string | null;
 }
 
 export type DocumentType = 'DOC' | 'SHEET';

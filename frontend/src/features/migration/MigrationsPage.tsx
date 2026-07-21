@@ -15,7 +15,7 @@ const styles = {
   header: 'flex items-center gap-3.5 mb-[18px]',
   headerIcon: 'flex items-center justify-center w-7.5 h-7.5 rounded-2 bg-surface-tertiary-enabled',
   headerTitle: 'm-0 text-heading-3 text-primary',
-  subtitle: 'text-body-sm text-secondary mb-4',
+  subtitle: 'text-body text-secondary mb-4',
   backRow: 'mb-3',
 };
 

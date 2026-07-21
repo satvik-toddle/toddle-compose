@@ -1,13 +1,15 @@
+import { HttpException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../config/env";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { DocumentsService } from "../documents/documents.service";
-import type { RtcInternalClient } from "../rtc/rtc-internal.client";
 import type { CodaClient } from "../coda/coda.client";
 import type { CodaCredentialsService } from "./coda-credentials.service";
 import {
   MigrationWorkerService,
   chunkHtmlByBytes,
+  isTransientError,
+  EMPTY_SKIP_REASON,
 } from "./migration-worker.service";
 
 const JOB = "job1";
@@ -26,7 +28,9 @@ function item(over: Partial<Record<string, unknown>> = {}) {
     override: false,
     codaPageId: null,
     migratedSeq: null,
-    enqueuedSeq: null,
+    // Point-in-time content FROZEN at enqueue — the worker pushes this verbatim.
+    snapshotHtml: "<p>hi</p>",
+    enqueuedSeq: 7,
     attempts: 0,
     seq: 0,
     ...over,
@@ -40,6 +44,8 @@ function makeConfig(): ConfigService<Env, true> {
     MIGRATION_BATCH_SIZE: 5,
     MIGRATION_MAX_ITEM_ATTEMPTS: 3,
     CODA_MAX_HTML_BYTES: 80_000,
+    CODA_MATERIALIZE_TIMEOUT_MS: 1_000,
+    CODA_MATERIALIZE_POLL_MS: 5,
   };
   return { get: (k: string) => values[k] } as unknown as ConfigService<
     Env,
@@ -57,9 +63,17 @@ function makeWorker(over?: {
   scope?: any;
   freshCodaPageId?: string | null;
   parentCodaPageId?: string | null;
-  content?: { html: string; headSeq: number; isEmpty: boolean };
   assertReadable?: jest.Mock;
-  counts?: { inFlight?: number; failed?: number; succeeded?: number };
+  counts?: {
+    inFlight?: number;
+    failed?: number;
+    succeeded?: number;
+    // "tainting" skips: SKIPPED for any reason OTHER than an empty source (orphan,
+    // unreadable, dest-removed) — these keep a job off SUCCEEDED.
+    orphaned?: number;
+    // clean skips: SKIPPED because the source was genuinely empty (no-op).
+    emptySkip?: number;
+  };
   finishItemCount?: number;
 }) {
   const order: Order = { seen: [], push(l) { this.seen.push(l); } };
@@ -73,8 +87,6 @@ function makeWorker(over?: {
     over?.scope === undefined
       ? { codaDocId: DOC, codaRootPageId: null }
       : over.scope;
-
-  const content = over?.content ?? { html: "<p>hi</p>", headSeq: 7, isEmpty: false };
 
   // Interactive-tx surface shared by createOrOverride / upsertMapping / finishItem.
   const tx = {
@@ -94,7 +106,6 @@ function makeWorker(over?: {
   };
 
   const counts = over?.counts ?? {};
-  let countCall = 0;
   const prisma = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn(async (arg: any) =>
@@ -103,6 +114,7 @@ function makeWorker(over?: {
     migrationJob: {
       findUnique: jest.fn().mockResolvedValue(job),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn().mockResolvedValue({}),
     },
     migrationScope: { findFirst: jest.fn().mockResolvedValue(scope) },
     migrationMapping: { upsert: jest.fn() },
@@ -111,10 +123,24 @@ function makeWorker(over?: {
         .fn()
         .mockResolvedValue({ codaPageId: over?.parentCodaPageId ?? "parentPage" }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      count: jest.fn(async () => {
-        // Called order in maybeFinalizeJob: inFlight, then failed, then succeeded.
-        const seq = [counts.inFlight ?? 0, counts.failed ?? 0, counts.succeeded ?? 1];
-        return seq[Math.min(countCall++, seq.length - 1)];
+      count: jest.fn(async (arg: any) => {
+        // maybeFinalizeJob counts by status: inFlight (status.in), FAILED, SUCCEEDED,
+        // total SKIPPED, and clean-empty SKIPPED (lastError=EMPTY_SKIP_REASON).
+        const w = arg?.where ?? {};
+        if (w.status && typeof w.status === "object" && Array.isArray(w.status.in)) {
+          return counts.inFlight ?? 0;
+        }
+        if (w.status === "FAILED") return counts.failed ?? 0;
+        if (w.status === "SUCCEEDED") return counts.succeeded ?? 1;
+        if (w.status === "SKIPPED") {
+          const emptySkip = counts.emptySkip ?? 0;
+          // A clean-empty count is keyed on the empty-source reason; the plain
+          // SKIPPED count is the total (tainting orphans + clean-empty).
+          return w.lastError === EMPTY_SKIP_REASON
+            ? emptySkip
+            : (counts.orphaned ?? 0) + emptySkip;
+        }
+        return 0;
       }),
     },
   } as unknown as PrismaService;
@@ -124,10 +150,6 @@ function makeWorker(over?: {
       over?.assertReadable ??
       jest.fn().mockResolvedValue({ workspaceId: "w1", type: "DOC" }),
   } as unknown as DocumentsService;
-
-  const rtc = {
-    getCodaHtml: jest.fn().mockResolvedValue({ docId: "d1", ...content }),
-  } as unknown as RtcInternalClient;
 
   const coda = {
     createPage: jest.fn(async () => {
@@ -146,6 +168,11 @@ function makeWorker(over?: {
       order.push("awaitMutation");
     }),
     getPage: jest.fn().mockResolvedValue({ browserLink: "https://coda.io/d/x/p" }),
+    // Materialization poll: default = page is queryable on the first poll.
+    getPageOrNull: jest.fn(async () => {
+      order.push("getPageOrNull");
+      return { browserLink: "https://docs.superhuman.com/d/x/_su1" };
+    }),
   } as unknown as CodaClient;
 
   const credentials = {
@@ -156,12 +183,11 @@ function makeWorker(over?: {
     prisma,
     makeConfig(),
     documents,
-    rtc,
     coda,
     credentials,
   );
 
-  return { svc, prisma, tx, documents, rtc, coda, credentials, order };
+  return { svc, prisma, tx, documents, coda, credentials, order };
 }
 
 // processItem is private; exercise it directly.
@@ -189,9 +215,10 @@ describe("MigrationWorkerService.claimBatch (D9 lease/claim SQL)", () => {
     expect(sql).toMatch(/j\.status IN \('QUEUED', 'RUNNING'\)/);
     expect(sql).toMatch(/c\.status = 'PENDING'/);
     expect(sql).toMatch(/c\.leased_until < now\(\)/);
-    // Readiness gate: null planned parent OR the sibling parent already has codaPageId.
+    // Readiness gate: null planned parent OR the sibling parent item is SUCCEEDED
+    // (page materialized) — NOT merely codaPageId set (persisted before awaitMutation).
     expect(sql).toMatch(/planned_parent_doc_id IS NULL/);
-    expect(sql).toMatch(/p\.coda_page_id IS NOT NULL/);
+    expect(sql).toMatch(/p\.status = 'SUCCEEDED'/);
     // Depth-first order + bounded batch.
     expect(sql).toMatch(/ORDER BY c\.job_id, c\.seq/);
     expect(sql).toMatch(/LIMIT/);
@@ -239,19 +266,19 @@ describe("MigrationWorkerService.processItem — create path", () => {
     expect((coda.createPage as jest.Mock).mock.calls[0][2].parentPageId).toBe("siblingPage");
   });
 
-  it("fetches the point-in-time snapshot at enqueuedSeq (falls back to latest when null)", async () => {
-    const a = makeWorker();
-    await run(a.svc, item({ enqueuedSeq: 55 }));
-    expect(a.rtc.getCodaHtml).toHaveBeenCalledWith("d1", 55);
-
-    const b = makeWorker();
-    await run(b.svc, item({ enqueuedSeq: null }));
-    expect(b.rtc.getCodaHtml).toHaveBeenCalledWith("d1", undefined);
+  it("pushes the FROZEN enqueue snapshot verbatim (no run-time re-fetch) (point-in-time, D2)", async () => {
+    const { svc, coda } = makeWorker();
+    // What the worker pushes is exactly item.snapshotHtml — captured at enqueue — and
+    // NOTHING is re-extracted at run (the worker has no rtc dependency at all).
+    await run(svc, item({ snapshotHtml: "<p>frozen-at-enqueue</p>", enqueuedSeq: 55 }));
+    expect((coda.createPage as jest.Mock).mock.calls[0][2].html).toBe(
+      "<p>frozen-at-enqueue</p>",
+    );
   });
 
-  it("records migratedSeq (head seq) and marks the item SUCCEEDED (D1/D2)", async () => {
-    const { svc, tx } = makeWorker({ content: { html: "<p>x</p>", headSeq: 42, isEmpty: false } });
-    await run(svc, item());
+  it("records migratedSeq (== enqueue seq) and marks the item SUCCEEDED (D1/D2)", async () => {
+    const { svc, tx } = makeWorker();
+    await run(svc, item({ snapshotHtml: "<p>x</p>", enqueuedSeq: 42 }));
     const finish = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
       (c) => c[0].data.status === "SUCCEEDED",
     );
@@ -261,9 +288,9 @@ describe("MigrationWorkerService.processItem — create path", () => {
     expect(finish[0].where).toMatchObject({ status: "RUNNING", leasedBy: expect.any(String) });
   });
 
-  it("upserts the mapping with headSeq under the advisory lock (D6)", async () => {
-    const { svc, tx } = makeWorker({ content: { html: "<p>x</p>", headSeq: 9, isEmpty: false } });
-    await run(svc, item());
+  it("upserts the mapping with the enqueue seq under the advisory lock (D6)", async () => {
+    const { svc, tx } = makeWorker();
+    await run(svc, item({ snapshotHtml: "<p>x</p>", enqueuedSeq: 9 }));
     expect(tx.$executeRaw).toHaveBeenCalled();
     expect(tx.migrationMapping.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -285,10 +312,154 @@ describe("MigrationWorkerService.processItem — override path (H3)", () => {
   });
 });
 
-describe("MigrationWorkerService.processItem — skip paths (D7/P2)", () => {
-  it("skips (never pushes) when the source is empty (D7)", async () => {
-    const { svc, coda, tx } = makeWorker({ content: { html: "", headSeq: 3, isEmpty: true } });
+describe("MigrationWorkerService.processItem — materialization poll (H2)", () => {
+  it("polls getPage past 404s until the page materializes, then records its browserLink", async () => {
+    const { svc, coda, tx } = makeWorker();
+    // 404 → 404 → 200: the page is not queryable/usable-as-parent until Coda
+    // finishes materializing it (size-correlated delay).
+    (coda.getPageOrNull as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        browserLink: "https://docs.superhuman.com/d/abc/_su9",
+      });
+
     await run(svc, item());
+
+    expect((coda.getPageOrNull as jest.Mock).mock.calls.length).toBe(3);
+    // The materialized browserLink (never "") is stored in the mapping.
+    const upsert = (tx.migrationMapping.upsert as jest.Mock).mock.calls[0][0];
+    expect(upsert.create.codaPageUrl).toBe("https://docs.superhuman.com/d/abc/_su9");
+    // Item is marked SUCCEEDED only after materialization.
+    const finish = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(finish).toBeTruthy();
+  });
+
+  it("never materializes → TRANSIENT release (retryable, no attempt burn), no mapping / empty URL", async () => {
+    // Tight budget so the poll gives up quickly.
+    const { svc, coda, tx, prisma } = makeWorker();
+    (svc as any).materializeTimeoutMs = 20;
+    (svc as any).materializePollMs = 5;
+    (svc as any).transientBackoffMs = 0;
+    (coda.getPageOrNull as jest.Mock).mockResolvedValue(null);
+
+    await run(svc, item({ attempts: 2 }));
+
+    // Threw before the mapping upsert — so no "" URL is ever recorded.
+    expect(tx.migrationMapping.upsert).not.toHaveBeenCalled();
+    // Not marked SUCCEEDED; released back to PENDING. A page that isn't queryable
+    // yet is a self-healing (transient) condition — retry WITHOUT burning an attempt
+    // (even one below the cap must not FAIL, else a created-but-slow page → FAILED).
+    const finishSucceeded = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(finishSucceeded).toBeUndefined();
+    const released = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "PENDING",
+    );
+    expect(released).toBeTruthy();
+    // Attempt budget is NOT consumed (would be 3 = cap and FAIL if treated permanent).
+    expect(released?.[0]?.data).not.toHaveProperty("attempts");
+  });
+
+  it("override path never waits: both the pre-replace gate and post-write poll return on the first getPage", async () => {
+    const { svc, coda } = makeWorker();
+    await run(svc, item({ override: true, targetCodaPageId: "targetPage" }));
+    // An existing target ⇒ getPageOrNull returns 200 with no wait, both on the
+    // pre-replace materialization gate AND the post-write materialization poll.
+    expect((coda.getPageOrNull as jest.Mock).mock.calls.length).toBe(2);
+  });
+});
+
+describe("MigrationWorkerService.processItem — resume in the create→materialize window (item 58)", () => {
+  it("resumes with codaPageId set but not-yet-materialized → polls, then REPLACES (never permanent-fails on the transient 404)", async () => {
+    // The crash-resume bug: a page was created + its id persisted (C3) just before a
+    // crash, but Coda hasn't materialized it yet. A blind in-place replace would 404
+    // (permanent) and FAIL the item; the worker must instead poll until the page is
+    // queryable, then replace in place — reusing the SAME page, no permanent fail.
+    const { svc, coda, tx, prisma } = makeWorker({ freshCodaPageId: "resumePage" });
+    // getPage 404 → 404 → 200: not queryable yet, then materialized (pre-replace gate).
+    (coda.getPageOrNull as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ browserLink: "https://docs.superhuman.com/d/x/_su1" });
+
+    await run(svc, item({ codaPageId: "resumePage", attempts: 1 }));
+
+    // No recreate: the resumed page is reused, content re-written in place.
+    expect(coda.createPage).not.toHaveBeenCalled();
+    expect(coda.replacePageContent).toHaveBeenCalledTimes(1);
+    expect((coda.replacePageContent as jest.Mock).mock.calls[0][2]).toBe("resumePage");
+    // NOT permanent-failed on the transient not-yet-materialized 404 — SUCCEEDED.
+    const failed = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "FAILED",
+    );
+    expect(failed).toBeUndefined();
+    const finish = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(finish).toBeTruthy();
+    expect(finish[0].data.codaPageId).toBe("resumePage");
+  });
+
+  it("a create-item whose reused page never materializes → RECREATES a fresh page (create-item needs a page)", async () => {
+    // override=false ⇒ the id came from our OWN prior createPage. If it never becomes
+    // queryable (dead/deleted), the id is unusable — recreate a fresh page rather than
+    // permanent-failing a doc the user selected to migrate.
+    const { svc, coda, tx } = makeWorker({ freshCodaPageId: "deadPage" });
+    (svc as any).materializeTimeoutMs = 20;
+    (svc as any).materializePollMs = 5;
+    // The dead resume id never materializes; the recreated page (id "newPage") does.
+    (coda.getPageOrNull as jest.Mock).mockImplementation(
+      async (_pool: unknown, _doc: unknown, pageId: string) =>
+        pageId === "deadPage"
+          ? null
+          : { browserLink: "https://docs.superhuman.com/d/x/_suNew" },
+    );
+
+    await run(svc, item({ codaPageId: "deadPage" }));
+
+    // Recreated exactly once; the replace was never attempted against the dead id.
+    expect(coda.createPage).toHaveBeenCalledTimes(1);
+    expect(coda.replacePageContent).not.toHaveBeenCalled();
+    // The dead id is overwritten by the fresh one, and the item SUCCEEDS.
+    const finish = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(finish).toBeTruthy();
+    expect(finish[0].data.codaPageId).toBe("newPage");
+  });
+
+  it("an OVERRIDE target that never materializes → PERMANENT fail (user's target is gone; never recreate it)", async () => {
+    // override=true ⇒ codaPageId is the user's chosen target. If it never materializes
+    // it's genuinely gone — permanent-fail (at the attempt cap) with a clear reason,
+    // never a silent recreate under a new id.
+    const { svc, coda, tx } = makeWorker();
+    (svc as any).materializeTimeoutMs = 20;
+    (svc as any).materializePollMs = 5;
+    (svc as any).transientBackoffMs = 0;
+    (coda.getPageOrNull as jest.Mock).mockResolvedValue(null);
+
+    // attempts=2 → this attempt (3) is the cap, so a permanent error FAILS the item.
+    await run(svc, item({ override: true, targetCodaPageId: "goneTarget", attempts: 2 }));
+
+    // Neither a create nor a replace was performed against the gone target.
+    expect(coda.createPage).not.toHaveBeenCalled();
+    expect(coda.replacePageContent).not.toHaveBeenCalled();
+    const failed = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "FAILED",
+    );
+    expect(failed).toBeTruthy();
+    expect(failed[0].data.lastError).toContain("override target page goneTarget not found");
+  });
+});
+
+describe("MigrationWorkerService.processItem — skip paths (D7/P2)", () => {
+  it("skips (never pushes) when the enqueue snapshot was empty (D7)", async () => {
+    const { svc, coda, tx } = makeWorker();
+    await run(svc, item({ snapshotHtml: null }));
     expect(coda.createPage).not.toHaveBeenCalled();
     const skip = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
     expect(skip.data.status).toBe("SKIPPED");
@@ -321,14 +492,20 @@ describe("MigrationWorkerService.processItem — skip paths (D7/P2)", () => {
 });
 
 describe("MigrationWorkerService — fault tolerance", () => {
-  it("(a/c) does NOT re-create a page when codaPageId is already set — idempotent resume (C3)", async () => {
-    // Simulate a crash AFTER createPage persisted codaPageId, BEFORE awaitMutation:
-    // on resume the fresh row already carries the page id.
+  it("(a/c) reuses an existing page on retry/resume — REPLACES content, never re-creates (C3)", async () => {
+    // A prior attempt created the page (codaPageId persisted) then failed — e.g.
+    // mid content-write. On retry the worker must re-write into the SAME page (not
+    // create a second one) AND must not skip the content write, even though the
+    // item's original config was "create new" (override=false, no target link).
     const { svc, coda } = makeWorker({ freshCodaPageId: "existingPage" });
     await run(svc, item({ codaPageId: "existingPage" }));
+
     expect(coda.createPage).not.toHaveBeenCalled();
-    // No requestId → no second gate/append; the item still completes.
-    expect(coda.awaitMutation).not.toHaveBeenCalled();
+    // Content IS (re)written into the existing page (page-id present ⇒ replace).
+    expect(coda.replacePageContent).toHaveBeenCalledTimes(1);
+    expect((coda.replacePageContent as jest.Mock).mock.calls[0][2]).toBe("existingPage");
+    // And its mutation is gated before finishing.
+    expect(coda.awaitMutation).toHaveBeenCalled();
   });
 
   it("(b) claim reclaims an expired lease but skips a fresh one (SQL predicate)", async () => {
@@ -359,10 +536,72 @@ describe("MigrationWorkerService.handleItemError — retry-to-max", () => {
       failedItems: { increment: 1 },
     });
   });
+
+  it("a TRANSIENT 'rtc-server unreachable' releases to PENDING WITHOUT consuming an attempt", async () => {
+    const { svc, prisma } = makeWorker();
+    (svc as any).transientBackoffMs = 0; // don't sleep in tests
+    // The backend surfaces a downed rtc-server as HttpException({error:"rtc-server unreachable"},502).
+    const err = new HttpException({ error: "rtc-server unreachable" }, 502);
+    // Even at attempts=2 (one below the cap), a transient error must not fail it.
+    await (svc as any).handleItemError(item({ attempts: 2 }), err);
+    const call = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(call.data.status).toBe("PENDING");
+    // attempts is NOT incremented (would be 3 = cap and FAIL if it were).
+    expect(call.data).not.toHaveProperty("attempts");
+    expect(call.data.status).not.toBe("FAILED");
+  });
+
+  it("Coda 429 (rate limited) and upstream 5xx are transient; a Coda 400 is permanent", async () => {
+    const rateLimited = new HttpException({ error: "coda rate limited" }, 429);
+    const upstream500 = new HttpException(
+      { error: "coda api error", status: 500, body: "boom" },
+      502,
+    );
+    const badRequest = new HttpException(
+      { error: "coda api error", status: 400, body: "Invalid parentPageId" },
+      502,
+    );
+    expect(isTransientError(rateLimited)).toBe(true);
+    expect(isTransientError(upstream500)).toBe(true);
+    expect(isTransientError(badRequest)).toBe(false);
+  });
+
+  it("a PERMANENT Coda 400 still FAILS after MAX attempts", async () => {
+    const { svc, tx } = makeWorker();
+    const err = new HttpException(
+      { error: "coda api error", status: 400, body: "Invalid parentPageId" },
+      502,
+    );
+    await (svc as any).handleItemError(item({ attempts: 2 }), err);
+    const failed = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(failed.data.status).toBe("FAILED");
+    expect(failed.data.attempts).toBe(3);
+  });
+
+  it("records a descriptive lastError from a CodaClient HttpException (not 'Http Exception')", async () => {
+    const { svc, tx } = makeWorker();
+    // CodaClient throws an HttpException whose payload carries status + upstream body.
+    const err = new HttpException(
+      { error: "coda api error", status: 400, body: "Invalid parentPageId: could not find page" },
+      502,
+    );
+    await (svc as any).handleItemError(item({ attempts: 2 }), err);
+    const failed = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(failed.data.status).toBe("FAILED");
+    expect(failed.data.lastError).toBe(
+      "coda api error 400: Invalid parentPageId: could not find page",
+    );
+  });
 });
 
 describe("MigrationWorkerService.maybeFinalizeJob", () => {
-  async function finalize(counts: { inFlight?: number; failed?: number; succeeded?: number }) {
+  async function finalize(counts: {
+    inFlight?: number;
+    failed?: number;
+    succeeded?: number;
+    orphaned?: number;
+    emptySkip?: number;
+  }) {
     const { svc, prisma } = makeWorker({ counts });
     await (svc as any).maybeFinalizeJob(JOB);
     const call = (prisma.migrationJob.updateMany as jest.Mock).mock.calls.at(-1);
@@ -387,11 +626,94 @@ describe("MigrationWorkerService.maybeFinalizeJob", () => {
     expect(await finalize({ inFlight: 0, failed: 3, succeeded: 0 })).toBe("FAILED");
   });
 
+  it("a 'parent did not migrate' orphan skip → PARTIAL, never SUCCEEDED", async () => {
+    // All non-skipped items succeeded, but an orphaned descendant was cascade-skipped
+    // — it must not hide under a green SUCCEEDED job.
+    expect(
+      await finalize({ inFlight: 0, failed: 0, succeeded: 2, orphaned: 1 }),
+    ).toBe("PARTIAL");
+  });
+
+  it("clean empty-source skips do not taint SUCCEEDED", async () => {
+    expect(
+      await finalize({ inFlight: 0, failed: 0, succeeded: 2, emptySkip: 2 }),
+    ).toBe("SUCCEEDED");
+  });
+
+  it("a tainting skip (unreadable/dest-removed source) keeps a job off SUCCEEDED → PARTIAL", async () => {
+    // A SELECTED doc that couldn't be migrated (not merely empty) must surface: with
+    // other successes it's PARTIAL, never a green SUCCEEDED hiding an unmigrated doc.
+    expect(
+      await finalize({ inFlight: 0, failed: 0, succeeded: 2, orphaned: 1 }),
+    ).toBe("PARTIAL");
+  });
+
+  it("a tainting skip with zero successes → FAILED (nothing migrated)", async () => {
+    expect(
+      await finalize({ inFlight: 0, failed: 0, succeeded: 0, orphaned: 1 }),
+    ).toBe("FAILED");
+  });
+
   it("guards the transition on QUEUED/RUNNING so CANCELED is never clobbered", async () => {
     const { svc, prisma } = makeWorker({ counts: { inFlight: 0, failed: 0, succeeded: 1 } });
     await (svc as any).maybeFinalizeJob(JOB);
     const call = (prisma.migrationJob.updateMany as jest.Mock).mock.calls.at(-1)[0];
     expect(call.where).toMatchObject({ id: JOB, status: { in: ["QUEUED", "RUNNING"] } });
+  });
+});
+
+describe("MigrationWorkerService — terminal-parent cascade (no deadlock)", () => {
+  it("cascade-skips PENDING descendants of a terminal parent and bumps skippedItems per job", async () => {
+    const { svc, prisma } = makeWorker();
+    // The recursive-CTE UPDATE returns one row per item it flipped to SKIPPED.
+    (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([
+      { jobId: JOB },
+      { jobId: JOB },
+      { jobId: "job2" },
+    ]);
+
+    const jobIds = await (svc as any).skipOrphansOfTerminalParents();
+
+    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as string[]).join("?");
+    expect(sql).toMatch(/WITH RECURSIVE/i);
+    expect(sql).toMatch(/status = 'SKIPPED'/);
+    expect(sql).toMatch(/last_error = 'parent did not migrate'/);
+    // Seeded from PENDING children whose parent item is terminally FAILED/SKIPPED.
+    expect(sql).toMatch(/p\.status IN \('FAILED', 'SKIPPED'\)/);
+    // Per-job skippedItems incremented by the number of rows cascaded in that job.
+    expect(prisma.migrationJob.update).toHaveBeenCalledWith({
+      where: { id: JOB },
+      data: { skippedItems: { increment: 2 } },
+    });
+    expect(prisma.migrationJob.update).toHaveBeenCalledWith({
+      where: { id: "job2" },
+      data: { skippedItems: { increment: 1 } },
+    });
+    expect([...jobIds].sort()).toEqual([JOB, "job2"].sort());
+  });
+
+  it("does nothing (no counter bump, no jobIds) when no items are blocked", async () => {
+    const { svc, prisma } = makeWorker();
+    (prisma.$queryRaw as jest.Mock).mockResolvedValueOnce([]);
+    const jobIds = await (svc as any).skipOrphansOfTerminalParents();
+    expect(jobIds).toEqual([]);
+    expect(prisma.migrationJob.update).not.toHaveBeenCalled();
+  });
+
+  it("tick does not deadlock: cascades a blocked subtree, then finalizes the job", async () => {
+    const { svc, prisma } = makeWorker({ counts: { inFlight: 0, failed: 1, succeeded: 0 } });
+    (prisma.$queryRaw as jest.Mock)
+      .mockResolvedValueOnce([]) // claimBatch: nothing claimable (child blocked on FAILED parent)
+      .mockResolvedValueOnce([{ jobId: JOB }]) // cascade: the blocked child → SKIPPED
+      .mockResolvedValue([]); // then nothing left to claim or cascade
+
+    await (svc as any).tick();
+
+    // With the blocked child now SKIPPED, no PENDING/RUNNING remain → job finalizes.
+    const finalize = (prisma.migrationJob.updateMany as jest.Mock).mock.calls.at(-1)?.[0];
+    expect(finalize).toBeTruthy();
+    expect(finalize.data.status).toBe("FAILED");
+    expect(finalize.where).toMatchObject({ id: JOB, status: { in: ["QUEUED", "RUNNING"] } });
   });
 });
 

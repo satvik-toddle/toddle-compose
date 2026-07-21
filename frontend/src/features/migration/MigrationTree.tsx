@@ -18,19 +18,22 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DragOutlined } from '@toddle-edu/ds-icons';
+import { DotsSixVerticalOutlined } from '@toddle-edu/ds-icons';
 import { pageTypeIcon } from '../workspace/pageTypes';
 import { cn } from '../../lib/cn';
 import { applyDrag, getProjection, removeChildrenOf, type MigrationFlatItem } from './migrationTreeModel';
 
 const INDENT = 24;
+// Base left inset so even depth-0 rows aren't flush to the container edge.
+const BASE_PAD = 12;
 
 const styles = {
-  row: 'flex items-center gap-2 rounded-2 border border-transparent px-1.5 py-1.5 hover:bg-surface-secondary-hover',
-  rowActive: 'border-selected bg-surface-secondary-hover',
+  row: 'relative flex min-h-8 items-center gap-2 rounded-2 border border-transparent px-1.5 py-1.5 hover:bg-surface-primary-hover',
+  rowActive: 'bg-surface-secondary-hover',
+  rowParent: 'bg-surface-primary-hover',
   handle:
     'flex shrink-0 cursor-grab items-center text-secondary active:cursor-grabbing touch-none',
-  title: 'min-w-0 flex-1 truncate text-body-s text-primary',
+  title: 'min-w-0 flex-1 truncate text-body text-primary',
   end: 'flex shrink-0 items-center gap-2',
 };
 
@@ -100,6 +103,7 @@ export function MigrationTree({
             key={item.id}
             item={item}
             depth={item.id === activeId && projected ? projected.depth : item.depth}
+            isProjectedParent={!!projected && item.id === projected.parentId}
             renderRowEnd={renderRowEnd}
           />
         ))}
@@ -111,10 +115,12 @@ export function MigrationTree({
 function SortableTreeItem({
   item,
   depth,
+  isProjectedParent,
   renderRowEnd,
 }: {
   item: MigrationFlatItem;
   depth: number;
+  isProjectedParent?: boolean;
   renderRowEnd?: (id: string) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
@@ -123,11 +129,19 @@ function SortableTreeItem({
   const style: CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition: transition ?? undefined,
-    paddingLeft: depth * INDENT,
+    paddingLeft: BASE_PAD + depth * INDENT,
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={cn(styles.row, isDragging && styles.rowActive)}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        styles.row,
+        isDragging && styles.rowActive,
+        isProjectedParent && styles.rowParent,
+      )}
+    >
       <span
         ref={setActivatorNodeRef}
         className={styles.handle}
@@ -135,7 +149,7 @@ function SortableTreeItem({
         {...attributes}
         {...listeners}
       >
-        <DragOutlined size="xxx-small" variant="subtle" />
+        <DotsSixVerticalOutlined size="xxx-small" variant="subtle" />
       </span>
       <PageIcon size="xxx-small" variant="subtle" />
       <span className={styles.title}>{item.title}</span>

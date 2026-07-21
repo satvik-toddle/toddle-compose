@@ -38,7 +38,7 @@ function makeService(opts?: {
   requireRealmRole?: jest.Mock;
   assertReadable?: jest.Mock;
   validateDestinationUrl?: jest.Mock;
-  getHeadSeq?: jest.Mock;
+  getCodaHtml?: jest.Mock;
   txJobFindFirst?: jest.Mock;
   txJobCreate?: jest.Mock;
   jobFindMany?: jest.Mock;
@@ -99,7 +99,11 @@ function makeService(opts?: {
   } as unknown as ScopeValidationService;
 
   const rtc = {
-    getHeadSeq: opts?.getHeadSeq ?? jest.fn().mockResolvedValue(0),
+    getCodaHtml:
+      opts?.getCodaHtml ??
+      jest
+        .fn()
+        .mockResolvedValue({ docId: "d", html: "<p>x</p>", headSeq: 0, isEmpty: false }),
   } as unknown as RtcInternalClient;
 
   return {
@@ -275,34 +279,70 @@ describe("MigrationJobsService.enqueue", () => {
     expect(scopeValidation.validateDestinationUrl).toHaveBeenCalledTimes(1);
   });
 
-  it("captures the point-in-time enqueuedSeq per item from rtc.getHeadSeq", async () => {
+  it("FREEZES each doc's HTML at enqueue (snapshotHtml + enqueuedSeq) from rtc.getCodaHtml", async () => {
     const create = jest.fn().mockResolvedValue({ id: "job1" });
-    const getHeadSeq = jest
-      .fn()
-      .mockImplementation((id: string) =>
-        Promise.resolve(id === "root" ? 10 : 20),
-      );
-    const { svc, rtc } = makeService({ txJobCreate: create, getHeadSeq });
+    const getCodaHtml = jest.fn().mockImplementation((id: string) =>
+      Promise.resolve(
+        id === "root"
+          ? { docId: id, html: "<p>ROOT snapshot</p>", headSeq: 10, isEmpty: false }
+          : { docId: id, html: "<p>CHILD snapshot</p>", headSeq: 20, isEmpty: false },
+      ),
+    );
+    const { svc, rtc } = makeService({ txJobCreate: create, getCodaHtml });
     await svc.enqueue(USER, SCOPE, plan());
-    expect(rtc.getHeadSeq).toHaveBeenCalledWith("root");
-    expect(rtc.getHeadSeq).toHaveBeenCalledWith("child");
+    // Captured with NO atSeq — the CURRENT (Start-Copy) version, frozen verbatim.
+    expect(rtc.getCodaHtml).toHaveBeenCalledWith("root");
+    expect(rtc.getCodaHtml).toHaveBeenCalledWith("child");
     const created = create.mock.calls[0][0].data.items.create;
-    expect(created.find((i: any) => i.sourceDocId === "root").enqueuedSeq).toBe(
-      10,
-    );
-    expect(created.find((i: any) => i.sourceDocId === "child").enqueuedSeq).toBe(
-      20,
-    );
+    const root = created.find((i: any) => i.sourceDocId === "root");
+    const child = created.find((i: any) => i.sourceDocId === "child");
+    expect(root.snapshotHtml).toBe("<p>ROOT snapshot</p>");
+    expect(root.enqueuedSeq).toBe(10);
+    expect(child.snapshotHtml).toBe("<p>CHILD snapshot</p>");
+    expect(child.enqueuedSeq).toBe(20);
   });
 
-  it("fails closed (no job created) when a head-seq read throws", async () => {
+  it("stores snapshotHtml=null for a doc that is empty at enqueue (skipped at run, D7)", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const getCodaHtml = jest
+      .fn()
+      .mockResolvedValue({ docId: "d", html: "", headSeq: 3, isEmpty: true });
+    const { svc } = makeService({ txJobCreate: create, getCodaHtml });
+    await svc.enqueue(USER, SCOPE, plan());
+    const created = create.mock.calls[0][0].data.items.create;
+    for (const it of created) {
+      expect(it.snapshotHtml).toBeNull();
+      // The seq is still recorded for the audit trail even when the doc is empty.
+      expect(it.enqueuedSeq).toBe(3);
+    }
+  });
+
+  it("point-in-time: a LATER edit cannot change what was frozen at enqueue", async () => {
+    // The snapshot is captured (and stored) at enqueue; whatever getCodaHtml would
+    // return afterward is irrelevant — the worker later pushes the stored snapshotHtml,
+    // never re-reading. Here we assert enqueue persisted the value read AT enqueue time.
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const getCodaHtml = jest
+      .fn()
+      .mockResolvedValue({ docId: "d", html: "<p>v1 at enqueue</p>", headSeq: 5, isEmpty: false });
+    const { svc } = makeService({ txJobCreate: create, getCodaHtml });
+    await svc.enqueue(USER, SCOPE, plan());
+    const created = create.mock.calls[0][0].data.items.create;
+    // A subsequent edit would advance the doc, but the persisted snapshot is v1.
+    getCodaHtml.mockResolvedValue({ docId: "d", html: "<p>v2 after edit</p>", headSeq: 6, isEmpty: false });
+    for (const it of created) {
+      expect(it.snapshotHtml).toBe("<p>v1 at enqueue</p>");
+    }
+  });
+
+  it("fails closed (no job created) when the content extraction throws", async () => {
     const create = jest.fn().mockResolvedValue({ id: "job1" });
     const { svc } = makeService({
       txJobCreate: create,
-      getHeadSeq: jest.fn().mockRejectedValue(new Error("rtc unreachable")),
+      getCodaHtml: jest.fn().mockRejectedValue(new Error("rtc unreachable")),
     });
     await expect(svc.enqueue(USER, SCOPE, plan())).rejects.toThrow(
-      /version cursor/,
+      /content snapshot/,
     );
     expect(create).not.toHaveBeenCalled();
   });
@@ -484,7 +524,7 @@ describe("MigrationJobsService.cancel", () => {
   });
 });
 
-describe("MigrationJobsService.retry (failed-only)", () => {
+describe("MigrationJobsService.retry (failed + orphaned re-drive)", () => {
   it("resets FAILED items to PENDING (clears lease/error) and re-queues the job", async () => {
     const itemUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
     const jobUpdate = jest.fn(async ({ data }: any) => ({ ...jobRow(), ...data }));
@@ -506,7 +546,32 @@ describe("MigrationJobsService.retry (failed-only)", () => {
     expect(res.status).toBe("QUEUED");
   });
 
-  it("rejects retry when there are no failed items", async () => {
+  it("also re-drives orphaned 'parent did not migrate' skips (a second updateMany)", async () => {
+    // First call = FAILED reset (0 rows), second = orphan SKIPPED reset (1 row).
+    const itemUpdateMany = jest
+      .fn()
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
+    const jobUpdate = jest.fn(async ({ data }: any) => ({ ...jobRow(), ...data }));
+    const { svc } = makeService({
+      jobFindUnique: jest.fn().mockResolvedValue(jobRow({ status: "PARTIAL" })),
+      txItemUpdateMany: itemUpdateMany,
+      txJobUpdate: jobUpdate,
+    });
+    const res = await svc.retry(USER, "job1");
+    // The orphan re-drive targets exactly SKIPPED + the parent-failure reason.
+    const orphanWhere = itemUpdateMany.mock.calls[1][0].where;
+    expect(orphanWhere.status).toBe("SKIPPED");
+    expect(orphanWhere.lastError).toBe("parent did not migrate");
+    expect(itemUpdateMany.mock.calls[1][0].data.status).toBe("PENDING");
+    // Job counters: failed decremented by 0, skipped by the 1 recovered orphan.
+    const jobData = jobUpdate.mock.calls[0][0].data;
+    expect(jobData.failedItems).toEqual({ decrement: 0 });
+    expect(jobData.skippedItems).toEqual({ decrement: 1 });
+    expect(res.status).toBe("QUEUED");
+  });
+
+  it("rejects retry when there are no failed or orphaned items", async () => {
     const { svc } = makeService({
       jobFindUnique: jest.fn().mockResolvedValue(jobRow({ status: "SUCCEEDED" })),
       txItemUpdateMany: jest.fn().mockResolvedValue({ count: 0 }),

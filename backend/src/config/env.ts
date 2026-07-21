@@ -124,6 +124,12 @@ export const envSchema = z.object({
   // import propagation is size-correlated (seconds → 45s+ on big docs, H2).
   CODA_MUTATION_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   CODA_MUTATION_POLL_MS: z.coerce.number().int().positive().default(500),
+  // Materialization budget: after a page is created + its mutation completes, Coda
+  // still needs a size-correlated window (tens of seconds) before the page is
+  // queryable and usable as a parentPageId. The worker polls getPage until 200
+  // before marking the item done; total budget + initial poll interval (H2).
+  CODA_MATERIALIZE_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  CODA_MATERIALIZE_POLL_MS: z.coerce.number().int().positive().default(1_500),
   // AES-256-GCM key encrypting per-destination Coda tokens at rest (base64 or
   // hex, decoding to exactly 32 bytes). Optional here so the app boots without
   // the migration feature; TokenCipher fail-fasts with a clear error the first
@@ -133,13 +139,18 @@ export const envSchema = z.object({
   // --- Migration worker (Phase 4c background job engine) ---------------------
   // Poll interval of the self-re-arming worker tick. <=0 DISABLES the worker
   // (mirrors RTC_COMPACT_INTERVAL_MS) — used in tests and single-purpose nodes.
-  MIGRATION_WORKER_INTERVAL_MS: z.coerce.number().int().default(5_000),
+  // Low by design: each tick claims a batch and processes it concurrently, so a
+  // short interval drains the queue aggressively — the CodaRateLimiter (5/10s per
+  // token), not the tick, is the real write throttle.
+  MIGRATION_WORKER_INTERVAL_MS: z.coerce.number().int().default(1_000),
   // Lease TTL (D9): how long a claimed item stays RUNNING before another worker
   // may reclaim it. Must exceed the worst-case per-item push (createPage + a
   // size-correlated awaitMutation, seconds → 45s+), so set it generously.
   MIGRATION_LEASE_TTL_MS: z.coerce.number().int().positive().default(300_000),
   // How many ready items a single claim grabs per round (SKIP LOCKED batch).
-  MIGRATION_BATCH_SIZE: z.coerce.number().int().positive().default(5),
+  // Processed concurrently, so a larger batch overlaps more materialization waits;
+  // actual write rate stays bounded by the CodaRateLimiter + token pool.
+  MIGRATION_BATCH_SIZE: z.coerce.number().int().positive().default(8),
   // Per-item retry budget before the item is marked FAILED (job → PARTIAL/FAILED).
   MIGRATION_MAX_ITEM_ATTEMPTS: z.coerce.number().int().positive().default(3),
   // HTML byte budget per Coda content write (H8): a page whose HTML exceeds this

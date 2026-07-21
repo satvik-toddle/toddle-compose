@@ -30,12 +30,12 @@ const styles = {
   tokenLabel: 'w-[130px] shrink-0',
   chips: 'flex flex-col gap-1.5',
   chip: 'flex items-center gap-2 rounded-2 border border-secondary bg-surface-secondary-enabled px-2.5 py-1.5',
-  chipMask: 'text-body-s text-primary tabular-nums',
-  chipLabel: 'truncate text-body-xs text-secondary',
+  chipMask: 'text-body text-primary tabular-nums',
+  chipLabel: 'truncate text-body text-secondary',
   chipGap: 'ml-auto',
   addBtn: 'self-start',
-  note: 'flex items-start gap-2 text-body-xs text-secondary',
-  readonly: 'rounded-2 border border-secondary bg-surface-secondary-enabled px-3 py-2 text-body-s text-secondary',
+  note: 'flex items-start gap-2 text-body text-secondary',
+  readonly: 'rounded-2 border border-secondary bg-surface-secondary-enabled px-3 py-2 text-body text-secondary',
 };
 
 export function MigrationScopeFormModal({

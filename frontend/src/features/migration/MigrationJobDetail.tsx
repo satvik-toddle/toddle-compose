@@ -1,4 +1,4 @@
-import { Alert, Button, ProgressIndicator, Table, Tooltip } from '@toddle-edu/ds-web';
+import { Alert, Button, Table, Tooltip } from '@toddle-edu/ds-web';
 import { PageLoader } from '../../components/Loader';
 import { relativeTime } from '../../lib/time';
 import { useCancelJob, useMigrationJob, useRetryJob } from '../../hooks/useMigrations';
@@ -9,17 +9,12 @@ const styles = {
   root: 'flex min-h-0 flex-1 flex-col gap-4',
   headerRow: 'flex flex-wrap items-center gap-3',
   title: 'm-0 text-heading-4 text-primary',
-  timing: 'text-body-xs text-secondary tabular-nums',
-  statsRow: 'flex flex-wrap items-center gap-4',
-  stat: 'flex items-baseline gap-1.5',
-  statValue: 'text-heading-5 text-primary tabular-nums',
-  statLabel: 'text-body-xs text-secondary',
+  timing: 'text-body text-secondary tabular-nums',
   actions: 'flex items-center gap-2',
-  progressWrap: 'max-w-[420px]',
   tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2',
-  errorCell: 'block max-w-[280px] truncate text-body-xs text-semantic-error',
-  destLink: 'text-body-xs text-link-default underline',
-  muted: 'text-body-xs text-secondary',
+  errorCell: 'block max-w-[280px] truncate text-body text-semantic-error',
+  destLink: 'text-body text-link-default underline',
+  muted: 'text-body text-secondary',
 };
 
 const ITEM_HEADERS = [
@@ -29,15 +24,6 @@ const ITEM_HEADERS = [
   { key: 'destination', value: 'Destination' },
   { key: 'error', value: 'Last error' },
 ];
-
-function Stat({ value, label }: Readonly<{ value: number; label: string }>) {
-  return (
-    <div className={styles.stat}>
-      <span className={styles.statValue}>{value}</span>
-      <span className={styles.statLabel}>{label}</span>
-    </div>
-  );
-}
 
 function DestinationCell({
   item,
@@ -92,8 +78,8 @@ export type MigrationJobDetailProps = {
   resolveCodaHref?: (item: MigrationJobItem) => string | undefined;
 };
 
-// Reusable run detail — header (status, counts, error), actions (cancel / retry
-// failed) and the per-item table. Polls automatically via useMigrationJob.
+// Reusable run detail — header (status, error), actions (cancel / retry failed)
+// and the per-item table. Polls automatically via useMigrationJob.
 export function MigrationJobDetail({ jobId, resolveCodaHref }: Readonly<MigrationJobDetailProps>) {
   const { data: job, isLoading } = useMigrationJob(jobId);
   const cancel = useCancelJob();
@@ -104,8 +90,6 @@ export function MigrationJobDetail({ jobId, resolveCodaHref }: Readonly<Migratio
     return <Alert dsVersion="2.0" type="error" message="This migration run could not be loaded." />;
   }
 
-  const done = job.succeededItems + job.failedItems + job.skippedItems;
-  const pct = job.totalItems > 0 ? Math.round((done / job.totalItems) * 100) : 0;
   const canCancel = job.status === 'QUEUED' || job.status === 'RUNNING';
   const canRetry = (job.status === 'PARTIAL' || job.status === 'FAILED') && job.failedItems > 0;
 
@@ -144,22 +128,6 @@ export function MigrationJobDetail({ jobId, resolveCodaHref }: Readonly<Migratio
             )}
           </div>
         </div>
-      </div>
-
-      <div className={styles.statsRow}>
-        <Stat value={job.totalItems} label="total" />
-        <Stat value={job.succeededItems} label="succeeded" />
-        <Stat value={job.failedItems} label="failed" />
-        <Stat value={job.skippedItems} label="skipped" />
-      </div>
-
-      <div className={styles.progressWrap}>
-        <ProgressIndicator
-          variant="progress-bar"
-          progress={pct}
-          status={job.failedItems > 0 ? 'failed' : 'success'}
-          aria-label={`${done} of ${job.totalItems} items processed`}
-        />
       </div>
 
       {job.error && <Alert dsVersion="2.0" type="error" message={job.error} />}

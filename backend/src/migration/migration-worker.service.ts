@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import {
+  HttpException,
   Injectable,
   Logger,
   OnApplicationBootstrap,
@@ -10,8 +11,8 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { DocumentsService } from "../documents/documents.service";
-import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { CodaClient } from "../coda/coda.client";
+import type { CodaPage } from "../coda/coda.types";
 import { CodaCredentialsService } from "./coda-credentials.service";
 
 // Phase 4c — the durable, fault-tolerant background worker that pushes docs into
@@ -36,13 +37,34 @@ interface ClaimedItem {
   override: boolean;
   codaPageId: string | null;
   migratedSeq: number | null;
-  // Point-in-time snapshot cursor captured at enqueue; null = legacy (fetch latest).
+  // Point-in-time content FROZEN at enqueue — pushed verbatim, never re-extracted at run (D2).
+  // null/empty = empty doc at enqueue → skipped.
+  snapshotHtml: string | null;
+  // Head seq captured alongside the snapshot at enqueue; recorded as migratedSeq (D1/D2).
   enqueuedSeq: number | null;
   attempts: number;
   seq: number;
 }
 
 const PENDING_OR_RUNNING = ["PENDING", "RUNNING"] as const;
+// lastError stamped on a descendant cascade-skipped because its parent ended
+// terminally. A transient/parent-failure skip (recoverable on retry), distinct from
+// an intentional skip — so it forces PARTIAL, not SUCCEEDED. MUST match the literal
+// in skipOrphansOfTerminalParents' SQL and the retry re-drive predicate.
+export const PARENT_SKIP_REASON = "parent did not migrate";
+// The ONLY "clean" skip reason: the source doc was genuinely empty at enqueue, so
+// there was nothing to migrate — a no-op that does NOT taint a SUCCEEDED job. EVERY
+// other skip (unreadable/deleted source, destination removed, orphaned-on-terminal-
+// parent) means a SELECTED doc could not be migrated and MUST keep the job off
+// SUCCEEDED (finalization treats it as "tainting"). Keeps status == reality.
+export const EMPTY_SKIP_REASON = "source is empty";
+// Thrown by awaitMaterialization when a just-created page is not yet queryable
+// within the poll budget. Classified TRANSIENT (below) so it retries WITHOUT
+// burning the attempt budget — Coda materializes with a size-correlated delay, so
+// "not ready yet" is a self-healing condition, never a permanent failure. If the
+// page was instead externally deleted, the next attempt's in-place replace hits a
+// permanent Coda 404 and the item fails for real — so this never loops forever.
+export const NOT_MATERIALIZED_ERROR = "coda page not materialized";
 // The create tx wraps a Coda write (create/replace) which is paced, so allow it
 // generous headroom over Prisma's 5s interactive-tx default — but NOT the slow
 // awaitMutation, which runs outside the lock (C3).
@@ -65,12 +87,16 @@ export class MigrationWorkerService
   private readonly batchSize: number;
   private readonly maxAttempts: number;
   private readonly maxHtmlBytes: number;
+  private readonly materializeTimeoutMs: number;
+  private readonly materializePollMs: number;
+  // Backoff before re-releasing a transient-failed item to PENDING, so a downed
+  // dependency (rtc restarting) is retried on a later tick rather than hot-looped.
+  private transientBackoffMs = 3_000;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
     private readonly documents: DocumentsService,
-    private readonly rtc: RtcInternalClient,
     private readonly coda: CodaClient,
     private readonly credentials: CodaCredentialsService,
   ) {
@@ -80,6 +106,12 @@ export class MigrationWorkerService
       infer: true,
     });
     this.maxHtmlBytes = this.config.get("CODA_MAX_HTML_BYTES", { infer: true });
+    this.materializeTimeoutMs = this.config.get("CODA_MATERIALIZE_TIMEOUT_MS", {
+      infer: true,
+    });
+    this.materializePollMs = this.config.get("CODA_MATERIALIZE_POLL_MS", {
+      infer: true,
+    });
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -142,11 +174,33 @@ export class MigrationWorkerService
       for (;;) {
         if (this.stopped) return;
         const items = await this.claimBatch();
-        if (items.length === 0) return;
-        for (const item of items) {
-          if (this.stopped) return;
-          await this.processItem(item);
+        if (items.length === 0) {
+          // Nothing claimable: some PENDING items may be permanently blocked on a
+          // parent that ended terminally (FAILED/SKIPPED) and thus can never be
+          // placed. Cascade-skip that blocked subtree so its job finalizes instead
+          // of deadlocking on forever-PENDING items; then finalize affected jobs.
+          const jobIds = await this.skipOrphansOfTerminalParents();
+          if (jobIds.length === 0) return;
+          for (const jobId of jobIds) {
+            if (this.stopped) return;
+            await this.maybeFinalizeJob(jobId).catch((e) =>
+              this.log.error(`finalize job ${jobId} failed`, e as Error),
+            );
+          }
+          continue;
         }
+        // Process the claimed batch CONCURRENTLY so independent items overlap their
+        // (tens-of-seconds) awaitMutation / awaitMaterialization waits instead of
+        // serializing them. Safe: the CodaRateLimiter still serializes real writes to
+        // ≤5/10s per token, the per-(sourceDocId,scopeId) advisory lock prevents
+        // double-creates, and the readiness gate keeps a child out of the same batch
+        // as its not-yet-SUCCEEDED parent — so ordering + idempotency are unchanged.
+        // (processItem swallows its own errors, so Promise.all never rejects.)
+        // NOTE: true throughput scales with the TOKEN POOL (N tokens ≈ N× writes);
+        // the concurrency + fast tick only ensure we use the full 5/10s write budget
+        // and overlap the non-write materialization polls.
+        if (this.stopped) return;
+        await Promise.all(items.map((item) => this.processItem(item)));
       }
     } finally {
       this.ticking = false;
@@ -157,9 +211,11 @@ export class MigrationWorkerService
   // A single conditional UPDATE flips a batch of READY items to RUNNING under
   // this worker's lease. READY = the job is live (QUEUED/RUNNING) AND the item is
   // PENDING (or RUNNING with an expired lease — crash reclaim) AND its parent is
-  // resolved (no planned parent, or the sibling item with that sourceDocId already
-  // has a codaPageId). That readiness gate enforces depth-first ordering AND
-  // survives restart, because parent resolution is read from the DB, not memory.
+  // materialized (no planned parent, or the sibling item with that sourceDocId has
+  // status='SUCCEEDED'). Gating on the parent being SUCCEEDED — not merely having a
+  // codaPageId (persisted at 202, before awaitMutation confirms materialization) —
+  // stops a child racing ahead of a parent page Coda hasn't finished creating yet.
+  // Survives restart, because parent state is read from the DB, not memory.
   // FOR UPDATE ... SKIP LOCKED + the lease guarantee no item is ever taken twice.
   private async claimBatch(): Promise<ClaimedItem[]> {
     const leasedUntil = new Date(Date.now() + this.leaseTtlMs);
@@ -184,7 +240,7 @@ export class MigrationWorkerService
               SELECT 1 FROM migration_job_items p
               WHERE p.job_id = c.job_id
                 AND p.source_doc_id = c.planned_parent_doc_id
-                AND p.coda_page_id IS NOT NULL
+                AND p.status = 'SUCCEEDED'
             )
           )
         ORDER BY c.job_id, c.seq
@@ -201,20 +257,79 @@ export class MigrationWorkerService
         i.override,
         i.coda_page_id AS "codaPageId",
         i.migrated_seq AS "migratedSeq",
+        i.snapshot_html AS "snapshotHtml",
         i.enqueued_seq AS "enqueuedSeq",
         i.attempts,
         i.seq
     `;
   }
 
+  // A child is claimable only once its parent item is SUCCEEDED. If a planned
+  // parent instead ends terminally (FAILED/SKIPPED), its descendants can never be
+  // placed — a recursive CTE walks the plannedParentDocId chain within each live
+  // job and flips the whole blocked subtree PENDING → SKIPPED so the job can
+  // finalize. Returns the affected jobIds (for finalization); idempotent (the
+  // UPDATE is guarded on status='PENDING', so re-runs skip already-terminal rows).
+  private async skipOrphansOfTerminalParents(): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ jobId: string }[]>`
+      WITH RECURSIVE blocked AS (
+        SELECT c.id, c.job_id, c.source_doc_id
+        FROM migration_job_items c
+        JOIN migration_jobs j ON j.id = c.job_id
+        JOIN migration_job_items p
+          ON p.job_id = c.job_id AND p.source_doc_id = c.planned_parent_doc_id
+        WHERE j.status IN ('QUEUED', 'RUNNING')
+          AND c.status = 'PENDING'
+          AND c.planned_parent_doc_id IS NOT NULL
+          AND p.status IN ('FAILED', 'SKIPPED')
+        UNION
+        SELECT c.id, c.job_id, c.source_doc_id
+        FROM migration_job_items c
+        JOIN blocked b
+          ON c.job_id = b.job_id AND c.planned_parent_doc_id = b.source_doc_id
+        WHERE c.status = 'PENDING'
+      )
+      UPDATE migration_job_items i
+      SET status = 'SKIPPED',
+          last_error = 'parent did not migrate',
+          leased_by = NULL,
+          leased_until = NULL,
+          updated_at = now()
+      FROM blocked b
+      WHERE i.id = b.id AND i.status = 'PENDING'
+      RETURNING i.job_id AS "jobId"
+    `;
+    if (rows.length === 0) return [];
+    const perJob = new Map<string, number>();
+    for (const r of rows) perJob.set(r.jobId, (perJob.get(r.jobId) ?? 0) + 1);
+    for (const [jobId, count] of perJob) {
+      await this.prisma.migrationJob
+        .update({ where: { id: jobId }, data: { skippedItems: { increment: count } } })
+        .catch((e) => this.log.error(`bumping skippedItems for job ${jobId} failed`, e as Error));
+    }
+    this.log.warn(
+      `cascade-skipped ${rows.length} item(s) blocked on a terminal parent across ${perJob.size} job(s)`,
+    );
+    return [...perJob.keys()];
+  }
+
   // --- Per-item execution ---------------------------------------------------
   private async processItem(item: ClaimedItem): Promise<void> {
+    // Greppable per-item context: reconstruct any item's fate from the logs alone.
+    const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq} attempt=${item.attempts + 1}]`;
+    // The step in progress, surfaced on failure so a lastError pins WHERE it broke.
+    let step = "claim";
+    this.log.log(
+      `${ctx} claimed lease=${this.leaseTtlMs}ms override=${item.override} target=${item.targetCodaPageId ?? "-"} resumePage=${item.codaPageId ?? "-"}`,
+    );
     try {
+      step = "load-job";
       const job = await this.prisma.migrationJob.findUnique({
         where: { id: item.jobId },
       });
       // (a) respect cancel, and quietly abandon a vanished job/scope (D8).
       if (!job || job.status === "CANCELED") {
+        this.log.log(`${ctx} terminal=SKIPPED reason=job-canceled-or-gone`);
         await this.finishItem(item, "SKIPPED", "job canceled");
         return;
       }
@@ -222,42 +337,48 @@ export class MigrationWorkerService
 
       // (b) run-time permission re-check (P2) + source existence (D7): a doc that
       // was deleted or had its grant revoked since enqueue is SKIPPED, never pushed.
+      step = "assert-readable";
       try {
         await this.documents.assertReadable(job.createdById, item.sourceDocId);
       } catch {
+        this.log.log(`${ctx} terminal=SKIPPED reason=source-not-readable`);
         await this.finishItem(item, "SKIPPED", "source not readable at run time");
         return;
       }
 
       // (c) resolve the Coda destination + parent page.
+      step = "resolve-scope";
       const scope = await this.prisma.migrationScope.findFirst({
         where: { id: job.scopeId, deletedAt: null },
         select: { codaDocId: true, codaRootPageId: true },
       });
       if (!scope) {
+        this.log.log(`${ctx} terminal=SKIPPED reason=destination-removed`);
         await this.finishItem(item, "SKIPPED", "destination removed");
         return;
       }
+      step = "resolve-parent";
       const parentPageId = await this.resolveCodaParent(item, scope.codaRootPageId);
 
-      // (d) fetch the constrained HTML AS OF the enqueue snapshot (point-in-time:
-      // push the version the user reviewed, not whatever is live now); null → latest.
-      // Never push a blank doc (D7).
-      const content = await this.rtc.getCodaHtml(
-        item.sourceDocId,
-        item.enqueuedSeq ?? undefined,
-      );
-      if (content.isEmpty) {
-        await this.finishItem(item, "SKIPPED", "source is empty");
+      // (d) point-in-time content: push the HTML FROZEN at enqueue verbatim — never
+      // re-extract at run, so later edits/compaction (and a transient rtc outage) can't
+      // change what gets migrated (D2). A null/empty snapshot = the doc was empty at
+      // enqueue → skip, never push a blank doc (D7).
+      const snapshotHtml = item.snapshotHtml ?? "";
+      if (snapshotHtml.trim() === "") {
+        this.log.log(`${ctx} terminal=SKIPPED reason=empty-source`);
+        await this.finishItem(item, "SKIPPED", EMPTY_SKIP_REASON);
         return;
       }
 
       // (e) decrypted token pool for the destination (least-loaded pacing built in).
+      step = "load-tokens";
       const pool = await this.credentials.getTokenPool(job.scopeId);
 
       // (f/g) create-or-override under the per-pair advisory lock; codaPageId is
       // committed here, BEFORE awaitMutation (C3). Returns the requestId to gate on.
-      const chunks = chunkHtmlByBytes(content.html, this.maxHtmlBytes);
+      const chunks = chunkHtmlByBytes(snapshotHtml, this.maxHtmlBytes);
+      step = item.override || item.codaPageId ? "override" : "create";
       const built = await this.createOrOverride(
         item,
         job.scopeId,
@@ -265,14 +386,19 @@ export class MigrationWorkerService
         parentPageId,
         pool,
         chunks[0],
+        ctx,
       );
 
       // (H2) gate the create before descending; (H8) then stream the remaining
       // chunks in sequence, each paced + awaited. Skipped entirely on resume.
       if (built.requestId) {
+        step = "await-mutation";
         await this.coda.awaitMutation(pool, built.requestId);
+        this.log.debug(`${ctx} step=await-mutation req=${built.requestId} outcome=completed`);
+        let chunkIdx = 1;
         for (const chunk of chunks.slice(1)) {
           if (this.stopped) return;
+          step = `append-chunk-${chunkIdx}`;
           const r = await this.coda.appendPageContent(
             pool,
             scope.codaDocId,
@@ -280,27 +406,44 @@ export class MigrationWorkerService
             chunk,
           );
           await this.coda.awaitMutation(pool, r.requestId);
+          this.log.debug(`${ctx} step=append-chunk-${chunkIdx} req=${r.requestId} bytes=${Buffer.byteLength(chunk, "utf8")}`);
+          chunkIdx++;
         }
       }
 
-      // (g) upsert the mapping (latest-wins) under the advisory lock, and (h/D1/D2)
-      // record the head seq we actually read + mark the item SUCCEEDED.
-      const url = await this.resolvePageUrl(
+      // (H2 materialization) A newly-created page is NOT immediately queryable, nor
+      // usable as a parentPageId — Coda materializes it with a size-correlated delay
+      // (tens of seconds) AFTER the create mutation reports done. Poll getPage until
+      // it returns 200 before marking the item SUCCEEDED, so a child (gated on parent
+      // SUCCEEDED) can safely use this codaPageId as its parentPageId. Also yields the
+      // real per-page browserLink for the mapping. Throws (retryable transient) if it
+      // never materializes. On the override path the page already exists → returns fast.
+      step = "materialize";
+      const url = await this.awaitMaterialization(
         pool,
         scope.codaDocId,
         built.codaPageId,
+        ctx,
       );
+
+      // (g) upsert the mapping (latest-wins) under the advisory lock, and (h/D1/D2)
+      // record the enqueue-time head seq (== what we pushed) + mark the item SUCCEEDED.
+      step = "map";
+      const migratedSeq = item.enqueuedSeq ?? 0;
       await this.upsertMapping(item.sourceDocId, job.scopeId, {
         codaPageId: built.codaPageId,
         codaPageUrl: url,
-        migratedSeq: content.headSeq,
+        migratedSeq,
       });
+      this.log.log(
+        `${ctx} terminal=SUCCEEDED page=${built.codaPageId} url=${url} migratedSeq=${migratedSeq}`,
+      );
       await this.finishItem(item, "SUCCEEDED", null, {
         codaPageId: built.codaPageId,
-        migratedSeq: content.headSeq,
+        migratedSeq,
       });
     } catch (e) {
-      await this.handleItemError(item, e);
+      await this.handleItemError(item, e, step);
     } finally {
       await this.maybeFinalizeJob(item.jobId).catch((e) =>
         this.log.error(`finalize job ${item.jobId} failed`, e as Error),
@@ -329,11 +472,16 @@ export class MigrationWorkerService
     return parent.codaPageId;
   }
 
-  // Create-vs-override under a pg advisory xact lock keyed on (sourceDocId, scopeId)
-  // (D6) so two overlapping jobs can't tear the mapping / interleave a create for the
-  // same pair. codaPageId is persisted inside this tx — committed BEFORE the caller
-  // awaits the async mutation (C3). Idempotent resume: if codaPageId is already set
-  // (created before a crash), creation is SKIPPED and the page reused.
+  // Create-vs-reuse for an item's Coda page, guarding idempotency (D6/C3).
+  //   - Fresh item (no page yet) → createPage + persist the id BEFORE awaitMutation.
+  //   - Override target OR a page a prior attempt created before crashing → reuse it,
+  //     replacing content in place — never a second page, never a skipped write.
+  // The reuse path AWAITS MATERIALIZATION before the in-place replace: a page created
+  // just before a crash (C3 persisted the id) may not be queryable yet, and a blind
+  // `PUT /pages/:id` would then hit a PERMANENT 404 ("could not find a page") and
+  // falsely FAIL the item — even though the page materializes seconds later. Polling
+  // first (same poll the create path uses) tells "not yet materialized" (self-heals)
+  // apart from "genuinely gone", so the transient window can never permanent-fail.
   private async createOrOverride(
     item: ClaimedItem,
     scopeId: string,
@@ -341,49 +489,154 @@ export class MigrationWorkerService
     parentPageId: string | undefined,
     pool: string[],
     firstChunk: string,
+    ctx: string,
   ): Promise<{ codaPageId: string; requestId: string | null }> {
-    return this.prisma.$transaction(
+    // Decide the page to reuse (if any) under the advisory lock. This tx does no
+    // network I/O (just a read + override-target adoption), so it can't blow the tx
+    // timeout the way an in-lock materialization poll (up to CODA_MATERIALIZE_TIMEOUT_MS)
+    // would; the poll + write happen in their own short locked txns below.
+    const reusePageId = await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
-
-        // Re-read inside the lock so a crash-resume (codaPageId already persisted)
-        // reuses the existing page instead of creating a duplicate (C3).
+        // An "Update existing" item targets a specific pre-existing page (H3).
+        if (item.override && item.targetCodaPageId) return item.targetCodaPageId;
+        // Else re-read inside the lock so a crash-resume reuses the persisted page (C3).
         const fresh = await tx.migrationJobItem.findUnique({
           where: { id: item.id },
           select: { codaPageId: true },
         });
-        let codaPageId = fresh?.codaPageId ?? null;
-        let requestId: string | null = null;
+        return fresh?.codaPageId ?? null;
+      },
+      { timeout: CREATE_TX_TIMEOUT_MS },
+    );
 
-        if (item.override && item.targetCodaPageId) {
-          // H3: wholesale replace in place — no move, no reparent.
-          const r = await this.coda.replacePageContent(
-            pool,
-            codaDocId,
-            item.targetCodaPageId,
-            firstChunk,
-          );
-          codaPageId = item.targetCodaPageId;
-          requestId = r.requestId;
-        } else if (codaPageId) {
-          // Idempotent resume — the page already exists; do not create again (C3).
-          requestId = null;
-        } else {
-          const r = await this.coda.createPage(pool, codaDocId, {
-            name: item.title,
-            parentPageId,
-            html: firstChunk,
-          });
-          codaPageId = r.id;
-          requestId = r.requestId;
-        }
+    // No page yet ⇒ a normal create.
+    if (!reusePageId) {
+      return this.createPageAndPersist(
+        item,
+        scopeId,
+        codaDocId,
+        parentPageId,
+        pool,
+        firstChunk,
+        ctx,
+      );
+    }
 
-        // Persist codaPageId immediately — this commit precedes awaitMutation (C3).
+    // Reuse path: await materialization BEFORE the replace so a not-yet-queryable
+    // page (crash in the create→materialize window, item 58) is never mistaken for a
+    // deleted one. Returns the page on materialization, or null past the poll budget.
+    const materialized = await this.pollUntilMaterialized(
+      pool,
+      codaDocId,
+      reusePageId,
+      ctx,
+    );
+    if (materialized) {
+      return this.replacePageAndPersist(
+        item,
+        scopeId,
+        codaDocId,
+        reusePageId,
+        pool,
+        firstChunk,
+        ctx,
+      );
+    }
+
+    // Never materialized within the budget ⇒ the id is unusable. Distinguish by intent:
+    if (!item.override) {
+      // A create-item just needs *a* page, and its id came from our OWN prior
+      // createPage (not a user target). The old page is dead/never-queryable → recreate
+      // a fresh one, overwriting the dead id. The advisory lock + single-create-per-
+      // attempt keep this from duplicating a LIVE page (idempotency preserved).
+      this.log.warn(
+        `${ctx} step=resume-recreate resumePage=${reusePageId} never materialized within ${this.materializeTimeoutMs}ms → recreating`,
+      );
+      return this.createPageAndPersist(
+        item,
+        scopeId,
+        codaDocId,
+        parentPageId,
+        pool,
+        firstChunk,
+        ctx,
+      );
+    }
+    // A user OVERRIDE target that never materializes is genuinely gone (deleted
+    // upstream) → PERMANENT fail with a clear reason; never silently recreate a user's
+    // target under a new id. Shaped as a Coda 404 so isTransientError classifies it
+    // permanent (fails at the attempt cap), with a descriptive lastError.
+    throw new HttpException(
+      {
+        error: "coda api error",
+        status: 404,
+        body: `override target page ${reusePageId} not found (did not materialize within ${this.materializeTimeoutMs}ms)`,
+      },
+      502,
+    );
+  }
+
+  // Create a fresh Coda page and persist its id under the advisory lock, inside one
+  // short tx that COMMITS before the caller awaits the async mutation (C3).
+  private async createPageAndPersist(
+    item: ClaimedItem,
+    scopeId: string,
+    codaDocId: string,
+    parentPageId: string | undefined,
+    pool: string[],
+    firstChunk: string,
+    ctx: string,
+  ): Promise<{ codaPageId: string; requestId: string | null }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
+        const r = await this.coda.createPage(pool, codaDocId, {
+          name: item.title,
+          parentPageId,
+          html: firstChunk,
+        });
         await tx.migrationJobItem.update({
           where: { id: item.id },
-          data: { codaPageId },
+          data: { codaPageId: r.id },
         });
-        return { codaPageId: codaPageId as string, requestId };
+        this.log.log(
+          `${ctx} step=create page=${r.id} req=${r.requestId} parent=${parentPageId ?? "root"} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
+        );
+        return { codaPageId: r.id, requestId: r.requestId };
+      },
+      { timeout: CREATE_TX_TIMEOUT_MS },
+    );
+  }
+
+  // Wholesale-replace a known page's content in place and (re)persist its id, under
+  // the advisory lock. The id is committed before the caller awaits the mutation (C3).
+  private async replacePageAndPersist(
+    item: ClaimedItem,
+    scopeId: string,
+    codaDocId: string,
+    pageId: string,
+    pool: string[],
+    firstChunk: string,
+    ctx: string,
+  ): Promise<{ codaPageId: string; requestId: string | null }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
+        const r = await this.coda.replacePageContent(
+          pool,
+          codaDocId,
+          pageId,
+          firstChunk,
+        );
+        await tx.migrationJobItem.update({
+          where: { id: item.id },
+          data: { codaPageId: pageId },
+        });
+        this.log.log(
+          `${ctx} step=override page=${pageId} req=${r.requestId} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
+        );
+        return { codaPageId: pageId, requestId: r.requestId };
       },
       { timeout: CREATE_TX_TIMEOUT_MS },
     );
@@ -407,20 +660,66 @@ export class MigrationWorkerService
     });
   }
 
-  // Best-effort browser URL for the mapping (prefill display). A read failure
-  // must not fail the migration — fall back to the doc-level link.
-  private async resolvePageUrl(
+  // Wait for a page to materialize, and return its real browser URL for the mapping.
+  // Coda's create is async: even after the create mutation reports done, the page is
+  // NOT queryable and cannot be used as a parentPageId for a size-correlated window
+  // (tens of seconds). Poll getPage (via getPageOrNull, 404 → not ready) until it
+  // returns 200, backing off from materializePollMs up to a 5s cap. On success the
+  // browserLink is a real per-page URL — NEVER "". If the page never materializes
+  // within the budget, THROW: the item stays retryable and is not falsely marked
+  // done with an unusable page (which would orphan its children). The override path
+  // targets a pre-existing page, so the first poll returns 200 with no wait.
+  private async awaitMaterialization(
     pool: string[],
     codaDocId: string,
     pageId: string,
+    ctx: string,
   ): Promise<string> {
-    try {
-      const page = await this.coda.getPage(pool, codaDocId, pageId);
-      if (page.browserLink) return page.browserLink;
-    } catch {
-      // fall through
+    const page = await this.pollUntilMaterialized(pool, codaDocId, pageId, ctx);
+    if (page) return page.browserLink ?? "";
+    // TRANSIENT (not a plain Error): "not queryable yet" is self-healing, so retry
+    // without burning an attempt. A truly-gone page fails later via the permanent 404
+    // its in-place replace returns (never a false created-FAILED).
+    throw new HttpException(
+      {
+        error: NOT_MATERIALIZED_ERROR,
+        pageId,
+        body: `did not materialize within ${this.materializeTimeoutMs}ms`,
+      },
+      504,
+    );
+  }
+
+  // Poll getPageOrNull until the page is queryable (200) or the materialize budget is
+  // exhausted, backing off from materializePollMs to a 5s cap. Returns the CodaPage on
+  // materialization, or null if it never materialized in time. Shared by the create-
+  // path materialization gate (awaitMaterialization) and the resume-path pre-replace
+  // check (createOrOverride), so both treat "404 = not ready yet" identically.
+  private async pollUntilMaterialized(
+    pool: string[],
+    codaDocId: string,
+    pageId: string,
+    ctx: string,
+  ): Promise<CodaPage | null> {
+    let pollMs = this.materializePollMs;
+    let poll = 0;
+    const deadline = Date.now() + this.materializeTimeoutMs;
+    for (;;) {
+      poll++;
+      const page = await this.coda.getPageOrNull(pool, codaDocId, pageId);
+      if (page) {
+        this.log.debug(
+          `${ctx} step=materialize poll=${poll} outcome=ready page=${pageId} url=${page.browserLink ?? ""}`,
+        );
+        return page;
+      }
+      this.log.debug(
+        `${ctx} step=materialize poll=${poll} outcome=not-ready page=${pageId}`,
+      );
+      if (Date.now() + pollMs >= deadline) return null;
+      await sleep(pollMs);
+      pollMs = Math.min(pollMs * 1.5, 5_000);
     }
-    return `https://coda.io/d/${codaDocId}`;
   }
 
   // Terminal item transition, guarded on the item still being RUNNING under THIS
@@ -456,12 +755,46 @@ export class MigrationWorkerService
 
   // On error: bump attempts; at the cap → FAILED (+lastError, +failedItems), else
   // release the lease back to PENDING for a later retry (CodaClient retries 429s).
-  private async handleItemError(item: ClaimedItem, e: unknown): Promise<void> {
+  //
+  // TRANSIENT infra blips — rtc-server unreachable mid-restart, Coda unreachable /
+  // 429 / 5xx / mutation-timeout — must NOT consume the permanent attempt budget: a
+  // normal ~10-30s restart would otherwise exhaust the 3 quick retries and
+  // permanently FAIL every child. Such errors release the lease back to PENDING with
+  // attempts UNCHANGED, after a short backoff, so a later tick retries once the
+  // dependency recovers. PERMANENT errors (Coda 4xx like Invalid parentPageId, bad
+  // content, permission-lost) consume attempts and FAIL at the cap as before.
+  private async handleItemError(
+    item: ClaimedItem,
+    e: unknown,
+    step = "unknown",
+  ): Promise<void> {
+    const msg = describeError(e).slice(0, 1000);
+    const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq}]`;
+    if (isTransientError(e)) {
+      this.log.warn(
+        `${ctx} step=${step} class=TRANSIENT action=release-no-attempt-burn error="${msg}"`,
+      );
+      await sleep(this.transientBackoffMs);
+      await this.prisma.migrationJobItem
+        .updateMany({
+          where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
+          data: {
+            status: "PENDING",
+            lastError: msg,
+            leasedBy: null,
+            leasedUntil: null,
+          },
+        })
+        .catch((err) =>
+          this.log.error("releasing transient item for retry failed", err),
+        );
+      return;
+    }
+
     const attempts = item.attempts + 1;
-    const msg = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
     if (attempts >= this.maxAttempts) {
       this.log.warn(
-        `item ${item.id} FAILED after ${attempts} attempt(s): ${msg}`,
+        `${ctx} step=${step} class=PERMANENT terminal=FAILED attempts=${attempts}/${this.maxAttempts} page=${item.codaPageId ?? "-"} error="${msg}"`,
       );
       await this.prisma
         .$transaction(async (tx) => {
@@ -485,7 +818,7 @@ export class MigrationWorkerService
         .catch((err) => this.log.error("recording FAILED item failed", err));
     } else {
       this.log.warn(
-        `item ${item.id} attempt ${attempts} errored, releasing for retry: ${msg}`,
+        `${ctx} step=${step} class=PERMANENT action=release-for-retry attempts=${attempts}/${this.maxAttempts} error="${msg}"`,
       );
       await this.prisma.migrationJobItem
         .updateMany({
@@ -514,33 +847,105 @@ export class MigrationWorkerService
     });
   }
 
-  // When a job has no PENDING/RUNNING items left, finalize it: all-succeeded →
-  // SUCCEEDED, some succeeded + some failed → PARTIAL, all failed → FAILED. Guarded
-  // on QUEUED/RUNNING so a CANCELED (or already-finalized) job is never clobbered.
+  // When a job has no PENDING/RUNNING items left, finalize it so job status ==
+  // reality. A SKIP is "clean" ONLY if the source was genuinely empty (EMPTY_SKIP_
+  // REASON) — a no-op that doesn't count against success. EVERY other skip (a
+  // parent-failure orphan, an unreadable/deleted source, a removed destination)
+  // means a SELECTED doc could not be migrated and is "tainting":
+  //   SUCCEEDED  ⟺ zero FAILED and zero tainting skips (all done, or clean no-ops);
+  //   PARTIAL    ⟺ something succeeded but something else didn't (mixed);
+  //   FAILED     ⟺ nothing succeeded and something failed/could-not-migrate.
+  // So the job is NEVER green while a real selected doc didn't land, and NEVER
+  // FAILED/PARTIAL while everything actually completed. Guarded on QUEUED/RUNNING so
+  // a CANCELED (or already-finalized) job is never clobbered.
   private async maybeFinalizeJob(jobId: string): Promise<void> {
     const inFlight = await this.prisma.migrationJobItem.count({
       where: { jobId, status: { in: [...PENDING_OR_RUNNING] } },
     });
     if (inFlight > 0) return;
 
-    const [failed, succeeded] = await Promise.all([
+    const [failed, succeeded, skipped, cleanEmpty] = await Promise.all([
       this.prisma.migrationJobItem.count({ where: { jobId, status: "FAILED" } }),
       this.prisma.migrationJobItem.count({
         where: { jobId, status: "SUCCEEDED" },
       }),
+      this.prisma.migrationJobItem.count({ where: { jobId, status: "SKIPPED" } }),
+      this.prisma.migrationJobItem.count({
+        where: { jobId, status: "SKIPPED", lastError: EMPTY_SKIP_REASON },
+      }),
     ]);
+    // A selected doc that could not be migrated (orphan, unreadable, dest-removed).
+    const tainting = skipped - cleanEmpty;
     const status =
-      failed === 0 ? "SUCCEEDED" : succeeded > 0 ? "PARTIAL" : "FAILED";
-    await this.prisma.migrationJob.updateMany({
+      failed === 0 && tainting === 0
+        ? "SUCCEEDED"
+        : succeeded > 0
+          ? "PARTIAL"
+          : "FAILED";
+    const res = await this.prisma.migrationJob.updateMany({
       where: { id: jobId, status: { in: ["QUEUED", "RUNNING"] } },
       data: { status, finishedAt: new Date() },
     });
+    if (res.count > 0) {
+      this.log.log(
+        `[job=${jobId}] finalized=${status} succeeded=${succeeded} failed=${failed} skipped=${skipped}(empty=${cleanEmpty},tainting=${tainting})`,
+      );
+    }
   }
 }
 
 // Stable string key for the per-pair pg advisory lock (D6).
 function lockKey(sourceDocId: string, scopeId: string): string {
   return `migration:${sourceDocId}:${scopeId}`;
+}
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, Math.max(0, ms)));
+
+// A useful failure reason for lastError. A CodaClient HttpException carries a
+// structured payload (status + truncated upstream body); surface that as e.g.
+// "coda api error 400: Invalid parentPageId…" instead of the generic
+// HttpException.message ("Http Exception"), which hides the real cause.
+function describeError(e: unknown): string {
+  if (e instanceof HttpException) {
+    const r = e.getResponse();
+    if (r && typeof r === "object") {
+      const { error, status, body } = r as {
+        error?: string;
+        status?: number;
+        body?: string;
+      };
+      const head = status ? `${error ?? "error"} ${status}` : (error ?? "error");
+      return body ? `${head}: ${body}` : head;
+    }
+    return String(r);
+  }
+  return e instanceof Error ? e.message : String(e);
+}
+
+// Classify a thrown error as a TRANSIENT infra blip (retry without consuming the
+// attempt budget) vs. a PERMANENT failure (consume attempts, FAIL at the cap).
+// Transient = a dependency is unreachable/overloaded and should self-heal:
+//   - rtc-server / Coda "unreachable" (network failure, e.g. a mid-restart backend),
+//   - Coda "rate limited" (429 exhausted) or "mutation timed out" (async took too long),
+//   - Coda upstream 5xx (surfaced in the wrapper HttpException payload's `status`).
+// Everything else — notably Coda 4xx like "400 Invalid parentPageId" — is permanent.
+export function isTransientError(e: unknown): boolean {
+  if (!(e instanceof HttpException)) return false;
+  const r = e.getResponse();
+  const payload =
+    r && typeof r === "object" ? (r as { error?: string; status?: number }) : {};
+  const error = payload.error ?? "";
+  if (/unreachable/i.test(error)) return true;
+  if (
+    error === "coda rate limited" ||
+    error === "coda mutation timed out" ||
+    error === NOT_MATERIALIZED_ERROR
+  ) {
+    return true;
+  }
+  if (typeof payload.status === "number" && payload.status >= 500) return true;
+  return false;
 }
 
 // HTML void/self-closing elements that never open a nesting level.

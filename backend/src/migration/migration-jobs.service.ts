@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -17,6 +18,7 @@ import { ActiveRealmService } from "../realm/active-realm.service";
 import { DocumentsService } from "../documents/documents.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { ScopeValidationService } from "./scope-validation.service";
+import { PARENT_SKIP_REASON } from "./migration-worker.service";
 import { EnqueueMigrationJobDto, MigrationPlanItemDto } from "./dto";
 
 // A job is still in-flight (blocks a double-submit, is cancelable) in these states.
@@ -68,6 +70,8 @@ interface MappingView {
 
 @Injectable()
 export class MigrationJobsService {
+  private readonly log = new Logger("MigrationJobs");
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
@@ -155,22 +159,30 @@ export class MigrationJobsService {
       }
     }
 
-    // Point-in-time cursor (D2): capture each doc's head seq NOW, at enqueue, so the worker later
-    // syncs the Start-Copy version rather than whatever is live at run time. Reads run concurrently
-    // and OUTSIDE the tx (mirrors the Coda-validation reads above). Fail-closed: the point-in-time
-    // guarantee depends on this cursor, so if any read fails we reject the whole enqueue rather than
-    // silently fall back to a run-time (latest) sync.
-    const enqueuedSeqByDoc = new Map<string, number>();
+    // Point-in-time snapshot (D2): FREEZE each doc's sanitized HTML NOW, at enqueue, so the worker
+    // pushes the exact Start-Copy content verbatim — immune to later edits/compaction AND to a
+    // run-time rtc outage (nothing is re-extracted at run). An empty doc snapshots to null and is
+    // skipped at run (worker's empty check). Reads run concurrently and OUTSIDE the tx (mirrors the
+    // Coda-validation reads above). Fail-closed: the point-in-time guarantee depends on capturing
+    // this snapshot, so if any extraction fails we reject the whole enqueue rather than silently fall
+    // back to a run-time (latest) sync.
+    const snapshotByDoc = new Map<
+      string,
+      { snapshotHtml: string | null; enqueuedSeq: number }
+    >();
     await Promise.all(
       included.map(async (item) => {
         try {
-          enqueuedSeqByDoc.set(
+          const { html, headSeq, isEmpty } = await this.rtc.getCodaHtml(
             item.sourceDocId,
-            await this.rtc.getHeadSeq(item.sourceDocId),
           );
+          snapshotByDoc.set(item.sourceDocId, {
+            snapshotHtml: isEmpty ? null : html,
+            enqueuedSeq: headSeq,
+          });
         } catch {
           throw new ServiceUnavailableException(
-            `could not capture the version cursor for document ${item.sourceDocId}; please retry`,
+            `could not capture the content snapshot for document ${item.sourceDocId}; please retry`,
           );
         }
       }),
@@ -210,7 +222,8 @@ export class MigrationJobsService {
               title: it.title,
               targetCodaPageId: targetByDoc.get(it.sourceDocId) ?? null,
               override: !!it.destinationUrl,
-              enqueuedSeq: enqueuedSeqByDoc.get(it.sourceDocId) ?? null,
+              snapshotHtml: snapshotByDoc.get(it.sourceDocId)?.snapshotHtml ?? null,
+              enqueuedSeq: snapshotByDoc.get(it.sourceDocId)?.enqueuedSeq ?? null,
               status: "PENDING",
               seq,
             })),
@@ -218,6 +231,17 @@ export class MigrationJobsService {
         },
         select: { id: true },
       });
+      // Enqueue summary: how many items, and how many bytes of frozen snapshot were
+      // captured (D2) — so a job's origin is reconstructable from the logs.
+      let snapshotBytes = 0;
+      let emptyDocs = 0;
+      for (const s of snapshotByDoc.values()) {
+        if (s.snapshotHtml === null) emptyDocs++;
+        else snapshotBytes += Buffer.byteLength(s.snapshotHtml, "utf8");
+      }
+      this.log.log(
+        `[job=${job.id}] enqueued scope=${scopeId} root=${rootDocId} items=${ordered.length} emptyDocs=${emptyDocs} snapshotBytes=${snapshotBytes} by=${userId}`,
+      );
       return { jobId: job.id };
     });
   }
@@ -318,26 +342,37 @@ export class MigrationJobsService {
     return toJobSummary(updated);
   }
 
-  // POST /migration-jobs/:jobId/retry — retry-failed-only: FAILED items → PENDING
-  // (clear lease/lastError, keep codaPageId so a half-done item stays idempotent),
-  // job → QUEUED for the worker to re-drive.
+  // POST /migration-jobs/:jobId/retry — re-drive FAILED items AND orphaned
+  // descendants (SKIPPED with reason "parent did not migrate") → PENDING (clear
+  // lease/lastError, keep codaPageId so a half-done item stays idempotent), job →
+  // QUEUED for the worker. Re-driving the parent-skipped orphans lets a retry, after
+  // the parent has since succeeded, recover a descendant that could not be placed
+  // the first time. Intentional skips (empty/unreadable source) are NOT re-driven.
   async retry(userId: string, jobId: string): Promise<JobSummaryView> {
     const job = await this.requireJobManage(userId, jobId);
     if (isNonTerminalJob(job.status)) {
       throw new BadRequestException("job is still in progress; cancel it first");
     }
+    const resetData = {
+      status: "PENDING" as const,
+      attempts: 0,
+      lastError: null,
+      leasedBy: null,
+      leasedUntil: null,
+    };
     const updated = await this.prisma.$transaction(async (tx) => {
-      const reset = await tx.migrationJobItem.updateMany({
+      const failedReset = await tx.migrationJobItem.updateMany({
         where: { jobId, status: "FAILED" },
-        data: {
-          status: "PENDING",
-          attempts: 0,
-          lastError: null,
-          leasedBy: null,
-          leasedUntil: null,
-        },
+        data: resetData,
       });
-      if (reset.count === 0) {
+      // Orphans cascade-skipped because their parent ended terminally — recoverable
+      // now that a retry may re-place the parent first. Only this exact reason, so
+      // intentional skips (source empty/unreadable) are left terminal.
+      const orphanReset = await tx.migrationJobItem.updateMany({
+        where: { jobId, status: "SKIPPED", lastError: PARENT_SKIP_REASON },
+        data: resetData,
+      });
+      if (failedReset.count === 0 && orphanReset.count === 0) {
         throw new BadRequestException("no failed items to retry");
       }
       return tx.migrationJob.update({
@@ -346,7 +381,8 @@ export class MigrationJobsService {
           status: "QUEUED",
           error: null,
           finishedAt: null,
-          failedItems: { decrement: reset.count },
+          failedItems: { decrement: failedReset.count },
+          skippedItems: { decrement: orphanReset.count },
         },
       });
     });

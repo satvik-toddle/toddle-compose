@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { EmptyState, SegmentControl, Table, Tag } from '@toddle-edu/ds-web';
+import { EmptyState, SegmentControl, Table } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { Modal, ModalHead } from '../../components/Modal';
 import { Button } from '../../components/Button';
@@ -37,14 +37,13 @@ const styles = {
   wrap: 'mx-auto flex min-h-0 max-w-[1040px] flex-col',
   head: 'mb-5 flex items-end justify-between gap-4',
   title: 'm-0 text-heading-3 text-primary',
-  sub: 'mt-1 text-body-s text-secondary',
+  sub: 'mt-1 text-body text-secondary',
   seg: 'mb-5 max-w-[280px]',
   tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2',
-  destCell: 'flex flex-col gap-1',
-  destLink: 'max-w-[280px] truncate text-body-s text-link-default underline',
+  destLink: 'max-w-[280px] truncate text-body text-link-default underline',
   tokenCell: 'flex flex-wrap items-center gap-1.5',
-  chip: 'rounded-2 bg-surface-secondary-enabled px-1.5 py-0.5 text-body-xs text-secondary tabular-nums',
-  muted: 'text-body-s text-secondary',
+  chip: 'rounded-2 bg-surface-secondary-enabled px-1.5 py-0.5 text-body text-secondary tabular-nums',
+  muted: 'text-body text-secondary',
   actions: 'flex items-center justify-end gap-1.5',
   backRow: 'mb-3',
 };
@@ -154,25 +153,20 @@ export function MigrationsAdminTab() {
   const scopeRows = scopes.map((scope) => ({
     id: scope.id,
     rowData: [
-      { key: 'label', value: <span className="text-body-s text-primary">{scope.label}</span> },
+      { key: 'label', value: <span className="text-body text-primary">{scope.label}</span> },
       { key: 'workspace', value: <span className={styles.muted}>{workspaceName(scope.workspaceId)}</span> },
       {
         key: 'destination',
         value: (
-          <span className={styles.destCell}>
-            <a
-              className={styles.destLink}
-              href={scope.codaRootUrl}
-              target="_blank"
-              rel="noreferrer"
-              title={scope.codaRootUrl}
-            >
-              {scope.codaRootUrl}
-            </a>
-            <Tag dsVersion="2.0" size="small" color={scope.codaRootPageId ? 'blue' : 'neutral'}>
-              {scope.codaRootPageId ? 'Page root' : 'Whole doc'}
-            </Tag>
-          </span>
+          <a
+            className={styles.destLink}
+            href={scope.codaRootUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={scope.codaRootUrl}
+          >
+            {scope.codaRootUrl}
+          </a>
         ),
       },
       {

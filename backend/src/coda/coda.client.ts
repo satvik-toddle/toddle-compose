@@ -66,6 +66,27 @@ export class CodaClient {
     );
   }
 
+  // Like getPage, but returns null on a 404 instead of throwing. A freshly-created
+  // page 404s until Coda finishes materializing it (H2); the materialization poll
+  // uses null to mean "not ready yet, keep polling" vs. a real error (rethrown).
+  async getPageOrNull(
+    auth: CodaAuth,
+    docId: string,
+    pageId: string,
+  ): Promise<CodaPage | null> {
+    try {
+      return await this.getPage(auth, docId, pageId);
+    } catch (err) {
+      if (
+        err instanceof HttpException &&
+        (err.getResponse() as { status?: number })?.status === 404
+      ) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
   // Create a page from constrained HTML (H4). Async: returns a requestId to gate on (H2).
   createPage(
     auth: CodaAuth,
@@ -161,12 +182,22 @@ export class CodaClient {
       500;
     const deadline = Date.now() + timeoutMs;
     for (;;) {
-      const status = await this.getMutationStatus(auth, requestId);
-      if (status.completed) {
-        if (status.warning) {
-          this.log.warn(`mutation ${requestId} completed with warning: ${status.warning}`);
+      try {
+        const status = await this.getMutationStatus(auth, requestId);
+        if (status.completed) {
+          if (status.warning) {
+            this.log.warn(`mutation ${requestId} completed with warning: ${status.warning}`);
+          }
+          return;
         }
-        return;
+      } catch (err) {
+        // Coda GCs a mutation's status record once it completes, so a 404 on the
+        // mutationStatus path means the mutation ALREADY completed (and expired) —
+        // treat it as done. Anything else is a real failure and rethrows.
+        if (err instanceof HttpException && (err.getResponse() as { status?: number })?.status === 404) {
+          return;
+        }
+        throw err;
       }
       if (Date.now() + pollMs >= deadline) {
         throw new HttpException(
@@ -229,6 +260,7 @@ export class CodaClient {
           signal: AbortSignal.timeout(timeoutMs),
         });
       } catch {
+        this.log.warn(`${method} ${path} → network failure (coda unreachable)`);
         throw new HttpException({ error: "coda unreachable" }, 502);
       }
 
@@ -248,8 +280,14 @@ export class CodaClient {
       const text = await res.text();
       if (!res.ok) {
         this.log.warn(`${method} ${path} → ${res.status}: ${text.slice(0, 500)}`);
-        throw new HttpException({ error: "coda api error", status: res.status }, 502);
+        throw new HttpException(
+          { error: "coda api error", status: res.status, body: text.slice(0, 300) },
+          502,
+        );
       }
+      // Consistent per-request trace: method/path/status (debug so it's off by
+      // default but greppable when the migration worker's DEBUG logs are enabled).
+      this.log.debug(`${method} ${path} → ${res.status}`);
       return (text ? JSON.parse(text) : {}) as T;
     }
   }

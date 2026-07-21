@@ -97,6 +97,30 @@ describe("CodaClient", () => {
     expect(callArgs(fetchMock).url).toBe("https://coda.io/apis/v1/docs/doc1/pages/canvas-1");
   });
 
+  it("getPageOrNull returns the page on 200", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock.mockResolvedValue(
+      fakeResponse({ body: { id: "canvas-1", name: "N", browserLink: "https://x/_su1" } }),
+    );
+    const page = await client.getPageOrNull(TOKEN, "doc1", "canvas-1");
+    expect(page?.browserLink).toBe("https://x/_su1");
+  });
+
+  it("getPageOrNull returns null on a 404 (page not yet materialized)", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock.mockResolvedValue(fakeResponse({ status: 404, body: { message: "not found" } }));
+    const page = await client.getPageOrNull(TOKEN, "doc1", "canvas-1");
+    expect(page).toBeNull();
+  });
+
+  it("getPageOrNull rethrows a non-404 error", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock.mockResolvedValue(fakeResponse({ status: 500, body: { message: "server error" } }));
+    await expect(
+      client.getPageOrNull(TOKEN, "doc1", "canvas-1"),
+    ).rejects.toBeInstanceOf(HttpException);
+  });
+
   it("createPage sends the canvas HTML body and returns the requestId", async () => {
     const { client, fetchMock } = newClient();
     fetchMock.mockResolvedValue(fakeResponse({ status: 202, body: { id: "canvas-9", requestId: "req-9" } }));
@@ -183,6 +207,32 @@ describe("CodaClient", () => {
     ).rejects.toMatchObject({ status: 504 });
   });
 
+  it("awaitMutation treats a 404 mutationStatus as completed (Coda GCs the record)", async () => {
+    const { client, fetchMock } = newClient();
+    // A completed-then-expired mutation returns 404 on its status record.
+    fetchMock.mockResolvedValue(
+      fakeResponse({
+        status: 404,
+        body: { message: "No request was found with the given id, or it has expired." },
+      }),
+    );
+
+    await expect(
+      client.awaitMutation(TOKEN, "req-gone", { pollMs: 5, timeoutMs: 2_000 }),
+    ).resolves.toBeUndefined();
+    // Returns immediately — a 404 is not a retryable pending state.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("awaitMutation rethrows a genuine (non-404) mutationStatus error", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock.mockResolvedValue(fakeResponse({ status: 500, body: "upstream boom" }));
+
+    await expect(
+      client.awaitMutation(TOKEN, "req-1", { pollMs: 5, timeoutMs: 2_000 }),
+    ).rejects.toMatchObject({ status: 502 });
+  });
+
   it("retries on 429 honoring Retry-After, then succeeds", async () => {
     const { client, fetchMock } = newClient();
     fetchMock
@@ -255,10 +305,22 @@ describe("CodaClient", () => {
     await expect(client.getPage(TOKEN, "doc1", "canvas-1")).rejects.toMatchObject({ status: 502 });
   });
 
-  it("maps a non-429 upstream error to a 502", async () => {
+  it("maps a non-429 upstream error to a 502 and surfaces the upstream body", async () => {
     const { client, fetchMock } = newClient();
-    fetchMock.mockResolvedValue(fakeResponse({ status: 400, body: "bad request detail" }));
+    fetchMock.mockResolvedValue(
+      fakeResponse({ status: 400, body: "Invalid parentPageId: could not find page" }),
+    );
 
-    await expect(client.getPage(TOKEN, "doc1", "canvas-1")).rejects.toMatchObject({ status: 502 });
+    const err = (await client
+      .getPage(TOKEN, "doc1", "canvas-1")
+      .catch((e) => e)) as HttpException;
+    expect(err).toBeInstanceOf(HttpException);
+    expect(err.getStatus()).toBe(502);
+    // The structured payload carries the real upstream status + a truncated body.
+    expect(err.getResponse()).toMatchObject({
+      error: "coda api error",
+      status: 400,
+      body: expect.stringContaining("Invalid parentPageId"),
+    });
   });
 });

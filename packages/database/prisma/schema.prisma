@@ -461,10 +461,14 @@ model MigrationJobItem {
   override           Boolean             @default(false)
   // Page actually created/updated this run — persisted immediately after create for idempotency (C3).
   codaPageId         String?             @map("coda_page_id")
-  // Target snapshot: doc head seq captured AT ENQUEUE. The worker reconstructs the doc up to this seq
-  // so it syncs the version as of Start-Copy, not the later run time (point-in-time sync).
+  // Point-in-time content FROZEN at enqueue: the sanitized HTML extracted the moment Start-Copy was
+  // clicked. The worker pushes this verbatim (no run-time re-extraction), so later edits/compaction to
+  // the source can't change what gets migrated (D2). null = empty doc at enqueue → item skipped at run.
+  // Postgres TOASTs large text out-of-line, so this never bloats the row; NOT in the claim SELECT.
+  snapshotHtml       String?             @map("snapshot_html")
+  // Doc head seq captured AT ENQUEUE alongside snapshotHtml — recorded for the audit trail (D1/D2).
   enqueuedSeq        Int?                @map("enqueued_seq")
-  // Head seq actually read+pushed, recorded at execution (== enqueuedSeq when set) (D1/D2).
+  // Head seq actually pushed, recorded at execution (== enqueuedSeq) (D1/D2).
   migratedSeq        Int?                @map("migrated_seq")
   status             MigrationItemStatus @default(PENDING)
   attempts           Int                 @default(0)

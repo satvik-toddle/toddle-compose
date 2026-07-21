@@ -28,12 +28,15 @@ import {
   isOptionSetCellType,
   saveDropdownOptions,
   setSheetCellType,
+  setSheetDateTimeVariant,
+  sharedDateTimeVariant,
   sharedOptionSetId,
   readColumnIds,
   readSheetRows,
   seedSheet,
   type SheetCellRef,
   type SheetCellType,
+  type SheetDateTimeVariant,
   type SheetColTypes,
   type SheetOptionSet,
   type SheetOptionSets,
@@ -118,6 +121,18 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
     if (!isOptionSetCellType(selectedCellType) || !rowsRef.current) return null;
     return sharedOptionSetId(rowsRef.current, selectedCellRefs);
   }, [selectedCellType, selectedCellRefs, rows]);
+
+  // The picker variant shared by the whole selection; null for mixed variants.
+  // `rows` is a dep purely to re-read the live yRows after remote changes.
+  const selectedDateTimeVariant = useMemo(() => {
+    if (selectedCellType !== 'dateTime' || !rowsRef.current) return null;
+    return sharedDateTimeVariant(rowsRef.current, selectedCellRefs);
+  }, [selectedCellType, selectedCellRefs, rows]);
+
+  const onDateTimeVariantChange = (variant: SheetDateTimeVariant) => {
+    if (!docRef.current || !rowsRef.current) return;
+    setSheetDateTimeVariant(docRef.current, rowsRef.current, selectedCellRefs, variant);
+  };
 
   const onCellTypeChange = (type: SheetCellType) => {
     if (!docRef.current || !rowsRef.current || !optionSetsRef.current) return;
@@ -292,6 +307,8 @@ function SheetGrid({ docId, token, canEdit }: Readonly<SheetGridProps>) {
             selectionLabel={selectionLabel}
             cellType={selectedCellType}
             onCellTypeChange={onCellTypeChange}
+            dateTimeVariant={selectedDateTimeVariant}
+            onDateTimeVariantChange={onDateTimeVariantChange}
             dropdownOptionSetId={selectedOptionSetId}
             dropdownOptionSet={
               selectedOptionSetId ? (optionSets[selectedOptionSetId] ?? null) : null

@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import moment from 'moment';
 import type {
   DataGridCell,
   DataGridCellEdit,
@@ -33,11 +34,25 @@ export const SHEET_CELL_TYPES = [
   'radio',
   'dropdown',
   'tag',
+  'dateTime',
+  'colorPicker',
 ] as const;
 export type SheetCellType = (typeof SHEET_CELL_TYPES)[number];
 
 // Dropdown and tag cells share the option-set machinery: same options model, same panel form, same edit payload — they differ only in how the grid renders them.
 export type SheetOptionSetCellType = Extract<SheetCellType, 'dropdown' | 'tag'>;
+
+// The grid's pickerProps.type values — one dateTime cell type, six picker variants.
+export const SHEET_DATE_TIME_VARIANTS = [
+  'date',
+  'dateTime',
+  'time',
+  'week',
+  'month',
+  'year',
+] as const;
+export type SheetDateTimeVariant = (typeof SHEET_DATE_TIME_VARIANTS)[number];
+const DEFAULT_DATE_TIME_VARIANT: SheetDateTimeVariant = 'dateTime';
 
 export const isOptionSetCellType = (
   type: string | null | undefined,
@@ -59,7 +74,10 @@ export type SheetCellRef = { rowId: string; colId: string };
 // A cell's metadata sits in its row's Y.Map under `<colId>#meta` — row deletion
 // cleans it up for free, and '#' can't occur in a uuid column id.
 const CELL_META_SUFFIX = '#meta';
-type SheetCellMeta = { type: SheetCellType; config?: { optionSetId?: string } };
+type SheetCellMeta = {
+  type: SheetCellType;
+  config?: { optionSetId?: string; pickerType?: SheetDateTimeVariant };
+};
 
 const cellMetaKey = (colId: string): string => `${colId}${CELL_META_SUFFIX}`;
 const isCellMetaKey = (key: string): boolean => key.endsWith(CELL_META_SUFFIX);
@@ -233,6 +251,23 @@ function toGridCell(
       const setId = meta?.config?.optionSetId;
       return toOptionSetCell(type, stored, setId ? readOptionSet(yOptionSets, setId) : null);
     }
+    case 'dateTime': {
+      // Strict ISO parse so leftover text from a type switch reads as empty.
+      const parsed = typeof stored === 'string' ? moment(stored, moment.ISO_8601, true) : null;
+      return {
+        cellType: 'dateTime',
+        value: parsed?.isValid() ? parsed : null,
+        pickerProps: {
+          type: meta?.config?.pickerType ?? DEFAULT_DATE_TIME_VARIANT,
+          isClearable: true,
+          // The pre-V3 time picker is being deprecated.
+          useNewV3: true,
+        },
+      };
+    }
+    case 'colorPicker':
+      // Non-color leftovers from a type switch read as empty (placeholder swatch).
+      return { cellType: 'colorPicker', value: typeof stored === 'string' ? stored : '' };
     default:
       return { cellType: 'text', value: toDisplayText(stored) };
   }
@@ -289,6 +324,47 @@ export function sharedOptionSetId(yRows: SheetRows, cells: readonly SheetCellRef
   return sharedSetId;
 }
 
+// The single picker variant shared by every given dateTime cell; null when the cells
+// span mixed variants (or any is not a dateTime cell).
+export function sharedDateTimeVariant(
+  yRows: SheetRows,
+  cells: readonly SheetCellRef[],
+): SheetDateTimeVariant | null {
+  if (cells.length === 0) return null;
+  const rows = rowsById(yRows);
+  let sharedVariant: SheetDateTimeVariant | null = null;
+  for (const { rowId, colId } of cells) {
+    const row = rows.get(rowId);
+    if (!row) return null;
+    const meta = readCellMeta(row, colId);
+    if (meta?.type !== 'dateTime') return null;
+    const variant = meta.config?.pickerType ?? DEFAULT_DATE_TIME_VARIANT;
+    if (sharedVariant === null) sharedVariant = variant;
+    else if (sharedVariant !== variant) return null;
+  }
+  return sharedVariant;
+}
+
+// Persist the panel's variant pick; only dateTime cells are touched.
+export function setSheetDateTimeVariant(
+  ydoc: Y.Doc,
+  yRows: SheetRows,
+  cells: readonly SheetCellRef[],
+  variant: SheetDateTimeVariant,
+): void {
+  const rows = rowsById(yRows);
+  ydoc.transact(() => {
+    for (const { rowId, colId } of cells) {
+      const row = rows.get(rowId);
+      if (!row || readCellMeta(row, colId)?.type !== 'dateTime') continue;
+      row.set(cellMetaKey(colId), {
+        type: 'dateTime',
+        config: { pickerType: variant },
+      } satisfies SheetCellMeta);
+    }
+  });
+}
+
 export function setSheetCellType(
   ydoc: Y.Doc,
   yRows: SheetRows,
@@ -308,6 +384,19 @@ export function setSheetCellType(
         rows.get(rowId)?.set(cellMetaKey(colId), {
           type,
           config: { optionSetId: setId },
+        } satisfies SheetCellMeta);
+      }
+      return;
+    }
+    if (type === 'dateTime') {
+      for (const { rowId, colId } of cells) {
+        const row = rows.get(rowId);
+        if (!row) continue;
+        // Re-picking Date & time keeps each cell's existing variant.
+        const pickerType = readCellMeta(row, colId)?.config?.pickerType;
+        row.set(cellMetaKey(colId), {
+          type,
+          ...(pickerType && { config: { pickerType } }),
         } satisfies SheetCellMeta);
       }
       return;
@@ -380,13 +469,17 @@ export function seedSheet(ydoc: Y.Doc, yRows: SheetRows, yColTypes: SheetColType
 }
 
 // The radio cell reports its state via `checked` instead of `value`; the dropdown/tag
-// cells report selected option objects, of which only the ids are stored.
+// cells report selected option objects, of which only the ids are stored; the dateTime
+// cell reports a moment object (null when cleared), stored as an ISO string.
 function editedCellValue(newValue: DataGridCellEdit['newValue']): unknown {
   if (newValue?.cellType === 'radio' && typeof newValue.checked === 'boolean') {
     return newValue.checked;
   }
   if (isOptionSetCellType(newValue?.cellType) && Array.isArray(newValue?.value)) {
     return newValue.value.map((option) => (option as SheetDropdownOption).id);
+  }
+  if (newValue?.cellType === 'dateTime') {
+    return moment.isMoment(newValue.value) ? newValue.value.toISOString() : '';
   }
   return newValue?.value ?? '';
 }

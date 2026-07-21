@@ -98,9 +98,14 @@ export class RtcInternalClient {
   getCodaHtml(docId: string, atSeq?: number): Promise<RtcCodaHtml> {
     const qs =
       atSeq != null ? `?atSeq=${encodeURIComponent(String(atSeq))}` : "";
+    // Extraction is expensive (checkpoint + replay + a 30s jsdom worker cap on the rtc
+    // side), so a large doc easily exceeds the 8s default and would 502 the enqueue.
+    // Give it generous headroom past the rtc-side budget.
     return this.call(
       "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/coda-html${qs}`
+      `/internal/docs/${encodeURIComponent(docId)}/coda-html${qs}`,
+      undefined,
+      60_000
     ) as Promise<RtcCodaHtml>;
   }
 

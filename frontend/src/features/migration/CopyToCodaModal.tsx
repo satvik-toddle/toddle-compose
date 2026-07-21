@@ -110,8 +110,8 @@ export function CopyToCodaModal({
   }, [scopes, scopeId]);
 
   const includedIds = useMemo(
-    () => items.filter((i) => rows[i.id]?.include ?? true).map((i) => i.id),
-    [items, rows],
+    () => items.filter((i) => i.id === docId || (rows[i.id]?.include ?? true)).map((i) => i.id),
+    [items, rows, docId],
   );
   const { data: mappings } = useMigrationMappings(scopeId ?? undefined, includedIds);
   const mappingUrl = useMemo(() => {
@@ -166,7 +166,7 @@ export function CopyToCodaModal({
         sourceDocId: i.id,
         plannedParentDocId: i.parentId,
         title: i.title,
-        include: rows[i.id]?.include ?? true,
+        include: i.id === docId ? true : (rows[i.id]?.include ?? true),
         ...(url ? { destinationUrl: url } : {}),
       };
     });
@@ -198,6 +198,7 @@ export function CopyToCodaModal({
     const url = effectiveUrl(id);
     const invalid = invalidIds.has(id);
     const linkActive = mode === 'update';
+    const isRoot = id === docId;
     return (
       <>
         {/* Slot is always in layout (visibility toggled, not conditionally
@@ -245,8 +246,9 @@ export function CopyToCodaModal({
         <Checkbox
           dsVersion="2.0"
           size="small"
-          isChecked={row.include}
-          aria-label={`Include ${id}`}
+          isChecked={isRoot || row.include}
+          disabled={isRoot}
+          aria-label={isRoot ? `Include ${id} (root, always included)` : `Include ${id}`}
           onChange={(e) => patchRow(id, { include: (e.target as HTMLInputElement).checked })}
         />
       </>

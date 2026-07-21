@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module";
 import { RealmModule } from "../realm/realm.module";
 import { CodaModule } from "../coda/coda.module";
@@ -19,7 +19,13 @@ import { MigrationWorkerService } from "./migration-worker.service";
 // background worker (MigrationWorkerService) that executes jobs against Coda.
 // RtcModule supplies RtcInternalClient (getCodaHtml). PrismaModule is global.
 @Module({
-  imports: [AuthModule, RealmModule, CodaModule, DocumentsModule, RtcModule],
+  imports: [
+    AuthModule,
+    RealmModule,
+    CodaModule,
+    forwardRef(() => DocumentsModule),
+    RtcModule,
+  ],
   providers: [
     TokenCipher,
     CodaCredentialsService,
@@ -29,7 +35,14 @@ import { MigrationWorkerService } from "./migration-worker.service";
     MigrationWorkerService,
   ],
   controllers: [MigrationScopesController, MigrationJobsController],
-  // Exported for other modules to decrypt pools + validate targets.
-  exports: [TokenCipher, CodaCredentialsService, ScopeValidationService],
+  // Exported for other modules: decrypt pools + validate targets, and (for the
+  // DocumentsModule delete hook) skip/finalize migration work for deleted docs.
+  exports: [
+    TokenCipher,
+    CodaCredentialsService,
+    ScopeValidationService,
+    MigrationJobsService,
+    MigrationWorkerService,
+  ],
 })
 export class MigrationModule {}

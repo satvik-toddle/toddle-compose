@@ -198,6 +198,27 @@ describe("CodaClient", () => {
     expect(callArgs(fetchMock).url).toBe("https://coda.io/apis/v1/mutationStatus/req-1");
   });
 
+  it("awaitMutation THROWS when completed with a warning (Coda-side failure, not success)", async () => {
+    const { client, fetchMock } = newClient();
+    // completed:true + a warning means the mutation FAILED on Coda's side.
+    fetchMock.mockResolvedValue(
+      fakeResponse({
+        body: { completed: true, warning: "Some content could not be imported" },
+      }),
+    );
+
+    const err = (await client
+      .awaitMutation(TOKEN, "req-warn", { pollMs: 5, timeoutMs: 2_000 })
+      .catch((e) => e)) as HttpException;
+    expect(err).toBeInstanceOf(HttpException);
+    // Shaped so the worker classifies it PERMANENT (status 422, distinct error string).
+    expect(err.getResponse()).toMatchObject({
+      error: "coda mutation failed",
+      status: 422,
+      body: "Some content could not be imported",
+    });
+  });
+
   it("awaitMutation throws 504 when the deadline passes", async () => {
     const { client, fetchMock } = newClient();
     fetchMock.mockResolvedValue(fakeResponse({ body: { completed: false } }));

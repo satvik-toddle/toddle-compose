@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
   HttpException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
@@ -11,6 +14,8 @@ import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { WorkspaceEventsService } from "../realtime/realtime.service";
+import { MigrationJobsService } from "../migration/migration-jobs.service";
+import { MigrationWorkerService } from "../migration/migration-worker.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
 import type { AuthUser } from "../auth/current-user.decorator";
 import { trace } from "../tracing/trace";
@@ -78,12 +83,20 @@ const MAX_DOC_DEPTH = 256;
 
 @Injectable()
 export class DocumentsService {
+  private readonly log = new Logger("DocumentsService");
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
     private readonly rtc: RtcInternalClient,
     private readonly cache: DocumentCacheService,
-    private readonly events: WorkspaceEventsService
+    private readonly events: WorkspaceEventsService,
+    // forwardRef: MigrationModule ↔ DocumentsModule form a cycle — remove() skips a
+    // deleted subtree's migration items and finalizes any job it strands (D7).
+    @Inject(forwardRef(() => MigrationJobsService))
+    private readonly migrationJobs: MigrationJobsService,
+    @Inject(forwardRef(() => MigrationWorkerService))
+    private readonly migrationWorker: MigrationWorkerService
   ) {}
 
   // Single funnel for by-id metadata-row reads: serve a fresh cached row, else load from the
@@ -602,23 +615,29 @@ export class DocumentsService {
     return trace("documents.remove", async () => {
       const doc = await this.requireWorkspaceDocRole(userId, id, "ADMIN");
       const ids = await this.collectSubtreeDocIds(doc.workspaceId, id);
-      // D7: cancel any in-flight migration items for the deleted subtree in the SAME
+      // D7: skip any in-flight migration items for the deleted subtree in the SAME
       // transaction as the delete, so a running worker never pushes a just-deleted doc.
-      await this.prisma.$transaction(async (tx) => {
-        await tx.migrationJobItem.updateMany({
-          where: {
-            sourceDocId: { in: ids },
-            status: { in: ["PENDING", "RUNNING"] },
-          },
-          data: {
-            status: "SKIPPED",
-            lastError: "source document deleted",
-            leasedBy: null,
-            leasedUntil: null,
-          },
-        });
-        await tx.document.delete({ where: { id } });
-      });
+      // skipItemsForDeletedDocs also bumps each job's skippedItems (counter accuracy)
+      // and returns the affected jobIds to finalize after commit — a delete can remove
+      // a job's last claimable item, which would otherwise strand it non-terminal.
+      // Generous tx bounds: the cascade spans thousands of descendants (tree,
+      // permissions, stars, share links, mappings), well past Prisma's 5s default (fix).
+      const affectedJobIds = await this.prisma.$transaction(
+        async (tx) => {
+          const jobIds = await this.migrationJobs.skipItemsForDeletedDocs(tx, ids);
+          await tx.document.delete({ where: { id } });
+          return jobIds;
+        },
+        { timeout: 60_000, maxWait: 10_000 },
+      );
+      // After commit, finalize any job whose progress the skip completed (best-effort).
+      for (const jobId of affectedJobIds) {
+        await this.migrationWorker
+          .maybeFinalizeJob(jobId)
+          .catch((e) =>
+            this.log.error(`finalizing job ${jobId} after delete failed`, e as Error),
+          );
+      }
       for (const docId of ids) {
         this.cache.invalidate(docId);
         this.cache.invalidateChildren(docId);

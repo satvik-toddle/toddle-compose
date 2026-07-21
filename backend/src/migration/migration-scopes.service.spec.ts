@@ -177,3 +177,62 @@ describe("MigrationScopesService.create", () => {
     ).rejects.toThrow(BadRequestException);
   });
 });
+
+describe("MigrationScopesService.list (destination listing gate)", () => {
+  function listService(requireWorkspaceRole: jest.Mock) {
+    const scopeRow = {
+      id: "s1",
+      workspaceId: "w1",
+      label: "Dest",
+      codaDocId: DOC,
+      codaRootPageId: "canvas-root",
+      codaRootUrl: "https://coda.io/d/DOC1/canvas-root",
+      createdById: "u1",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      tokens: [
+        {
+          id: "t0",
+          scopeId: "s1",
+          codaTokenEnc: "enc:tok-secret-abcd",
+          codaTokenHint: "abcd",
+          label: "u1",
+          createdAt: new Date(),
+        },
+      ],
+    };
+    const findMany = jest.fn().mockResolvedValue([scopeRow]);
+    const prisma = {
+      migrationScope: { findMany },
+    } as unknown as PrismaService;
+    const authz = {
+      requireWorkspaceRole,
+      requireRealmRole: jest.fn().mockResolvedValue("OWNER"),
+    } as unknown as AuthzService;
+    const realm = { id: "realm1" } as unknown as ActiveRealmService;
+    const coda = {} as unknown as CodaClient;
+    const cipher = {} as unknown as TokenCipher;
+    return {
+      svc: new MigrationScopesService(prisma, authz, realm, coda, cipher),
+      findMany,
+    };
+  }
+
+  it("lists a workspace's destinations at EDIT (so the EDIT+ Copy-to-Coda modal works)", async () => {
+    const requireWorkspaceRole = jest.fn().mockResolvedValue("EDIT");
+    const { svc } = listService(requireWorkspaceRole);
+    await svc.list("u1", "w1");
+    // The list gate is EDIT, NOT ADMIN — editors must be able to see destinations.
+    expect(requireWorkspaceRole).toHaveBeenCalledWith("u1", "w1", "EDIT");
+  });
+
+  it("never returns token plaintext or ciphertext (masked hint only)", async () => {
+    const { svc } = listService(jest.fn().mockResolvedValue("EDIT"));
+    const view = await svc.list("u1", "w1");
+    expect(view[0].tokens[0].hint).toBe("abcd");
+    const serialized = JSON.stringify(view);
+    expect(serialized).not.toContain("enc:");
+    expect(serialized).not.toContain("tok-secret-abcd");
+    expect(serialized).not.toContain("codaTokenEnc");
+  });
+});

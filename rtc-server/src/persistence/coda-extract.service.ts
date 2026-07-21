@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Worker } from "worker_threads";
 import { join } from "path";
 import * as Y from "yjs";
@@ -8,12 +9,10 @@ import {
   extractCodaHtmlSync,
   type CodaExtractResult,
 } from "./coda-extract.core";
+import type { Env } from "../config/env";
 import { createLogger } from "../logger";
 
 const log = createLogger("coda-extract");
-
-// Hard cap on one HTML extraction (large docs replay a long log + generate a big DOM).
-const WORKER_TIMEOUT_MS = 30_000;
 
 export type CodaHtmlExport = {
   docId: string;
@@ -30,7 +29,8 @@ export type CodaHtmlExport = {
 export class CodaExtractService {
   constructor(
     private readonly repo: DocRepository,
-    private readonly docState: DocStateService
+    private readonly docState: DocStateService,
+    private readonly config: ConfigService<Env, true>
   ) {}
 
   // Returns constrained, sanitized HTML for a doc, ready to push to Coda. When atSeq is given,
@@ -50,7 +50,7 @@ export class CodaExtractService {
     }
 
     const bytes = Y.encodeStateAsUpdate(ydoc);
-    const { html, isEmpty } = await this.runWorker(bytes);
+    const { html, isEmpty } = await this.runWorker(docId, bytes);
     return { docId, html: isEmpty ? "" : html, headSeq, isEmpty };
   }
 
@@ -94,35 +94,60 @@ export class CodaExtractService {
     return { ydoc, headSeq: effectiveSeq };
   }
 
-  // Spawn a single-use worker per request, then terminate it (C6/C2 isolation). Fall back to inline
-  // extraction only if the worker can't spawn/run, so a request never hangs.
-  private runWorker(bytes: Uint8Array): Promise<CodaExtractResult> {
-    return new Promise((resolve) => {
+  // Spawn a single-use worker per request, then terminate it (C6/C2 isolation). A timeout or worker
+  // error rejects (never coerces to isEmpty) so the caller fails closed instead of losing content.
+  // If the worker can't spawn, fall back to inline extraction — which itself throws on failure.
+  private runWorker(
+    docId: string,
+    bytes: Uint8Array
+  ): Promise<CodaExtractResult> {
+    const timeoutMs = this.config.get("RTC_CODA_EXTRACT_TIMEOUT_MS", {
+      infer: true,
+    });
+    return new Promise((resolve, reject) => {
       let worker: Worker;
       try {
         worker = new Worker(join(__dirname, "coda-extract.worker.js"));
       } catch (e) {
         log.error("coda-extract worker spawn failed — inline fallback", e);
-        resolve(extractCodaHtmlSync(bytes));
+        try {
+          resolve(extractCodaHtmlSync(bytes));
+        } catch (err) {
+          reject(err);
+        }
         return;
       }
       let settled = false;
-      const finish = (r: CodaExtractResult) => {
+      const settle = (fn: () => void) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         void worker.terminate();
-        resolve(r);
+        fn();
       };
       const timer = setTimeout(() => {
-        log.warn("coda-extract worker timed out");
-        finish({ html: "", text: "", isEmpty: true });
-      }, WORKER_TIMEOUT_MS);
+        log.warn(`coda-extract worker timed out for doc '${docId}'`);
+        settle(() =>
+          reject(
+            new Error(
+              `coda extraction timed out after ${timeoutMs}ms for doc '${docId}'`
+            )
+          )
+        );
+      }, timeoutMs);
       timer.unref();
-      worker.once("message", (msg: CodaExtractResult) => finish(msg));
+      worker.once("message", (msg: CodaExtractResult) =>
+        settle(() => resolve(msg))
+      );
       worker.once("error", (err) => {
-        log.error("coda-extract worker error", err);
-        finish({ html: "", text: "", isEmpty: true });
+        log.error(`coda-extract worker error for doc '${docId}'`, err);
+        settle(() =>
+          reject(
+            new Error(
+              `coda extraction worker error for doc '${docId}': ${err instanceof Error ? err.message : String(err)}`
+            )
+          )
+        );
       });
       worker.postMessage(bytes);
     });

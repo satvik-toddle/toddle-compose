@@ -151,8 +151,18 @@ export const envSchema = z.object({
   // Processed concurrently, so a larger batch overlaps more materialization waits;
   // actual write rate stays bounded by the CodaRateLimiter + token pool.
   MIGRATION_BATCH_SIZE: z.coerce.number().int().positive().default(8),
-  // Per-item retry budget before the item is marked FAILED (job → PARTIAL/FAILED).
+  // Per-item retry budget for PERMANENT errors before the item is marked FAILED
+  // (job → PARTIAL/FAILED). Small: a permanent error won't fix itself on retry.
   MIGRATION_MAX_ITEM_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // Separate, larger budget for TRANSIENT errors (dependency unreachable/overloaded)
+  // so a routine ~10-30s rtc-server/Coda blip is ridden out (growing backoff) instead
+  // of exhausting the small permanent budget — but still bounded so a permanently-
+  // transient condition can't retry forever.
+  MIGRATION_MAX_TRANSIENT_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15),
   // HTML byte budget per Coda content write (H8): a page whose HTML exceeds this
   // is created/replaced with the first chunk, then streamed via paced appends.
   CODA_MAX_HTML_BYTES: z.coerce.number().int().positive().default(80_000),

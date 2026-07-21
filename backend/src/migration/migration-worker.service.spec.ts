@@ -1,4 +1,5 @@
 import { HttpException } from "@nestjs/common";
+import { Prisma } from "@app/database";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../config/env";
 import type { PrismaService } from "../prisma/prisma.service";
@@ -43,6 +44,7 @@ function makeConfig(): ConfigService<Env, true> {
     MIGRATION_LEASE_TTL_MS: 300_000,
     MIGRATION_BATCH_SIZE: 5,
     MIGRATION_MAX_ITEM_ATTEMPTS: 3,
+    MIGRATION_MAX_TRANSIENT_ATTEMPTS: 5,
     CODA_MAX_HTML_BYTES: 80_000,
     CODA_MATERIALIZE_TIMEOUT_MS: 1_000,
     CODA_MATERIALIZE_POLL_MS: 5,
@@ -63,6 +65,10 @@ function makeWorker(over?: {
   scope?: any;
   freshCodaPageId?: string | null;
   parentCodaPageId?: string | null;
+  // stillLeased re-read result; omit → this worker still holds a RUNNING lease.
+  leaseGuard?: { status: string; leasedBy: string | null };
+  // Guarded codaPageId-persist match count; 0 → item terminated mid-flight (abort).
+  persistCount?: number;
   assertReadable?: jest.Mock;
   counts?: {
     inFlight?: number;
@@ -88,18 +94,22 @@ function makeWorker(over?: {
       ? { codaDocId: DOC, codaRootPageId: null }
       : over.scope;
 
-  // Interactive-tx surface shared by createOrOverride / upsertMapping / finishItem.
+  // Interactive-tx surface shared by createOrOverride / persistCodaPageId /
+  // upsertMapping / finishItem. The codaPageId persist is now a guarded updateMany
+  // (id + status RUNNING + leasedBy); a data.codaPageId with no status marks it.
   const tx = {
     $executeRaw: jest.fn().mockResolvedValue(1),
     migrationJobItem: {
       findUnique: jest
         .fn()
         .mockResolvedValue({ codaPageId: over?.freshCodaPageId ?? null }),
-      update: jest.fn(async () => {
-        order.push("persist-codaPageId");
-        return {};
+      updateMany: jest.fn(async (arg: any) => {
+        if (arg?.data?.codaPageId && !arg?.data?.status) {
+          order.push("persist-codaPageId");
+          return { count: over?.persistCount ?? 1 };
+        }
+        return { count: over?.finishItemCount ?? 1 };
       }),
-      updateMany: jest.fn().mockResolvedValue({ count: over?.finishItemCount ?? 1 }),
     },
     migrationMapping: { upsert: jest.fn().mockResolvedValue({}) },
     migrationJob: { update: jest.fn().mockResolvedValue({}) },
@@ -122,6 +132,9 @@ function makeWorker(over?: {
       findFirst: jest
         .fn()
         .mockResolvedValue({ codaPageId: over?.parentCodaPageId ?? "parentPage" }),
+      // stillLeased re-reads status/lease right before the Coda write; set below to
+      // this worker's own lease (default) once the workerId is known.
+      findUnique: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn(async (arg: any) => {
         // maybeFinalizeJob counts by status: inFlight (status.in), FAILED, SUCCEEDED,
@@ -185,6 +198,11 @@ function makeWorker(over?: {
     documents,
     coda,
     credentials,
+  );
+  // Default stillLeased read: the item is still RUNNING under THIS worker's lease.
+  // A test passing `leaseGuard` simulates a concurrent delete/cancel (e.g. SKIPPED).
+  (prisma.migrationJobItem.findUnique as jest.Mock).mockResolvedValue(
+    over?.leaseGuard ?? { status: "RUNNING", leasedBy: (svc as any).workerId },
   );
 
   return { svc, prisma, tx, documents, coda, credentials, order };
@@ -307,8 +325,12 @@ describe("MigrationWorkerService.processItem — override path (H3)", () => {
     await run(svc, item({ override: true, targetCodaPageId: "targetPage" }));
     expect(coda.replacePageContent).toHaveBeenCalledTimes(1);
     expect(coda.createPage).not.toHaveBeenCalled();
-    const persist = (tx.migrationJobItem.update as jest.Mock).mock.calls[0][0];
-    expect(persist.data.codaPageId).toBe("targetPage");
+    // The id is persisted via a guarded updateMany (no status), not a bare update.
+    const persist = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.codaPageId && !c[0].data.status,
+    );
+    expect(persist[0].data.codaPageId).toBe("targetPage");
+    expect(persist[0].where).toMatchObject({ status: "RUNNING", leasedBy: expect.any(String) });
   });
 });
 
@@ -337,7 +359,7 @@ describe("MigrationWorkerService.processItem — materialization poll (H2)", () 
     expect(finish).toBeTruthy();
   });
 
-  it("never materializes → TRANSIENT release (retryable, no attempt burn), no mapping / empty URL", async () => {
+  it("never materializes → TRANSIENT release (retryable) below the cap, no mapping / empty URL", async () => {
     // Tight budget so the poll gives up quickly.
     const { svc, coda, tx, prisma } = makeWorker();
     (svc as any).materializeTimeoutMs = 20;
@@ -345,13 +367,13 @@ describe("MigrationWorkerService.processItem — materialization poll (H2)", () 
     (svc as any).transientBackoffMs = 0;
     (coda.getPageOrNull as jest.Mock).mockResolvedValue(null);
 
-    await run(svc, item({ attempts: 2 }));
+    // attempts=0 → well below the cap, so it releases for retry (doesn't FAIL yet).
+    await run(svc, item({ attempts: 0 }));
 
     // Threw before the mapping upsert — so no "" URL is ever recorded.
     expect(tx.migrationMapping.upsert).not.toHaveBeenCalled();
     // Not marked SUCCEEDED; released back to PENDING. A page that isn't queryable
-    // yet is a self-healing (transient) condition — retry WITHOUT burning an attempt
-    // (even one below the cap must not FAIL, else a created-but-slow page → FAILED).
+    // yet is a self-healing (transient) condition — retried, not permanent-failed.
     const finishSucceeded = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
       (c) => c[0].data.status === "SUCCEEDED",
     );
@@ -360,8 +382,9 @@ describe("MigrationWorkerService.processItem — materialization poll (H2)", () 
       (c) => c[0].data.status === "PENDING",
     );
     expect(released).toBeTruthy();
-    // Attempt budget is NOT consumed (would be 3 = cap and FAIL if treated permanent).
-    expect(released?.[0]?.data).not.toHaveProperty("attempts");
+    // A transient release now DOES consume the attempt budget (bounded retries), so a
+    // permanently-transient condition can't loop forever keeping the job RUNNING.
+    expect(released?.[0]?.data.attempts).toBe(1);
   });
 
   it("override path never waits: both the pre-replace gate and post-write poll return on the first getPage", async () => {
@@ -491,6 +514,71 @@ describe("MigrationWorkerService.processItem — skip paths (D7/P2)", () => {
   });
 });
 
+describe("MigrationWorkerService.processItem — deleted mid-flight (D7 race)", () => {
+  it("(6a) aborts BEFORE the Coda write when the item is no longer RUNNING under our lease", async () => {
+    // A concurrent delete flipped this item to SKIPPED after it was claimed. The
+    // pre-write status re-read (stillLeased) catches it → never push a deleted doc.
+    const { svc, coda, tx } = makeWorker({
+      leaseGuard: { status: "SKIPPED", leasedBy: null },
+    });
+    await run(svc, item());
+    expect(coda.createPage).not.toHaveBeenCalled();
+    const succeeded = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(succeeded).toBeUndefined();
+  });
+
+  it("(6b) aborts if the guarded codaPageId persist matches 0 rows (item terminated after create)", async () => {
+    // The page was created, but between create and persist a delete flipped the item
+    // to SKIPPED — the guarded persist matches 0 rows, so we abort (page may orphan).
+    const { svc, coda, tx } = makeWorker({ persistCount: 0 });
+    await run(svc, item());
+    expect(coda.createPage).toHaveBeenCalledTimes(1);
+    // Aborted before awaitMutation / mapping / SUCCEEDED.
+    expect(coda.awaitMutation).not.toHaveBeenCalled();
+    expect(tx.migrationMapping.upsert).not.toHaveBeenCalled();
+    const succeeded = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(succeeded).toBeUndefined();
+  });
+
+  it("(6c) a mapping FK violation (source deleted mid-flight) aborts quietly, never FAILS", async () => {
+    const { svc, tx, prisma } = makeWorker();
+    (tx.migrationMapping.upsert as jest.Mock).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("FK violation", {
+        code: "P2003",
+        clientVersion: "x",
+      }),
+    );
+    await run(svc, item());
+    // Treated as an abort (item already SKIPPED by the delete), not a handleItemError.
+    const succeeded = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "SUCCEEDED",
+    );
+    expect(succeeded).toBeUndefined();
+    const failed = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "FAILED",
+    );
+    expect(failed).toBeUndefined();
+  });
+
+  it("a non-FK mapping error still propagates to handleItemError (real failures aren't swallowed)", async () => {
+    const { svc, tx, prisma } = makeWorker();
+    (svc as any).transientBackoffMs = 0;
+    (tx.migrationMapping.upsert as jest.Mock).mockRejectedValue(new Error("boom"));
+    await run(svc, item({ attempts: 0 }));
+    // A generic error is a normal retry (release to PENDING, attempts bumped) — the
+    // release goes through prisma (not the finish tx), and is NOT swallowed.
+    const released = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls.find(
+      (c) => c[0].data.status === "PENDING",
+    );
+    expect(released).toBeTruthy();
+    expect(released?.[0]?.data.attempts).toBe(1);
+  });
+});
+
 describe("MigrationWorkerService — fault tolerance", () => {
   it("(a/c) reuses an existing page on retry/resume — REPLACES content, never re-creates (C3)", async () => {
     // A prior attempt created the page (codaPageId persisted) then failed — e.g.
@@ -537,18 +625,62 @@ describe("MigrationWorkerService.handleItemError — retry-to-max", () => {
     });
   });
 
-  it("a TRANSIENT 'rtc-server unreachable' releases to PENDING WITHOUT consuming an attempt", async () => {
+  it("a TRANSIENT 'rtc-server unreachable' below the cap releases to PENDING and bumps attempts", async () => {
     const { svc, prisma } = makeWorker();
     (svc as any).transientBackoffMs = 0; // don't sleep in tests
     // The backend surfaces a downed rtc-server as HttpException({error:"rtc-server unreachable"},502).
     const err = new HttpException({ error: "rtc-server unreachable" }, 502);
-    // Even at attempts=2 (one below the cap), a transient error must not fail it.
+    await (svc as any).handleItemError(item({ attempts: 0 }), err);
+    const call = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(call.data.status).toBe("PENDING");
+    // Transient releases now consume the attempt budget too (bounded retries).
+    expect(call.data.attempts).toBe(1);
+  });
+
+  it("a TRANSIENT error rides PAST the PERMANENT cap (its own larger budget)", async () => {
+    // maxAttempts=3, maxTransientAttempts=5: at attempts→3 (the permanent cap) a
+    // transient error must still RETRY, not FAIL — routine blips get the bigger budget.
+    const { svc, prisma } = makeWorker();
+    (svc as any).transientBackoffMs = 0;
+    const err = new HttpException({ error: "coda mutation timed out" }, 504);
     await (svc as any).handleItemError(item({ attempts: 2 }), err);
     const call = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
     expect(call.data.status).toBe("PENDING");
-    // attempts is NOT incremented (would be 3 = cap and FAIL if it were).
-    expect(call.data).not.toHaveProperty("attempts");
-    expect(call.data.status).not.toBe("FAILED");
+    expect(call.data.attempts).toBe(3);
+  });
+
+  it("a TRANSIENT error AT its own cap FAILS (never retries forever, keeping the job RUNNING)", async () => {
+    const { svc, tx } = makeWorker();
+    (svc as any).transientBackoffMs = 0;
+    // 'coda mutation timed out' is transient; at maxTransientAttempts(=5) it must FAIL.
+    const err = new HttpException({ error: "coda mutation timed out" }, 504);
+    await (svc as any).handleItemError(item({ attempts: 4 }), err);
+    const failed = (tx.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(failed.data.status).toBe("FAILED");
+    expect(failed.data.attempts).toBe(5);
+    expect((tx.migrationJob.update as jest.Mock).mock.calls[0][0].data).toEqual({
+      failedItems: { increment: 1 },
+    });
+  });
+
+  it("grows the transient backoff per attempt (base × 2^(attempts-1), capped)", async () => {
+    const { svc, prisma } = makeWorker();
+    (svc as any).transientBackoffMs = 10;
+    const sleeps: number[] = [];
+    const sleepSpy = jest
+      .spyOn(global, "setTimeout")
+      .mockImplementation(((fn: () => void, ms?: number) => {
+        sleeps.push(ms ?? 0);
+        fn();
+        return 0 as unknown as NodeJS.Timeout;
+      }) as unknown as typeof setTimeout);
+    const err = new HttpException({ error: "coda rate limited" }, 429);
+    // attempts 2→3: backoff = 10 × 2^(3-1) = 40ms.
+    await (svc as any).handleItemError(item({ attempts: 2 }), err);
+    sleepSpy.mockRestore();
+    expect(sleeps).toContain(40);
+    const call = (prisma.migrationJobItem.updateMany as jest.Mock).mock.calls[0][0];
+    expect(call.data.status).toBe("PENDING");
   });
 
   it("Coda 429 (rate limited) and upstream 5xx are transient; a Coda 400 is permanent", async () => {
@@ -561,9 +693,16 @@ describe("MigrationWorkerService.handleItemError — retry-to-max", () => {
       { error: "coda api error", status: 400, body: "Invalid parentPageId" },
       502,
     );
+    // A Coda-side mutation warning (import failed) is PERMANENT — retrying won't fix
+    // rejected content, so it FAILS rather than looping (fix #7).
+    const mutationFailed = new HttpException(
+      { error: "coda mutation failed", status: 422, body: "content rejected" },
+      502,
+    );
     expect(isTransientError(rateLimited)).toBe(true);
     expect(isTransientError(upstream500)).toBe(true);
     expect(isTransientError(badRequest)).toBe(false);
+    expect(isTransientError(mutationFailed)).toBe(false);
   });
 
   it("a PERMANENT Coda 400 still FAILS after MAX attempts", async () => {

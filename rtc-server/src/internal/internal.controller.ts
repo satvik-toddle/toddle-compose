@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Query,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import { docs as ywsDocs } from "y-websocket/bin/utils";
@@ -132,7 +133,15 @@ export class InternalController {
   ) {
     const at =
       atSeq != null && atSeq !== "" ? qInt("atSeq", atSeq, 0) : undefined;
-    return this.codaExtract.extractHtml(docId, at);
+    try {
+      return await this.codaExtract.extractHtml(docId, at);
+    } catch (e) {
+      // Fail closed: a failed extraction must be a retryable 5xx, never a 200 with empty content
+      // (which the backend would treat as a genuinely empty doc and silently skip — data loss).
+      throw new ServiceUnavailableException(
+        `coda-html extraction failed for '${docId}': ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
   }
 
   // Lightweight point-in-time cursor for the Copy-to-Coda enqueue: the current head seq, no extraction.

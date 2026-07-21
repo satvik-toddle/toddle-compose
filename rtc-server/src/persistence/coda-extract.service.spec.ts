@@ -16,9 +16,11 @@ function makeService(opts: {
     getDocUpdateBlobsAfterSeq: jest.fn().mockResolvedValue(opts.tail ?? []),
   };
   const docState = { forceCheckpoint };
+  const config = { get: jest.fn().mockReturnValue(30_000) };
   const service = new CodaExtractService(
     repo as never,
-    docState as never
+    docState as never,
+    config as never
   );
   return { service, repo, forceCheckpoint };
 }

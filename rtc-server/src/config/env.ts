@@ -24,6 +24,8 @@ export const envSchema = z.object({
   RTC_APPEND_COALESCE_MS: z.coerce.number().default(1000),
   // Headless-Lexical extraction worker threads (CPU-bound; keep small).
   RTC_EXTRACT_WORKERS: z.coerce.number().int().min(1).max(8).default(2),
+  // Hard cap on one Copy-to-Coda HTML extraction (large docs replay a long log + build a big DOM).
+  RTC_CODA_EXTRACT_TIMEOUT_MS: z.coerce.number().default(30_000),
   RTC_CHECKPOINT_INTERVAL_MS: z.coerce.number().default(5 * 60 * 1000),
   RTC_COMPACT_INTERVAL_MS: z.coerce.number().default(6 * 60 * 60 * 1000),
   // Raw keystroke-window rows dominate the table; 12h bounds them to ~half a day's worth per doc.

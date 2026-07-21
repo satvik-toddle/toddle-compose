@@ -39,10 +39,12 @@ function makeService(opts?: {
   assertReadable?: jest.Mock;
   validateDestinationUrl?: jest.Mock;
   getCodaHtml?: jest.Mock;
+  txExecuteRaw?: jest.Mock;
   txJobFindFirst?: jest.Mock;
   txJobCreate?: jest.Mock;
   jobFindMany?: jest.Mock;
   jobFindUnique?: jest.Mock;
+  txItemFindMany?: jest.Mock;
   txItemUpdateMany?: jest.Mock;
   txJobUpdate?: jest.Mock;
   mappingFindMany?: jest.Mock;
@@ -52,6 +54,7 @@ function makeService(opts?: {
     opts?.scope === undefined ? { id: SCOPE, workspaceId: WS } : opts.scope;
 
   const tx = {
+    $executeRaw: opts?.txExecuteRaw ?? jest.fn().mockResolvedValue(1),
     migrationJob: {
       findFirst: opts?.txJobFindFirst ?? jest.fn().mockResolvedValue(null),
       create:
@@ -59,6 +62,8 @@ function makeService(opts?: {
       update: opts?.txJobUpdate ?? jest.fn(async ({ data }: any) => ({ ...jobRow(), ...data })),
     },
     migrationJobItem: {
+      findMany:
+        opts?.txItemFindMany ?? jest.fn().mockResolvedValue([]),
       updateMany:
         opts?.txItemUpdateMany ?? jest.fn().mockResolvedValue({ count: 0 }),
     },
@@ -351,6 +356,115 @@ describe("MigrationJobsService.enqueue", () => {
       /content snapshot/,
     );
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("takes the (scope, root) advisory lock BEFORE the double-submit guard read (#17 race)", async () => {
+    const executeRaw = jest.fn().mockResolvedValue(1);
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const { svc } = makeService({
+      txExecuteRaw: executeRaw,
+      txJobFindFirst: findFirst,
+    });
+    await svc.enqueue(USER, SCOPE, plan());
+    // The advisory lock must be issued before the guard read so two concurrent
+    // enqueues serialize and the loser sees the winner's job (no duplicate subtree).
+    expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      findFirst.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("re-parents a kept child whose mid-tree parent was UNchecked to the grandparent (fix)", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const { svc } = makeService({ txJobCreate: create });
+    // root → mid (excluded) → leaf (kept). leaf must re-parent to root, not dangle on mid.
+    const p = plan({
+      items: [
+        { sourceDocId: "root", plannedParentDocId: null, title: "Root", include: true },
+        { sourceDocId: "mid", plannedParentDocId: "root", title: "Mid", include: false },
+        { sourceDocId: "leaf", plannedParentDocId: "mid", title: "Leaf", include: true },
+      ],
+    } as any);
+    await svc.enqueue(USER, SCOPE, p);
+    const created = create.mock.calls[0][0].data.items.create;
+    expect(created.map((i: any) => i.sourceDocId).sort()).toEqual(["leaf", "root"]);
+    const leaf = created.find((i: any) => i.sourceDocId === "leaf");
+    // mid is not an included item → leaf hangs off root (the nearest included ancestor).
+    expect(leaf.plannedParentDocId).toBe("root");
+  });
+
+  it("re-parents across MULTIPLE excluded ancestors to the nearest included one", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const { svc } = makeService({ txJobCreate: create });
+    // root → a → b(excluded) → c(excluded) → d(kept). d re-parents up to `a`.
+    const p = plan({
+      items: [
+        { sourceDocId: "root", plannedParentDocId: null, title: "Root", include: true },
+        { sourceDocId: "a", plannedParentDocId: "root", title: "A", include: true },
+        { sourceDocId: "b", plannedParentDocId: "a", title: "B", include: false },
+        { sourceDocId: "c", plannedParentDocId: "b", title: "C", include: false },
+        { sourceDocId: "d", plannedParentDocId: "c", title: "D", include: true },
+      ],
+    } as any);
+    await svc.enqueue(USER, SCOPE, p);
+    const created = create.mock.calls[0][0].data.items.create;
+    const d = created.find((i: any) => i.sourceDocId === "d");
+    expect(d.plannedParentDocId).toBe("a");
+    // A kept child of an included parent is left untouched.
+    const a = created.find((i: any) => i.sourceDocId === "a");
+    expect(a.plannedParentDocId).toBe("root");
+  });
+});
+
+describe("MigrationJobsService.skipItemsForDeletedDocs (delete hook, D7)", () => {
+  it("flips claimable items to SKIPPED, bumps per-job skippedItems, returns affected jobIds", async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: "i1", jobId: "jobA" },
+      { id: "i2", jobId: "jobA" },
+      { id: "i3", jobId: "jobB" },
+    ]);
+    const updateMany = jest.fn().mockResolvedValue({ count: 3 });
+    const jobUpdate = jest.fn().mockResolvedValue({});
+    const { svc, tx } = makeService({
+      txItemFindMany: findMany,
+      txItemUpdateMany: updateMany,
+      txJobUpdate: jobUpdate,
+    });
+    const jobIds = await svc.skipItemsForDeletedDocs(tx as any, ["d1", "d2"]);
+
+    // Only still-claimable items are flipped to SKIPPED.
+    expect(findMany.mock.calls[0][0].where.status.in).toEqual(["PENDING", "RUNNING"]);
+    expect(updateMany.mock.calls[0][0].data.status).toBe("SKIPPED");
+    // Each job's skippedItems bumped by the number of its items flipped.
+    expect(jobUpdate).toHaveBeenCalledWith({
+      where: { id: "jobA" },
+      data: { skippedItems: { increment: 2 } },
+    });
+    expect(jobUpdate).toHaveBeenCalledWith({
+      where: { id: "jobB" },
+      data: { skippedItems: { increment: 1 } },
+    });
+    expect([...jobIds].sort()).toEqual(["jobA", "jobB"]);
+  });
+
+  it("no-ops (no update, no jobIds) when nothing is claimable", async () => {
+    const updateMany = jest.fn();
+    const { svc, tx } = makeService({
+      txItemFindMany: jest.fn().mockResolvedValue([]),
+      txItemUpdateMany: updateMany,
+    });
+    const jobIds = await svc.skipItemsForDeletedDocs(tx as any, ["d1"]);
+    expect(jobIds).toEqual([]);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns [] for an empty docIds list without touching the db", async () => {
+    const findMany = jest.fn();
+    const { svc, tx } = makeService({ txItemFindMany: findMany });
+    const jobIds = await svc.skipItemsForDeletedDocs(tx as any, []);
+    expect(jobIds).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
   });
 });
 

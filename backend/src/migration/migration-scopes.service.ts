@@ -52,12 +52,13 @@ export class MigrationScopesService {
     private readonly cipher: TokenCipher,
   ) {}
 
-  // GET: workspaceId set → that workspace's scopes (requires workspace ADMIN);
-  // absent → org-wide admin-console listing (requires realm admin). Both return
-  // masked token hints only — never plaintext.
+  // GET: workspaceId set → that workspace's scopes (requires workspace EDIT, so the
+  // Copy-to-Coda modal offered to EDIT+ users can list destinations); absent →
+  // org-wide admin-console listing (requires realm admin). Both return masked token
+  // hints only — never plaintext (create/update/delete stay ADMIN-gated).
   async list(userId: string, workspaceId?: string): Promise<ScopeView[]> {
     if (workspaceId) {
-      await this.authz.requireWorkspaceRole(userId, workspaceId, "ADMIN");
+      await this.authz.requireWorkspaceRole(userId, workspaceId, "EDIT");
       const scopes = await this.prisma.migrationScope.findMany({
         where: { workspaceId, deletedAt: null },
         include: { tokens: true },

@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -85,6 +87,9 @@ export class MigrationJobsService {
     private readonly prisma: PrismaService,
     private readonly authz: AuthzService,
     private readonly realm: ActiveRealmService,
+    // forwardRef: DocumentsService ↔ MigrationJobsService form a module cycle
+    // (DocumentsService.remove calls skipItemsForDeletedDocs).
+    @Inject(forwardRef(() => DocumentsService))
     private readonly documents: DocumentsService,
     private readonly scopeValidation: ScopeValidationService,
     private readonly rtc: RtcInternalClient,
@@ -197,10 +202,21 @@ export class MigrationJobsService {
       }),
     );
 
+    // Re-parent any included item whose planned parent was UNchecked, up to the
+    // nearest still-included ancestor (fix: an excluded mid-tree parent would leave
+    // its kept children pointing at a parent with no item row — unclaimable orphans
+    // that never terminate). The root is always included, so the walk terminates.
+    const reparented = reparentToIncludedAncestors(included, dto.items, rootDocId);
+
     // Depth-first order → the seq the worker processes parents before children.
-    const ordered = orderDepthFirst(included, rootDocId);
+    const ordered = orderDepthFirst(reparented, rootDocId);
 
     return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent enqueues for the same (scope, root) BEFORE the guard read,
+      // so a double-submit can't slip two live jobs past the findFirst check (there is
+      // no unique constraint) and duplicate the whole subtree in Coda. The loser blocks
+      // here, then sees the winner's job below and gets the 409-style rejection.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${enqueueLockKey(scopeId, rootDocId)}))`;
       // Double-submit guard (#17): one live job per (scope, subtree root).
       const existing = await tx.migrationJob.findFirst({
         where: {
@@ -429,6 +445,48 @@ export class MigrationJobsService {
     return toJobSummary(updated);
   }
 
+  // Called by DocumentsService.remove INSIDE its delete transaction (D7): flip this
+  // deleted subtree's still-claimable items to SKIPPED, bump each affected job's
+  // skippedItems by the number flipped (so counters stay accurate, matching every
+  // other skip path), and return the affected jobIds. The caller finalizes those jobs
+  // AFTER commit — the delete may have removed the last claimable item, so the worker
+  // tick would otherwise never finalize the job and it would hang non-terminal forever.
+  async skipItemsForDeletedDocs(
+    tx: Prisma.TransactionClient,
+    docIds: string[],
+  ): Promise<string[]> {
+    if (docIds.length === 0) return [];
+    const items = await tx.migrationJobItem.findMany({
+      where: {
+        sourceDocId: { in: docIds },
+        status: { in: [...NON_TERMINAL_ITEM_STATUSES] },
+      },
+      select: { id: true, jobId: true },
+    });
+    if (items.length === 0) return [];
+    await tx.migrationJobItem.updateMany({
+      where: {
+        id: { in: items.map((i) => i.id) },
+        status: { in: [...NON_TERMINAL_ITEM_STATUSES] },
+      },
+      data: {
+        status: "SKIPPED",
+        lastError: "source document deleted",
+        leasedBy: null,
+        leasedUntil: null,
+      },
+    });
+    const perJob = new Map<string, number>();
+    for (const it of items) perJob.set(it.jobId, (perJob.get(it.jobId) ?? 0) + 1);
+    for (const [jobId, count] of perJob) {
+      await tx.migrationJob.update({
+        where: { id: jobId },
+        data: { skippedItems: { increment: count } },
+      });
+    }
+    return [...perJob.keys()];
+  }
+
   // --- internals ------------------------------------------------------------
 
   // Load a job and assert the caller may cancel/retry it: its creator, or a
@@ -450,6 +508,45 @@ export class MigrationJobsService {
 
 function isNonTerminalJob(status: MigrationJob["status"]): boolean {
   return (NON_TERMINAL_JOB_STATUSES as readonly string[]).includes(status);
+}
+
+// Stable string key for the per-(scope, root) enqueue advisory lock.
+function enqueueLockKey(scopeId: string, rootDocId: string): string {
+  return `migration-enqueue:${scopeId}:${rootDocId}`;
+}
+
+// Re-parent every included item whose planned parent was NOT included, to the nearest
+// included ancestor — walking the FULL plan (include:false rows included) so the chain
+// is complete. Cycles / a chain that never reaches an included node fall back to the
+// root (always included). Returns a new list; unaffected items are returned as-is.
+function reparentToIncludedAncestors(
+  included: MigrationPlanItemDto[],
+  all: MigrationPlanItemDto[],
+  rootDocId: string,
+): MigrationPlanItemDto[] {
+  const includedIds = new Set(included.map((i) => i.sourceDocId));
+  const parentOf = new Map<string, string | null>();
+  for (const it of all) parentOf.set(it.sourceDocId, it.plannedParentDocId ?? null);
+
+  // Walk up from `start` to the first included ancestor, guarding against cycles.
+  const nearestIncluded = (start: string | null): string | null => {
+    const seen = new Set<string>();
+    let cur = start;
+    while (cur !== null && !seen.has(cur)) {
+      if (includedIds.has(cur)) return cur;
+      seen.add(cur);
+      cur = parentOf.get(cur) ?? null;
+    }
+    return null;
+  };
+
+  return included.map((it) => {
+    const parent = it.plannedParentDocId ?? null;
+    if (it.sourceDocId === rootDocId || parent === null || includedIds.has(parent)) {
+      return it;
+    }
+    return { ...it, plannedParentDocId: nearestIncluded(parent) ?? rootDocId };
+  });
 }
 
 // Depth-first over the arranged parent links from the root; unreachable rows

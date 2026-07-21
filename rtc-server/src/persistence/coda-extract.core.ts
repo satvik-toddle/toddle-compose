@@ -83,7 +83,8 @@ function hasContent(html: string, text: string): boolean {
 }
 
 // Full extraction for one doc: Yjs update -> editorState JSON (+ upload materialization) -> HTML via
-// exportDOM -> constrained/sanitized HTML. Never throws; failures return isEmpty so the caller skips.
+// exportDOM -> constrained/sanitized HTML. Throws on failure so the caller can fail closed; a
+// genuinely empty doc returns isEmpty:true (a real result, never confused with a failure).
 export function extractCodaHtmlSync(stateUpdate: Uint8Array): CodaExtractResult {
   const t0 = Date.now();
   try {
@@ -132,9 +133,8 @@ export function extractCodaHtmlSync(stateUpdate: Uint8Array): CodaExtractResult 
     );
     return { html, text, isEmpty };
   } catch (e) {
-    log.warn(
-      `coda extract FAILED in ${Date.now() - t0}ms: ${e instanceof Error ? e.message : e}`
-    );
-    return { html: "", text: "", isEmpty: true };
+    const msg = e instanceof Error ? e.message : String(e);
+    log.warn(`coda extract FAILED in ${Date.now() - t0}ms: ${msg}`);
+    throw new Error(`coda extraction failed: ${msg}`);
   }
 }

@@ -1,13 +1,16 @@
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import {
+  forwardRef,
   HttpException,
+  Inject,
   Injectable,
   Logger,
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Prisma } from "@app/database";
 import type { Env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { DocumentsService } from "../documents/documents.service";
@@ -44,6 +47,13 @@ interface ClaimedItem {
   enqueuedSeq: number | null;
   attempts: number;
   seq: number;
+}
+
+// A created/reused Coda page + the requestId to gate on (null when resumed with no
+// pending mutation). null (not this shape) = the item was terminated mid-flight → abort.
+interface BuiltPage {
+  codaPageId: string;
+  requestId: string | null;
 }
 
 const PENDING_OR_RUNNING = ["PENDING", "RUNNING"] as const;
@@ -86,16 +96,21 @@ export class MigrationWorkerService
   private readonly leaseTtlMs: number;
   private readonly batchSize: number;
   private readonly maxAttempts: number;
+  private readonly maxTransientAttempts: number;
   private readonly maxHtmlBytes: number;
   private readonly materializeTimeoutMs: number;
   private readonly materializePollMs: number;
-  // Backoff before re-releasing a transient-failed item to PENDING, so a downed
-  // dependency (rtc restarting) is retried on a later tick rather than hot-looped.
+  // Base backoff before re-releasing a transient-failed item to PENDING; grows
+  // exponentially per attempt (capped) so a downed dependency (rtc restarting) is
+  // ridden out rather than hot-looped. Mutable so tests can zero it out.
   private transientBackoffMs = 3_000;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
+    // forwardRef: DocumentsService ↔ MigrationWorkerService form a module cycle
+    // (DocumentsService.remove calls maybeFinalizeJob after a delete).
+    @Inject(forwardRef(() => DocumentsService))
     private readonly documents: DocumentsService,
     private readonly coda: CodaClient,
     private readonly credentials: CodaCredentialsService,
@@ -105,6 +120,10 @@ export class MigrationWorkerService
     this.maxAttempts = this.config.get("MIGRATION_MAX_ITEM_ATTEMPTS", {
       infer: true,
     });
+    this.maxTransientAttempts = this.config.get(
+      "MIGRATION_MAX_TRANSIENT_ATTEMPTS",
+      { infer: true },
+    );
     this.maxHtmlBytes = this.config.get("CODA_MAX_HTML_BYTES", { infer: true });
     this.materializeTimeoutMs = this.config.get("CODA_MATERIALIZE_TIMEOUT_MS", {
       infer: true,
@@ -388,6 +407,12 @@ export class MigrationWorkerService
         chunks[0],
         ctx,
       );
+      // A concurrent delete/cancel flipped the item to a terminal state between the
+      // claim and the write (D7) — it's already SKIPPED, so abort quietly.
+      if (!built) {
+        this.log.log(`${ctx} aborted reason=item-terminated-mid-flight`);
+        return;
+      }
 
       // (H2) gate the create before descending; (H8) then stream the remaining
       // chunks in sequence, each paced + awaited. Skipped entirely on resume.
@@ -430,11 +455,17 @@ export class MigrationWorkerService
       // record the enqueue-time head seq (== what we pushed) + mark the item SUCCEEDED.
       step = "map";
       const migratedSeq = item.enqueuedSeq ?? 0;
-      await this.upsertMapping(item.sourceDocId, job.scopeId, {
+      const mapped = await this.upsertMapping(item.sourceDocId, job.scopeId, {
         codaPageId: built.codaPageId,
         codaPageUrl: url,
         migratedSeq,
       });
+      // The source doc was deleted mid-flight → its mapping FK is gone (D7). The delete
+      // hook already SKIPPED this item, so treat it as a quiet abort, not an error.
+      if (!mapped) {
+        this.log.log(`${ctx} aborted reason=source-deleted-during-map`);
+        return;
+      }
       this.log.log(
         `${ctx} terminal=SUCCEEDED page=${built.codaPageId} url=${url} migratedSeq=${migratedSeq}`,
       );
@@ -490,11 +521,11 @@ export class MigrationWorkerService
     pool: string[],
     firstChunk: string,
     ctx: string,
-  ): Promise<{ codaPageId: string; requestId: string | null }> {
+  ): Promise<BuiltPage | null> {
     // Decide the page to reuse (if any) under the advisory lock. This tx does no
     // network I/O (just a read + override-target adoption), so it can't blow the tx
     // timeout the way an in-lock materialization poll (up to CODA_MATERIALIZE_TIMEOUT_MS)
-    // would; the poll + write happen in their own short locked txns below.
+    // would; the poll + write happen outside the tx below (never inside one).
     const reusePageId = await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
@@ -577,8 +608,12 @@ export class MigrationWorkerService
     );
   }
 
-  // Create a fresh Coda page and persist its id under the advisory lock, inside one
-  // short tx that COMMITS before the caller awaits the async mutation (C3).
+  // Create a fresh Coda page, then persist its id. CRITICAL (C3/C4): the Coda write
+  // runs OUTSIDE any Prisma transaction — a paced write with retries inside a tx can
+  // expire the tx AFTER Coda created the page but BEFORE the id commits, rolling back
+  // the id so the retry duplicates the page. The id is persisted immediately after the
+  // 202, still BEFORE the caller awaits the mutation. Aborts (returns null) if the item
+  // was concurrently terminated (delete/cancel) — see stillLeased / persistCodaPageId.
   private async createPageAndPersist(
     item: ClaimedItem,
     scopeId: string,
@@ -587,30 +622,24 @@ export class MigrationWorkerService
     pool: string[],
     firstChunk: string,
     ctx: string,
-  ): Promise<{ codaPageId: string; requestId: string | null }> {
-    return this.prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
-        const r = await this.coda.createPage(pool, codaDocId, {
-          name: item.title,
-          parentPageId,
-          html: firstChunk,
-        });
-        await tx.migrationJobItem.update({
-          where: { id: item.id },
-          data: { codaPageId: r.id },
-        });
-        this.log.log(
-          `${ctx} step=create page=${r.id} req=${r.requestId} parent=${parentPageId ?? "root"} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
-        );
-        return { codaPageId: r.id, requestId: r.requestId };
-      },
-      { timeout: CREATE_TX_TIMEOUT_MS },
+  ): Promise<BuiltPage | null> {
+    if (!(await this.stillLeased(item, ctx, "create"))) return null;
+    const r = await this.coda.createPage(pool, codaDocId, {
+      name: item.title,
+      parentPageId,
+      html: firstChunk,
+    });
+    if (!(await this.persistCodaPageId(item, scopeId, r.id, ctx))) return null;
+    this.log.log(
+      `${ctx} step=create page=${r.id} req=${r.requestId} parent=${parentPageId ?? "root"} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
     );
+    return { codaPageId: r.id, requestId: r.requestId };
   }
 
-  // Wholesale-replace a known page's content in place and (re)persist its id, under
-  // the advisory lock. The id is committed before the caller awaits the mutation (C3).
+  // Wholesale-replace a known page's content in place and (re)persist its id. Like
+  // createPageAndPersist, the Coda write runs OUTSIDE any tx (C3/C4) and the id is
+  // persisted before the caller awaits the mutation. Aborts (null) on concurrent
+  // termination.
   private async replacePageAndPersist(
     item: ClaimedItem,
     scopeId: string,
@@ -619,45 +648,103 @@ export class MigrationWorkerService
     pool: string[],
     firstChunk: string,
     ctx: string,
-  ): Promise<{ codaPageId: string; requestId: string | null }> {
-    return this.prisma.$transaction(
+  ): Promise<BuiltPage | null> {
+    if (!(await this.stillLeased(item, ctx, "override"))) return null;
+    const r = await this.coda.replacePageContent(
+      pool,
+      codaDocId,
+      pageId,
+      firstChunk,
+    );
+    if (!(await this.persistCodaPageId(item, scopeId, pageId, ctx))) return null;
+    this.log.log(
+      `${ctx} step=override page=${pageId} req=${r.requestId} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
+    );
+    return { codaPageId: pageId, requestId: r.requestId };
+  }
+
+  // Re-read the item's status/lease immediately before a Coda create/replace (D7): if
+  // it is no longer RUNNING under THIS worker's lease (e.g. a concurrent delete flipped
+  // it to SKIPPED), don't write — it's already terminal. Returns whether we still hold it.
+  private async stillLeased(
+    item: ClaimedItem,
+    ctx: string,
+    step: string,
+  ): Promise<boolean> {
+    const current = await this.prisma.migrationJobItem.findUnique({
+      where: { id: item.id },
+      select: { status: true, leasedBy: true },
+    });
+    const held = current?.status === "RUNNING" && current.leasedBy === this.workerId;
+    if (!held) {
+      this.log.log(
+        `${ctx} step=${step} aborted reason=item-no-longer-leased status=${current?.status ?? "gone"}`,
+      );
+    }
+    return held;
+  }
+
+  // Persist a just-created/reused Coda page id under the advisory lock, in a SHORT tx
+  // (no network I/O). Guarded on the item still being RUNNING under our lease (D7): if
+  // it matched 0 rows the item was concurrently terminated, so the page we just created
+  // may be orphaned (logged) — the caller aborts. Committed BEFORE awaitMutation (C3).
+  private async persistCodaPageId(
+    item: ClaimedItem,
+    scopeId: string,
+    codaPageId: string,
+    ctx: string,
+  ): Promise<boolean> {
+    const matched = await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(item.sourceDocId, scopeId)}))`;
-        const r = await this.coda.replacePageContent(
-          pool,
-          codaDocId,
-          pageId,
-          firstChunk,
-        );
-        await tx.migrationJobItem.update({
-          where: { id: item.id },
-          data: { codaPageId: pageId },
+        const res = await tx.migrationJobItem.updateMany({
+          where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
+          data: { codaPageId },
         });
-        this.log.log(
-          `${ctx} step=override page=${pageId} req=${r.requestId} bytes=${Buffer.byteLength(firstChunk, "utf8")}`,
-        );
-        return { codaPageId: pageId, requestId: r.requestId };
+        return res.count > 0;
       },
       { timeout: CREATE_TX_TIMEOUT_MS },
     );
+    if (!matched) {
+      this.log.warn(
+        `${ctx} persist-codaPageId matched 0 rows (item no longer leased) — coda page ${codaPageId} may be orphaned`,
+      );
+    }
+    return matched;
   }
 
   // Upsert the latest-wins (sourceDocId, scopeId) mapping under the same advisory
-  // lock so concurrent jobs never produce a torn/untracked mapping (D6).
+  // lock so concurrent jobs never produce a torn/untracked mapping (D6). Returns false
+  // if the source doc was deleted mid-flight (FK violation, D7): the caller treats that
+  // as a quiet abort (the item is already SKIPPED), never a handleItemError failure.
   private async upsertMapping(
     sourceDocId: string,
     scopeId: string,
     data: { codaPageId: string; codaPageUrl: string; migratedSeq: number },
-  ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(sourceDocId, scopeId)}))`;
-      const now = new Date();
-      await tx.migrationMapping.upsert({
-        where: { sourceDocId_scopeId: { sourceDocId, scopeId } },
-        create: { sourceDocId, scopeId, ...data, lastMigratedAt: now },
-        update: { ...data, lastMigratedAt: now },
+  ): Promise<boolean> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(sourceDocId, scopeId)}))`;
+        const now = new Date();
+        await tx.migrationMapping.upsert({
+          where: { sourceDocId_scopeId: { sourceDocId, scopeId } },
+          create: { sourceDocId, scopeId, ...data, lastMigratedAt: now },
+          update: { ...data, lastMigratedAt: now },
+        });
       });
-    });
+      return true;
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2003"
+      ) {
+        this.log.warn(
+          `mapping upsert for source ${sourceDocId} hit an FK violation (source doc deleted mid-flight) — skipping`,
+        );
+        return false;
+      }
+      throw e;
+    }
   }
 
   // Wait for a page to materialize, and return its real browser URL for the mapping.
@@ -753,16 +840,17 @@ export class MigrationWorkerService
     });
   }
 
-  // On error: bump attempts; at the cap → FAILED (+lastError, +failedItems), else
-  // release the lease back to PENDING for a later retry (CodaClient retries 429s).
+  // On error: bump attempts; at the class's cap → FAILED (+lastError, +failedItems),
+  // else release the lease back to PENDING for a later retry (CodaClient retries 429s).
   //
   // TRANSIENT infra blips — rtc-server unreachable mid-restart, Coda unreachable /
-  // 429 / 5xx / mutation-timeout — must NOT consume the permanent attempt budget: a
-  // normal ~10-30s restart would otherwise exhaust the 3 quick retries and
-  // permanently FAIL every child. Such errors release the lease back to PENDING with
-  // attempts UNCHANGED, after a short backoff, so a later tick retries once the
-  // dependency recovers. PERMANENT errors (Coda 4xx like Invalid parentPageId, bad
-  // content, permission-lost) consume attempts and FAIL at the cap as before.
+  // 429 / 5xx / mutation-timeout — self-heal, so they release the lease back to PENDING
+  // after a GROWING backoff (base × 2^(attempts-1), capped) and get a GENEROUS budget
+  // (maxTransientAttempts) that comfortably outlasts a routine ~10-30s dependency blip.
+  // They STILL fail at that cap, so a permanently-transient condition ('coda mutation
+  // timed out' on an oversized doc) can't retry forever keeping the job RUNNING.
+  // PERMANENT errors (Coda 4xx like Invalid parentPageId, bad content, permission-lost)
+  // get a SMALL budget (maxAttempts) and NO backoff — retrying won't change the outcome.
   private async handleItemError(
     item: ClaimedItem,
     e: unknown,
@@ -770,69 +858,72 @@ export class MigrationWorkerService
   ): Promise<void> {
     const msg = describeError(e).slice(0, 1000);
     const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq}]`;
-    if (isTransientError(e)) {
+    const transient = isTransientError(e);
+    const cls = transient ? "TRANSIENT" : "PERMANENT";
+    const cap = transient ? this.maxTransientAttempts : this.maxAttempts;
+    const attempts = item.attempts + 1;
+
+    if (attempts >= cap) {
       this.log.warn(
-        `${ctx} step=${step} class=TRANSIENT action=release-no-attempt-burn error="${msg}"`,
+        `${ctx} step=${step} class=${cls} terminal=FAILED attempts=${attempts}/${cap} page=${item.codaPageId ?? "-"} error="${msg}"`,
       );
-      await sleep(this.transientBackoffMs);
-      await this.prisma.migrationJobItem
-        .updateMany({
-          where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
-          data: {
-            status: "PENDING",
-            lastError: msg,
-            leasedBy: null,
-            leasedUntil: null,
-          },
-        })
-        .catch((err) =>
-          this.log.error("releasing transient item for retry failed", err),
-        );
+      await this.failItem(item, attempts, msg);
       return;
     }
 
-    const attempts = item.attempts + 1;
-    if (attempts >= this.maxAttempts) {
-      this.log.warn(
-        `${ctx} step=${step} class=PERMANENT terminal=FAILED attempts=${attempts}/${this.maxAttempts} page=${item.codaPageId ?? "-"} error="${msg}"`,
+    // Below the cap: release the lease back to PENDING for a later retry. Transient
+    // errors back off (growing per attempt) so a downed dependency isn't hot-looped.
+    if (transient) {
+      const backoff = Math.min(
+        this.transientBackoffMs * 2 ** (attempts - 1),
+        60_000,
       );
-      await this.prisma
-        .$transaction(async (tx) => {
-          const res = await tx.migrationJobItem.updateMany({
-            where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
-            data: {
-              status: "FAILED",
-              attempts,
-              lastError: msg,
-              leasedBy: null,
-              leasedUntil: null,
-            },
-          });
-          if (res.count > 0) {
-            await tx.migrationJob.update({
-              where: { id: item.jobId },
-              data: { failedItems: { increment: res.count } },
-            });
-          }
-        })
-        .catch((err) => this.log.error("recording FAILED item failed", err));
-    } else {
-      this.log.warn(
-        `${ctx} step=${step} class=PERMANENT action=release-for-retry attempts=${attempts}/${this.maxAttempts} error="${msg}"`,
-      );
-      await this.prisma.migrationJobItem
-        .updateMany({
+      await sleep(backoff);
+    }
+    this.log.warn(
+      `${ctx} step=${step} class=${cls} action=release-for-retry attempts=${attempts}/${cap} error="${msg}"`,
+    );
+    await this.prisma.migrationJobItem
+      .updateMany({
+        where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
+        data: {
+          status: "PENDING",
+          attempts,
+          lastError: msg,
+          leasedBy: null,
+          leasedUntil: null,
+        },
+      })
+      .catch((err) => this.log.error("releasing item for retry failed", err));
+  }
+
+  // Terminal FAILED transition (+lastError, +failedItems), guarded on the item still
+  // being RUNNING under our lease so a steal/cancel can't double-count.
+  private async failItem(
+    item: ClaimedItem,
+    attempts: number,
+    msg: string,
+  ): Promise<void> {
+    await this.prisma
+      .$transaction(async (tx) => {
+        const res = await tx.migrationJobItem.updateMany({
           where: { id: item.id, status: "RUNNING", leasedBy: this.workerId },
           data: {
-            status: "PENDING",
+            status: "FAILED",
             attempts,
             lastError: msg,
             leasedBy: null,
             leasedUntil: null,
           },
-        })
-        .catch((err) => this.log.error("releasing item for retry failed", err));
-    }
+        });
+        if (res.count > 0) {
+          await tx.migrationJob.update({
+            where: { id: item.jobId },
+            data: { failedItems: { increment: res.count } },
+          });
+        }
+      })
+      .catch((err) => this.log.error("recording FAILED item failed", err));
   }
 
   // Flip QUEUED → RUNNING and stamp startedAt on the first item pickup (idempotent).
@@ -857,8 +948,9 @@ export class MigrationWorkerService
   //   FAILED     ⟺ nothing succeeded and something failed/could-not-migrate.
   // So the job is NEVER green while a real selected doc didn't land, and NEVER
   // FAILED/PARTIAL while everything actually completed. Guarded on QUEUED/RUNNING so
-  // a CANCELED (or already-finalized) job is never clobbered.
-  private async maybeFinalizeJob(jobId: string): Promise<void> {
+  // a CANCELED (or already-finalized) job is never clobbered. Public so DocumentsService
+  // can finalize a job stranded by a delete that skipped its last claimable item (D7).
+  async maybeFinalizeJob(jobId: string): Promise<void> {
     const inFlight = await this.prisma.migrationJobItem.count({
       where: { jobId, status: { in: [...PENDING_OR_RUNNING] } },
     });

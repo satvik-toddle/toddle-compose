@@ -185,8 +185,16 @@ export class CodaClient {
       try {
         const status = await this.getMutationStatus(auth, requestId);
         if (status.completed) {
+          // A non-null warning means the mutation FAILED on Coda's side (coda.types.ts):
+          // throw so the item is marked FAILED, never falsely SUCCEEDED. Shaped so the
+          // worker classifies it PERMANENT (status 422 < 500, distinct error string) —
+          // a content/import rejection won't fix itself on retry.
           if (status.warning) {
-            this.log.warn(`mutation ${requestId} completed with warning: ${status.warning}`);
+            this.log.warn(`mutation ${requestId} failed on Coda's side: ${status.warning}`);
+            throw new HttpException(
+              { error: "coda mutation failed", status: 422, body: status.warning },
+              502,
+            );
           }
           return;
         }

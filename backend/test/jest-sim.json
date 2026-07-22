@@ -1,0 +1,10 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "./migration-sim",
+  "testEnvironment": "node",
+  "testRegex": "\\.sim\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/../../tsconfig.json" }]
+  },
+  "testTimeout": 1800000
+}

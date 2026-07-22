@@ -90,33 +90,19 @@ export class RtcInternalClient {
   }
 
   // Constrained, sanitized HTML for a doc, ready to push to Coda (migration worker).
-  // `atSeq` requests a point-in-time snapshot (the head seq captured at enqueue) so
-  // the migration pushes the version the user reviewed, not whatever is live at run
-  // time; omitted → latest. Returns the head seq actually read (the content cursor)
-  // + isEmpty so the worker records exactly what it pushed (D1/D2) and never pushes
-  // a blank doc (D7).
-  getCodaHtml(docId: string, atSeq?: number): Promise<RtcCodaHtml> {
-    const qs =
-      atSeq != null ? `?atSeq=${encodeURIComponent(String(atSeq))}` : "";
+  // Captures the CURRENT (Start-Copy) version, frozen verbatim at enqueue. Returns the
+  // head seq actually read (the content cursor) + isEmpty so the worker records exactly
+  // what it pushed (D1/D2) and never pushes a blank doc (D7).
+  getCodaHtml(docId: string): Promise<RtcCodaHtml> {
     // Extraction is expensive (checkpoint + replay + a 30s jsdom worker cap on the rtc
     // side), so a large doc easily exceeds the 8s default and would 502 the enqueue.
     // Give it generous headroom past the rtc-side budget.
     return this.call(
       "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/coda-html${qs}`,
+      `/internal/docs/${encodeURIComponent(docId)}/coda-html`,
       undefined,
       60_000
     ) as Promise<RtcCodaHtml>;
-  }
-
-  // Current head seq (content cursor) for a doc — the enqueue captures this as the point-in-time
-  // version to sync later (D1/D2). Cheap: no extraction, just the max update-log seq.
-  async getHeadSeq(docId: string): Promise<number> {
-    const res = (await this.call(
-      "GET",
-      `/internal/docs/${encodeURIComponent(docId)}/head-seq`
-    )) as { headSeq: number };
-    return res.headSeq;
   }
 
   /** Delete the RTC row (yjs state + update log) for a document id. */

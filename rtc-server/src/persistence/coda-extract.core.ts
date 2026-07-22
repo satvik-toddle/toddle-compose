@@ -1,40 +1,17 @@
 import * as Y from "yjs";
 import { createHeadlessEditor } from "@lexical/headless";
-import {
-  createBinding,
-  syncYjsChangesToLexical,
-  type Provider,
-} from "@lexical/yjs";
-import { Awareness } from "y-protocols/awareness";
-import { $getRoot, type Klass, type LexicalNode } from "lexical";
+import { $getRoot, type LexicalEditor, type LexicalNode } from "lexical";
 import { $generateHtmlFromNodes } from "@lexical/html";
 import { JSDOM } from "jsdom";
+import { bindAndApply, serverNodes } from "./lexical-binding.core";
 import { sanitizeConstrainedHtml } from "./coda-html-sanitizer";
 import { createLogger } from "../logger";
 
 const log = createLogger("coda-extract");
-const NAMESPACE = "ds-doc-editor-collab";
 // Sibling Yjs map holding uploadId -> { url } (doc-editor's UploadRegistry); outside the Lexical tree.
 const UPLOAD_REGISTRY_KEY = "tde-upload-registry";
 
-// Same 0.45.0 node bundle the JSON extractor uses (see scripts/bundle-server-nodes.mjs); its exportDOMs
-// drive the HTML. rtc-server's own @lexical/html matches this bundle's lexical version.
-const serverNodes: Array<Klass<LexicalNode>> =
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- runtime CJS bundle, not a typed module
-  require("../../vendor/server-nodes.cjs").AllDocEditorNodes;
-
 export type CodaExtractResult = { html: string; text: string; isEmpty: boolean };
-
-function makeStubProvider(ydoc: Y.Doc): Provider {
-  const awareness = new Awareness(ydoc);
-  return {
-    awareness,
-    connect: () => {},
-    disconnect: () => {},
-    on: () => {},
-    off: () => {},
-  } as unknown as Provider;
-}
 
 // Bake registry-resolved upload URLs into node JSON so the HTML editor (no Y.Doc attached) emits a
 // real src instead of an empty one (mirrors doc-editor materializeUploadSrcs).
@@ -48,6 +25,34 @@ function materializeUploadSrcs(node: unknown, registry: Map<string, string>): vo
   if (Array.isArray(n.children)) {
     for (const child of n.children) materializeUploadSrcs(child, registry);
   }
+}
+
+// Validate a candidate __colWidths value: a non-empty array of finite positive numbers.
+function validColWidths(v: unknown): number[] | undefined {
+  if (!Array.isArray(v) || v.length === 0) return undefined;
+  if (!v.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0))
+    return undefined;
+  return v as number[];
+}
+
+// Depth-first pre-order over the bound editor state; one entry per table node in document order.
+// 0.45 exportJSON drops __colWidths, so widths are read here from the bound instances that @lexical/yjs
+// populated (writableNode[property] = nextValue).
+function collectTableColWidths(editor: LexicalEditor): (number[] | undefined)[] {
+  const out: (number[] | undefined)[] = [];
+  editor.getEditorState().read(() => {
+    const visit = (node: LexicalNode): void => {
+      if (node.getType() === "table") {
+        out.push(validColWidths((node as { __colWidths?: unknown }).__colWidths));
+      }
+      const children = (node as { getChildren?: () => LexicalNode[] }).getChildren;
+      if (typeof children === "function") {
+        for (const child of children.call(node)) visit(child);
+      }
+    };
+    visit($getRoot());
+  });
+  return out;
 }
 
 function readUploadRegistry(ydoc: Y.Doc): Map<string, string> {
@@ -89,25 +94,13 @@ export function extractCodaHtmlSync(stateUpdate: Uint8Array): CodaExtractResult 
   const t0 = Date.now();
   try {
     ensureDomGlobals();
-    const tmpDoc = new Y.Doc();
-    const editor = createHeadlessEditor({
-      namespace: NAMESPACE,
-      nodes: serverNodes,
+    const { editor, ydoc: tmpDoc } = bindAndApply(stateUpdate, {
       onError: (err) => log.warn(`headless editor error: ${String(err)}`),
+      // Best-effort snapshot render; ignore partial sync failures.
+      onSyncError: () => {},
     });
-    const docMap = new Map<string, Y.Doc>([[NAMESPACE, tmpDoc]]);
-    const provider = makeStubProvider(tmpDoc);
-    const binding = createBinding(editor, provider, NAMESPACE, tmpDoc, docMap);
-    binding.root.getSharedType().observeDeep((events) => {
-      try {
-        syncYjsChangesToLexical(binding, provider, events, false);
-      } catch {
-        // Best-effort snapshot render; ignore partial sync failures.
-      }
-    });
-    Y.applyUpdate(tmpDoc, stateUpdate);
-    editor.update(() => {}, { discrete: true });
 
+    const tableColWidths = collectTableColWidths(editor);
     const json = editor.getEditorState().toJSON() as { root?: unknown };
     const registry = readUploadRegistry(tmpDoc);
     if (registry.size && json.root) materializeUploadSrcs(json.root, registry);
@@ -126,7 +119,7 @@ export function extractCodaHtmlSync(stateUpdate: Uint8Array): CodaExtractResult 
       text = $getRoot().getTextContent();
     });
 
-    const html = sanitizeConstrainedHtml(rawHtml);
+    const html = sanitizeConstrainedHtml(rawHtml, tableColWidths);
     const isEmpty = !hasContent(html, text);
     log.debug(
       `coda extract OK html=${html.length}B text=${text.length}ch empty=${isEmpty} in ${Date.now() - t0}ms`

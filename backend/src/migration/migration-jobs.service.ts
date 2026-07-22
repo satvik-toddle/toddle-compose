@@ -22,9 +22,8 @@ import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { ScopeValidationService } from "./scope-validation.service";
 import { PARENT_SKIP_REASON } from "./migration-worker.service";
 import { EnqueueMigrationJobDto, MigrationPlanItemDto } from "./dto";
+import { NON_TERMINAL_JOB_STATUSES, isNonTerminalJob } from "./job-status";
 
-// A job is still in-flight (blocks a double-submit, is cancelable) in these states.
-const NON_TERMINAL_JOB_STATUSES = ["QUEUED", "RUNNING"] as const;
 // Items the worker hasn't finalized — canceled → SKIPPED, and the retry target.
 const NON_TERMINAL_ITEM_STATUSES = ["PENDING", "RUNNING"] as const;
 
@@ -38,7 +37,6 @@ interface JobSummaryView {
   succeededItems: number;
   failedItems: number;
   skippedItems: number;
-  error: string | null;
   createdById: string;
   createdAt: Date;
   startedAt: Date | null;
@@ -135,43 +133,49 @@ export class MigrationJobsService {
     }
 
     // Per-doc read filter (C4/P5) + DOC-only + same-workspace, sequentially so the
-    // first offending row is named. Coda calls (override URLs) run outside the tx.
+    // named in the thrown error. Runs CONCURRENTLY (per-item work is independent): each
+    // override URL validation makes several sequential Coda reads (resolve + ancestor walk),
+    // so serializing all items here cost 20-30s of latency; the CodaRateLimiter still bounds
+    // real read throughput. Coda calls run outside the tx. Promise.all still names a bad row.
     const targetByDoc = new Map<string, string>();
-    for (const item of included) {
-      let meta: { workspaceId: string; type: string };
-      try {
-        meta = await this.documents.assertReadable(userId, item.sourceDocId);
-      } catch {
-        throw new ForbiddenException(
-          `document ${item.sourceDocId} is not readable`,
-        );
-      }
-      if (meta.workspaceId !== scope.workspaceId) {
-        throw new BadRequestException(
-          `document ${item.sourceDocId} is not in this destination's workspace`,
-        );
-      }
-      if (meta.type === "SHEET") {
-        throw new BadRequestException(
-          `document ${item.sourceDocId} is a SHEET; only DOC documents can be migrated`,
-        );
-      }
-
-      if (item.destinationUrl) {
+    await Promise.all(
+      included.map(async (item) => {
+        let meta: { workspaceId: string; type: string };
         try {
-          const { codaPageId } = await this.scopeValidation.validateDestinationUrl(
-            scopeId,
-            item.destinationUrl,
-          );
-          targetByDoc.set(item.sourceDocId, codaPageId);
-        } catch (e) {
-          const reason = e instanceof Error ? e.message : "out of scope";
-          throw new BadRequestException(
-            `destination URL for document ${item.sourceDocId} is invalid: ${reason}`,
+          meta = await this.documents.assertReadable(userId, item.sourceDocId);
+        } catch {
+          throw new ForbiddenException(
+            `document ${item.sourceDocId} is not readable`,
           );
         }
-      }
-    }
+        if (meta.workspaceId !== scope.workspaceId) {
+          throw new BadRequestException(
+            `document ${item.sourceDocId} is not in this destination's workspace`,
+          );
+        }
+        if (meta.type === "SHEET") {
+          throw new BadRequestException(
+            `document ${item.sourceDocId} is a SHEET; only DOC documents can be migrated`,
+          );
+        }
+
+        if (item.destinationUrl) {
+          try {
+            const { codaPageId } =
+              await this.scopeValidation.validateDestinationUrl(
+                scopeId,
+                item.destinationUrl,
+              );
+            targetByDoc.set(item.sourceDocId, codaPageId);
+          } catch (e) {
+            const reason = e instanceof Error ? e.message : "out of scope";
+            throw new BadRequestException(
+              `destination URL for document ${item.sourceDocId} is invalid: ${reason}`,
+            );
+          }
+        }
+      }),
+    );
 
     // Point-in-time snapshot (D2): FREEZE each doc's sanitized HTML NOW, at enqueue, so the worker
     // pushes the exact Start-Copy content verbatim — immune to later edits/compaction AND to a
@@ -207,6 +211,12 @@ export class MigrationJobsService {
     // its kept children pointing at a parent with no item row — unclaimable orphans
     // that never terminate). The root is always included, so the walk terminates.
     const reparented = reparentToIncludedAncestors(included, dto.items, rootDocId);
+
+    // Reject a plan the reparenting couldn't fully root (an A↔B cycle among included
+    // items, a direct self-loop): such items can never be claimed — their parent item
+    // never reaches SUCCEEDED — so the job would hang non-terminal and then wedge all
+    // future enqueues for this doc via the double-submit guard. Reachable via the API.
+    assertRootedForest(reparented, rootDocId);
 
     // Depth-first order → the seq the worker processes parents before children.
     const ordered = orderDepthFirst(reparented, rootDocId);
@@ -269,6 +279,36 @@ export class MigrationJobsService {
       );
       return { jobId: job.id };
     });
+  }
+
+  // POST /migration-scopes/:scopeId/validate-destination — verify one per-row link
+  // before enqueue. Same EDIT+ gate as enqueue. An invalid/out-of-scope URL is a
+  // normal {ok:false} result (the underlying Coda reads funnel through the rate
+  // limiter, so concurrent per-row calls stay within Coda's read budget), NOT a 500;
+  // only auth/scope-not-found throw.
+  async validateDestination(
+    userId: string,
+    scopeId: string,
+    url: string,
+  ): Promise<{ ok: true; codaPageId: string } | { ok: false; reason: string }> {
+    const scope = await this.prisma.migrationScope.findFirst({
+      where: { id: scopeId, deletedAt: null },
+      select: { id: true, workspaceId: true },
+    });
+    if (!scope) throw new NotFoundException("destination not found");
+
+    await this.authz.requireWorkspaceRole(userId, scope.workspaceId, "EDIT");
+
+    try {
+      const { codaPageId } = await this.scopeValidation.validateDestinationUrl(
+        scopeId,
+        url,
+      );
+      return { ok: true, codaPageId };
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : "out of scope";
+      return { ok: false, reason };
+    }
   }
 
   // GET /migration-scopes/:scopeId/mappings?docIds= — existing (sourceDocId, scopeId)
@@ -412,6 +452,7 @@ export class MigrationJobsService {
     const resetData = {
       status: "PENDING" as const,
       attempts: 0,
+      transientAttempts: 0,
       lastError: null,
       leasedBy: null,
       leasedUntil: null,
@@ -435,7 +476,6 @@ export class MigrationJobsService {
         where: { id: jobId },
         data: {
           status: "QUEUED",
-          error: null,
           finishedAt: null,
           failedItems: { decrement: failedReset.count },
           skippedItems: { decrement: orphanReset.count },
@@ -506,10 +546,6 @@ export class MigrationJobsService {
   }
 }
 
-function isNonTerminalJob(status: MigrationJob["status"]): boolean {
-  return (NON_TERMINAL_JOB_STATUSES as readonly string[]).includes(status);
-}
-
 // Stable string key for the per-(scope, root) enqueue advisory lock.
 function enqueueLockKey(scopeId: string, rootDocId: string): string {
   return `migration-enqueue:${scopeId}:${rootDocId}`;
@@ -542,11 +578,39 @@ function reparentToIncludedAncestors(
 
   return included.map((it) => {
     const parent = it.plannedParentDocId ?? null;
-    if (it.sourceDocId === rootDocId || parent === null || includedIds.has(parent)) {
-      return it;
+    // The root is the tree root by definition — drop any stale planned parent.
+    if (it.sourceDocId === rootDocId) {
+      return parent === null ? it : { ...it, plannedParentDocId: null };
     }
-    return { ...it, plannedParentDocId: nearestIncluded(parent) ?? rootDocId };
+    if (parent === null || includedIds.has(parent)) return it;
+    // Guard against nearestIncluded resolving to the item's own id (self-loop via an
+    // excluded chain) — treat as not-found and re-anchor to the root.
+    const nearest = nearestIncluded(parent);
+    const anchor = nearest !== null && nearest !== it.sourceDocId ? nearest : rootDocId;
+    return { ...it, plannedParentDocId: anchor };
   });
+}
+
+// Assert the arranged forest is rooted: from every item, walking plannedParentDocId
+// links (within the included set) terminates at the root or a null parent, never a
+// cycle. Guards against unclaimable items that would hang the job non-terminal.
+function assertRootedForest(
+  items: MigrationPlanItemDto[],
+  rootDocId: string,
+): void {
+  const parentOf = new Map<string, string | null>();
+  for (const it of items) parentOf.set(it.sourceDocId, it.plannedParentDocId ?? null);
+  for (const it of items) {
+    const seen = new Set<string>();
+    let cur: string | null = it.sourceDocId;
+    while (cur !== null && cur !== rootDocId) {
+      if (seen.has(cur) || !parentOf.has(cur)) {
+        throw new BadRequestException("migration plan contains a parent cycle");
+      }
+      seen.add(cur);
+      cur = parentOf.get(cur) ?? null;
+    }
+  }
 }
 
 // Depth-first over the arranged parent links from the root; unreachable rows
@@ -601,7 +665,6 @@ function toJobSummary(job: MigrationJob): JobSummaryView {
     succeededItems: job.succeededItems,
     failedItems: job.failedItems,
     skippedItems: job.skippedItems,
-    error: job.error,
     createdById: job.createdById,
     createdAt: job.createdAt,
     startedAt: job.startedAt,

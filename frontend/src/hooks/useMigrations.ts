@@ -76,11 +76,19 @@ export function useMigrationMappings(scopeId: string | undefined, docIds: string
   });
 }
 
+// ---- Per-row destination link check (modal Start, update mode) -------------
+
+// Verify one row's destination URL. Each checked row fires its own mutation; the
+// backend rate limiter serializes the underlying Coda reads (no client-side bypass).
+export function useValidateDestination(scopeId: string) {
+  return useMutation({
+    mutationFn: (url: string) => migrationsApi.validateDestination(scopeId, url),
+  });
+}
+
 // ---- Open in Coda (a doc's live destinations) ------------------------------
 
-// A doc's saved Coda destination(s), gated to workspace editor+. Fetched lazily
-// (pass enabled=false until needed, e.g. the row's menu opens) so it doesn't run
-// a query per doc row up front.
+// A doc's saved Coda destination(s), editor+ gated; fetch lazily (enabled=false until the row menu opens) to avoid per-row queries.
 export function useDocCodaMappings(docId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: docId ? qk.docCodaMappings(docId) : ['migrationScopes', 'docMappings', '_none'],

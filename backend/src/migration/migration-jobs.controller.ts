@@ -14,6 +14,7 @@ import {
   EnqueueMigrationJobDto,
   ListMigrationJobsDto,
   ListMigrationMappingsDto,
+  ValidateDestinationDto,
 } from "./dto";
 
 // "Copy to Coda" job lifecycle (Phase 4b): enqueue a run from a destination, then
@@ -32,6 +33,17 @@ export class MigrationJobsController {
     @Body() dto: EnqueueMigrationJobDto,
   ) {
     return this.jobs.enqueue(user.id, scopeId, dto);
+  }
+
+  // Verify a single per-row destination link before enqueue. A bad/out-of-scope URL
+  // returns {ok:false, reason} (200), never a 500 — only auth/scope errors throw.
+  @Post("migration-scopes/:scopeId/validate-destination")
+  validateDestination(
+    @CurrentUser() user: AuthUser,
+    @Param("scopeId") scopeId: string,
+    @Body() dto: ValidateDestinationDto,
+  ) {
+    return this.jobs.validateDestination(user.id, scopeId, dto.url);
   }
 
   // Prefill source for the Copy-to-Coda modal — saved mappings for the selected

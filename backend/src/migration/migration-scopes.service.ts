@@ -15,9 +15,7 @@ import {
   ScopeTokenInputDto,
   UpdateMigrationScopeDto,
 } from "./dto";
-
-// Non-terminal jobs get canceled when their scope is soft-deleted (D8/P7).
-const NON_TERMINAL_JOB_STATUSES = ["QUEUED", "RUNNING"] as const;
+import { NON_TERMINAL_JOB_STATUSES } from "./job-status";
 
 // Masked, plaintext-free view of a token row for API responses.
 interface ScopeTokenView {

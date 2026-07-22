@@ -146,16 +146,8 @@ export class CodaRateLimiter {
     return this.writeReg.acquire(tokens);
   }
 
-  acquireWrite(token: string): Promise<string> {
-    return this.writeReg.acquire([token]);
-  }
-
   acquireReadFromPool(tokens: string[]): Promise<string> {
     return this.readReg.acquire(tokens);
-  }
-
-  acquireRead(token: string): Promise<string> {
-    return this.readReg.acquire([token]);
   }
 
   // Adaptive backoff: park a token for `retryAfterMs` after a 429/503 (H1 floor).

@@ -108,13 +108,6 @@ export const envSchema = z.object({
   // --- Coda migration ("Copy to Coda") ---------------------------------------
   // Base URL of the Coda REST API; overridable only for tests/mocks.
   CODA_API_BASE_URL: z.string().url().default("https://coda.io/apis/v1"),
-  // Optional DEV fallback token. Primary tokens live per-destination in the DB
-  // (decrypted by a later credentials phase and passed to CodaClient); this is
-  // only a convenience for local dev when no DB destination is configured.
-  CODA_API_TOKEN: z.string().min(1).optional(),
-  // Optional comma-separated dev fallback POOL; each token is a distinct Coda
-  // user with its own 5-writes/10s bucket. Falls back to CODA_API_TOKEN (H1).
-  CODA_API_TOKENS: z.string().optional(),
   // Per-request network timeout for a single Coda HTTP call.
   CODA_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
   // Max 429/503 (Retry-After) retries before a call is surfaced as failed.
@@ -218,17 +211,4 @@ export function corsOrigins(value: string): string[] {
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
-}
-
-// Resolve the Coda token pool: CODA_API_TOKENS (comma-separated) wins, else the
-// single CODA_API_TOKEN, else empty (feature off — the client errors on use).
-export function codaTokens(
-  env: Pick<Env, "CODA_API_TOKEN" | "CODA_API_TOKENS">,
-): string[] {
-  const pool = (env.CODA_API_TOKENS ?? "")
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
-  if (pool.length > 0) return pool;
-  return env.CODA_API_TOKEN ? [env.CODA_API_TOKEN] : [];
 }

@@ -1,9 +1,7 @@
 import { arrayMove } from '@dnd-kit/sortable';
 import type { DocumentDto, DocumentType } from '../../types/api';
 
-// One row of the editable migration tree: a DOC node with its arranged parent
-// and depth. `parentId` is the parent in the ARRANGED tree (null = top-level),
-// which is exactly what the enqueue payload's `plannedParentDocId` needs.
+// One editable-tree row: a DOC node whose `parentId` is its arranged parent (null = top-level) for `plannedParentDocId`.
 export interface MigrationFlatItem {
   id: string;
   parentId: string | null;
@@ -18,9 +16,7 @@ export interface MigrationSeed {
   skippedSheets: number;
 }
 
-// Collect the clicked doc + its descendants (by original parentId), filter out
-// SHEETs, and re-anchor each surviving DOC to its nearest DOC ancestor within the
-// subtree (or the subtree root / top level). Returns a depth-first ordered flat list.
+// Collect the doc + descendants, drop SHEETs, re-anchor survivors to their nearest in-subtree DOC ancestor; depth-first.
 export function buildMigrationSeed(docs: DocumentDto[], rootId: string): MigrationSeed {
   const byId = new Map<string, DocumentDto>(docs.map((d) => [d.id, d]));
   const childrenOf = new Map<string, DocumentDto[]>();
@@ -138,9 +134,7 @@ export function removeChildrenOf(items: MigrationFlatItem[], ids: string[]): Mig
 const getDragDepth = (offset: number, indentationWidth: number) =>
   Math.round(offset / indentationWidth);
 
-// Project the drop target's depth + arranged parent from the horizontal drag
-// offset, clamped between the previous row (max) and next row (min) — the
-// canonical dnd-kit sortable-tree projection.
+// Project the drop target's depth + parent from the horizontal drag offset, clamped between prev (max) and next (min) rows.
 export function getProjection(
   items: MigrationFlatItem[],
   activeId: string,

@@ -317,7 +317,6 @@ export interface MigrationJobSummary {
   succeededItems: number;
   failedItems: number;
   skippedItems: number;
-  error: string | null;
   createdById: string;
   createdAt: string;
   startedAt: string | null;
@@ -359,3 +358,14 @@ export interface EnqueueMigrationJobInput {
   items: MigrationPlanItemInput[];
   sourceRootDocId?: string;
 }
+
+// POST /migration-scopes/:scopeId/validate-destination body.
+export interface ValidateDestinationInput {
+  url: string;
+}
+
+// POST /migration-scopes/:scopeId/validate-destination result — an invalid/out-of-scope
+// URL is a normal {ok:false, reason} response, not an error.
+export type ValidateDestinationResult =
+  | { ok: true; codaPageId: string }
+  | { ok: false; reason: string };

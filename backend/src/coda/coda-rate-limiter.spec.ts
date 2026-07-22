@@ -114,7 +114,7 @@ describe("CodaRateLimiter", () => {
     const limiter = new CodaRateLimiter();
     // Park a token's WRITE bucket; its READ bucket must be unaffected.
     limiter.penalizeWrite("tok", 10_000);
-    const ms = await elapsed(() => limiter.acquireRead("tok"));
+    const ms = await elapsed(() => limiter.acquireReadFromPool(["tok"]));
     expect(ms).toBeLessThan(50);
   });
 

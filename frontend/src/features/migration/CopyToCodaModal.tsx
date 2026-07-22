@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Checkbox,
-  IconButton as DsIconButton,
   SegmentControl,
   SelectDropdown,
+  SpinnerLoader,
+  Table,
   TextInput,
+  Tooltip,
 } from '@toddle-edu/ds-web';
-import { LinkOutlined } from '@toddle-edu/ds-icons';
+import { CloseCircleOutlined, TickCircleOutlined } from '@toddle-edu/ds-icons';
 import { ModalWithSideBar } from '../../components/ModalWithSideBar';
 import { Button } from '../../components/Button';
 import { IconButton } from '../../components/IconButton';
@@ -20,10 +22,10 @@ import {
   useEnqueueMigration,
   useMigrationMappings,
   useMigrationScopes,
+  useValidateDestination,
 } from '../../hooks/useMigrations';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
-import { cn } from '../../lib/cn';
 import type { MigrationPlanItemInput } from '../../types/api';
 
 // react-select's union type drops props we set (value/onChange); use it untyped,
@@ -37,14 +39,41 @@ type Mode = 'create' | 'update';
 interface RowState {
   include: boolean;
   overrideUrl: string; // the row's destination link (prefilled from mapping, editable)
-  editing: boolean;
   touched: boolean; // user edited/cleared the link, so stop re-seeding from the mapping
 }
+
+// Per-row link-verification state on Start (update mode); absent = idle.
+type RowVerify = { status: 'verifying' | 'ok' | 'error'; reason?: string };
 
 const MODE_OPTIONS = [
   { value: 'create', label: 'Create new' },
   { value: 'update', label: 'Update existing' },
 ];
+
+const UPDATE_HEADERS = [
+  { key: 'name', value: 'Page name' },
+  { key: 'link', value: 'Link' },
+  { key: 'status', value: '' },
+];
+
+// Compact per-row Start status: spinner while verifying, tick/cross once resolved.
+function RowStatus({ state }: Readonly<{ state?: RowVerify }>) {
+  if (!state) return null;
+  if (state.status === 'verifying') {
+    return <SpinnerLoader size="xxx-small" variant="default" />;
+  }
+  if (state.status === 'ok') {
+    return <TickCircleOutlined size="xx-small" variant="success" />;
+  }
+  const reason = state.reason ?? 'Invalid link';
+  return (
+    <Tooltip dsVersion="2.0" placement="top" showArrow tooltip={reason}>
+      <span role="img" aria-label={reason} className="inline-flex items-center">
+        <CloseCircleOutlined size="xx-small" variant="critical" />
+      </span>
+    </Tooltip>
+  );
+}
 
 const styles = {
   side: 'flex h-full flex-col gap-4 px-4 py-4',
@@ -59,13 +88,10 @@ const styles = {
   barDesc: 'mt-0.5 truncate text-body text-secondary',
   scroll: 'min-h-0 flex-1 overflow-auto px-3.5 py-3',
   treeHint: 'mb-2 px-1.5 text-body text-secondary',
-  // Fixed-height (h-6 = 24px, the x-small IconButton height) link-affordance slot,
-  // reserved in both modes so toggling Create/Update never shifts row height.
-  linkSlot: 'flex min-h-6 items-center gap-2',
-  dest: 'max-w-[180px] truncate text-body text-secondary',
-  destSet: 'text-primary',
-  destInvalid: 'text-semantic-error',
-  editWrap: 'w-[220px]',
+  tableWrap: 'min-h-0 overflow-auto rounded-2 border border-secondary',
+  nameCell: 'block truncate text-body text-primary',
+  linkCell: 'min-w-[260px]',
+  statusCell: 'flex w-6 items-center justify-center',
 };
 
 export function CopyToCodaModal({
@@ -86,6 +112,8 @@ export function CopyToCodaModal({
   const [mode, setMode] = useState<Mode>('create');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [invalidIds, setInvalidIds] = useState<Set<string>>(new Set());
+  const [rowVerify, setRowVerify] = useState<Record<string, RowVerify>>({});
+  const [verifying, setVerifying] = useState(false);
   const seededFor = useRef<string | null>(null);
 
   // Seed the editable tree + per-row state once the workspace docs have loaded.
@@ -95,10 +123,7 @@ export function CopyToCodaModal({
     setItems(seed.items);
     setRows(
       Object.fromEntries(
-        seed.items.map((i) => [
-          i.id,
-          { include: true, overrideUrl: '', editing: false, touched: false },
-        ]),
+        seed.items.map((i) => [i.id, { include: true, overrideUrl: '', touched: false }]),
       ),
     );
   }, [docId, docsLoading, seed]);
@@ -109,11 +134,26 @@ export function CopyToCodaModal({
     if (scopeId === null && scopes && scopes.length > 0) setScopeId(scopes[0].id);
   }, [scopes, scopeId]);
 
+  const isIncluded = (id: string): boolean => rows[id]?.include ?? true;
+
+  // Create-mode inclusion (root is always in); drives the create-mode Start gate.
   const includedIds = useMemo(
-    () => items.filter((i) => i.id === docId || (rows[i.id]?.include ?? true)).map((i) => i.id),
+    () => items.filter((i) => i.id === docId || isIncluded(i.id)).map((i) => i.id),
     [items, rows, docId],
   );
-  const { data: mappings } = useMigrationMappings(scopeId ?? undefined, includedIds);
+  // Update-mode inclusion (root is a normal, uncheckable-allowed row).
+  const checkedIds = useMemo(
+    () => items.filter((i) => isIncluded(i.id)).map((i) => i.id),
+    [items, rows],
+  );
+
+  // Update mode prefills every row, so request mappings for all item ids there;
+  // create mode has no links, so the fetched set is irrelevant.
+  const mappingQueryIds = useMemo(
+    () => (mode === 'update' ? items.map((i) => i.id) : includedIds),
+    [mode, items, includedIds],
+  );
+  const { data: mappings } = useMigrationMappings(scopeId ?? undefined, mappingQueryIds);
   const mappingUrl = useMemo(() => {
     const m = new Map<string, string>();
     for (const row of mappings ?? []) m.set(row.sourceDocId, row.codaPageUrl);
@@ -121,8 +161,7 @@ export function CopyToCodaModal({
   }, [mappings]);
 
   // Prefill each untouched row's link from its saved mapping (Update-existing
-  // only), so previously migrated rows show their Coda URL (LinkOutlined active).
-  // User edits/clears win.
+  // only), so previously migrated rows show their Coda URL. User edits/clears win.
   useEffect(() => {
     if (mode !== 'update' || mappingUrl.size === 0) return;
     setRows((prev) => {
@@ -147,31 +186,55 @@ export function CopyToCodaModal({
   const patchRow = (id: string, patch: Partial<RowState>) =>
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
 
+  // Clears both the enqueue-failure highlighting and any stale per-row ticks/crosses,
+  // so an edit/mode/scope/checkbox change never leaves a lingering verify result.
+  const clearErrors = () => {
+    setErrorMsg(null);
+    setInvalidIds(new Set());
+    setRowVerify({});
+  };
+
   const enqueue = useEnqueueMigration(scopeId ?? '');
+  const validate = useValidateDestination(scopeId ?? '');
   const hasScopes = (scopes?.length ?? 0) > 0;
-  const canStart = !!scopeId && includedIds.length > 0 && !enqueue.isPending;
+
+  // Update mode: at least one checked row and every checked row carries a link.
+  const updateValid =
+    checkedIds.length > 0 && checkedIds.every((id) => effectiveUrl(id) !== '');
+  const canStart =
+    !!scopeId &&
+    !enqueue.isPending &&
+    !verifying &&
+    (mode === 'create' ? includedIds.length > 0 : updateValid);
 
   const scopeOptions = useMemo(
     () => (scopes ?? []).map((s) => ({ value: s.id, label: s.label })),
     [scopes],
   );
 
-  const start = () => {
-    if (!scopeId || enqueue.isPending) return;
-    setErrorMsg(null);
-    setInvalidIds(new Set());
+  // Build the plan snapshot and enqueue (unchanged behavior; shared by both modes).
+  const runEnqueue = () => {
+    if (!scopeId) return;
     const planItems: MigrationPlanItemInput[] = items.map((i) => {
+      // Create: root force-included, no links. Update: pure checkbox, checked rows carry links.
+      const include = mode === 'create' ? i.id === docId || isIncluded(i.id) : isIncluded(i.id);
       const url = effectiveUrl(i.id);
       return {
         sourceDocId: i.id,
         plannedParentDocId: i.parentId,
         title: i.title,
-        include: i.id === docId ? true : (rows[i.id]?.include ?? true),
-        ...(url ? { destinationUrl: url } : {}),
+        include,
+        ...(include && url ? { destinationUrl: url } : {}),
       };
     });
+    // The enqueue root must be a checked item: create always keeps root; update
+    // falls back to the first checked row when the root itself is unchecked.
+    const sourceRootDocId =
+      mode === 'create' || isIncluded(docId)
+        ? docId
+        : (items.find((i) => isIncluded(i.id))?.id ?? docId);
     enqueue.mutate(
-      { items: planItems, sourceRootDocId: docId },
+      { items: planItems, sourceRootDocId },
       {
         onSuccess: () => {
           pushToast({ kind: 'success', message: 'Migration started' });
@@ -193,67 +256,134 @@ export function CopyToCodaModal({
     );
   };
 
+  // Update mode: verify every checked row's link CONCURRENTLY, each spinner flipping
+  // to a tick/cross independently as it resolves. Only when all pass do we enqueue.
+  // The backend rate limiter serializes the underlying Coda reads, so firing one
+  // request per row never exceeds Coda's read budget (no client-side fan-out bypass).
+  const startUpdate = async () => {
+    const ids = checkedIds;
+    setRowVerify(Object.fromEntries(ids.map((id) => [id, { status: 'verifying' } as RowVerify])));
+    setVerifying(true);
+    const results = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const res = await validate.mutateAsync(effectiveUrl(id));
+          setRowVerify((prev) => ({
+            ...prev,
+            [id]: res.ok ? { status: 'ok' } : { status: 'error', reason: res.reason },
+          }));
+          return res.ok;
+        } catch (e) {
+          setRowVerify((prev) => ({ ...prev, [id]: { status: 'error', reason: messageOf(e) } }));
+          return false;
+        }
+      }),
+    );
+    setVerifying(false);
+    if (results.every(Boolean)) {
+      runEnqueue();
+    } else {
+      // Leave the ticks/crosses visible; Start re-enables so the user can fix links.
+      setErrorMsg('Some destination links are invalid — fix or uncheck them.');
+    }
+  };
+
+  const start = () => {
+    if (!scopeId || enqueue.isPending || verifying) return;
+    if (mode === 'update') {
+      // Clear prior errors but keep no stale verify state; verify then enqueue.
+      setErrorMsg(null);
+      setInvalidIds(new Set());
+      void startUpdate();
+      return;
+    }
+    clearErrors();
+    runEnqueue();
+  };
+
+  // Create-mode tree row trailing control: just the include checkbox (root forced).
   const renderRowEnd = (id: string) => {
-    const row = rows[id] ?? { include: true, overrideUrl: '', editing: false, touched: false };
-    const url = effectiveUrl(id);
-    const invalid = invalidIds.has(id);
-    const linkActive = mode === 'update';
     const isRoot = id === docId;
     return (
-      <>
-        {/* Slot is always in layout (visibility toggled, not conditionally
-            omitted) so switching Create/Update never changes row height. */}
-        <span
-          className={styles.linkSlot}
-          style={{ visibility: linkActive ? 'visible' : 'hidden' }}
-          aria-hidden={!linkActive}
-        >
-          {linkActive &&
-            (row.editing ? (
-              <span className={styles.editWrap}>
-                <TextInput
-                  dsVersion="2.0"
-                  size="small"
-                  autoFocus
-                  placeholder="Paste an in-scope Coda URL"
-                  value={row.overrideUrl}
-                  onChange={(e) => patchRow(id, { overrideUrl: e.target.value, touched: true })}
-                  onBlur={() => patchRow(id, { editing: false })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === 'Escape') patchRow(id, { editing: false });
-                  }}
-                />
-              </span>
-            ) : url ? (
-              <span
-                className={cn(styles.dest, styles.destSet, invalid && styles.destInvalid)}
-                title={url}
-              >
-                {url}
-              </span>
-            ) : null)}
-          <DsIconButton
-            dsVersion="2.0"
-            type="plain"
-            variant="neutral"
-            size="x-small"
-            tabIndex={linkActive ? undefined : -1}
-            aria-label={url ? 'Edit destination link' : 'Set destination link'}
-            icon={<LinkOutlined size="xxx-small" variant={url ? 'link' : 'subtle'} />}
-            onClick={() => patchRow(id, { editing: !row.editing })}
-          />
-        </span>
-        <Checkbox
-          dsVersion="2.0"
-          size="small"
-          isChecked={isRoot || row.include}
-          disabled={isRoot}
-          aria-label={isRoot ? `Include ${id} (root, always included)` : `Include ${id}`}
-          onChange={(e) => patchRow(id, { include: (e.target as HTMLInputElement).checked })}
-        />
-      </>
+      <Checkbox
+        dsVersion="2.0"
+        size="small"
+        isChecked={isRoot || isIncluded(id)}
+        disabled={isRoot}
+        aria-label={isRoot ? `Include ${id} (root, always included)` : `Include ${id}`}
+        onChange={(e) => patchRow(id, { include: (e.target as HTMLInputElement).checked })}
+      />
     );
   };
+
+  // Sync the Table's native checkbox selection back into row include flags.
+  const onSelectionChange = (ids: Array<string | number>) => {
+    const set = new Set(ids.map(String));
+    setRows((prev) => {
+      const next = { ...prev };
+      for (const i of items) {
+        const cur = next[i.id];
+        if (cur) next[i.id] = { ...cur, include: set.has(i.id) };
+      }
+      return next;
+    });
+    clearErrors();
+  };
+
+  const updateTableRows = useMemo(
+    () =>
+      items.map((i) => {
+        const row = rows[i.id] ?? { include: true, overrideUrl: '', touched: false };
+        const missingLink = isIncluded(i.id) && effectiveUrl(i.id) === '';
+        const error = invalidIds.has(i.id)
+          ? 'Invalid link'
+          : missingLink
+            ? 'Add a link or uncheck'
+            : undefined;
+        return {
+          id: i.id,
+          rowData: [
+            {
+              key: 'name',
+              value: (
+                <span className={styles.nameCell} title={i.title}>
+                  {i.title}
+                </span>
+              ),
+            },
+            {
+              key: 'link',
+              value: (
+                <span className={styles.linkCell}>
+                  <TextInput
+                    dsVersion="2.0"
+                    size="small"
+                    placeholder="Paste an in-scope Coda URL"
+                    value={row.overrideUrl}
+                    error={error}
+                    onChange={(e) => {
+                      patchRow(i.id, { overrideUrl: e.target.value, touched: true });
+                      // Editing a link invalidates any prior verify/enqueue result.
+                      clearErrors();
+                    }}
+                    aria-label={`Coda link for ${i.title}`}
+                  />
+                </span>
+              ),
+            },
+            {
+              key: 'status',
+              value: (
+                <span className={styles.statusCell}>
+                  <RowStatus state={rowVerify[i.id]} />
+                </span>
+              ),
+            },
+          ],
+        };
+      }),
+    [items, rows, mode, invalidIds, rowVerify],
+  );
 
   const sidebar = (
     <div className={styles.side}>
@@ -272,8 +402,7 @@ export function CopyToCodaModal({
             value={scopeOptions.find((o) => o.value === scopeId) ?? null}
             onChange={(opt: { value: string } | null) => {
               setScopeId(opt?.value ?? null);
-              setErrorMsg(null);
-              setInvalidIds(new Set());
+              clearErrors();
             }}
             placeholder="Choose a Coda destination"
             size="small"
@@ -297,8 +426,7 @@ export function CopyToCodaModal({
           value={mode}
           onChange={(v: string) => {
             setMode(v as Mode);
-            setErrorMsg(null);
-            setInvalidIds(new Set());
+            clearErrors();
           }}
           aria-label="Create new Coda pages or update existing ones"
         />
@@ -315,7 +443,7 @@ export function CopyToCodaModal({
 
       <div className={styles.foot}>
         <Button variant="primary" icon="ExportOutlined" block disabled={!canStart} onClick={start}>
-          {enqueue.isPending ? 'Starting…' : 'Start Copy'}
+          {verifying ? 'Verifying…' : enqueue.isPending ? 'Starting…' : 'Start Copy'}
         </Button>
         <Button variant="ghost" block onClick={onClose}>
           Cancel
@@ -340,6 +468,17 @@ export function CopyToCodaModal({
           <PageLoader />
         ) : items.length === 0 ? (
           <div className={styles.empty}>No pages to copy — this page has no doc content.</div>
+        ) : mode === 'update' ? (
+          <div className={styles.tableWrap}>
+            <Table
+              dsVersion="2.0"
+              headers={UPDATE_HEADERS}
+              data={updateTableRows}
+              rowsSelected={checkedIds}
+              onRowSelection={onSelectionChange}
+              isHeaderFixed
+            />
+          </div>
         ) : (
           <>
             <div className={styles.treeHint}>

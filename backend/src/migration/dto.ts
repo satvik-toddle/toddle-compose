@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -122,6 +123,15 @@ export class ListMigrationJobsDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+}
+
+// POST /migration-scopes/:scopeId/validate-destination — a single in-scope Coda URL
+// to verify before enqueue (the modal's per-row link check).
+export class ValidateDestinationDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  url!: string;
 }
 
 // GET /migration-scopes/:scopeId/mappings — comma-separated source doc ids whose

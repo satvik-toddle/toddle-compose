@@ -147,4 +147,75 @@ describe("sanitizeConstrainedHtml", () => {
   it("returns empty string for empty input", () => {
     expect(sanitizeConstrainedHtml("")).toBe("");
   });
+
+  const TWO_ROW_TABLE =
+    "<table><tbody><tr><td>a</td><td>b</td></tr>" +
+    "<tr><td>c</td><td>d</td></tr></tbody></table>";
+
+  it("emits an empty <thead> of th cells carrying exact widths, tbody unchanged", () => {
+    const out = sanitizeConstrainedHtml(TWO_ROW_TABLE, [[400, 100]]);
+    expect(out).toContain(
+      '<thead><tr><th style="width: 400px"></th><th style="width: 100px"></th></tr></thead>'
+    );
+    expect(out).toContain("<tbody><tr><td>a</td><td>b</td></tr>");
+    expect(out).toContain("<tr><td>c</td><td>d</td></tr></tbody>");
+  });
+
+  it("rounds fractional widths to integers", () => {
+    const out = sanitizeConstrainedHtml(TWO_ROW_TABLE, [[399.6, 100.2]]);
+    expect(out).toContain('<th style="width: 400px"></th>');
+    expect(out).toContain('<th style="width: 100px"></th>');
+  });
+
+  it("is byte-identical to legacy output with no widths, undefined entry, or empty array", () => {
+    const legacy = sanitizeConstrainedHtml(TWO_ROW_TABLE);
+    expect(legacy).not.toContain("<thead");
+    expect(sanitizeConstrainedHtml(TWO_ROW_TABLE, undefined)).toBe(legacy);
+    expect(sanitizeConstrainedHtml(TWO_ROW_TABLE, [undefined])).toBe(legacy);
+    expect(sanitizeConstrainedHtml(TWO_ROW_TABLE, [[]])).toBe(legacy);
+  });
+
+  it("emits a bare th (no style) for columns beyond a short widths array", () => {
+    const out = sanitizeConstrainedHtml(TWO_ROW_TABLE, [[250]]);
+    expect(out).toContain(
+      '<thead><tr><th style="width: 250px"></th><th></th></tr></thead>'
+    );
+  });
+
+  it("caps th count at the column count when widths array is longer", () => {
+    const out = sanitizeConstrainedHtml(TWO_ROW_TABLE, [[250, 300, 350, 400]]);
+    expect(out).toContain(
+      '<thead><tr><th style="width: 250px"></th><th style="width: 300px"></th></tr></thead>'
+    );
+    expect(out).not.toContain("350px");
+    expect(out).not.toContain("400px");
+  });
+
+  it("gives a thead only to the table that has widths ([undefined, [250]])", () => {
+    const two =
+      "<table><tbody><tr><td>x</td></tr></tbody></table>" +
+      "<table><tbody><tr><td>y</td></tr></tbody></table>";
+    const out = sanitizeConstrainedHtml(two, [undefined, [250]]);
+    expect(out).toBe(
+      "<table><tbody><tr><td>x</td></tr></tbody></table>" +
+        '<table><thead><tr><th style="width: 250px"></th></tr></thead>' +
+        "<tbody><tr><td>y</td></tr></tbody></table>"
+    );
+  });
+
+  it("rewrites the `background` shorthand highlight to `background-color` (Coda honors only the longhand)", () => {
+    const out = sanitizeConstrainedHtml(
+      '<p><span style="white-space: pre-wrap; background: rgb(255, 224, 214);">hi</span></p>'
+    );
+    expect(out).toContain("background-color: rgb(255, 224, 214)");
+    expect(out).not.toMatch(/[^-]background:\s/);
+  });
+
+  it("leaves font `color` and existing `background-color` untouched", () => {
+    const out = sanitizeConstrainedHtml(
+      '<p><span style="color: rgb(255, 0, 0); background-color: rgb(0, 255, 0);">x</span></p>'
+    );
+    expect(out).toContain("color: rgb(255, 0, 0)");
+    expect(out).toContain("background-color: rgb(0, 255, 0)");
+  });
 });

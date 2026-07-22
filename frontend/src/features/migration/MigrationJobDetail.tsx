@@ -13,7 +13,6 @@ const styles = {
   actions: 'flex items-center gap-2',
   tableWrap: 'min-h-0 overflow-auto border border-secondary rounded-2',
   errorCell: 'block max-w-[280px] truncate text-body text-semantic-error',
-  destLink: 'text-body text-link-default underline',
   muted: 'text-body text-secondary',
 };
 
@@ -25,19 +24,8 @@ const ITEM_HEADERS = [
   { key: 'error', value: 'Last error' },
 ];
 
-function DestinationCell({
-  item,
-  resolveCodaHref,
-}: Readonly<{ item: MigrationJobItem; resolveCodaHref?: (item: MigrationJobItem) => string | undefined }>) {
+function DestinationCell({ item }: Readonly<{ item: MigrationJobItem }>) {
   if (!item.codaPageId) return <span className={styles.muted}>—</span>;
-  const href = resolveCodaHref?.(item);
-  if (href) {
-    return (
-      <a className={styles.destLink} href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-        Open in Coda
-      </a>
-    );
-  }
   return <span className={styles.muted}>{item.codaPageId}</span>;
 }
 
@@ -50,10 +38,7 @@ function ErrorCell({ error }: Readonly<{ error: string | null }>) {
   );
 }
 
-function ItemsTable({
-  job,
-  resolveCodaHref,
-}: Readonly<{ job: MigrationJobDetailDto; resolveCodaHref?: (item: MigrationJobItem) => string | undefined }>) {
+function ItemsTable({ job }: Readonly<{ job: MigrationJobDetailDto }>) {
   const items = [...job.items].sort((a, b) => a.seq - b.seq);
   const rows = items.map((item) => ({
     id: item.id,
@@ -61,7 +46,7 @@ function ItemsTable({
       { key: 'title', value: item.title },
       { key: 'status', value: <ItemStatusTag status={item.status} /> },
       { key: 'attempts', value: <span className="tabular-nums">{item.attempts}</span> },
-      { key: 'destination', value: <DestinationCell item={item} resolveCodaHref={resolveCodaHref} /> },
+      { key: 'destination', value: <DestinationCell item={item} /> },
       { key: 'error', value: <ErrorCell error={item.lastError} /> },
     ],
   }));
@@ -74,13 +59,10 @@ function ItemsTable({
 
 export type MigrationJobDetailProps = {
   jobId: string;
-  // Optional: turn an item's codaPageId into an openable Coda URL; else the id is shown as text.
-  resolveCodaHref?: (item: MigrationJobItem) => string | undefined;
 };
 
-// Reusable run detail — header (status, error), actions (cancel / retry failed)
-// and the per-item table. Polls automatically via useMigrationJob.
-export function MigrationJobDetail({ jobId, resolveCodaHref }: Readonly<MigrationJobDetailProps>) {
+// Reusable run detail — header, actions (cancel / retry failed) and the per-item table; polls via useMigrationJob.
+export function MigrationJobDetail({ jobId }: Readonly<MigrationJobDetailProps>) {
   const { data: job, isLoading } = useMigrationJob(jobId);
   const cancel = useCancelJob();
   const retry = useRetryJob();
@@ -130,9 +112,7 @@ export function MigrationJobDetail({ jobId, resolveCodaHref }: Readonly<Migratio
         </div>
       </div>
 
-      {job.error && <Alert dsVersion="2.0" type="error" message={job.error} />}
-
-      <ItemsTable job={job} resolveCodaHref={resolveCodaHref} />
+      <ItemsTable job={job} />
     </div>
   );
 }

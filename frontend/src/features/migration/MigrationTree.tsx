@@ -37,9 +37,7 @@ const styles = {
   end: 'flex shrink-0 items-center gap-2',
 };
 
-// A reusable nested drag-to-reparent tree. Encapsulates the canonical dnd-kit
-// sortable-tree flow: flatten → SortableContext → horizontal-drag projection →
-// rebuild. Per-row trailing controls are supplied by the caller via `renderRowEnd`.
+// Reusable nested drag-to-reparent tree (dnd-kit sortable-tree flow); caller supplies trailing row controls via `renderRowEnd`.
 export function MigrationTree({
   items,
   onItemsChange,

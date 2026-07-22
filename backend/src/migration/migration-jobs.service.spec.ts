@@ -415,6 +415,95 @@ describe("MigrationJobsService.enqueue", () => {
     const a = created.find((i: any) => i.sourceDocId === "a");
     expect(a.plannedParentDocId).toBe("root");
   });
+
+  it("rejects an A↔B parent cycle among included items (400, never a wedge)", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const { svc } = makeService({ txJobCreate: create });
+    // root is the true root; a→b and b→a form a cycle both reparenting leaves intact.
+    const p = plan({
+      items: [
+        { sourceDocId: "root", plannedParentDocId: null, title: "Root", include: true },
+        { sourceDocId: "a", plannedParentDocId: "b", title: "A", include: true },
+        { sourceDocId: "b", plannedParentDocId: "a", title: "B", include: true },
+      ],
+    } as any);
+    await expect(svc.enqueue(USER, SCOPE, p)).rejects.toThrow(/parent cycle/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("normalizes an explicit root row's stale non-null planned parent to null", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const { svc } = makeService({ txJobCreate: create });
+    // Direct-API payload: the explicit root carries a leftover parent id that has no
+    // item row — it must be normalized to null, else the root can never be claimed.
+    const p = plan({
+      sourceRootDocId: "root",
+      items: [
+        { sourceDocId: "root", plannedParentDocId: "ghost", title: "Root", include: true },
+        { sourceDocId: "child", plannedParentDocId: "root", title: "Child", include: true },
+      ],
+    } as any);
+    await svc.enqueue(USER, SCOPE, p);
+    const created = create.mock.calls[0][0].data.items.create;
+    const root = created.find((i: any) => i.sourceDocId === "root");
+    expect(root.plannedParentDocId).toBeNull();
+  });
+
+  it("re-anchors a self-loop (excluded-chain parent resolving to itself) to the root", async () => {
+    const create = jest.fn().mockResolvedValue({ id: "job1" });
+    const { svc } = makeService({ txJobCreate: create });
+    // leaf → ex(excluded) → leaf: nearestIncluded resolves back to leaf itself, which
+    // must be treated as not-found and re-anchored to root (never leaf-of-itself).
+    const p = plan({
+      items: [
+        { sourceDocId: "root", plannedParentDocId: null, title: "Root", include: true },
+        { sourceDocId: "leaf", plannedParentDocId: "ex", title: "Leaf", include: true },
+        { sourceDocId: "ex", plannedParentDocId: "leaf", title: "Ex", include: false },
+      ],
+    } as any);
+    await svc.enqueue(USER, SCOPE, p);
+    const created = create.mock.calls[0][0].data.items.create;
+    const leaf = created.find((i: any) => i.sourceDocId === "leaf");
+    expect(leaf.plannedParentDocId).toBe("root");
+  });
+});
+
+describe("MigrationJobsService.validateDestination (per-row link check)", () => {
+  it("returns {ok:true, codaPageId} for a valid URL", async () => {
+    const { svc } = makeService({
+      validateDestinationUrl: jest.fn().mockResolvedValue({ codaPageId: "cp9" }),
+    });
+    const res = await svc.validateDestination(USER, SCOPE, "https://coda.io/d/x/canvas-ok");
+    expect(res).toEqual({ ok: true, codaPageId: "cp9" });
+  });
+
+  it("returns {ok:false, reason} (does NOT throw) when validation rejects", async () => {
+    const { svc } = makeService({
+      validateDestinationUrl: jest
+        .fn()
+        .mockRejectedValue(new BadRequestException("not within the scope root")),
+    });
+    const res = await svc.validateDestination(USER, SCOPE, "https://coda.io/d/x/canvas-bad");
+    expect(res).toEqual({ ok: false, reason: "not within the scope root" });
+  });
+
+  it("404s an unknown/deleted scope", async () => {
+    const { svc } = makeService({ scope: null });
+    await expect(
+      svc.validateDestination(USER, SCOPE, "https://coda.io/d/x/canvas"),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it("throws for a non-member / insufficient role (workspace EDIT gate)", async () => {
+    const requireWorkspaceRole = jest
+      .fn()
+      .mockRejectedValue(new ForbiddenException());
+    const { svc } = makeService({ requireWorkspaceRole });
+    await expect(
+      svc.validateDestination(USER, SCOPE, "https://coda.io/d/x/canvas"),
+    ).rejects.toThrow(ForbiddenException);
+    expect(requireWorkspaceRole).toHaveBeenCalledWith(USER, WS, "EDIT");
+  });
 });
 
 describe("MigrationJobsService.skipItemsForDeletedDocs (delete hook, D7)", () => {

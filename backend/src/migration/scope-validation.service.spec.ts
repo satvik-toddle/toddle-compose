@@ -122,4 +122,19 @@ describe("ScopeValidationService.validateDestinationUrl", () => {
     });
     expect((coda.getPage as jest.Mock).mock.calls.length).toBe(0);
   });
+
+  it("caches a verified (scope,url) so a re-check within TTL makes no Coda calls", async () => {
+    const { svc, coda } = makeService({
+      scope: { codaDocId: DOC, codaRootPageId: ROOT },
+      resource: pageResource(DOC, "canvas-child"),
+      parents: { "canvas-child": ROOT },
+    });
+    await expect(svc.validateDestinationUrl("s1", "url")).resolves.toEqual({ codaPageId: "canvas-child" });
+    const resolveCalls = (coda.resolveBrowserLink as jest.Mock).mock.calls.length;
+    const getCalls = (coda.getPage as jest.Mock).mock.calls.length;
+    // Second call (as the enqueue path does right after verify) is served from cache.
+    await expect(svc.validateDestinationUrl("s1", "url")).resolves.toEqual({ codaPageId: "canvas-child" });
+    expect((coda.resolveBrowserLink as jest.Mock).mock.calls.length).toBe(resolveCalls);
+    expect((coda.getPage as jest.Mock).mock.calls.length).toBe(getCalls);
+  });
 });

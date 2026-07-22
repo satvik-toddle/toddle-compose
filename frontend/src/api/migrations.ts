@@ -8,6 +8,7 @@ import type {
   MigrationMappingDto,
   MigrationScope,
   UpdateMigrationScopeInput,
+  ValidateDestinationResult,
 } from '../types/api';
 
 export const migrationsApi = {
@@ -26,6 +27,14 @@ export const migrationsApi = {
   listMappings: (scopeId: string, docIds: string[]) =>
     http.get<MigrationMappingDto[]>(
       `/migration-scopes/${scopeId}/mappings?docIds=${encodeURIComponent(docIds.join(','))}`,
+    ),
+
+  // Per-row link check before enqueue — one in-scope Coda URL. The underlying Coda
+  // reads funnel through the backend rate limiter, so concurrent per-row calls queue.
+  validateDestination: (scopeId: string, url: string) =>
+    http.post<ValidateDestinationResult>(
+      `/migration-scopes/${scopeId}/validate-destination`,
+      { url },
     ),
 
   // "Open in Coda" — a doc's live Coda destination(s) across its workspace's scopes.

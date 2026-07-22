@@ -1,4 +1,7 @@
 import { JSDOM } from "jsdom";
+import { createLogger } from "../logger";
+
+const log = createLogger("coda-html-sanitizer");
 
 // Post-pass over doc-editor exportDOM output that constrains it to the lossy subset Coda's HTML
 // import accepts (design §14, H4). Every transform is a structural DOM edit; nothing here recovers
@@ -19,7 +22,10 @@ function isEmptyInline(el: Element): boolean {
   );
 }
 
-export function sanitizeConstrainedHtml(html: string): string {
+export function sanitizeConstrainedHtml(
+  html: string,
+  tableColWidths?: (number[] | undefined)[]
+): string {
   const doc = new JSDOM(`<!doctype html><body>${html}</body>`).window.document;
   const body = doc.body;
 
@@ -141,16 +147,38 @@ export function sanitizeConstrainedHtml(html: string): string {
   body.querySelectorAll("figcaption").forEach((el) => el.remove());
   body.querySelectorAll("figure").forEach((el) => unwrap(el));
 
-  // 10. Tables (§14): reduce to a clean <table><tbody> — no headers, no merged cells. Accept the loss.
-  body.querySelectorAll("table").forEach((table) => {
+  // 9b. Text highlight: the editor exports it as the CSS `background` shorthand, which Coda's
+  // HTML import ignores — only `background-color` is honored (verified 2026-07-22). Rewrite a
+  // plain-color `background:` declaration to `background-color:` so highlights survive.
+  body.querySelectorAll('[style*="background"]').forEach((el) => {
+    const style = el.getAttribute("style");
+    if (!style) return;
+    const rewritten = style.replace(
+      /(^|;)(\s*)background\s*:\s*(rgba?\([^;]*\)|#[0-9a-fA-F]{3,8}|[a-zA-Z]+)\s*(?=;|$)/g,
+      (_m, sep, ws, val) => `${sep}${ws}background-color: ${val}`,
+    );
+    if (rewritten !== style) el.setAttribute("style", rewritten);
+  });
+
+  // 10. Tables (§14): reduce to a clean <table><tbody> — no merged cells. Column widths are emitted as
+  // an all-empty <thead> of <th style="width: {n}px">, the only encoding Coda's import honors (verified 2026-07-22).
+  const tables = Array.from(body.querySelectorAll("table"));
+  if (tableColWidths && tableColWidths.length !== tables.length) {
+    log.debug(
+      `table count ${tables.length} != widths length ${tableColWidths.length}; aligning by index`
+    );
+  }
+  tables.forEach((table, i) => {
     const rows = Array.from(table.querySelectorAll("tr"));
     const tbody = doc.createElement("tbody");
+    let colCount = 0;
     for (const tr of rows) {
       const cleanTr = doc.createElement("tr");
       const cells = Array.from(tr.children).filter((c) => {
         const t = c.tagName.toLowerCase();
         return t === "td" || t === "th";
       });
+      colCount = Math.max(colCount, cells.length);
       for (const cell of cells) {
         const td = doc.createElement("td");
         while (cell.firstChild) td.appendChild(cell.firstChild);
@@ -159,6 +187,19 @@ export function sanitizeConstrainedHtml(html: string): string {
       tbody.appendChild(cleanTr);
     }
     while (table.firstChild) table.removeChild(table.firstChild);
+    const widths = tableColWidths?.[i];
+    if (widths && widths.length > 0 && colCount > 0) {
+      const thead = doc.createElement("thead");
+      const headRow = doc.createElement("tr");
+      for (let c = 0; c < colCount; c++) {
+        const th = doc.createElement("th");
+        const w = widths[c];
+        if (typeof w === "number") th.setAttribute("style", `width: ${Math.round(w)}px`);
+        headRow.appendChild(th);
+      }
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+    }
     table.appendChild(tbody);
   });
 

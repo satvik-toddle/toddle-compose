@@ -17,6 +17,14 @@ import { DocumentsService } from "../documents/documents.service";
 import { CodaClient } from "../coda/coda.client";
 import type { CodaPage } from "../coda/coda.types";
 import { CodaCredentialsService } from "./coda-credentials.service";
+import { NON_TERMINAL_JOB_STATUSES } from "./job-status";
+
+// Quoted SQL literal list ('QUEUED', 'RUNNING') for the raw status IN (...) clauses.
+// Values are compile-time constants, so a raw splice is injection-safe and keeps the
+// generated SQL byte-identical (no text→enum param coercion).
+const LIVE_JOB_STATUS_SQL = Prisma.raw(
+  NON_TERMINAL_JOB_STATUSES.map((s) => `'${s}'`).join(", "),
+);
 
 // Phase 4c — the durable, fault-tolerant background worker that pushes docs into
 // Coda. Modeled on the rtc compaction scheduler (OnApplicationBootstrap +
@@ -45,7 +53,11 @@ interface ClaimedItem {
   snapshotHtml: string | null;
   // Head seq captured alongside the snapshot at enqueue; recorded as migratedSeq (D1/D2).
   enqueuedSeq: number | null;
+  // PERMANENT-error retry count (checked against maxAttempts).
   attempts: number;
+  // TRANSIENT-error retry count (checked against maxTransientAttempts) — a separate
+  // budget so burned transient retries never starve the permanent-error retries.
+  transientAttempts: number;
   seq: number;
 }
 
@@ -234,6 +246,8 @@ export class MigrationWorkerService
   // status='SUCCEEDED'). Gating on the parent being SUCCEEDED — not merely having a
   // codaPageId (persisted at 202, before awaitMutation confirms materialization) —
   // stops a child racing ahead of a parent page Coda hasn't finished creating yet.
+  // OVERRIDE items (update-existing) replace a pre-existing page in place and never
+  // use the parent, so they bypass the gate and run as soon as a slot frees up.
   // Survives restart, because parent state is read from the DB, not memory.
   // FOR UPDATE ... SKIP LOCKED + the lease guarantee no item is ever taken twice.
   private async claimBatch(): Promise<ClaimedItem[]> {
@@ -248,13 +262,14 @@ export class MigrationWorkerService
         SELECT c.id
         FROM migration_job_items c
         JOIN migration_jobs j ON j.id = c.job_id
-        WHERE j.status IN ('QUEUED', 'RUNNING')
+        WHERE j.status IN (${LIVE_JOB_STATUS_SQL})
           AND (
             c.status = 'PENDING'
             OR (c.status = 'RUNNING' AND c.leased_until IS NOT NULL AND c.leased_until < now())
           )
           AND (
-            c.planned_parent_doc_id IS NULL
+            c.override
+            OR c.planned_parent_doc_id IS NULL
             OR EXISTS (
               SELECT 1 FROM migration_job_items p
               WHERE p.job_id = c.job_id
@@ -279,6 +294,7 @@ export class MigrationWorkerService
         i.snapshot_html AS "snapshotHtml",
         i.enqueued_seq AS "enqueuedSeq",
         i.attempts,
+        i.transient_attempts AS "transientAttempts",
         i.seq
     `;
   }
@@ -287,8 +303,9 @@ export class MigrationWorkerService
   // parent instead ends terminally (FAILED/SKIPPED), its descendants can never be
   // placed — a recursive CTE walks the plannedParentDocId chain within each live
   // job and flips the whole blocked subtree PENDING → SKIPPED so the job can
-  // finalize. Returns the affected jobIds (for finalization); idempotent (the
-  // UPDATE is guarded on status='PENDING', so re-runs skip already-terminal rows).
+  // finalize. OVERRIDE items are never blocked (they bypass the parent gate), so
+  // they are excluded at both CTE levels. Returns the affected jobIds (for
+  // finalization); idempotent (guarded on status='PENDING').
   private async skipOrphansOfTerminalParents(): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<{ jobId: string }[]>`
       WITH RECURSIVE blocked AS (
@@ -297,8 +314,9 @@ export class MigrationWorkerService
         JOIN migration_jobs j ON j.id = c.job_id
         JOIN migration_job_items p
           ON p.job_id = c.job_id AND p.source_doc_id = c.planned_parent_doc_id
-        WHERE j.status IN ('QUEUED', 'RUNNING')
+        WHERE j.status IN (${LIVE_JOB_STATUS_SQL})
           AND c.status = 'PENDING'
+          AND NOT c.override
           AND c.planned_parent_doc_id IS NOT NULL
           AND p.status IN ('FAILED', 'SKIPPED')
         UNION
@@ -307,6 +325,7 @@ export class MigrationWorkerService
         JOIN blocked b
           ON c.job_id = b.job_id AND c.planned_parent_doc_id = b.source_doc_id
         WHERE c.status = 'PENDING'
+          AND NOT c.override
       )
       UPDATE migration_job_items i
       SET status = 'SKIPPED',
@@ -335,7 +354,7 @@ export class MigrationWorkerService
   // --- Per-item execution ---------------------------------------------------
   private async processItem(item: ClaimedItem): Promise<void> {
     // Greppable per-item context: reconstruct any item's fate from the logs alone.
-    const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq} attempt=${item.attempts + 1}]`;
+    const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq} attempt=${item.attempts + 1}/t${item.transientAttempts + 1}]`;
     // The step in progress, surfaced on failure so a lastError pins WHERE it broke.
     let step = "claim";
     this.log.log(
@@ -376,8 +395,13 @@ export class MigrationWorkerService
         await this.finishItem(item, "SKIPPED", "destination removed");
         return;
       }
+      // An override replaces its OWN target page in place — it's never placed under a
+      // parent, so it needs no parent resolution (and, running un-gated, its parent
+      // item may not be SUCCEEDED yet). Only a fresh create nests under a parent.
       step = "resolve-parent";
-      const parentPageId = await this.resolveCodaParent(item, scope.codaRootPageId);
+      const parentPageId = item.override
+        ? undefined
+        : await this.resolveCodaParent(item, scope.codaRootPageId);
 
       // (d) point-in-time content: push the HTML FROZEN at enqueue verbatim — never
       // re-extract at run, so later edits/compaction (and a transient rtc outage) can't
@@ -536,6 +560,9 @@ export class MigrationWorkerService
           where: { id: item.id },
           select: { codaPageId: true },
         });
+        // NOTE: deliberately NOT consulting MigrationMapping here — "Create new" must always
+        // create (design §identity: mappings are opt-in via prefill/override only; D6 accepts
+        // cross-job duplicates). A mapped page may also be long-deleted (410).
         return fresh?.codaPageId ?? null;
       },
       { timeout: CREATE_TX_TIMEOUT_MS },
@@ -860,28 +887,35 @@ export class MigrationWorkerService
     const ctx = `[job=${item.jobId} item=${item.id} src=${item.sourceDocId} seq=${item.seq}]`;
     const transient = isTransientError(e);
     const cls = transient ? "TRANSIENT" : "PERMANENT";
+    // Transient and permanent errors have SEPARATE budgets: each error kind bumps and
+    // checks ONLY its own counter, so a burned transient budget never fails an item on
+    // its first permanent error (and vice versa).
+    const attempts = transient ? item.attempts : item.attempts + 1;
+    const transientAttempts = transient
+      ? item.transientAttempts + 1
+      : item.transientAttempts;
     const cap = transient ? this.maxTransientAttempts : this.maxAttempts;
-    const attempts = item.attempts + 1;
+    const count = transient ? transientAttempts : attempts;
 
-    if (attempts >= cap) {
+    if (count >= cap) {
       this.log.warn(
-        `${ctx} step=${step} class=${cls} terminal=FAILED attempts=${attempts}/${cap} page=${item.codaPageId ?? "-"} error="${msg}"`,
+        `${ctx} step=${step} class=${cls} terminal=FAILED attempts=${attempts} transientAttempts=${transientAttempts} cap=${cap} page=${item.codaPageId ?? "-"} error="${msg}"`,
       );
-      await this.failItem(item, attempts, msg);
+      await this.failItem(item, attempts, transientAttempts, msg);
       return;
     }
 
     // Below the cap: release the lease back to PENDING for a later retry. Transient
-    // errors back off (growing per attempt) so a downed dependency isn't hot-looped.
+    // errors back off (growing per transient attempt) so a downed dependency isn't hot-looped.
     if (transient) {
       const backoff = Math.min(
-        this.transientBackoffMs * 2 ** (attempts - 1),
+        this.transientBackoffMs * 2 ** (transientAttempts - 1),
         60_000,
       );
       await sleep(backoff);
     }
     this.log.warn(
-      `${ctx} step=${step} class=${cls} action=release-for-retry attempts=${attempts}/${cap} error="${msg}"`,
+      `${ctx} step=${step} class=${cls} action=release-for-retry attempts=${attempts} transientAttempts=${transientAttempts} cap=${cap} error="${msg}"`,
     );
     await this.prisma.migrationJobItem
       .updateMany({
@@ -889,6 +923,7 @@ export class MigrationWorkerService
         data: {
           status: "PENDING",
           attempts,
+          transientAttempts,
           lastError: msg,
           leasedBy: null,
           leasedUntil: null,
@@ -902,6 +937,7 @@ export class MigrationWorkerService
   private async failItem(
     item: ClaimedItem,
     attempts: number,
+    transientAttempts: number,
     msg: string,
   ): Promise<void> {
     await this.prisma
@@ -911,6 +947,7 @@ export class MigrationWorkerService
           data: {
             status: "FAILED",
             attempts,
+            transientAttempts,
             lastError: msg,
             leasedBy: null,
             leasedUntil: null,
@@ -975,7 +1012,7 @@ export class MigrationWorkerService
           ? "PARTIAL"
           : "FAILED";
     const res = await this.prisma.migrationJob.updateMany({
-      where: { id: jobId, status: { in: ["QUEUED", "RUNNING"] } },
+      where: { id: jobId, status: { in: [...NON_TERMINAL_JOB_STATUSES] } },
       data: { status, finishedAt: new Date() },
     });
     if (res.count > 0) {

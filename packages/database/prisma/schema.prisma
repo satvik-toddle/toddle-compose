@@ -435,7 +435,6 @@ model MigrationJob {
   succeededItems  Int                @default(0) @map("succeeded_items")
   failedItems     Int                @default(0) @map("failed_items")
   skippedItems    Int                @default(0) @map("skipped_items")
-  error           String?
   createdAt       DateTime           @default(now()) @map("created_at")
   startedAt       DateTime?          @map("started_at")
   finishedAt      DateTime?          @map("finished_at")
@@ -472,6 +471,10 @@ model MigrationJobItem {
   migratedSeq        Int?                @map("migrated_seq")
   status             MigrationItemStatus @default(PENDING)
   attempts           Int                 @default(0)
+  // Separate counter for TRANSIENT-error retries (dependency blips), checked against
+  // maxTransientAttempts; `attempts` counts only PERMANENT errors (maxAttempts). Split
+  // so a burned transient budget never starves the permanent-error retries.
+  transientAttempts  Int                 @default(0) @map("transient_attempts")
   lastError          String?             @map("last_error")
   // Depth-first processing order within the job.
   seq                Int
@@ -483,6 +486,8 @@ model MigrationJobItem {
 
   @@unique([jobId, sourceDocId])
   @@index([jobId, seq])
+  // Backs the recursive CTE in skipOrphansOfTerminalParents (descends by parent).
+  @@index([jobId, plannedParentDocId])
   @@index([status, leasedUntil])
   @@map("migration_job_items")
 }

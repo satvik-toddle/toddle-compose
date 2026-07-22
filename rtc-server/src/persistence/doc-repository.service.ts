@@ -162,6 +162,15 @@ export class DocRepository {
     });
   }
 
+  // Bulk form of deleteStaleUpTo for draining a whole claimed batch in one round trip; the per-doc
+  // seq guard (G2) is preserved via the OR of (docId, seq ≤ claimed) predicates.
+  async deleteStaleBatch(pairs: { docId: string; seq: number }[]): Promise<void> {
+    if (pairs.length === 0) return;
+    await this.prisma.staleDocument.deleteMany({
+      where: { OR: pairs.map(({ docId, seq }) => ({ docId, seq: { lte: seq } })) },
+    });
+  }
+
   async countStale(): Promise<number> {
     return this.prisma.staleDocument.count();
   }

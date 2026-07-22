@@ -1,7 +1,13 @@
-// One-time: copy rtc_documents.content_text -> documents.content_text (separate DBs).
+// One-off manual backfill: copy rtc_documents.content_text -> documents.content_text (separate DBs).
+// Normally unnecessary — the indexer worker backfills missing rows on boot (INDEXER_BACKFILL_ON_BOOT);
+// kept only for an out-of-band re-run. Requires DATABASE_URL and RTC_DATABASE_URL in the environment.
 const { Client } = require('pg');
-const BACKEND = process.env.DATABASE_URL || 'postgresql://toddle:toddle@localhost:5432/toddle_compose';
-const RTC = process.env.RTC_DATABASE_URL || 'postgresql://toddle:toddle@localhost:5432/toddle_compose_rtc';
+const BACKEND = process.env.DATABASE_URL;
+const RTC = process.env.RTC_DATABASE_URL;
+if (!BACKEND || !RTC) {
+  console.error('Set DATABASE_URL (backend) and RTC_DATABASE_URL (rtc) before running.');
+  process.exit(1);
+}
 (async () => {
   const rtc = new Client({ connectionString: RTC });
   const be = new Client({ connectionString: BACKEND });
@@ -15,7 +21,5 @@ const RTC = process.env.RTC_DATABASE_URL || 'postgresql://toddle:toddle@localhos
     if (done % 100 === 0) console.log(`${done}/${rows.length}`);
   }
   console.log(`backfill done: ${updated}/${done} matched a backend doc`);
-  const m = await be.query("SELECT count(*) FROM documents WHERE content_text ILIKE '%searchable%'");
-  console.log('backend docs matching "searchable":', m.rows[0].count);
   await rtc.end(); await be.end();
 })().catch(e => { console.error(e); process.exit(1); });

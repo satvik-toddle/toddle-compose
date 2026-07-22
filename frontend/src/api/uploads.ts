@@ -44,7 +44,12 @@ function postOnce(
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) opts.onProgress?.(Math.round((e.loaded / e.total) * 100));
     };
+    // Detach the abort listener when this attempt settles — else it leaks (and the 401
+    // refresh-retry, reusing the same signal, would stack a second one).
+    const onAbort = () => xhr.abort();
+    const cleanup = () => opts.signal?.removeEventListener('abort', onAbort);
     xhr.onload = () => {
+      cleanup();
       let body: unknown = null;
       try {
         body = xhr.responseText ? JSON.parse(xhr.responseText) : null;
@@ -53,11 +58,17 @@ function postOnce(
       }
       resolve({ status: xhr.status, body });
     };
-    xhr.onerror = () => reject(new ApiError(0, 'Network error during upload'));
-    xhr.onabort = () => reject(new ApiError(0, 'Upload cancelled'));
+    xhr.onerror = () => {
+      cleanup();
+      reject(new ApiError(0, 'Network error during upload'));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new ApiError(0, 'Upload cancelled'));
+    };
     if (opts.signal) {
       if (opts.signal.aborted) return xhr.abort();
-      opts.signal.addEventListener('abort', () => xhr.abort());
+      opts.signal.addEventListener('abort', onAbort);
     }
     xhr.send(form);
   });

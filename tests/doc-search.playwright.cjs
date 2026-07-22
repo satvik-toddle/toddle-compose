@@ -43,9 +43,9 @@ const shot = async (p, name) => { await p.screenshot({ path: `${ART}/${name}.png
   await page.goto(`${APP}/w/${WS}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
 
-  // Check 1a: topbar icon exists (the sidebar search pill was removed by design)
-  const topbarSearch = await page.locator('[aria-label="Search docs"]').count();
-  pass('1a entry point present (topbar icon)', topbarSearch >= 1, `topbarIcon=${topbarSearch}`);
+  // Check 1a: sidebar search row exists (search lives in the sidebar nav, next to Home/Starred)
+  const sidebarSearch = await page.locator('[data-testid="sidebar-search"]').count();
+  pass('1a entry point present (sidebar search row)', sidebarSearch >= 1, `sidebarSearch=${sidebarSearch}`);
 
   // Check 1b: ⌘/Ctrl+K opens the modal
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k');

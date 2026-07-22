@@ -84,7 +84,8 @@ function makeSnippet(text: string, q: string): string {
     const head = text.slice(0, WINDOW).replace(/\s+/g, " ").trim();
     return head.length < text.trim().length ? `${head}…` : head;
   }
-  const start = Math.max(0, idx - Math.floor((WINDOW - q.length) / 2));
+  // Clamp the lead offset non-negative: a q longer than WINDOW would otherwise push start past idx, dropping the match.
+  const start = Math.max(0, idx - Math.max(0, Math.floor((WINDOW - q.length) / 2)));
   const end = Math.min(text.length, start + WINDOW);
   let snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
   if (start > 0) snippet = `…${snippet}`;

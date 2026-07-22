@@ -26,6 +26,7 @@ export class IndexerService implements OnApplicationShutdown {
   private scheduleTimer: NodeJS.Timeout | null = null;
   private safetyTimer: NodeJS.Timeout | null = null;
   private running = false;
+  private pending = false;
   private inFlight: Promise<void> = Promise.resolve();
   private stopped = false;
 
@@ -107,10 +108,20 @@ export class IndexerService implements OnApplicationShutdown {
   private fire(reason = "scheduled"): void {
     this.scheduledAt = null;
     this.scheduleTimer = null;
-    if (this.running || this.stopped) return; // a run in progress will drain what's queued
+    if (this.stopped) return;
+    // A run is in progress: flag a re-arm so a doc enqueued after its final claim isn't stranded
+    // until the safety sweep — the current run finishes, then drains once more.
+    if (this.running) {
+      this.pending = true;
+      return;
+    }
     this.running = true;
     this.inFlight = this.drain(reason).finally(() => {
       this.running = false;
+      if (this.pending && !this.stopped) {
+        this.pending = false;
+        this.fire("pending");
+      }
     });
   }
 
@@ -126,16 +137,20 @@ export class IndexerService implements OnApplicationShutdown {
 
         const states = await this.repo.getRtcStatesForIndex(rows.map((r) => r.docId));
         const bytesById = new Map(states.map((s) => [s.id, s.yjsState]));
-        const items = await mapWithConcurrency(rows, EXTRACT_CONCURRENCY, (row) => {
-          const bytes = bytesById.get(row.docId);
-          // extractSearchText never throws (returns "" on bad/absent state) — no poison rows.
-          const text = bytes ? extractSearchText(new Uint8Array(bytes)) : "";
-          return { id: row.docId, text, seq: row.seq };
+        // Skip rows whose rtc state is gone (doc deleted after enqueue, or never snapshotted):
+        // extracting "" and writing it would blank the still-present backend row via the
+        // seq-guarded UPDATE. A genuinely empty doc keeps its (non-null) state and still indexes to "".
+        const indexable = rows.filter((r) => bytesById.get(r.docId) != null);
+        const items = await mapWithConcurrency(indexable, EXTRACT_CONCURRENCY, (row) => {
+          const bytes = bytesById.get(row.docId)!;
+          // extractSearchText never throws (returns "" on empty content) — no poison rows.
+          return { id: row.docId, text: extractSearchText(new Uint8Array(bytes)), seq: row.seq };
         });
 
         // Write first; only clear queue rows AFTER a durable write (throws → rows survive → retry).
+        // Clear ALL claimed rows (skipped ones too) in one bulk, guarded delete so a vanished doc can't poison the queue.
         await this.writer.apply(items);
-        for (const row of rows) await this.repo.deleteStaleUpTo(row.docId, row.seq);
+        await this.repo.deleteStaleBatch(rows.map((r) => ({ docId: r.docId, seq: r.seq })));
 
         total += rows.length;
         if (rows.length < BATCH) break;

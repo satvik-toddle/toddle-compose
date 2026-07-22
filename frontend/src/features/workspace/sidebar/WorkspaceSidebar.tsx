@@ -4,6 +4,7 @@ import { Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
+  SearchOutlined,
   SettingsOutlined,
   ChevronLeftOutlined,
   AddOutlined,
@@ -12,6 +13,8 @@ import {
 import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { useUiStore } from '../../../stores/uiStore';
+import { ShortcutHint } from '../../../components/ShortcutHint';
+import { commandModifierKey } from '../../../lib/platform';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
 import { VersionsSection, useHistoryMode } from '../history';
@@ -50,6 +53,8 @@ const styles = {
   footerGroup: 'flex flex-none flex-col gap-0.25 border-t border-secondary pt-2.5',
 };
 
+const searchShortcutKeys = [commandModifierKey, 'K'];
+
 type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
 
 export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarProps>) {
@@ -77,6 +82,18 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
         </div>
 
         <div className={styles.linkGroup}>
+          <button
+            type="button"
+            className={cn(sidebarRow.base, sidebarRow.default, 'w-full')}
+            data-testid="sidebar-search"
+            onClick={() => openModal({ type: 'search', workspaceId })}
+          >
+            <SearchOutlined size="xxx-small" />
+            Search
+            <span className="ml-auto">
+              <ShortcutHint keys={searchShortcutKeys} />
+            </span>
+          </button>
           <NavLink
             to={`/w/${workspaceId}`}
             end

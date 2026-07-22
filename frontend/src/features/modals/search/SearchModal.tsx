@@ -151,10 +151,7 @@ export function SearchModal({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-      return;
-    }
+    // Escape is handled once by Modal's shouldCloseOnEsc — don't also close here (double onClose).
     if (results.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();

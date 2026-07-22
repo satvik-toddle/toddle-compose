@@ -19,6 +19,9 @@ export class SearchIndexWriter implements OnModuleDestroy {
       throw new Error("DATABASE_URL is required for the indexer worker (backend DB write path)");
     }
     this.pool = new Pool({ connectionString, max: 4 });
+    // An idle-client error (DB restart / network blip) emits 'error' on the pool; without a
+    // listener Node rethrows it as an uncaughtException, crash-looping the worker on every hiccup.
+    this.pool.on("error", (err) => log.error(`idle pg client error: ${err.message}`));
   }
 
   async onModuleDestroy(): Promise<void> {

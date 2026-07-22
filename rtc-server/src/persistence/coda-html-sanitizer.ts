@@ -95,7 +95,9 @@ export function sanitizeConstrainedHtml(
       container.removeAttribute("style");
     });
 
-  // 6. Embeds / iframes (§14): unsupported — preserve only the URL as a plain link.
+  // 6. Embeds / iframes (§14): Coda's HTML import can't embed an iframe (video/file/YouTube
+  // all become inert), so preserve each as a link. Label it with the upload's filename
+  // (data-name) when present — a media/file embed otherwise migrates as an ugly raw URL.
   body.querySelectorAll("iframe").forEach((iframe) => {
     const youtubeId = iframe.getAttribute("data-lexical-youtube");
     const href = youtubeId
@@ -107,7 +109,7 @@ export function sanitizeConstrainedHtml(
     }
     const a = doc.createElement("a");
     a.setAttribute("href", href);
-    a.textContent = href;
+    a.textContent = iframe.getAttribute("data-name") || href;
     iframe.replaceWith(a);
   });
 

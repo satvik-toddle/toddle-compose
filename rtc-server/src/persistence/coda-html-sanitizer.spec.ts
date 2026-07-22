@@ -73,6 +73,13 @@ describe("sanitizeConstrainedHtml", () => {
     ).toBe("");
   });
 
+  it("labels a media/file embed iframe with its filename (data-name), not the raw URL", () => {
+    const out = sanitizeConstrainedHtml(
+      '<iframe src="https://cdn.example.com/uploads/abc" data-name="vid1.mp4" data-type="video/mp4"></iframe>'
+    );
+    expect(out).toBe('<a href="https://cdn.example.com/uploads/abc">vid1.mp4</a>');
+  });
+
   it("keeps file-embed anchors as clean labeled download links (C3)", () => {
     const out = sanitizeConstrainedHtml(
       '<a data-embed="embed-media" href="https://cdn.example.com/f.pdf" ' +

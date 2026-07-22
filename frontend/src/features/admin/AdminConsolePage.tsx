@@ -3,7 +3,13 @@ import { Tabs } from '@toddle-edu/ds-web';
 import { AppBar } from '../../components/AppBar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../components/Icon';
-import { useRealm, useRealmJoinRequests, useRealmMembers, useWorkspaces } from '../../hooks/queries';
+import {
+  useRealm,
+  useRealmJoinRequests,
+  useRealmMembers,
+  useRealmOrgRequests,
+  useWorkspaces,
+} from '../../hooks/queries';
 import { useAuthStore } from '../../stores/authStore';
 import s from './AdminConsolePage.module.scss';
 
@@ -34,18 +40,20 @@ export function AdminConsolePage() {
   const { data: workspaces } = useWorkspaces();
   const { data: members } = useRealmMembers();
   const { data: requests } = useRealmJoinRequests();
+  const { data: orgRequests } = useRealmOrgRequests();
   const navigate = useNavigate();
   const loc = useLocation();
   if (!me) return null;
 
   // Active tab = the /admin path segment, defaulting to Workspaces.
-  const TAB_SEGMENTS = ['members', 'requests', 'settings'] as const;
+  const TAB_SEGMENTS = ['members', 'requests', 'org-requests', 'settings'] as const;
   const active = TAB_SEGMENTS.find((segment) => loc.pathname.includes(`/${segment}`)) ?? 'workspaces';
 
   const options = [
     { value: 'workspaces', label: 'Workspaces', suffix: <Count n={workspaces?.length} /> },
     { value: 'members', label: 'Realm members', suffix: <Count n={members?.length} /> },
-    { value: 'requests', label: 'Join requests', suffix: <Count n={requests?.length} alert /> },
+    { value: 'requests', label: 'Workspace requests', suffix: <Count n={requests?.length} alert /> },
+    { value: 'org-requests', label: 'Org requests', suffix: <Count n={orgRequests?.length} alert /> },
     { value: 'settings', label: 'Settings' },
   ];
 

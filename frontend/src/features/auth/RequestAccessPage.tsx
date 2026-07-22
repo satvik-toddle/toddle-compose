@@ -147,9 +147,9 @@ export function RequestAccessPage() {
       foot={
         <>
           {currentUser && (
-            <>
-              Signed in as <b className={styles.signedInEmail}>{currentUser.email}</b> ·{' '}
-            </>
+            <span>
+              Signed in as <b className={styles.signedInEmail}>{currentUser.email}</b> ·
+            </span>
           )}
           <Button variant="progressive" type="inline" size="small" onClick={signOut}>
             Sign out

@@ -32,6 +32,10 @@ export class LocalObjectStorage implements ObjectStorage {
     await mkdir(this.dir, { recursive: true });
     const key = makeObjectKey(input.filename);
     await writeFile(this.pathFor(key), input.body);
+    // Persist the real content type in a sidecar; keys without a mapped extension
+    // (e.g. an uploaded video whose original name lacked one) would otherwise serve
+    // as application/octet-stream and force a download instead of previewing.
+    await writeFile(this.pathFor(`${key}.type`), input.contentType).catch(() => {});
     return {
       key,
       url: await this.url(key),
@@ -44,7 +48,11 @@ export class LocalObjectStorage implements ObjectStorage {
     if (!isSafeKey(key)) return null;
     try {
       const body = await readFile(this.pathFor(key));
-      return { body, contentType: contentTypeForKey(key), size: body.length };
+      // Prefer the persisted type; fall back to the extension map for legacy files.
+      const contentType = await readFile(this.pathFor(`${key}.type`), "utf8")
+        .then((s) => s.trim())
+        .catch(() => contentTypeForKey(key));
+      return { body, contentType: contentType || contentTypeForKey(key), size: body.length };
     } catch {
       return null;
     }
@@ -53,6 +61,7 @@ export class LocalObjectStorage implements ObjectStorage {
   async delete(key: string): Promise<void> {
     if (!isSafeKey(key)) return;
     await rm(this.pathFor(key), { force: true });
+    await rm(this.pathFor(`${key}.type`), { force: true });
   }
 
   async url(key: string): Promise<string> {

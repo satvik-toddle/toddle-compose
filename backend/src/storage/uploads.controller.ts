@@ -44,7 +44,12 @@ const INLINE_SAFE_TYPES = new Set([
   "image/avif",
   "application/pdf",
   "video/mp4",
+  "video/webm",
+  "video/ogg",
   "audio/mpeg",
+  "audio/ogg",
+  "audio/wav",
+  "audio/webm",
 ]);
 
 @Controller("uploads")
@@ -86,7 +91,8 @@ export class UploadsController {
   @Header("Cache-Control", "public, max-age=31536000, immutable")
   @Header("X-Content-Type-Options", "nosniff")
   async serve(@Param("key") key: string) {
-    if (!isSafeKey(key)) throw new NotFoundException();
+    // `.type` sidecars back the local driver's persisted content type — never served.
+    if (!isSafeKey(key) || key.endsWith(".type")) throw new NotFoundException();
     const obj = await this.storage.get(key);
     if (!obj) throw new NotFoundException();
     // Only the passive allowlist renders inline; everything else is forced to download.

@@ -152,7 +152,7 @@ export function formatSelectionRange(cells: ReadonlyArray<SelectedCell>): string
 }
 
 // Inverse of indexToColumnId ('A'↔0, 'Z'↔25, 'AA'↔26).
-function columnIdToIndex(label: string): number {
+export function columnIdToIndex(label: string): number {
   let position = 0;
   for (const letter of label) {
     position = position * ALPHABET_SIZE + (letter.codePointAt(0)! - LETTER_A_CODE + 1);
@@ -160,20 +160,29 @@ function columnIdToIndex(label: string): number {
   return position - 1;
 }
 
-// Legacy docs (pre-uuid columns) store just the type string under a letter id with no
-// order; derive the order from the letter so ordering math works on those sheets too.
-function readColMeta(yColTypes: SheetColTypes, id: string): SheetColMeta | undefined {
-  const meta = yColTypes.get(id);
-  if (typeof meta === 'string') return { type: meta, order: columnIdToIndex(id) };
-  return meta as SheetColMeta | undefined;
+// Normalize a column's raw stored meta into {type, order}. Legacy docs (pre-uuid
+// columns) store just the type string under a letter id with no order; derive the order
+// from the letter so ordering math works on those sheets too. Pure over the raw value so
+// the live Y.Map and the plain preview DTO share one ordering rule.
+export function normalizeColMeta(id: string, rawMeta: unknown): SheetColMeta | undefined {
+  if (typeof rawMeta === 'string') return { type: rawMeta, order: columnIdToIndex(id) };
+  return rawMeta as SheetColMeta | undefined;
 }
 
-// Column ids in display order. colTypes is an unordered Y.Map, so sort by each column's
-// `order`. Concurrent adds can share an order; the unique id breaks the tie so every
-// client resolves the same left-to-right order.
+// Column ids in display order, given an accessor for each id's raw stored meta. colTypes
+// is unordered, so sort by each column's `order`. Concurrent adds can share an order; the
+// unique id breaks the tie so every client resolves the same left-to-right order.
+export function sortColumnIds(ids: string[], rawMetaOf: (id: string) => unknown): string[] {
+  const orderOf = (id: string) => normalizeColMeta(id, rawMetaOf(id))?.order ?? 0;
+  return [...ids].sort((a, b) => orderOf(a) - orderOf(b) || a.localeCompare(b));
+}
+
+function readColMeta(yColTypes: SheetColTypes, id: string): SheetColMeta | undefined {
+  return normalizeColMeta(id, yColTypes.get(id));
+}
+
 export function readColumnIds(yColTypes: SheetColTypes): string[] {
-  const orderOf = (id: string) => readColMeta(yColTypes, id)?.order ?? 0;
-  return [...yColTypes.keys()].sort((a, b) => orderOf(a) - orderOf(b) || a.localeCompare(b));
+  return sortColumnIds([...yColTypes.keys()], (id) => yColTypes.get(id));
 }
 
 // Header configs for the grid, one per column id. Ids are opaque uuids; the visible

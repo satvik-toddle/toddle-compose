@@ -10,12 +10,7 @@ import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 let app: INestApplication | null = null;
 
 async function bootstrap() {
-  // Own the JSON body limit: the internal content-search route receives up to 5000 doc
-  // ids (~140KB), over Express's 100kb default — which would 413 and break search.
-  const expressApp = await NestFactory.create<NestExpressApplication>(AppModule, {
-    bodyParser: false,
-  });
-  expressApp.useBodyParser("json", { limit: "2mb" });
+  const expressApp = await NestFactory.create<NestExpressApplication>(AppModule);
   app = expressApp;
   app.enableShutdownHooks();
   const config = app.get(ConfigService);

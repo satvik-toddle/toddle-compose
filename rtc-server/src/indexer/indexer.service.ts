@@ -10,8 +10,6 @@ const log = createLogger("indexer");
 
 // Rows drained per claim; a full backlog is drained in a tight loop within one sweep.
 const BATCH = 500;
-// Concurrent Yjs extractions — the deliberate CPU cost center, kept bounded.
-const EXTRACT_CONCURRENCY = 8;
 
 // Detached search indexer. rtc enqueues onto stale_documents and pings /wake; this worker
 // coalesces those pings into ONE sweep per INDEXER_INTERVAL_MS window, drains the queue
@@ -141,7 +139,10 @@ export class IndexerService implements OnApplicationShutdown {
         // extracting "" and writing it would blank the still-present backend row via the
         // seq-guarded UPDATE. A genuinely empty doc keeps its (non-null) state and still indexes to "".
         const indexable = rows.filter((r) => bytesById.get(r.docId) != null);
-        const items = await mapWithConcurrency(indexable, EXTRACT_CONCURRENCY, (row) => {
+        // extractSearchText is synchronous CPU work, so this map blocks the event loop
+        // (incl. /wake) for the batch — there is no concurrency to be had on one thread.
+        // If large sweeps ever starve wake pings, move extraction to worker_threads.
+        const items = indexable.map((row) => {
           const bytes = bytesById.get(row.docId)!;
           // extractSearchText never throws (returns "" on empty content) — no poison rows.
           return { id: row.docId, text: extractSearchText(new Uint8Array(bytes)), seq: row.seq };
@@ -160,22 +161,4 @@ export class IndexerService implements OnApplicationShutdown {
       log.error(`sweep failed (${reason}): ${e instanceof Error ? e.message : e}`);
     }
   }
-}
-
-// Bounded-concurrency map (extraction is CPU-bound; cap keeps the worker from spiking).
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => R | Promise<R>
-): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
-  return out;
 }

@@ -9,6 +9,7 @@ import { ConfirmRemoveMemberModal } from '../features/modals/ConfirmRemoveMember
 import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModal';
 import { ConfirmRestoreVersionModal } from '../features/modals/ConfirmRestoreVersionModal';
 import { DocPermissionsModal } from '../features/modals/DocPermissionsModal';
+import { SearchModal } from '../features/modals/search/SearchModal';
 
 // Renders the active modal from the UI store. One mount point at the app root.
 export function ModalRoot() {
@@ -92,6 +93,8 @@ export function ModalRoot() {
           owner={modal.owner}
         />
       );
+    case 'search':
+      return <SearchModal onClose={close} workspaceId={modal.workspaceId} />;
     default:
       return null;
   }

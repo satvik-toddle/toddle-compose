@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AccountMenu } from '../../../components/AccountMenu';
 import { useRealm } from '../../../hooks/queries';
-import { useDocuments } from '../../../hooks/usePages';
+import { useDocuments, useOpenDoc } from '../../../hooks/usePages';
 import { useAuthStore } from '../../../stores/authStore';
 import type { WorkspaceCtx } from '../context';
 import { SidebarToggle } from './SidebarToggle';
@@ -31,10 +31,20 @@ export function WorkspaceTopbar({
   const [params] = useSearchParams();
   const { data: docs = [] } = useDocuments(ctx.workspaceId);
 
-  // The currently open page, if any (driven by the ?doc= query param).
+  // The open page (?doc=). Resolved via useOpenDoc so a doc outside the paginated list still
+  // gets a breadcrumb + Share/Delete actions. For a fetched (out-of-list) doc, the trail comes
+  // from its authoritative backend breadcrumbs; the docs-list walk can't see unloaded ancestors.
   const openDocId = params.get('doc');
-  const doc = openDocId ? docs.find((d) => d.id === openDocId) : undefined;
-  const trail = useMemo(() => (doc ? buildBreadcrumbTrail(doc, docs) : []), [doc, docs]);
+  const { doc, fetched } = useOpenDoc(openDocId ?? undefined, docs);
+  const trail = useMemo(
+    () =>
+      fetched?.breadcrumbs
+        ? fetched.breadcrumbs.map((b) => ({ id: b.id, title: b.title }))
+        : doc
+          ? buildBreadcrumbTrail(doc, docs)
+          : [],
+    [doc, fetched, docs],
+  );
 
   if (!currentUser) return null;
 

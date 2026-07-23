@@ -89,6 +89,14 @@ export class RtcInternalClient {
     ) as Promise<RtcVersionPreview>;
   }
 
+  /** Current head-seq content projection for the read-only preview pane (no websocket). */
+  getHeadContent(docId: string): Promise<RtcVersionPreview> {
+    return this.call(
+      "GET",
+      `/internal/docs/${encodeURIComponent(docId)}/content`
+    ) as Promise<RtcVersionPreview>;
+  }
+
   /** Delete the RTC row (yjs state + update log) for a document id. */
   deleteDoc(docId: string): Promise<unknown> {
     return this.call(

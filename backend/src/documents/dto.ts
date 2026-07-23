@@ -1,3 +1,4 @@
+import { Transform } from "class-transformer";
 import {
   IsEmail,
   IsIn,
@@ -85,6 +86,25 @@ export class ListStarredDocumentsDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+}
+
+export class SearchDocumentsDto {
+  // Omit for a global search across every workspace the caller can access.
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+
+  // Search term matched against titles and content; trimmed at the edge and required non-empty.
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  q!: string;
+
+  // Opaque keyset cursor from a previous page's nextCursor; omitted for the first page.
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }
 
 // Per-page grants accept any WorkspaceRole; they only ever elevate (effective = max(ws role, grant)).

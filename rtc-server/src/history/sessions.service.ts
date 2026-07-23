@@ -3,9 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { Env } from "../config/env";
 import { DocRepository } from "../persistence/doc-repository.service";
+import { SheetSnapshot, extractSheet } from "../persistence/searchable-text";
 import {
-  SheetSnapshot,
-  extractSheet,
   extractWhiteboard,
   versionDisplayText,
   versionFingerprint,

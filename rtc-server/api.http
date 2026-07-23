@@ -1,0 +1,98 @@
+### Toddle Compose rtc-server — full API test suite
+#
+# How to run:
+#   - JetBrains IDEs (WebStorm/IntelliJ): open this file, pick the "dev" env in the
+#     top-right dropdown, then click the green ▶ gutter icon per request.
+#   - VS Code: install the "REST Client" extension and click "Send Request".
+#
+# Prereqs:
+#   1. RTC Postgres up + schema applied:
+#        pnpm --filter @app/rtc-server exec prisma db push   # (or the package's db:push script)
+#   2. rtc-server running:  pnpm --filter rtc-server dev   (HTTP + WS on :4001)
+#
+# Auth model:
+#   - GET /health is open.
+#   - Everything under /internal/docs is guarded by the InternalTokenGuard — send the
+#     shared secret in the `X-Internal-Token` header ({{internalToken}}, default
+#     "dev-internal-secret-change-me" in dev). These are server-to-server endpoints the
+#     backend calls; they are NOT exposed to browsers.
+#   - The collaborative editing transport is a WebSocket (see the bottom of this file),
+#     not HTTP, so it can't be exercised from a .http file.
+#
+# Set {{docId}} in http-client.env.json to a real document id (created via the backend),
+# or run "Ensure an RTC doc exists" below first with a docId of your choosing.
+
+# =============================================================================
+# 0. HEALTH  (no auth)
+# =============================================================================
+
+### Liveness
+GET {{baseUrl}}/health
+
+# =============================================================================
+# 1. INTERNAL DOC ADMIN  (/internal/docs)  — X-Internal-Token required
+# =============================================================================
+
+### Ensure an RTC doc row exists for this id (idempotent). The backend calls this when
+### a document is first opened so the Yjs persistence has somewhere to append updates.
+POST {{baseUrl}}/internal/docs/init
+X-Internal-Token: {{internalToken}}
+Content-Type: application/json
+
+{ "docId": "{{docId}}" }
+
+### List a doc's persisted Yjs updates (the raw history rows; newest range bounded by head).
+### Optional filters: from / to (seq range), limit (1–5000, default 1000), clientSub (author).
+GET {{baseUrl}}/internal/docs/{{docId}}/versions?from=1&limit=1000
+X-Internal-Token: {{internalToken}}
+
+### Filter the update list to a single author (clientSub = the RTC token subject)
+GET {{baseUrl}}/internal/docs/{{docId}}/versions?clientSub={{clientSub}}
+X-Internal-Token: {{internalToken}}
+
+### Preview the materialized doc state at a given update seq (400 if seq isn't a
+### non-negative integer). Used to render read-only history snapshots.
+GET {{baseUrl}}/internal/docs/{{docId}}/versions/0
+X-Internal-Token: {{internalToken}}
+
+### Build per-author edit sessions (history timeline). Optional: clientSub (filter author),
+### gapMs (session split threshold), includeNoop (true/1 to keep no-op updates).
+GET {{baseUrl}}/internal/docs/{{docId}}/sessions
+X-Internal-Token: {{internalToken}}
+
+### Sessions for a single author, custom gap, including no-op updates
+GET {{baseUrl}}/internal/docs/{{docId}}/sessions?clientSub={{clientSub}}&gapMs=120000&includeNoop=true
+X-Internal-Token: {{internalToken}}
+
+### Force a checkpoint + compaction pass for a warm doc (demo/diagnostic only).
+### tier=1 or tier=2 required (400 otherwise); 409 if the doc isn't warm — open it
+### in the editor first so it's live in memory.
+POST {{baseUrl}}/internal/docs/{{docId}}/compact-demo?tier=1
+X-Internal-Token: {{internalToken}}
+
+### Tier-2 compaction variant
+POST {{baseUrl}}/internal/docs/{{docId}}/compact-demo?tier=2
+X-Internal-Token: {{internalToken}}
+
+### Delete a doc completely — tears down any live session (closes sockets) and drops
+### the doc + all its update rows. Idempotent. Destructive; run in cleanup.
+# DELETE {{baseUrl}}/internal/docs/{{docId}}
+# X-Internal-Token: {{internalToken}}
+
+### Edge: missing/incorrect internal token → 401
+GET {{baseUrl}}/internal/docs/{{docId}}/versions
+X-Internal-Token: wrong-token
+
+# =============================================================================
+# 2. COLLABORATIVE TRANSPORT  (WebSocket — not runnable from .http)
+# =============================================================================
+#
+# The Yjs sync + awareness protocol runs over a WebSocket, documented here for reference:
+#
+#   ws://localhost:4001/yjs/{{docId}}?token=<rtc-jwt>
+#
+# - The RTC JWT is minted by the backend: POST /api/documents/:id/rtc-token.
+# - The token may instead be supplied as a `bearer.<token>` entry in the WS subprotocol
+#   list; such clients MUST also offer the `yjs` subprotocol (the only one selected).
+# - The token is verified once at connect against the backend JWKS; the socket is closed
+#   with 1008 when the token expires.

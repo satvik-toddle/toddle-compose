@@ -9,8 +9,10 @@
   "scripts": {
     "bundle:nodes": "node scripts/bundle-server-nodes.mjs",
     "dev": "nest start --watch",
+    "dev:indexer": "nest start --watch --entryFile indexer/main",
     "build": "nest build",
     "start": "node dist/main.js",
+    "indexer": "node dist/indexer/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },

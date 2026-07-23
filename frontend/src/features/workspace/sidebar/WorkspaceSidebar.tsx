@@ -1,8 +1,10 @@
+import { useRef } from 'react';
 import { NavLink, useSearchParams } from 'react-router-dom';
-import { SearchInput, Badge } from '@toddle-edu/ds-web';
+import { Badge } from '@toddle-edu/ds-web';
 import {
   HomeOutlined,
   StarOutlined,
+  SearchOutlined,
   SettingsOutlined,
   ChevronLeftOutlined,
   AddOutlined,
@@ -11,6 +13,8 @@ import {
 import { useWorkspaceJoinRequests } from '../../../hooks/queries';
 import { useLeaveWorkspace } from '../../../hooks/useAuthMutations';
 import { useUiStore } from '../../../stores/uiStore';
+import { ShortcutHint } from '../../../components/ShortcutHint';
+import { commandModifierKey } from '../../../lib/platform';
 import { cn } from '../../../lib/cn';
 import { PagesSection, usePagesSection } from './PagesSection';
 import { VersionsSection, useHistoryMode } from '../history';
@@ -38,17 +42,18 @@ const styles = {
   resizeKnob:
     'pointer-events-none absolute right-0 top-1/2 flex h-6 w-4 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-1 border border-secondary bg-surface-primary-enabled text-secondary shadow-elevation-2-bottom opacity-0 transition-opacity duration-150 group-hover/resize:opacity-100 group-focus-visible/resize:opacity-100',
   resizeKnobActive: 'opacity-100',
-  // Pinned top (search + nav + heading) and bottom (footer); only the body scrolls.
+  // Pinned top (nav + heading) and bottom (footer); only the body scrolls.
   header: 'flex-none border-b border-secondary',
   // Full-bleed row (cancels the sidebar padding) so the switcher spans edge to edge.
   switcherRow: '-mx-2.5 -mt-2.5 mb-1 flex h-14 items-center px-2.5 [&>*]:w-full',
-  searchRow: 'mb-2',
   // -mx/px gives the scroll area room for the focus ring without misaligning rows.
   body: 'flex-1 min-h-0 overflow-y-auto -mx-2.5 px-2.5 pt-1.5',
   linkGroup: 'flex flex-col gap-0.25',
   sectionHeading: 'flex items-center px-2.25 pt-2 pb-2 text-label-xs uppercase text-secondary',
   footerGroup: 'flex flex-none flex-col gap-0.25 border-t border-secondary pt-2.5',
 };
+
+const searchShortcutKeys = [commandModifierKey, 'K'];
 
 type WorkspaceSidebarProps = { ctx: WorkspaceCtx; collapsed?: boolean };
 
@@ -62,6 +67,9 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
   const hasPendingRequests = !!requests?.length;
   const pages = usePagesSection(ctx);
   const { width, isResizing, startResize, handleResizeKeyDown } = useSidebarWidth();
+  // The scroll container for the pages list; passed to PagesSection so lazy-load doesn't
+  // have to discover it by walking the DOM for a computed overflow style.
+  const bodyRef = useRef<HTMLDivElement>(null);
   const history = useHistoryMode();
 
   return (
@@ -73,17 +81,19 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
           <WorkspaceSwitcher ctx={ctx} />
         </div>
 
-        <div className={styles.searchRow}>
-          <SearchInput
-            dsVersion="2.0"
-            size="medium"
-            placeholder="Search this workspace…"
-            aria-label="Search this workspace"
-            onChange={pages.setQuery}
-          />
-        </div>
-
         <div className={styles.linkGroup}>
+          <button
+            type="button"
+            className={cn(sidebarRow.base, sidebarRow.default, 'w-full')}
+            data-testid="sidebar-search"
+            onClick={() => openModal({ type: 'search', workspaceId })}
+          >
+            <SearchOutlined size="xxx-small" />
+            Search
+            <span className="ml-auto">
+              <ShortcutHint keys={searchShortcutKeys} />
+            </span>
+          </button>
           <NavLink
             to={`/w/${workspaceId}`}
             end
@@ -112,11 +122,11 @@ export function WorkspaceSidebar({ ctx, collapsed }: Readonly<WorkspaceSidebarPr
       </div>
       )}
 
-      <div className={styles.body}>
+      <div ref={bodyRef} className={styles.body}>
         {history.active && history.docId ? (
           <VersionsSection docId={history.docId} />
         ) : (
-          <PagesSection pages={pages} />
+          <PagesSection pages={pages} scrollRef={bodyRef} />
         )}
       </div>
 

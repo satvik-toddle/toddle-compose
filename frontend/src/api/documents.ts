@@ -1,5 +1,8 @@
 import { http } from '../lib/http';
 import type {
+  DocPreviewDto,
+  DocSearchPage,
+  DocumentDetailDto,
   DocumentDto,
   DocumentPermission,
   DocumentShareLink,
@@ -13,9 +16,22 @@ import type { WorkspaceRole } from '../types/roles';
 
 export const documentsApi = {
   // All documents in a workspace (client groups by folderId for the tree/list).
-  list: (workspaceId: string) =>
-    http.get<DocumentDto[]>(`/documents?workspaceId=${encodeURIComponent(workspaceId)}`),
-  get: (id: string) => http.get<DocumentDto>(`/documents/${id}`),
+  // Offset-paged (updatedAt desc); the server caps take at 100.
+  list: (workspaceId: string, skip = 0, take = 100) =>
+    http.get<DocumentDto[]>(
+      `/documents?workspaceId=${encodeURIComponent(workspaceId)}&skip=${skip}&take=${take}`,
+    ),
+  get: (id: string) => http.get<DocumentDetailDto>(`/documents/${id}`),
+  // Title + content search, keyset-paginated. workspaceId scopes to one workspace, else global.
+  // cursor comes from a prior page's nextCursor (omitted for the first page).
+  search: (q: string, workspaceId?: string, take = 25, cursor?: string | null) =>
+    http.get<DocSearchPage>(
+      `/documents/search?q=${encodeURIComponent(q)}&take=${take}` +
+        (workspaceId ? `&workspaceId=${encodeURIComponent(workspaceId)}` : '') +
+        (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''),
+    ),
+  // Head-of-log content for the split-modal read-only preview.
+  preview: (id: string) => http.get<DocPreviewDto>(`/documents/${id}/preview`),
   listStarred: (workspaceId: string) =>
     http.get<DocumentDto[]>(`/documents/starred?workspaceId=${encodeURIComponent(workspaceId)}`), // The current user's starred pages in a workspace — flat, any depth.
   listAllSharedWithMe: () => http.get<DocumentDto[]>('/documents/shared-with-me'), // Global: shared pages across all workspaces (each row carries its workspace).

@@ -1,0 +1,36 @@
+/* ============================================================
+   GLOBAL DOC SEARCH — residual styles that can't live in a
+   component `const styles = {}` object:
+   - the amber search-hit theme vars (not DS tokens), and
+   - the ReactModal overlay/content rules (target the portal
+     wrapper, not an element we render).
+   All component styling moved to Tailwind DS utilities in the
+   search components (SearchModal, ResultRow, PreviewPane, …).
+   ============================================================ */
+
+/* amber search-term highlight — not in the DS theme, defined locally (used by Hit.tsx) */
+.rbac {
+  --search-hit-bg: #fdf0da;
+  --search-hit-fg: #9a5b00;
+}
+.rbac.dark,
+.dark .rbac {
+  --search-hit-bg: rgba(214, 141, 0, 0.26);
+  --search-hit-fg: #f0c777;
+}
+
+/* Pin the search modal 100px from the top (easing off on short viewports); later equal-specificity rule beats rbac.css centering. */
+.ReactModal__Overlay:has(.gs-search-modal) {
+  align-items: flex-start;
+  padding-top: min(100px, 12vh);
+}
+.ReactModal__Content:has(.gs-search-modal) {
+  /* the ds-web box centers itself with margin:auto — in flex, auto margins beat align-items */
+  margin: 0 auto !important;
+}
+/* Width flip (640↔1000) animates; safe now that rows are fixed-height (nothing measured mid-tween). */
+@media (prefers-reduced-motion: no-preference) {
+  .ReactModal__Content:has(.gs-search-modal) {
+    transition: width 0.2s ease-out;
+  }
+}

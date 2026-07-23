@@ -76,6 +76,13 @@ export class InternalController {
     return { docId, head, count: rows.length, clientSub: cs, updates: rows };
   }
 
+  // Read-only current-content projection at head, for the search modal's preview pane.
+  @Get(":docId/content")
+  async content(@Param("docId") docId: string) {
+    const head = await this.repo.getHeadSeq(docId);
+    return this.versions.previewAtSeq(docId, head);
+  }
+
   @Get(":docId/versions/:seq")
   async preview(
     @Param("docId") docId: string,

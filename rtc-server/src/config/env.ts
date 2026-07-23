@@ -8,6 +8,23 @@ export const envSchema = z.object({
     process.env.NODE_ENV === "production"
       ? z.string().min(32)
       : z.string().default("dev-internal-secret-change-me"),
+  // Backend (app) database — used ONLY by the indexer worker, which writes the search
+  // projection directly. Optional so the WS server (which never touches it) can boot without it;
+  // the worker fails fast at startup if it's missing.
+  DATABASE_URL: z.string().optional(),
+  // Indexer worker: HTTP port for the /wake ping, the coalescing/cron window, a slow safety
+  // sweep that catches lost pings, and the URL rtc pings after enqueuing.
+  INDEXER_PORT: z.coerce.number().default(4100),
+  INDEXER_INTERVAL_MS: z.coerce.number().default(5000),
+  INDEXER_SAFETY_SWEEP_MS: z.coerce.number().default(60000),
+  INDEXER_WAKE_URL: z.string().url().default("http://localhost:4100/wake"),
+  // On worker boot, enqueue docs that have an rtc snapshot but no backend index row yet
+  // (never-indexed or fell behind) so the queue self-heals without a manual backfill. Idempotent
+  // (~zero work once caught up). Set false to skip the boot scan on large corpora / fast restarts.
+  INDEXER_BACKFILL_ON_BOOT: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
   RTC_PORT: z.coerce.number().default(4001),
   RTC_WS_MAX_PAYLOAD_BYTES: z.coerce.number().default(4194304),
   // Per-connection token bucket for inbound WS messages: bucket size (burst) and steady refill rate per second.

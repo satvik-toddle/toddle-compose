@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@app/rtc-database";
 import { PrismaService } from "../prisma/prisma.service";
 import { createLogger } from "../logger";
 
@@ -57,16 +58,21 @@ export class DocRepository {
     snapshotAtSeq: number
   ): Promise<number> {
     await this.ensureRtcDoc(id);
-    const row = await this.prisma.rtcDocument.update({
-      where: { id },
-      data: {
-        yjsState: asBytes(yjsState),
-        snapshotAtSeq,
-        version: { increment: 1 },
-        updatedAt: BigInt(Date.now()),
-      },
+    // Snapshot write + stale-queue enqueue in ONE tx (G1): if the snapshot is durable, so is
+    // the fact that the search index is behind — nothing can leave the index permanently stale.
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.rtcDocument.update({
+        where: { id },
+        data: {
+          yjsState: asBytes(yjsState),
+          snapshotAtSeq,
+          version: { increment: 1 },
+          updatedAt: BigInt(Date.now()),
+        },
+      });
+      await this.enqueueStale(tx, id, snapshotAtSeq);
+      return row.version;
     });
-    return row.version;
   }
 
   async writeSnapshotCheckpoint(
@@ -75,14 +81,106 @@ export class DocRepository {
     snapshotAtSeq: number
   ): Promise<void> {
     await this.ensureRtcDoc(id);
-    await this.prisma.rtcDocument.update({
-      where: { id },
-      data: {
-        yjsState: asBytes(yjsState),
-        snapshotAtSeq,
-        updatedAt: BigInt(Date.now()),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rtcDocument.update({
+        where: { id },
+        data: {
+          yjsState: asBytes(yjsState),
+          snapshotAtSeq,
+          updatedAt: BigInt(Date.now()),
+        },
+      });
+      await this.enqueueStale(tx, id, snapshotAtSeq);
     });
+  }
+
+  // Coalescing enqueue: PK doc_id, overwrite seq with the newer flush seq (monotonic).
+  private enqueueStale(
+    tx: Prisma.TransactionClient,
+    docId: string,
+    seq: number
+  ): Promise<unknown> {
+    const dirtyAt = BigInt(Date.now());
+    return tx.staleDocument.upsert({
+      where: { docId },
+      create: { docId, seq, dirtyAt },
+      update: { seq, dirtyAt },
+    });
+  }
+
+  // ---- Search indexer worker: drain the stale queue ----
+
+  // Oldest-first claim; lock-free (G2/G3 make duplicated work harmless, so no FOR UPDATE).
+  async claimStale(take: number): Promise<{ docId: string; seq: number }[]> {
+    return this.prisma.staleDocument.findMany({
+      orderBy: { dirtyAt: "asc" },
+      take,
+      select: { docId: true, seq: true },
+    });
+  }
+
+  // Boot backfill: page through all docs that have a snapshot (id-cursored, memory-bounded).
+  async listSnapshotDocsAfter(
+    afterId: string | null,
+    take: number
+  ): Promise<{ id: string; seq: number }[]> {
+    const rows = await this.prisma.rtcDocument.findMany({
+      where: { yjsState: { not: null }, ...(afterId ? { id: { gt: afterId } } : {}) },
+      select: { id: true, snapshotAtSeq: true },
+      orderBy: { id: "asc" },
+      take,
+    });
+    return rows.map((r) => ({ id: r.id, seq: r.snapshotAtSeq }));
+  }
+
+  // Bulk enqueue for backfill; skipDuplicates so a doc already queued by a live edit (possibly at
+  // a newer seq) is left untouched.
+  async enqueueMany(rows: { docId: string; seq: number }[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    const dirtyAt = BigInt(Date.now());
+    const res = await this.prisma.staleDocument.createMany({
+      data: rows.map((r) => ({ docId: r.docId, seq: r.seq, dirtyAt })),
+      skipDuplicates: true,
+    });
+    return res.count;
+  }
+
+  async getRtcStatesForIndex(
+    ids: string[]
+  ): Promise<{ id: string; yjsState: Uint8Array | null }[]> {
+    return this.prisma.rtcDocument.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, yjsState: true },
+    });
+  }
+
+  // Guarded delete (G2): clears the row only if no newer flush has bumped its seq since we
+  // claimed it; a concurrent re-flush (seq > claimed) leaves the row for the next sweep.
+  async deleteStaleUpTo(docId: string, seq: number): Promise<void> {
+    await this.prisma.staleDocument.deleteMany({
+      where: { docId, seq: { lte: seq } },
+    });
+  }
+
+  // Bulk form of deleteStaleUpTo for draining a whole claimed batch in one round trip; the per-doc
+  // seq guard (G2) is preserved via the OR of (docId, seq ≤ claimed) predicates.
+  async deleteStaleBatch(pairs: { docId: string; seq: number }[]): Promise<void> {
+    if (pairs.length === 0) return;
+    await this.prisma.staleDocument.deleteMany({
+      where: { OR: pairs.map(({ docId, seq }) => ({ docId, seq: { lte: seq } })) },
+    });
+  }
+
+  async countStale(): Promise<number> {
+    return this.prisma.staleDocument.count();
+  }
+
+  async oldestStaleDirtyAt(): Promise<number | null> {
+    const row = await this.prisma.staleDocument.findFirst({
+      orderBy: { dirtyAt: "asc" },
+      select: { dirtyAt: true },
+    });
+    return row ? Number(row.dirtyAt) : null;
   }
 
   // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.

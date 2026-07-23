@@ -35,7 +35,9 @@ export type ModalState =
       docId: string;
       docTitle: string;
       owner: { id: string; name: string; email?: string; color?: string };
-    };
+    }
+  // workspaceId present → in-workspace (preview toggle decides layout); absent → global spotlight.
+  | { type: 'search'; workspaceId?: string };
 
 interface UiState {
   modal: ModalState | null;

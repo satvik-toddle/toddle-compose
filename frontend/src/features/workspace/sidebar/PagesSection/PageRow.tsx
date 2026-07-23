@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { memo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
@@ -15,20 +15,30 @@ import type { PagesSectionController } from './usePagesSection';
 const BASE_INDENT = 4;
 const INDENT_STEP = 15;
 
-export function PageRow({
+// isSelected/isExpanded are passed as per-row primitives (not read off pages.selectedPageId/
+// pages.expanded) so a selection or expand change re-renders only the affected rows, not every
+// loaded row — critical once thousands of docs are paged in.
+function PageRowInner({
   node,
   depth,
   pages,
-}: Readonly<{ node: TreeDoc; depth: number; pages: PagesSectionController }>) {
-  const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
+  isSelected,
+  isExpanded,
+}: Readonly<{
+  node: TreeDoc;
+  depth: number;
+  pages: PagesSectionController;
+  isSelected: boolean;
+  isExpanded: boolean;
+}>) {
+  const { canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
   const renameDoc = useRenameDocument();
-  const { doc, children } = node;
+  const { doc } = node;
+  const hasChildren = node.children.length > 0;
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
-  const hasChildren = children.length > 0;
-  const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
@@ -69,7 +79,7 @@ export function PageRow({
       sidebarRow.base,
       // [&_input]: the DS TextInput pins text-body (weight 500) on its inner input,
       // so the selected row's semibold must be forced onto it for inline rename.
-      selectedPageId === doc.id
+      isSelected
         ? cn(sidebarRow.selected, '[&_input]:font-semibold')
         : sidebarRow.default,
     ),
@@ -116,14 +126,13 @@ export function PageRow({
   );
 
   return (
-    <>
-      {/* Tooltip on the row: hover/focus, only when the title is clipped. */}
-      <Tooltip
-        dsVersion="2.0"
-        placement="right"
-        showArrow
-        tooltip={isTruncated && !isRenaming ? doc.title : ''}
-      >
+    // Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus, only when clipped.
+    <Tooltip
+      dsVersion="2.0"
+      placement="right"
+      showArrow
+      tooltip={isTruncated && !isRenaming ? doc.title : ''}
+    >
         <div
           className={styles.row}
           style={styles.rowStyle}
@@ -185,11 +194,24 @@ export function PageRow({
           )}
         </div>
       </Tooltip>
-
-      {isExpanded &&
-        children.map((child) => (
-          <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
-        ))}
-    </>
   );
 }
+
+// Re-render a row only when ITS own inputs change: node identity (structurally shared by
+// buildDocTree, so unchanged subtrees keep their object), depth, and the per-row isSelected/
+// isExpanded primitives. Selecting or expanding one page thus re-renders just the rows whose
+// flag flipped, not every loaded row. The pages.* handlers are useCallback/primitive-stable.
+export const PageRow = memo(
+  PageRowInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.depth === next.depth &&
+    prev.isSelected === next.isSelected &&
+    prev.isExpanded === next.isExpanded &&
+    prev.pages.canCreate === next.pages.canCreate &&
+    prev.pages.ws === next.pages.ws &&
+    prev.pages.toggle === next.pages.toggle &&
+    prev.pages.selectPage === next.pages.selectPage &&
+    prev.pages.createPage === next.pages.createPage &&
+    prev.pages.canManage === next.pages.canManage,
+);

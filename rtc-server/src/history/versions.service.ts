@@ -2,6 +2,10 @@ import { Injectable } from "@nestjs/common";
 import * as Y from "yjs";
 import { DocRepository } from "../persistence/doc-repository.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
+import {
+  SheetSnapshot,
+  extractSheet,
+} from "../persistence/searchable-text";
 import { createLogger } from "../logger";
 import { diffEditorStates, SerializedEditorState } from "./doc-diff";
 
@@ -33,18 +37,8 @@ function readUploadRegistry(ydoc: Y.Doc): Map<string, string> {
   return out;
 }
 
-// Sheet Yjs model (mirrors frontend sheetModel): 'rows' Array of per-row Y.Map keyed by '__id', 'colTypes' Map of column uuid -> { type, order } (stored opaquely here). DOC docs have no 'rows' root.
-const ROWS_KEY = "rows";
-const ID_KEY = "__id";
-const COL_TYPE_KEY = "colTypes";
-
 // Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (legacy DOC render); 'render' = materialized lexicalJson (+ optional diffJson) only (DOC render); 'text' = sheet snapshot only (SHEET render).
 export type PreviewInclude = "all" | "state" | "render" | "text";
-
-export type SheetSnapshot = {
-  rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
-  colTypes: Record<string, unknown>;
-};
 
 // Whiteboard Yjs model (mirrors frontend useYjsTldrawStore): 'tldraw' Map of TLRecords keyed by record id.
 const TLDRAW_KEY = "tldraw";
@@ -54,7 +48,6 @@ export type WhiteboardSnapshot = {
   shapeCount: number;
   pageCount: number;
 };
-
 export type VersionPreview = {
   docId: string;
   seq: number;
@@ -75,25 +68,6 @@ export type VersionPreview = {
   diffJson: string | null;
   elapsedMs: number;
 };
-
-// Extract grid state (row id + cell values, column types) if this is a sheet; null for non-sheet docs.
-export function extractSheet(ydoc: Y.Doc): SheetSnapshot | null {
-  if (!ydoc.share.has(ROWS_KEY)) return null;
-  const yrows = ydoc.getArray(ROWS_KEY);
-  const ycolTypes = ydoc.getMap(COL_TYPE_KEY);
-  const rows = yrows.toArray().map((item) => {
-    const m = item as Y.Map<unknown>;
-    const values: Record<string, unknown> = {};
-    for (const k of m.keys()) {
-      if (k !== ID_KEY) values[k] = m.get(k);
-    }
-    const id = m.get(ID_KEY);
-    return { rowId: typeof id === "string" ? id : null, values };
-  });
-  const colTypes: Record<string, unknown> = {};
-  for (const k of ycolTypes.keys()) colTypes[k] = ycolTypes.get(k);
-  return { rows, colTypes };
-}
 
 // Whiteboard summary if this doc has the tldraw records root; null otherwise.
 export function extractWhiteboard(ydoc: Y.Doc): WhiteboardSnapshot | null {

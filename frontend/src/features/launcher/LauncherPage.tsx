@@ -136,6 +136,10 @@ export function LauncherPage() {
               </div>
             </div>
             <div className={s.lcGreetActions}>
+              {/* Global doc search — left of New workspace. */}
+              <Button icon="SearchOutlined" onClick={() => openModal({ type: 'search' })}>
+                Search
+              </Button>
               {admin && (
                 <Button
                   variant="primary"

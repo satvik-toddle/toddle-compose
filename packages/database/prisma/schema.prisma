@@ -43,7 +43,7 @@ enum WorkspaceRole {
   ADMIN
 }
 
-// Lifecycle of a request to join a PRIVATE workspace.
+// Lifecycle of a request to join a PRIVATE workspace or the org (realm).
 enum JoinRequestState {
   PENDING
   APPROVED
@@ -62,9 +62,12 @@ model Realm {
   name       String
   // Self-signup email allowlist (bare domains, e.g. "toddleapp.com"). Empty = any domain may register.
   allowedEmailDomains String[] @default([]) @map("allowed_email_domains")
+  // When true, a signed-up non-member can request to join the org; admins approve in the console.
+  joinRequestsEnabled Boolean  @default(false) @map("join_requests_enabled")
   createdAt  DateTime      @default(now()) @map("created_at")
   members    RealmMember[]
   workspaces Workspace[]
+  orgJoinRequests OrgJoinRequest[]
 
   @@map("realms")
 }
@@ -117,6 +120,26 @@ model JoinRequest {
   @@map("join_requests")
 }
 
+// Request to join the org (realm) directly, gated by Realm.joinRequestsEnabled.
+// Mirrors JoinRequest; decidedById is an audit-only column with no relation.
+model OrgJoinRequest {
+  id          String           @id @default(cuid())
+  realmId     String           @map("realm_id")
+  realm       Realm            @relation(fields: [realmId], references: [id], onDelete: Cascade)
+  userId      String           @map("user_id")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state       JoinRequestState @default(PENDING)
+  decidedById String?          @map("decided_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  decidedAt   DateTime?        @map("decided_at")
+
+  // One request row per user per realm; re-requesting flips the row back to PENDING.
+  @@unique([realmId, userId])
+  @@index([realmId, state])
+  @@index([userId])
+  @@map("org_join_requests")
+}
+
 model WorkspaceMember {
   workspaceId String        @map("workspace_id")
   workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -151,6 +174,7 @@ model User {
   realmMemberships     RealmMember[]
   workspaceMemberships WorkspaceMember[]
   joinRequests         JoinRequest[]
+  orgJoinRequests      OrgJoinRequest[]
   documentStars        DocumentStar[]
   documentPermissions  DocumentPermission[]
 

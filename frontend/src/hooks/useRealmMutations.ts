@@ -40,7 +40,8 @@ export function useSetRealmRole() {
 export function useUpdateRealmSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (b: { allowedEmailDomains: string[] }) => realmApi.updateSettings(b),
+    mutationFn: (b: { allowedEmailDomains?: string[]; joinRequestsEnabled?: boolean }) =>
+      realmApi.updateSettings(b),
     onSuccess: (realm) => {
       // Merge rather than replace: if the PATCH response ever omits a field (e.g. the
       // caller's `role`), keep the previously-cached value so admin UI doesn't collapse.

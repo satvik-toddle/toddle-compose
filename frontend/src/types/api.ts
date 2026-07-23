@@ -78,6 +78,7 @@ export interface RealmInfo {
   name: string;
   role: RealmRole; // caller's realm role
   allowedEmailDomains?: string[]; // self-signup allowlist; empty = any domain, only returned to OWNER/MAINTAINER
+  joinRequestsEnabled?: boolean; // whether users can request to join the organisation
 }
 
 export interface RealmMember {
@@ -129,7 +130,25 @@ export interface JoinRequest {
   workspace?: { id: string; name: string; visibility: Visibility }; // present on the realm-wide listing (so a row can name its workspace)
 }
 
-export type DocumentType = 'DOC' | 'SHEET';
+// A request to join the organisation (realm). Approval grants realm MEMBER.
+export interface OrgJoinRequest {
+  id: string;
+  user: PublicUser;
+  state: JoinRequestState;
+  createdAt: string;
+  decidedAt?: string | null;
+}
+
+// The caller's own org-join request (no nested user); null when none exists.
+export interface MyOrgJoinRequest {
+  id: string;
+  userId: string;
+  state: JoinRequestState;
+  createdAt: string;
+  decidedAt?: string | null;
+}
+
+export type DocumentType = 'DOC' | 'SHEET' | 'WHITEBOARD';
 
 export type ShareLinkScope = 'REALM' | 'ANYONE';
 
@@ -166,6 +185,48 @@ export interface DocumentDto {
   workspace?: { id: string; name: string }; // present on the global shared-with-me list (docs span workspaces)
 }
 
+// GET /documents/:id — a single doc plus its ancestor breadcrumb trail (the list summary
+// omits breadcrumbs; this is the authoritative trail for a doc not in the paginated list).
+export interface DocumentDetailDto extends DocumentDto {
+  breadcrumbs: Array<{ id: string; title: string; icon: string | null }>;
+}
+
+// GET /documents/search — why a result matched.
+export type SearchMatch = 'title' | 'content';
+
+// A search hit: a document plus its match reason (workspace{id,name} on DocumentDto is populated for global rows).
+export interface SearchResultDto extends DocumentDto {
+  match: SearchMatch;
+  snippet?: string; // content-match excerpt; absent for title-only matches
+}
+
+// One keyset page of search results plus the total for the "loaded / total" UI.
+export interface DocSearchPage {
+  items: SearchResultDto[];
+  total: number; // distinct matches (title ∪ content), up to the server cap
+  nextCursor: string | null; // opaque keyset cursor; null when there are no more pages
+}
+
+// Read-only projection of a SHEET's grid for the preview pane.
+export interface SheetPreviewDto {
+  rows: Array<{ rowId: string | null; values: Record<string, unknown> }>;
+  colTypes: Record<string, unknown>;
+}
+
+// GET /documents/:id/preview — head-of-log content for the split-modal preview.
+export interface DocPreviewDto {
+  docId: string;
+  type: DocumentType;
+  title: string;
+  icon: string;
+  breadcrumbs: Array<{ id: string; title: string; icon: string | null }>;
+  updatedAt: string;
+  headSeq: number;
+  lexicalJson?: string | null; // DOC body as stored Lexical editorState JSON
+  plainText?: string; // DOC plain-text projection
+  sheet?: SheetPreviewDto | null; // present only for SHEET docs
+}
+
 // GET /documents/:id/permissions row — EDIT/ADMIN granted on one document, independent of workspace membership.
 export interface DocumentPermission {
   userId: string;
@@ -173,6 +234,41 @@ export interface DocumentPermission {
   role: WorkspaceRole;
   createdAt: string;
   user: PublicUser;
+}
+
+// One edit "session": updates by a single author grouped by a time gap. `startedAt`
+// / `endedAt` are epoch-ms; `lastSeq` is the update seq to preview the doc's state at.
+export interface DocHistorySession {
+  firstSeq: number;
+  lastSeq: number;
+  startedAt: number;
+  endedAt: number;
+  updateCount: number;
+  totalBytes: number;
+  noop: boolean;
+  // 'archive' = a tier-2 archive snapshot (label "Archived"); 'edit' = a real edit session.
+  kind: 'archive' | 'edit';
+  changedCells: Array<{ rowId: string; colId: string }>;
+  user: { id: string; name: string; email: string; color: string } | null;
+}
+
+// GET /documents/:id/history — edit-session timeline, newest first.
+export interface DocHistoryResponse {
+  docId: string;
+  head: number;
+  sessions: DocHistorySession[];
+}
+
+// GET /documents/:id/history/:seq — read-only snapshot of the doc at an update seq.
+export interface DocSnapshot {
+  docId: string;
+  type: DocumentType;
+  seq: number;
+  headSeq: number;
+  // DOC docs: server-extracted Lexical editorState at this seq (upload URLs materialized). SHEET docs omit it.
+  lexicalJson?: string;
+  // DOC docs, when ?diff=<baselineSeq> was requested: merged diff editorState (baseline -> seq) with diff-mark nodes.
+  diffJson?: string | null;
 }
 
 export interface FolderDto {

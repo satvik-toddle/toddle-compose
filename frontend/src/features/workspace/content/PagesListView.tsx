@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useRef, type ReactElement, type ReactNode } from 'react';
 import { Avatar, Table } from '@toddle-edu/ds-web';
 import { pageTypeIcon } from '../pageTypes';
 import { dsAvatarColor } from '../../../lib/dsAvatar';
@@ -45,7 +45,7 @@ function defaultToRow(doc: DocumentDto): PageRow {
           <Avatar
             dsVersion="2.0"
             name={doc.owner.name}
-            color={dsAvatarColor(doc.owner.color)}
+            color={dsAvatarColor(doc.owner.color, doc.owner.id)}
             size="small"
             shape="circle"
           />
@@ -78,6 +78,9 @@ export function PagesListView<T extends DocumentDto>({
   headers = TABLE_HEADERS,
   toRow = defaultToRow,
 }: Readonly<PagesListViewProps<T>>) {
+  // The bordered scroll area doubles as the Table's virtualization viewport, so only the rows
+  // in view are mounted — a large workspace's "All pages" list stays cheap.
+  const tableWrapRef = useRef<HTMLDivElement>(null);
   return (
     <main className={styles.contentShell}>
       <div className={styles.body}>
@@ -89,13 +92,16 @@ export function PagesListView<T extends DocumentDto>({
         {docs.length === 0 ? (
           <div className={styles.emptyWrap}>{emptyState}</div>
         ) : (
-          <div className={styles.tableWrap}>
+          <div ref={tableWrapRef} className={styles.tableWrap}>
             <Table
               dsVersion="2.0"
               headers={headers}
               data={docs.map(toRow)}
               onRowClick={onOpenDoc}
               isHeaderFixed
+              scrollContainerRef={tableWrapRef}
+              height="100%"
+              rowHeight={44}
             />
           </div>
         )}

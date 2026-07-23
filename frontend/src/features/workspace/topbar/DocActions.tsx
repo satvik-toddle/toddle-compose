@@ -1,6 +1,7 @@
 import { Button, Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
 import {
   AddOutlined,
+  ClockRecentsOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
   LockOutlined,
@@ -9,6 +10,7 @@ import { useUiStore } from '../../../stores/uiStore';
 import { wsAtLeast } from '../../../lib/roles';
 import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
+import { useHistoryMode } from '../history';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import {
   findPageMenuOption,
@@ -20,6 +22,7 @@ import { usePageActions } from './usePageActions';
 const SUB_PAGE_KEY = 'subpage';
 const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
+const HISTORY_KEY = 'history';
 
 export function DocActions({
   ctx,
@@ -27,6 +30,7 @@ export function DocActions({
   user,
 }: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; user: User }>) {
   const openModal = useUiStore((state) => state.openModal);
+  const history = useHistoryMode();
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
@@ -36,17 +40,15 @@ export function DocActions({
     return (
       canCreate && (
         <CreatePageDropdown placement="bottomRight" onCreate={newPage} disabled={isPending}>
-          <span className="inline-flex">
-            <Button
-              dsVersion="2.0"
-              variant="primary"
-              type="fill"
-              icon={<AddOutlined />}
-              disabled={isPending}
-            >
-              New page
-            </Button>
-          </span>
+          <Button
+            dsVersion="2.0"
+            variant="primary"
+            type="fill"
+            icon={<AddOutlined />}
+            disabled={isPending}
+          >
+            New page
+          </Button>
         </CreatePageDropdown>
       )
     );
@@ -67,6 +69,10 @@ export function DocActions({
     });
   const openDeleteModal = () =>
     openModal({ type: 'confirmDeletePage', kind: 'doc', workspaceId, id: doc.id, name: doc.title });
+
+  // Version history is only meaningful for DOC pages (SHEET has no lexical
+  // projection to render read-only yet).
+  const showHistory = doc.type === 'DOC';
 
   // Same option shape + click dispatch as the sidebar's page menu: each leaf carries its
   // own onSelect, and the create action reuses the shared Doc/Sheet submenu builder.
@@ -92,7 +98,18 @@ export function DocActions({
           },
         ]
       : []),
-    // Divider before Delete whenever a manage group (Permissions) sits above it.
+    // Version history sits right below Share; available to every reader (not gated by edit rights).
+    ...(showHistory
+      ? [
+          {
+            key: HISTORY_KEY,
+            label: history.active ? 'Exit version history' : 'Version history',
+            icon: <ClockRecentsOutlined size="xxx-small" variant="subtle" />,
+            onSelect: () => (history.active ? history.exit() : history.enter()),
+          },
+        ]
+      : []),
+    // Divider before Delete; Share (also canManage) always sits above it when Delete renders.
     ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
     ...(canManage
       ? [
@@ -109,7 +126,7 @@ export function DocActions({
 
   return (
     <>
-      {(canCreate || canManage) && (
+      {(canCreate || canManage || showHistory) && (
         <Dropdown
           trigger={['click']}
           placement="bottomRight"
@@ -123,16 +140,13 @@ export function DocActions({
             />
           }
         >
-          {/* antd attaches its open-on-click handler to this DOM node. */}
-          <span className="inline-flex">
-            <IconButton
-              dsVersion="2.0"
-              variant="neutral"
-              type="plain"
-              icon={<DotsHorizontalOutlined />}
-              aria-label="Page actions"
-            />
-          </span>
+          <IconButton
+            dsVersion="2.0"
+            variant="neutral"
+            type="plain"
+            icon={<DotsHorizontalOutlined />}
+            aria-label="Page actions"
+          />
         </Dropdown>
       )}
     </>

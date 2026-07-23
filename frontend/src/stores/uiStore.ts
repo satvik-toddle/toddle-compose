@@ -29,12 +29,15 @@ export type ModalState =
       role?: WorkspaceRole;
     }
   | { type: 'confirmDeletePage'; kind: 'doc' | 'folder'; workspaceId: string; id: string; name: string }
+  | { type: 'confirmRestoreVersion'; docId: string; seq: number; versionLabel: string }
   | {
       type: 'docPermissions';
       docId: string;
       docTitle: string;
       owner: { id: string; name: string; email?: string; color?: string };
-    };
+    }
+  // workspaceId present → in-workspace (preview toggle decides layout); absent → global spotlight.
+  | { type: 'search'; workspaceId?: string };
 
 interface UiState {
   modal: ModalState | null;

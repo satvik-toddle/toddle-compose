@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { Logger, type INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 import { YjsServerService } from "./yjs/yjs-server.service";
 import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
@@ -9,7 +10,8 @@ import { traceMiddleware, setTracingEnabled } from "./tracing/trace";
 let app: INestApplication | null = null;
 
 async function bootstrap() {
-  app = await NestFactory.create(AppModule);
+  const expressApp = await NestFactory.create<NestExpressApplication>(AppModule);
+  app = expressApp;
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
   // Per-request HTTP tracing: times each request and logs its DB-query breakdown.

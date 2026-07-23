@@ -31,7 +31,7 @@ export function Avatar({ person, color, children, size = 26 }: AvatarProps) {
       dsVersion="2.0"
       name={name}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      color={dsAvatarColor(hex) as any}
+      color={dsAvatarColor(hex, name) as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       size={dsAvatarSize(size) as any}
       shape="circle"

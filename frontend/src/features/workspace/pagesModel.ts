@@ -11,10 +11,16 @@ export interface TreeDoc {
 export interface DocTree {
   roots: TreeDoc[];
   isEmpty: boolean;
+  // Node index for the NEXT build's structural sharing (pass back as prevNodes).
+  nodes: Map<string, TreeDoc>;
 }
 
-// Assemble the page tree from the flat document list, nesting by parentId.
-export function buildDocTree(docs: DocumentDto[]): DocTree {
+// Assemble the page tree from the flat document list, nesting by parentId. `prevNodes` (the
+// prior build's node index) enables structural sharing so memoized rows skip unchanged subtrees.
+export function buildDocTree(
+  docs: DocumentDto[],
+  prevNodes?: Map<string, TreeDoc>
+): DocTree {
   const byId = new Map<string, TreeDoc>();
   for (const d of docs) byId.set(d.id, { doc: d, children: [] });
 
@@ -26,28 +32,40 @@ export function buildDocTree(docs: DocumentDto[]): DocTree {
     else roots.push(node); // no parent (or parent outside this list) → root page
   }
 
-  const byTitle = (a: TreeDoc, b: TreeDoc) => a.doc.title.localeCompare(b.doc.title);
+  // Sort by the SAME key the server paginates by (updatedAt desc, id tiebreaker) so a lazily
+  // loaded next page appends below what's shown. Plain compares — updatedAt/id are fixed-format.
+  const cmp = (x: string, y: string) => (x < y ? 1 : x > y ? -1 : 0); // desc
+  const byRecency = (a: TreeDoc, b: TreeDoc) =>
+    cmp(a.doc.updatedAt, b.doc.updatedAt) || cmp(a.doc.id, b.doc.id);
   const sortRec = (nodes: TreeDoc[]) => {
-    nodes.sort(byTitle);
+    nodes.sort(byRecency);
     for (const n of nodes) sortRec(n.children);
   };
   sortRec(roots);
 
-  return { roots, isEmpty: docs.length === 0 };
+  // Bottom-up identity reconciliation against the previous build.
+  const nodes = new Map<string, TreeDoc>();
+  const reuse = (node: TreeDoc): TreeDoc => {
+    const children = node.children.map(reuse);
+    const prev = prevNodes?.get(node.doc.id);
+    const unchanged =
+      prev &&
+      prev.doc === node.doc &&
+      prev.children.length === children.length &&
+      prev.children.every((c, i) => c === children[i]);
+    const out = unchanged ? prev : node;
+    if (!unchanged) out.children = children;
+    nodes.set(out.doc.id, out);
+    return out;
+  };
+  const sharedRoots = roots.map(reuse);
+
+  return { roots: sharedRoots, isEmpty: docs.length === 0, nodes };
 }
 
 // Index the flat document list by id, for parent/ancestor lookups.
 export function mapDocsById(docs: DocumentDto[]): Map<string, DocumentDto> {
   return new Map(docs.map((d) => [d.id, d]));
-}
-
-// Case-insensitive title search; powers the sidebar's flat result list.
-export function filterDocuments(docs: DocumentDto[], query: string): DocumentDto[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return [];
-  return docs
-    .filter((doc) => doc.title.toLowerCase().includes(normalizedQuery))
-    .sort((a, b) => a.title.localeCompare(b.title));
 }
 
 // Walk a page's parent spine (the page itself up to its root), returning the ids.

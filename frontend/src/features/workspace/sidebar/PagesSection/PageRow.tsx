@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { memo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ChevronRightOutlined, DotsHorizontalOutlined } from '@toddle-edu/ds-icons';
 import { Dropdown, DropdownMenu, IconButton, Tooltip } from '@toddle-edu/ds-web';
 import { pushToast, useUiStore } from '../../../../stores/uiStore';
@@ -12,30 +12,39 @@ import { buildPageMenuItems, findPageMenuOption, type PageMenuOption } from './p
 import { RenameInput } from './RenameInput';
 import type { PagesSectionController } from './usePagesSection';
 
-const BASE_INDENT = 8;
+const BASE_INDENT = 4;
 const INDENT_STEP = 15;
 
-export function PageRow({
+// isSelected/isExpanded are passed as per-row primitives (not read off pages.selectedPageId/
+// pages.expanded) so a selection or expand change re-renders only the affected rows, not every
+// loaded row — critical once thousands of docs are paged in.
+function PageRowInner({
   node,
   depth,
   pages,
-}: Readonly<{ node: TreeDoc; depth: number; pages: PagesSectionController }>) {
-  const { expanded, selectedPageId, canCreate, canManage, toggle, selectPage, createPage } = pages;
+  isSelected,
+  isExpanded,
+}: Readonly<{
+  node: TreeDoc;
+  depth: number;
+  pages: PagesSectionController;
+  isSelected: boolean;
+  isExpanded: boolean;
+}>) {
+  const { canCreate, canManage, toggle, selectPage, createPage } = pages;
   const openModal = useUiStore((st) => st.openModal);
   const toggleStar = useToggleStar();
   const renameDoc = useRenameDocument();
-  const { doc, children } = node;
+  const { doc } = node;
+  const hasChildren = node.children.length > 0;
   const isStarred = !!doc.isStarred;
   const docUrl = `${window.location.origin}/w/${pages.ws}?doc=${doc.id}`;
-  const hasChildren = children.length > 0;
-  const isExpanded = expanded.has(doc.id);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const { elementRef: labelRef, isTruncated } = useIsTruncated<HTMLSpanElement>(doc.title);
   const PageIcon = pageTypeIcon(doc.type);
 
-  // Close the menu explicitly: entering rename unmounts the Dropdown, which
-  // would otherwise remount later with a stale visible=true.
+  // Close menu first: rename unmounts the Dropdown, which else remounts with stale visible=true.
   const handleRename = () => {
     setIsMenuOpen(false);
     setIsRenaming(true);
@@ -68,15 +77,19 @@ export function PageRow({
     row: cn(
       'group',
       sidebarRow.base,
-      selectedPageId === doc.id ? sidebarRow.selected : sidebarRow.default,
+      // [&_input]: the DS TextInput pins text-body (weight 500) on its inner input,
+      // so the selected row's semibold must be forced onto it for inline rename.
+      isSelected
+        ? cn(sidebarRow.selected, '[&_input]:font-semibold')
+        : sidebarRow.default,
     ),
-    // Leaf pages keep the (hidden) chevron so icons stay aligned.
-    chevronButton: cn('shrink-0', !hasChildren && 'invisible'),
+    // Leaf pages keep a hidden chevron for alignment; negative margin tightens the icon gap.
+    chevronButton: cn('-mr-2 shrink-0', !hasChildren && 'invisible'),
     chevronIcon: cn('transition-transform', isExpanded && 'rotate-90'),
-    // min-w-0 lets the flex item shrink below its content so truncate shows the ellipsis.
+    // min-w-0 lets the flex item shrink so truncate shows the ellipsis.
     label: 'min-w-0 flex-1 truncate',
     menuWrap: 'flex shrink-0',
-    // Transparent (but focusable) until row hover, keyboard focus, or menu open.
+    // Hidden (but focusable) until row hover, focus, or menu open.
     menuTrigger: cn(
       'opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100',
       isMenuOpen && 'opacity-100',
@@ -113,15 +126,13 @@ export function PageRow({
   );
 
   return (
-    <>
-      {/* Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus,
-          but only when the title is actually clipped. */}
-      <Tooltip
-        dsVersion="2.0"
-        placement="right"
-        showArrow
-        tooltip={isTruncated && !isRenaming ? doc.title : ''}
-      >
+    // Tooltip wraps the focusable row so it surfaces on hover AND keyboard focus, only when clipped.
+    <Tooltip
+      dsVersion="2.0"
+      placement="right"
+      showArrow
+      tooltip={isTruncated && !isRenaming ? doc.title : ''}
+    >
         <div
           className={styles.row}
           style={styles.rowStyle}
@@ -136,7 +147,6 @@ export function PageRow({
             type="plain"
             variant="neutral"
             size="x-small"
-            isCompact
             shouldStopPropagation
             className={styles.chevronButton}
             aria-label={isExpanded ? 'Collapse page' : 'Expand page'}
@@ -173,7 +183,6 @@ export function PageRow({
                     type="plain"
                     variant="neutral"
                     size="x-small"
-                    isCompact
                     isActivated={isMenuOpen}
                     className={styles.menuTrigger}
                     aria-label="Page actions"
@@ -185,11 +194,24 @@ export function PageRow({
           )}
         </div>
       </Tooltip>
-
-      {isExpanded &&
-        children.map((child) => (
-          <PageRow key={child.doc.id} node={child} depth={depth + 1} pages={pages} />
-        ))}
-    </>
   );
 }
+
+// Re-render a row only when ITS own inputs change: node identity (structurally shared by
+// buildDocTree, so unchanged subtrees keep their object), depth, and the per-row isSelected/
+// isExpanded primitives. Selecting or expanding one page thus re-renders just the rows whose
+// flag flipped, not every loaded row. The pages.* handlers are useCallback/primitive-stable.
+export const PageRow = memo(
+  PageRowInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.depth === next.depth &&
+    prev.isSelected === next.isSelected &&
+    prev.isExpanded === next.isExpanded &&
+    prev.pages.canCreate === next.pages.canCreate &&
+    prev.pages.ws === next.pages.ws &&
+    prev.pages.toggle === next.pages.toggle &&
+    prev.pages.selectPage === next.pages.selectPage &&
+    prev.pages.createPage === next.pages.createPage &&
+    prev.pages.canManage === next.pages.canManage,
+);

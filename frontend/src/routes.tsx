@@ -1,5 +1,7 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './app/ProtectedRoute';
+import { MembershipGate } from './app/MembershipGate';
 import { RequireRealmAdmin } from './app/RequireRealmAdmin';
 import { WorkspaceScopeRoute } from './app/WorkspaceScopeRoute';
 import { RootRedirect } from './app/RootRedirect';
@@ -15,11 +17,26 @@ import { AdminConsolePage } from './features/admin/AdminConsolePage';
 import { WorkspacesTab } from './features/admin/WorkspacesTab';
 import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
+import { OrgRequestsTab } from './features/admin/OrgRequestsTab';
 import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
 import { LinkDocView } from './features/link/LinkDocView';
+
+// Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
+const ZwibblerPreviewPage = lazy(() =>
+  import('./features/workspace/whiteboard/zwibbler/ZwibblerPreviewPage').then((m) => ({
+    default: m.ZwibblerPreviewPage,
+  })),
+);
+
+// Dev-only whiteboard perf harness.
+const WhiteboardBenchPage = lazy(() =>
+  import('./features/workspace/whiteboard/WhiteboardBenchPage').then((m) => ({
+    default: m.WhiteboardBenchPage,
+  })),
+);
 
 export function AppRoutes() {
   return (
@@ -37,28 +54,53 @@ export function AppRoutes() {
 
       {/* authenticated */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/access" element={<RequestAccessPage />} />
-        <Route path="/launcher" element={<LauncherPage />} />
-
-        {/* realm admin console */}
+        {/* realm admin console (its own admin gate; not behind the membership gate) */}
         <Route element={<RequireRealmAdmin />}>
           <Route path="/admin" element={<AdminConsolePage />}>
             <Route index element={<Navigate to="/admin/workspaces" replace />} />
             <Route path="workspaces" element={<WorkspacesTab />} />
             <Route path="members" element={<RealmMembersTab />} />
             <Route path="requests" element={<JoinRequestsTab />} />
+            <Route path="org-requests" element={<OrgRequestsTab />} />
             <Route path="settings" element={<RealmSettingsTab />} />
           </Route>
         </Route>
 
-        {/* inside a workspace (scope is entered before render) */}
-        <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
-          <Route element={<WorkspaceLayout />}>
-            <Route index element={<WorkspaceContent />} />
-            <Route path="starred" element={<StarredPagesView />} />
+        {/* non-members are held at the org join gate when join-requests are enabled */}
+        <Route element={<MembershipGate />}>
+          <Route path="/access" element={<RequestAccessPage />} />
+          <Route path="/launcher" element={<LauncherPage />} />
+
+          {/* inside a workspace (scope is entered before render) */}
+          <Route path="/w/:workspaceId" element={<WorkspaceScopeRoute />}>
+            <Route element={<WorkspaceLayout />}>
+              <Route index element={<WorkspaceContent />} />
+              <Route path="starred" element={<StarredPagesView />} />
+            </Route>
           </Route>
         </Route>
       </Route>
+
+      {import.meta.env.DEV && (
+        <>
+          <Route
+            path="/zwibbler-preview"
+            element={
+              <Suspense fallback={null}>
+                <ZwibblerPreviewPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/whiteboard-bench"
+            element={
+              <Suspense fallback={null}>
+                <WhiteboardBenchPage />
+              </Suspense>
+            }
+          />
+        </>
+      )}
 
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<RootRedirect />} />

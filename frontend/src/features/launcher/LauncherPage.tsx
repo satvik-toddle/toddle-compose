@@ -8,9 +8,8 @@ import { EmptyState } from '../../components/EmptyState';
 import { RealmChip } from '../../components/RealmChip';
 import { Avatar } from '../../components/Avatar';
 import { PageLoader } from '../../components/Loader';
-import { WorkspaceCard } from './WorkspaceCard';
+import { WorkspaceCard, AddWorkspaceCard } from './WorkspaceCard';
 import s from './LauncherPage.module.scss';
-import card from './WorkspaceCard.module.scss';
 import { useRealm, useWorkspaces } from '../../hooks/queries';
 import { useEnterWorkspace } from '../../hooks/useAuthMutations';
 import { useAuthStore } from '../../stores/authStore';
@@ -137,6 +136,10 @@ export function LauncherPage() {
               </div>
             </div>
             <div className={s.lcGreetActions}>
+              {/* Global doc search — left of New workspace. */}
+              <Button icon="SearchOutlined" onClick={() => openModal({ type: 'search' })}>
+                Search
+              </Button>
               {admin && (
                 <Button
                   variant="primary"
@@ -170,13 +173,7 @@ export function LauncherPage() {
               />
             ))}
             {admin && (
-              <button className={`${card.wsCard} ${card.add}`} onClick={() => openModal({ type: 'createWorkspace' })}>
-                <span className={card.addGlyph}>
-                  <Icon name="AddOutlined" size={20} muted />
-                </span>
-                <span className={card.addNm}>New workspace</span>
-                <span className={card.addDs}>Create a space and invite your team</span>
-              </button>
+              <AddWorkspaceCard onClick={() => openModal({ type: 'createWorkspace' })} />
             )}
           </div>
         </div>

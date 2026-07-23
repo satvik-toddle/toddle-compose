@@ -1,6 +1,6 @@
 /* Launcher page layout. Co-located, auto-scoped CSS Module.
    The page shell (.page/.page-wrap) and .sub stay global; the workspace card
-   system lives in WorkspaceCard.module.scss. */
+   system is fully Tailwind in WorkspaceCard.tsx. */
 
 .lc-greet {
   display: flex;

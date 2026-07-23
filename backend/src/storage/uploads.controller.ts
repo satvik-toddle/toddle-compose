@@ -30,7 +30,7 @@ type UploadedFileLike = {
 
 // Read at decorator-time so the multer interceptor can hard-cap the stream.
 const MAX_UPLOAD_BYTES =
-  (Number(process.env.STORAGE_MAX_UPLOAD_MB) || 25) * 1024 * 1024;
+  (Number(process.env.STORAGE_MAX_UPLOAD_MB) || 100) * 1024 * 1024;
 
 // Browser-executable mimetypes; stored as octet-stream so no driver serves a dangerous ContentType.
 const ACTIVE_CONTENT_RE = /html|svg|xml|javascript|ecmascript/i;

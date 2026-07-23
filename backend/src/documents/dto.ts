@@ -1,3 +1,4 @@
+import { Transform } from "class-transformer";
 import {
   IsEmail,
   IsIn,
@@ -8,8 +9,8 @@ import {
 } from "class-validator";
 import { WORKSPACE_ROLES } from "../workspaces/dto";
 
-const DOCUMENT_TYPES = ["DOC", "SHEET"] as const;
-type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
+const DOCUMENT_TYPES = ["DOC", "SHEET", "WHITEBOARD"] as const;
+export type DocumentTypeInput = (typeof DOCUMENT_TYPES)[number];
 
 export class CreateDocumentDto {
   @IsOptional()
@@ -23,7 +24,7 @@ export class CreateDocumentDto {
   @MaxLength(16)
   icon?: string;
 
-  // DOC (rich-text, default) or SHEET (data grid); both share the RTC/Yjs stack.
+  // DOC (rich-text, default), SHEET (data grid), or WHITEBOARD (canvas); all share the RTC/Yjs stack.
   @IsOptional()
   @IsIn(DOCUMENT_TYPES)
   type?: DocumentTypeInput;
@@ -85,6 +86,25 @@ export class ListStarredDocumentsDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+}
+
+export class SearchDocumentsDto {
+  // Omit for a global search across every workspace the caller can access.
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+
+  // Search term matched against titles and content; trimmed at the edge and required non-empty.
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  q!: string;
+
+  // Opaque keyset cursor from a previous page's nextCursor; omitted for the first page.
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }
 
 // Per-page grants accept any WorkspaceRole; they only ever elevate (effective = max(ws role, grant)).

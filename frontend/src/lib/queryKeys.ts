@@ -14,6 +14,8 @@ export const qk = {
   workspaceMembers: (id: string) => ['workspaces', id, 'users'] as const,
   realmRequests: (state: JoinRequestState = 'PENDING') =>
     ['joinRequests', 'realm', state] as const,
+  orgRequests: (state: JoinRequestState = 'PENDING') => ['orgRequests', state] as const,
+  myOrgRequest: ['myOrgRequest'] as const,
   wsRequests: (id: string, state: JoinRequestState = 'PENDING') =>
     ['workspaces', id, 'requests', state] as const,
   documents: (workspaceId: string, folderId?: string | null) =>
@@ -27,12 +29,24 @@ export const qk = {
   shareLink: (token: string) => ['shareLink', token] as const, // public /link/:token resolve
   shareLinkRtc: (token: string) => ['shareLink', token, 'rtc'] as const,
   folders: (workspaceId: string) => ['folders', workspaceId] as const,
+  docSearch: (workspaceId: string | null, q: string) =>
+    ['docSearch', workspaceId ?? 'global', q] as const,
+  docPreview: (docId: string) => ['docPreview', docId] as const,
+  // Single-doc fetch for opening a page not in the (paginated) workspace list. Deliberately
+  // NOT under the 'documents' prefix: a 403/404 here means one stale doc id ("Page not
+  // found"), not lost workspace access — it must not trip the global eject guard.
+  doc: (docId: string) => ['doc', docId] as const,
+  docHistory: (docId: string) => ['docHistory', docId] as const,
+  docSnapshot: (docId: string, seq: number, diffAgainst?: number) =>
+    ['docHistory', docId, seq, diffAgainst ?? null] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace
 // (used by the global access-lost guard). Excludes the realm-wide listings.
 export function isWorkspaceScopedKey(key: readonly unknown[]): boolean {
-  if (key[0] === 'documents' || key[0] === 'folders') return true;
+  // docPreview is deliberately excluded: a 403/404 there means ONE stale search result
+  // (doc deleted / grant revoked), not lost workspace access — the pane shows its own error.
+  if (key[0] === 'documents' || key[0] === 'folders' || key[0] === 'docSearch') return true;
   return (
     key[0] === 'workspaces' &&
     typeof key[1] === 'string' &&

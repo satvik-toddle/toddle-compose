@@ -9,6 +9,7 @@ const { result, commands } = concurrently(
   [
     { command: 'pnpm --filter backend dev', name: 'backend', prefixColor: 'blue' },
     { command: 'pnpm --filter rtc-server dev', name: 'rtc', prefixColor: 'magenta' },
+    { command: 'pnpm --filter rtc-server dev:indexer', name: 'indexer', prefixColor: 'yellow' },
     { command: 'pnpm --filter frontend dev', name: 'frontend', prefixColor: 'green' },
   ],
   { killOthersOn: ['failure'] },

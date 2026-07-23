@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -8,6 +9,7 @@ import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
+import type { DocumentTypeInput } from "./dto";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
@@ -37,7 +39,7 @@ type DocRow = Prisma.DocumentGetPayload<{ select: typeof SUMMARY_SELECT }>;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
-  type?: "DOC" | "SHEET";
+  type?: DocumentTypeInput;
   folderId?: string;
   // When set, folderId is ignored — a subdoc is located by its parent.
   parentId?: string;
@@ -74,6 +76,23 @@ type HierarchyNode = {
 
 // Bounds breadcrumb/ancestor walks so a corrupt self-referential chain can't loop.
 const MAX_DOC_DEPTH = 256;
+
+// ~120-char content excerpt centered on the query term (…ellipsized), for search-result rows.
+function makeSnippet(text: string, q: string): string {
+  const WINDOW = 120;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) {
+    const head = text.slice(0, WINDOW).replace(/\s+/g, " ").trim();
+    return head.length < text.trim().length ? `${head}…` : head;
+  }
+  // Clamp the lead offset non-negative: a q longer than WINDOW would otherwise push start past idx, dropping the match.
+  const start = Math.max(0, idx - Math.max(0, Math.floor((WINDOW - q.length) / 2)));
+  const end = Math.min(text.length, start + WINDOW);
+  let snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) snippet = `…${snippet}`;
+  if (end < text.length) snippet = `${snippet}…`;
+  return snippet;
+}
 
 @Injectable()
 export class DocumentsService {
@@ -132,7 +151,8 @@ export class DocumentsService {
         const granted = await this.prisma.document.findMany({
           where: { workspaceId: wsId, permissions: { some: { userId: user.id } } },
           select: this.summarySelect(),
-          orderBy: { updatedAt: "desc" },
+          // id tiebreaker so offset pages don't skip/dup docs sharing an updatedAt.
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
           skip,
           take,
         });
@@ -160,7 +180,8 @@ export class DocumentsService {
       const docs = await this.prisma.document.findMany({
         where: { workspaceId: wsId, ...folderScope, ...parentScope },
         select: this.summarySelect(),
-        orderBy: { updatedAt: "desc" },
+        // id tiebreaker so offset pages don't skip/dup docs sharing an updatedAt.
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
         skip,
         take,
       });
@@ -170,6 +191,132 @@ export class DocumentsService {
         new Map([[wsId, wsRole]])
       );
     });
+  }
+
+  // Keyset (seek) pagination over the matched union, ordered (updatedAt desc, id desc) — no OFFSET scan.
+  // The same access filter gates every query, so a doc the user can't read never surfaces.
+  async search(
+    user: AuthUser,
+    input: { workspaceId?: string; q: string; cursor?: string | null },
+    take = 25
+  ) {
+    return trace("documents.search", async () => {
+      const empty = {
+        items: [],
+        total: 0,
+        nextCursor: null as string | null,
+      };
+      const q = input.q.trim();
+      if (q === "") return empty;
+
+      const global = input.workspaceId === undefined;
+
+      // Access filter reused by every query below, keeping title + content passes in lockstep.
+      let accessFilter: Prisma.DocumentWhereInput;
+      if (!global) {
+        const wsId = this.resolveWorkspaceId(user, input.workspaceId);
+        const { role: wsRole } = await this.authz.requireWorkspaceAccess(user.id, wsId);
+        // Grant-only guest (role null): only their granted docs in this workspace.
+        accessFilter =
+          wsRole === null
+            ? { workspaceId: wsId, permissions: { some: { userId: user.id } } }
+            : { workspaceId: wsId };
+      } else {
+        // Global: any member workspace (incl. realm OWNER/MAINTAINER overlay) OR a per-page grant.
+        const memberWsIds = await this.authz.memberWorkspaceIds(user.id);
+        accessFilter = {
+          OR: [
+            { workspaceId: { in: memberWsIds } },
+            { permissions: { some: { userId: user.id } } },
+          ],
+        };
+      }
+
+      // Global results carry workspace {id,name} so callers can navigate + label; workspace scope omits it.
+      const select = global
+        ? ({
+            ...SUMMARY_SELECT,
+            workspace: { select: { id: true, name: true } },
+          } as const)
+        : SUMMARY_SELECT;
+
+      // ONE indexed query: title OR content substring match, gated by the access filter. Both
+      // columns are pg_trgm GIN-indexed, so content search is exhaustive and sub-linear — no
+      // rtc round-trip, no id cap, and zero load on the collab server (content_text is pushed
+      // here by rtc on each snapshot flush).
+      const matchWhere: Prisma.DocumentWhereInput = {
+        AND: [
+          accessFilter,
+          {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { contentText: { contains: q, mode: "insensitive" } },
+            ],
+          },
+        ],
+      };
+      const total = await this.prisma.document.count({ where: matchWhere });
+
+      // Keyset seek: page rows strictly "after" the cursor in (updatedAt desc, id desc) order.
+      const cur = this.decodeSearchCursor(input.cursor);
+      const seekClause: Prisma.DocumentWhereInput | null = cur
+        ? {
+            OR: [
+              { updatedAt: { lt: cur.updatedAt } },
+              { AND: [{ updatedAt: cur.updatedAt }, { id: { lt: cur.id } }] },
+            ],
+          }
+        : null;
+
+      const page = await this.prisma.document.findMany({
+        where: seekClause ? { AND: [matchWhere, seekClause] } : matchWhere,
+        // contentText only for snippet building; stripped from the returned row below.
+        select: { ...select, contentText: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take,
+      });
+
+      const ql = q.toLowerCase();
+      // A doc matching BOTH keeps match:"title" (badge) but also carries its content snippet.
+      const ordered = page.map(({ contentText, ...d }) => ({
+        ...d,
+        match: d.title.toLowerCase().includes(ql) ? ("title" as const) : ("content" as const),
+        snippet:
+          contentText && contentText.toLowerCase().includes(ql)
+            ? makeSnippet(contentText, q)
+            : undefined,
+      }));
+      const items = await this.attachMyRole(
+        user.id,
+        await this.attachStarred(user.id, ordered)
+      );
+
+      const last = page[page.length - 1];
+      const nextCursor =
+        page.length === take && last
+          ? this.encodeSearchCursor(last.updatedAt, last.id)
+          : null;
+      return { items, total, nextCursor };
+    });
+  }
+
+  // Opaque keyset cursor over (updatedAt, id) — base64url so it survives a query string.
+  private encodeSearchCursor(updatedAt: Date, id: string): string {
+    return Buffer.from(`${updatedAt.toISOString()}|${id}`).toString("base64url");
+  }
+
+  private decodeSearchCursor(
+    cursor?: string | null
+  ): { updatedAt: Date; id: string } | null {
+    if (!cursor) return null;
+    try {
+      const [ts, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+      const updatedAt = new Date(ts);
+      if (!id || Number.isNaN(updatedAt.getTime())) return null;
+      return { updatedAt, id };
+    } catch {
+      return null;
+    }
   }
 
   // Direct subdocs of a document; workspace READ on the parent gates the whole list.
@@ -445,7 +592,8 @@ export class DocumentsService {
           updateCount: s.updateCount,
           totalBytes: s.totalBytes,
           noop: s.noop,
-          origin: s.origin,
+          // Archive snapshot vs. real edit whose author no longer resolves (both leave user=null; the UI labels them differently).
+          kind: s.origin === "archive" ? ("archive" as const) : ("edit" as const),
           changedCells: s.changedCells ?? [],
           user: s.clientSub ? (byId.get(s.clientSub) ?? null) : null,
         }))
@@ -454,26 +602,66 @@ export class DocumentsService {
   }
 
   // Read-only preview of the document at a given seq; the kind is resolved from the doc, then dispatched on.
-  async historySnapshot(userId: string, docId: string, seq: number) {
+  async historySnapshot(
+    userId: string,
+    docId: string,
+    seq: number,
+    // Baseline seq to also return a merged server-computed diff (0 = empty doc); DOC only.
+    diffAgainst?: number
+  ) {
     const doc = await this.get(userId, docId);
-    if (!Number.isFinite(seq) || seq < 0) {
+    if (!Number.isInteger(seq) || seq < 0) {
       throw new BadRequestException("seq must be a non-negative integer");
     }
-    const preview = await this.rtc.getVersionPreview(docId, seq);
+    if (diffAgainst != null && (!Number.isInteger(diffAgainst) || diffAgainst < 0)) {
+      throw new BadRequestException("diff must be a non-negative integer");
+    }
+    // Fetch only the slice each doc type renders: DOC gets server-extracted editorState JSON (+ optional diff), SHEET reads the grid snapshot.
+    const isSheet = doc.type === DocumentType.SHEET;
+    const preview = await this.rtc.getVersionPreview(
+      docId,
+      seq,
+      isSheet ? "text" : "render",
+      isSheet ? undefined : diffAgainst
+    );
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
-    // Seam where DOC and SHEET data diverge.
+    // Seam where the per-kind payloads diverge.
     switch (doc.type) {
       case DocumentType.SHEET:
         return { ...base, sheet: preview.sheet };
+      case DocumentType.WHITEBOARD:
+        return { ...base, whiteboard: preview.whiteboard };
       case DocumentType.DOC:
       default:
+        // Fail loud on both skew shapes: extraction failure (lexicalJson null) AND an old rtc-server that silently ignored include=render — it returns a lexicalJson WITHOUT materialized upload srcs and never emits the diffJson key (the render path always sets it, even as null).
+        if (!preview.lexicalJson || preview.diffJson === undefined) {
+          throw new HttpException({ error: "rtc service error" }, 502);
+        }
         return {
           ...base,
           lexicalJson: preview.lexicalJson,
-          plainText: preview.plainText,
+          diffJson: preview.diffJson,
         };
     }
+  }
+
+  // Read-only current-content preview for the search modal; gated identically to `get()`.
+  async preview(userId: string, docId: string) {
+    const doc = await this.get(userId, docId); // read gate + title/icon/breadcrumbs
+    const p = await this.rtc.getHeadContent(docId);
+    const base = {
+      docId,
+      type: doc.type,
+      title: doc.title,
+      icon: doc.icon,
+      breadcrumbs: doc.breadcrumbs,
+      updatedAt: doc.updatedAt,
+      headSeq: p.headSeq,
+    };
+    return doc.type === DocumentType.SHEET
+      ? { ...base, sheet: p.sheet }
+      : { ...base, lexicalJson: p.lexicalJson, plainText: p.plainText };
   }
 
   // Content/metadata edit — any workspace EDITor (or the creator).

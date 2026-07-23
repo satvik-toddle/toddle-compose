@@ -5,25 +5,18 @@
    constraining the text to a centered, readable column — Coda-style. */
 
 .tc-editor {
-  flex: 1;
+  /* fill the page scroll wrapper, never shrink below content */
+  flex: 1 0 auto;
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
   background: var(--panel-bg);
   --surface-primary-active: var(--panel-bg);
 
   > * {
-    flex: 1;
-    min-height: 0;
+    flex: 1 0 auto;
   }
 
-  :global(.ds-de-anchor-element) {
-    width: 100% !important;
-    max-width: 760px !important;
-    margin: 0 auto !important;
-  }
   :global(.ds-de-contentEditable-bg-provider) {
     margin: 0 !important;
     border: 0 !important;
@@ -34,5 +27,26 @@
   }
   :global(.ds-de-contentEditable) {
     padding-top: 12px !important;
+  }
+}
+
+/* Full-page mode: hand scrolling to the page (PageView contentShell) so the title and content
+   scroll as one under a fixed topbar. Grow to content height instead of scrolling internally;
+   the editor's .ds-de-scrollable-container caps itself at 100vh and scrolls on its own by
+   default, so neutralize that here (scoped to the page — the search preview pane still scrolls
+   internally). */
+.tc-editor-page {
+  flex: 1 0 auto;
+  overflow: visible;
+
+  > * {
+    flex: 1 0 auto;
+    min-height: 100%;
+  }
+
+  :global(.ds-de-scrollable-container) {
+    overflow: visible;
+    max-height: none;
+    flex-grow: 1;
   }
 }

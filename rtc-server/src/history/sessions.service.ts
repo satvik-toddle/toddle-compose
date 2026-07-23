@@ -1,12 +1,18 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
+import { Env } from "../config/env";
 import { DocRepository } from "../persistence/doc-repository.service";
-import { SheetSnapshot, extractSheet } from "./versions.service";
+import { SheetSnapshot, extractSheet } from "../persistence/searchable-text";
+import {
+  extractWhiteboard,
+  versionDisplayText,
+  versionFingerprint,
+} from "./versions.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
 const log = createLogger("sessions");
-const DEFAULT_GAP_MS = 30_000;
 
 export type ChangedCell = { rowId: string; colId: string };
 
@@ -56,6 +62,49 @@ function diffSheetCells(
   return changed;
 }
 
+// Canonical Lexical empty paragraph: type 'paragraph', no indent, default alignment, no style, and no children beyond empty text nodes.
+function isDefaultEmptyParagraph(node: unknown): boolean {
+  if (!node || typeof node !== "object") return false;
+  const n = node as {
+    type?: unknown;
+    children?: unknown;
+    indent?: unknown;
+    format?: unknown;
+    style?: unknown;
+  };
+  if (n.type !== "paragraph") return false;
+  if (n.indent) return false;
+  // Element format: '', 0, undefined and 'start' all mean unaligned (see doc-diff nodeSignature).
+  if (n.format !== "" && n.format !== 0 && n.format !== undefined && n.format !== "start") return false;
+  if (n.style != null && (typeof n.style !== "string" || n.style.trim() !== "")) return false;
+  const kids = n.children;
+  if (kids === undefined) return true;
+  if (!Array.isArray(kids)) return false;
+  return kids.every((c) => {
+    if (!c || typeof c !== "object") return false;
+    const cn = c as { type?: unknown; text?: unknown };
+    return cn.type === "text" && cn.text === "";
+  });
+}
+
+// A boundary state that renders as an empty doc: "" (pre-first-open) or the canonical empty doc (root with one default-empty paragraph) the editor bootstraps on first open. Strict, so any real change still surfaces.
+function isVisuallyEmpty(content: string): boolean {
+  if (content === "") return true;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  const root = (parsed as { root?: unknown } | null)?.root;
+  // No root object: not a Lexical doc (e.g. SHEET grid serialization) — leave on the exact-equality path.
+  if (!root || typeof root !== "object") return false;
+  const children = (root as { children?: unknown }).children;
+  if (!Array.isArray(children) || children.length === 0) return true;
+  if (children.length !== 1) return false;
+  return isDefaultEmptyParagraph(children[0]);
+}
+
 export type SessionList = {
   docId: string;
   head: number;
@@ -70,14 +119,20 @@ export type SessionList = {
 export class SessionsService {
   constructor(
     private readonly repo: DocRepository,
-    private readonly extract: LexicalExtractService
+    private readonly extract: LexicalExtractService,
+    private readonly config: ConfigService<Env, true>
   ) {}
+
+  private env<K extends keyof Env>(k: K): Env[K] {
+    return this.config.get(k, { infer: true });
+  }
 
   async buildSessions(
     docId: string,
     opts: { clientSub?: string | null; gapMs?: number; includeNoop?: boolean } = {}
   ): Promise<SessionList> {
-    const gapMs = opts.gapMs ?? DEFAULT_GAP_MS;
+    // Env-tunable (RTC_SESSION_GAP_MS) so local/E2E runs can use a short gap instead of waiting out 30s.
+    const gapMs = opts.gapMs ?? this.env("RTC_SESSION_GAP_MS");
     const clientSub = opts.clientSub ?? null;
     const includeNoop = opts.includeNoop ?? false;
     const head = await this.repo.getHeadSeq(docId);
@@ -100,10 +155,12 @@ export class SessionsService {
       const sameSub = last && last.clientSub === u.client_sub;
       const withinGap = last && u.created_at - last.endedAt <= gapMs;
       const sameKind = last && (last.origin === "archive") === isArchive;
+      // A tier-1 merged row stands in for the raw updates it coalesced; count those, not the one row.
+      const edits = u.merged_count ?? 1;
       if (last && sameSub && withinGap && sameKind && !isArchive) {
         last.lastSeq = u.seq;
         last.endedAt = u.created_at;
-        last.updateCount += 1;
+        last.updateCount += edits;
         last.totalBytes += u.byte_len;
       } else {
         groups.push({
@@ -112,7 +169,7 @@ export class SessionsService {
           clientSub: u.client_sub,
           startedAt: u.created_at,
           endedAt: u.created_at,
-          updateCount: 1,
+          updateCount: edits,
           totalBytes: u.byte_len,
           origin: u.origin,
         });
@@ -133,7 +190,14 @@ export class SessionsService {
       const after = atBoundary.get(g.lastSeq);
       const beforeText = before?.text ?? "";
       const afterText = after?.text ?? "";
-      const noop = beforeText === afterText;
+      // Compare full structure, not plainText: media/embed/formatting-only edits add no text and would otherwise be dropped as no-ops.
+      // Both boundaries visually empty is also a noop: the pre-first-open state differs structurally from the bootstrapped canonical empty doc but renders identically.
+      // TODO: enhance diffing for known same-looking cases — a kept session whose minor structural change renders an unmarked diff (e.g. attr-only tweaks on empty paragraphs, direction flips).
+      const beforeContent = before?.content ?? "";
+      const afterContent = after?.content ?? "";
+      const noop =
+        beforeContent === afterContent ||
+        (isVisuallyEmpty(beforeContent) && isVisuallyEmpty(afterContent));
       const changedCells = diffSheetCells(
         before?.sheet ?? null,
         after?.sheet ?? null
@@ -159,28 +223,32 @@ export class SessionsService {
     };
   }
 
-  // Single-pass equivalent of previewAtSeq per boundary; for SHEET docs `text` is the grid's canonical serialization (so cell changes aren't seen as no-ops).
+  // Single-pass equivalent of previewAtSeq per boundary. `text` is the human-readable content (plainText for DOC, grid serialization for SHEET, shape/page summary for WHITEBOARD); `content` is the no-op fingerprint (full lexicalJson for DOC so non-text edits register, grid serialization for SHEET, canonical JSON serialization for WHITEBOARD so shape moves/resizes register).
   private async replayBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
-  ): Promise<Map<number, { text: string; sheet: SheetSnapshot | null }>> {
-    type Snap = { text: string; sheet: SheetSnapshot | null };
+  ): Promise<
+    Map<number, { text: string; content: string; sheet: SheetSnapshot | null }>
+  > {
+    type Snap = { text: string; content: string; sheet: SheetSnapshot | null };
     const at = new Map<number, Snap>();
     if (boundaries.length === 0) return at;
     const ydoc = new Y.Doc();
-    let last: Snap = { text: "", sheet: null };
+    let last: Snap = { text: "", content: "", sheet: null };
     let dirty = true;
     const capture = async (): Promise<Snap> => {
       if (dirty) {
-        // Read the grid off the live doc before worker extraction (see previewAtSeq).
+        // Read the grid/board off the live doc before worker extraction (see previewAtSeq).
         const sheet = extractSheet(ydoc);
-        const { plainText } = await this.extract.extractFromBytes(
-          Y.encodeStateAsUpdate(ydoc)
-        );
-        const text = sheet
-          ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-          : plainText;
-        last = { text, sheet };
+        const whiteboard = extractWhiteboard(ydoc);
+        // Only DOCs need worker extraction; sheets/whiteboards derive text + fingerprint straight off the Y.Doc, so skip the per-boundary encode + worker round-trip for them.
+        const extracted =
+          !sheet && !whiteboard
+            ? await this.extract.extractFromBytes(Y.encodeStateAsUpdate(ydoc))
+            : null;
+        const text = versionDisplayText(sheet, whiteboard, extracted?.plainText ?? "");
+        const content = versionFingerprint(ydoc, sheet, whiteboard, extracted);
+        last = { text, content, sheet };
         dirty = false;
       }
       return last;

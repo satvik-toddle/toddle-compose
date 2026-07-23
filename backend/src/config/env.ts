@@ -93,7 +93,7 @@ export const envSchema = z.object({
   // Local driver: directory uploaded files are written to (gitignored).
   STORAGE_DIR: z.string().default("./.storage"),
   // Max accepted upload size, in megabytes (both drivers).
-  STORAGE_MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
+  STORAGE_MAX_UPLOAD_MB: z.coerce.number().int().positive().default(100),
 
   // S3 driver settings (only consulted when STORAGE_DRIVER=s3); optional so the app boots on the local driver.
   STORAGE_S3_BUCKET: z.string().optional(),

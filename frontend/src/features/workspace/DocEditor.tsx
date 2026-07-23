@@ -4,22 +4,52 @@ import { DocEditor as DsDocEditor, WebsocketProvider, Y } from '@toddle-edu/ds-d
 import '@toddle-edu/ds-doc-editor/dist/main.css';
 import { useRtcToken } from '../../hooks/usePages';
 import { useShareLinkRtcToken } from '../../hooks/useShareLink';
-import { uploadFile } from '../../api/uploads';
+import { uploadFileWithProgress } from '../../api/uploads';
 import { messageOf } from '../../lib/errors';
 import { pushToast } from '../../stores/uiStore';
+import { uploadStore } from '../../stores/uploadStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PageLoader } from '../../components/Loader';
 import { RTC_WS_URL } from '../../lib/env';
+import { DOC_COLUMN_WIDTH, DOC_SIDE_PADDING } from './constants';
+import { attachTokenRecovery } from './rtcReconnect';
 import s from './DocEditor.module.scss';
 
 // Hide the editor's built-in top toolbar — formatting comes from the floating
 // selection toolbar + slash menu (Coda-style). The editable surface then fills
 // the full width and height of the page pane (no centered 800px column).
-const EDITOR_CONFIG = { toolbar: { enabled: false } };
-const EDITOR_STYLES = {
+// Exported so the read-only history snapshot (DocSnapshotViewer) renders with identical chrome.
+export const EDITOR_CONFIG = { toolbar: { enabled: false } };
+
+// Full document page: centered 900px readable column, generous side padding. The scroll
+// container's own overflow + viewport max-height are removed so the PAGE scrolls (title +
+// content together) — see .tc-editor-page and PageView's contentShell.
+const DOC_STYLES = {
+  scrollableContainer: { overflow: 'visible', maxHeight: 'none', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: `${DOC_COLUMN_WIDTH}px`, margin: '0 auto' },
+  contentBgProvider: { minHeight: '100%', padding: `0 ${DOC_SIDE_PADDING}px 80px`, background: 'var(--panel-bg)' },
+};
+
+// Search preview pane: full-width in the narrow pane with tight 16px side padding.
+const PREVIEW_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
   anchorElement: { width: '100%', maxWidth: '100%' },
-  contentBgProvider: { minHeight: '100%', padding: '0 48px 80px', background: 'var(--panel-bg)' },
+  contentBgProvider: { minHeight: '100%', padding: '0 16px 80px', background: 'var(--panel-bg)' },
+  contentEditable: { paddingLeft: '16px', paddingRight: '16px' },
+};
+
+// Exported for the read-only history snapshot: full-width, internal scrolling flattened so the
+// page-level wrapper (title + editor) scrolls as one.
+export const EDITOR_STYLES = {
+  scrollableContainer: {
+    height: 'auto',
+    maxHeight: 'none',
+    overflow: 'visible',
+    background: 'var(--panel-bg)',
+  },
+  anchorElement: { width: '100%', maxWidth: '100%' },
+  contentBgProvider: { minHeight: '100%', padding: '0 16px 80px', background: 'var(--panel-bg)' },
+  contentEditable: { paddingLeft: '16px', paddingRight: '16px' },
 };
 
 // The editor calls this for every image/file insert (device upload, paste,
@@ -46,10 +76,21 @@ async function uploadToServer(arg: UploadArg): Promise<string> {
   const file = arg instanceof Blob ? arg : arg?.file;
   if (!file) throw new Error('uploadToServer: no file provided');
   const attachment = arg instanceof Blob ? undefined : arg?.attachment;
+  const name = uploadName(file, attachment) ?? (file instanceof File ? file.name : 'upload');
+  // Register in the bottom-right progress panel and stream byte-progress into it.
+  const id = uploadStore().start({
+    name,
+    size: file.size ?? 0,
+    type: file.type || attachment?.mimeType || '',
+  });
   try {
-    const stored = await uploadFile(file, uploadName(file, attachment));
+    const stored = await uploadFileWithProgress(file, name, {
+      onProgress: (pct) => uploadStore().setProgress(id, pct),
+    });
+    uploadStore().complete(id);
     return stored.url;
   } catch (e) {
+    uploadStore().fail(id, messageOf(e));
     // The editor swallows upload rejections silently, so surface the failure before rethrowing.
     pushToast({ kind: 'error', message: `Image upload failed: ${messageOf(e)}` });
     throw e;
@@ -67,10 +108,16 @@ export function DocEditor({
   shareToken,
   awarenessName,
   awarenessColor,
+  viewOnly: forceViewOnly,
+  preview = false,
 }: {
   docId: string;
   canEdit?: boolean;
   shareToken?: string;
+  // Force read-only regardless of the RTC role (e.g. the search preview pane).
+  viewOnly?: boolean;
+  // Compact layout for the search preview pane (full-width, tight padding) vs the 900px doc page.
+  preview?: boolean;
   // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
   awarenessName?: string;
   awarenessColor?: string;
@@ -92,10 +139,8 @@ export function DocEditor({
   paramsRef.current.token = rtc?.token;
   // True once this mount has discarded the stale doc and bound a fresh Y.Doc; the call site remounts per docId (key={docId}) so one flag per mount suffices, and it also makes StrictMode's double providerFactory call reuse the fresh doc.
   const freshDocBoundRef = useRef(false);
-  // Consecutive failed connects (no intervening successful connect). The rtc-server rejects invalidated tokens at the HTTP upgrade too (401 → browser close code 1006, not 4001), so a client that missed the live kick would loop on its cached token until the 4-min refetch; re-mint after 2 failures instead.
-  const failedConnectsRef = useRef(0);
-  // Dedupes the connection-error + connection-close pair that a single failed attempt emits, so one attempt counts once.
-  const attemptCountedRef = useRef(false);
+  // Failure counters shared across providerFactory re-invocations (StrictMode, collab re-memo) so the 2-failure re-mint streak survives provider recreation.
+  const recoveryStateRef = useRef({ sinceRemint: 0, sinceConnect: 0, attemptCounted: false });
 
   const collab = useMemo(() => {
     return {
@@ -118,32 +163,8 @@ export function DocEditor({
           params: paramsRef.current,
           connect: false,
         });
-        // A successful (re)connect clears the failure streak.
-        provider.on('status', (e?: { status?: string }) => {
-          if (e?.status === 'connecting') attemptCountedRef.current = false;
-          else if (e?.status === 'connected') failedConnectsRef.current = 0;
-        });
-        provider.on('sync', (isSynced: boolean) => {
-          if (isSynced) failedConnectsRef.current = 0;
-        });
-        // 4001 = server force-refreshed access; re-mint immediately (fast path). Otherwise count this attempt once and re-mint after 2 consecutive failures (covers a re-mint rejected once for iat <= watermark within the kick's same second).
-        const onConnectFailure = (code?: number) => {
-          if (code === 4001) {
-            failedConnectsRef.current = 0;
-            attemptCountedRef.current = true;
-            void refetchRef.current?.();
-            return;
-          }
-          if (attemptCountedRef.current) return;
-          attemptCountedRef.current = true;
-          failedConnectsRef.current += 1;
-          if (failedConnectsRef.current >= 2) {
-            failedConnectsRef.current = 0;
-            void refetchRef.current?.();
-          }
-        };
-        provider.on('connection-close', (e?: CloseEvent) => onConnectFailure(e?.code));
-        provider.on('connection-error', () => onConnectFailure());
+        // Listeners live as long as the provider (the CollaborationPlugin destroys it); no detach needed.
+        attachTokenRecovery(provider, () => refetchRef.current?.(), undefined, recoveryStateRef.current);
         return provider;
       },
       username: awarenessName ?? name ?? 'User',
@@ -168,15 +189,19 @@ export function DocEditor({
   }
 
   return (
-    <div className={s.tcEditor}>
+    <div className={preview ? s.tcEditor : `${s.tcEditor} ${s.tcEditorPage}`}>
       <DsDocEditor
         collab={collab}
         uploadToServer={uploadToServer}
-        viewOnly={rtc.role !== 'editor'}
-        placeholder={rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'}
+        viewOnly={forceViewOnly ?? rtc.role !== 'editor'}
+        placeholder={
+          !forceViewOnly && rtc.role === 'editor' ? 'Start writing…' : 'This document is empty.'
+        }
         config={EDITOR_CONFIG}
         minHeight={0}
-        styles={EDITOR_STYLES}
+        // 900px readable column on the full doc page; full-width (100%) in the narrow preview pane.
+        width={preview ? '100%' : DOC_COLUMN_WIDTH}
+        styles={preview ? PREVIEW_STYLES : DOC_STYLES}
       />
     </div>
   );

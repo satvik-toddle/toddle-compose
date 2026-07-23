@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -15,6 +16,9 @@ import {
 // OWNER excluded: the seeded realm owner is never assignable via the API.
 const ASSIGNABLE_REALM_ROLES = ["MAINTAINER", "MEMBER"] as const;
 type AssignableRealmRole = (typeof ASSIGNABLE_REALM_ROLES)[number];
+
+const JOIN_STATES = ["PENDING", "APPROVED", "REJECTED"] as const;
+type JoinStateInput = (typeof JOIN_STATES)[number];
 
 export class AddRealmUserDto {
   @IsEmail()
@@ -30,11 +34,22 @@ export class UpdateRealmUserDto {
 }
 
 export class UpdateRealmSettingsDto {
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
   @IsString({ each: true })
   @MaxLength(253, { each: true })
-  allowedEmailDomains!: string[];
+  allowedEmailDomains?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  joinRequestsEnabled?: boolean;
+}
+
+export class ListOrgJoinRequestsDto {
+  @IsOptional()
+  @IsIn(JOIN_STATES)
+  state?: JoinStateInput;
 }
 
 export class SearchRealmUsersDto {

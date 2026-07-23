@@ -27,6 +27,9 @@ export function WorkspacesTab() {
             <div className="sub">Every workspace in the realm. You have Admin access to all of them.</div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
+            <Button icon="ImportOutlined" onClick={() => openModal({ type: 'importWorkspace' })}>
+              Import workspace
+            </Button>
             <Button variant="primary" icon="AddOutlined" onClick={() => openModal({ type: 'createWorkspace' })}>
               New workspace
             </Button>

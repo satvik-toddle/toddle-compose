@@ -369,3 +369,98 @@ export interface ValidateDestinationInput {
 export type ValidateDestinationResult =
   | { ok: true; codaPageId: string }
   | { ok: false; reason: string };
+
+// POST /documents/:docId/import-from-coda body — the scope and in-scope Coda page URL
+// whose content destructively overwrites the current doc.
+export interface ImportPageFromCodaInput {
+  scopeId: string;
+  url: string;
+}
+
+// POST /documents/:docId/import-from-coda result — losses are sanitizer fidelity notes.
+export interface ImportPageFromCodaResult {
+  ok: true;
+  losses: string[];
+}
+
+// ---- Import from Coda ------------------------------------------------------
+
+// GET /admin/coda-import/validate result — the resolved import ROOT the admin confirms
+// before enqueue. rootName is the default workspace name (the doc name for a whole-doc
+// import, the page name for a page-subtree import) and the modal prefills the workspace
+// name from it. codaRootPageId is null for a whole-doc import, set when the URL targets
+// a page (only that page's descendants are imported). pageCount is the number of docs
+// the import will create.
+export interface CodaImportValidateResult {
+  codaDocId: string;
+  codaRootPageId: string | null;
+  rootName: string;
+  pageCount: number;
+  canonicalUrl: string;
+}
+
+// A stored Coda import credential, masked (never carries the token plaintext).
+export interface CodaImportCredentialView {
+  id: string;
+  label: string | null;
+  hint: string | null;
+  createdAt: string;
+}
+
+// POST /admin/coda-import/jobs body — import a whole Coda doc into a NEW workspace.
+// credentialId pins the import to one stored Coda token (the only token used).
+export interface CreateCodaImportJobInput {
+  codaDocUrl: string;
+  workspaceName: string;
+  credentialId: string;
+}
+
+// POST /admin/coda-import/jobs result.
+export interface CreateCodaImportJobResult {
+  jobId: string;
+  workspaceId: string;
+  status: MigrationJobStatus;
+}
+
+// GET /admin/coda-import/jobs row — a run's summary + counts (reuses MigrationJobStatus).
+export interface CodaImportJobSummary {
+  id: string;
+  codaDocId: string;
+  codaDocUrl: string;
+  targetWorkspaceName: string;
+  targetWorkspaceId: string | null;
+  status: MigrationJobStatus;
+  totalItems: number;
+  succeededItems: number;
+  failedItems: number;
+  skippedItems: number;
+  // Live worker activity line while QUEUED/RUNNING; null once terminal.
+  progressMessage: string | null;
+  // False while the worker is still creating item rows (whole-doc imports plan
+  // incrementally); the detail table shows a "fetching more" row until true.
+  planningComplete: boolean;
+  createdById: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+// One row of an import run — per-Coda-page execution state (reuses MigrationItemStatus).
+export interface CodaImportJobItem {
+  id: string;
+  codaPageId: string;
+  codaPageName: string;
+  plannedParentCodaPageId: string | null;
+  createdDocId: string | null;
+  status: MigrationItemStatus;
+  attempts: number;
+  lastError: string | null;
+  seq: number;
+}
+
+// GET /admin/coda-import/jobs/:id — the run summary plus its items and its ordered
+// milestone timeline (events, oldest first).
+export interface CodaImportJobDetail extends CodaImportJobSummary {
+  items: CodaImportJobItem[];
+  events: { message: string; createdAt: string }[];
+}

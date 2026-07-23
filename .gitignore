@@ -32,3 +32,13 @@ generated
 
 # local object storage
 .storage/
+
+# Claude Code local settings (contains machine-local permissions/secrets)
+.claude/
+# ngrok config (contains authtoken)
+ngrok.yml
+
+# Playwright test screenshot artifacts
+tests/artifacts/
+frontend/tests/artifacts/
+**/tests/artifacts/

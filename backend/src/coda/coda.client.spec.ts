@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import { HttpException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../config/env";
@@ -36,6 +37,33 @@ function fakeResponse({ status = 200, body = {}, headers = {} }: FakeResponseOpt
     ok: status >= 200 && status < 300,
     headers: { get: (k: string) => lower[k.toLowerCase()] ?? null },
     text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
+  } as unknown as Response;
+}
+
+// A signed-URL download response: exposes arrayBuffer() (used for gzipped bodies)
+// alongside text(), plus content-encoding so the client can detect compression.
+function fakeDownload({
+  status = 200,
+  bytes,
+  text,
+  headers = {},
+}: {
+  status?: number;
+  bytes?: Uint8Array;
+  text?: string;
+  headers?: Record<string, string>;
+}): Response {
+  const lower: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: { get: (k: string) => lower[k.toLowerCase()] ?? null },
+    text: async () => text ?? "",
+    // undici exposes the (already content-decoded) body via arrayBuffer; mirror that —
+    // fall back to the utf8 bytes of `text` when no explicit byte payload is given.
+    arrayBuffer: async () =>
+      Uint8Array.from(bytes ?? Buffer.from(text ?? "", "utf8")).buffer,
   } as unknown as Response;
 }
 
@@ -342,6 +370,193 @@ describe("CodaClient", () => {
       error: "coda api error",
       status: 400,
       body: expect.stringContaining("Invalid parentPageId"),
+    });
+  });
+
+  it("listPages follows nextPageToken and merges every page", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({
+          body: {
+            items: [{ id: "canvas-1", name: "A" }, { id: "canvas-2", name: "B" }],
+            nextPageToken: "tok-next",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        fakeResponse({
+          body: { items: [{ id: "canvas-3", name: "C", parent: { id: "canvas-1" } }] },
+        }),
+      );
+
+    const onProgress = jest.fn();
+    const pages = await client.listPages(TOKEN, "doc1", onProgress);
+
+    expect(pages.map((p) => p.id)).toEqual(["canvas-1", "canvas-2", "canvas-3"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(callArgs(fetchMock, 0).url).toBe(
+      "https://coda.io/apis/v1/docs/doc1/pages?limit=100",
+    );
+    // The second request carries the token returned by the first.
+    expect(callArgs(fetchMock, 1).url).toContain("pageToken=tok-next");
+    // onProgress fires after each batch with the cumulative page count so far.
+    expect(onProgress.mock.calls.map((c) => c[0])).toEqual([2, 3]);
+  });
+
+  it("listPages works without an onProgress callback (optional param)", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock.mockResolvedValueOnce(
+      fakeResponse({ body: { items: [{ id: "canvas-1", name: "A" }] } }),
+    );
+    const pages = await client.listPages(TOKEN, "doc1");
+    expect(pages.map((p) => p.id)).toEqual(["canvas-1"]);
+  });
+
+  it("exportPage begins, polls to complete, and gunzips a gzipped download", async () => {
+    const { client, fetchMock } = newClient();
+    const html = "<h1>Exported</h1>";
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-1", status: "inProgress", href: "h" } }),
+      )
+      .mockResolvedValueOnce(fakeResponse({ body: { id: "exp-1", status: "inProgress", href: "h" } }))
+      .mockResolvedValueOnce(
+        fakeResponse({
+          body: {
+            id: "exp-1",
+            status: "complete",
+            href: "h",
+            downloadLink: "https://export.coda.io/signed/out.html.gz",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        fakeDownload({ bytes: gzipSync(Buffer.from(html, "utf8")) }),
+      );
+
+    const result = await client.exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 });
+
+    expect(result).toBe(html);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // Begin is a POST to the export endpoint with outputFormat=html.
+    const begin = callArgs(fetchMock, 0);
+    expect(begin.init.method).toBe("POST");
+    expect(begin.url).toBe("https://coda.io/apis/v1/docs/doc1/pages/canvas-1/export");
+    expect(JSON.parse(begin.init.body as string)).toEqual({ outputFormat: "html" });
+    // Poll hits the export-status path keyed by the returned request id.
+    expect(callArgs(fetchMock, 1).url).toBe(
+      "https://coda.io/apis/v1/docs/doc1/pages/canvas-1/export/exp-1",
+    );
+    // The signed download is fetched directly, without an Authorization header.
+    const download = callArgs(fetchMock, 3);
+    expect(download.url).toBe("https://export.coda.io/signed/out.html.gz");
+    expect((download.init?.headers as Record<string, string> | undefined)).toBeUndefined();
+  });
+
+  it("exportPage returns a plain (non-gzipped) download as text", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-2", status: "inProgress", href: "h" } }),
+      )
+      .mockResolvedValueOnce(
+        fakeResponse({
+          body: {
+            id: "exp-2",
+            status: "complete",
+            href: "h",
+            downloadLink: "https://export.coda.io/signed/out.html",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(fakeDownload({ text: "<p>plain</p>" }));
+
+    const result = await client.exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 });
+
+    expect(result).toBe("<p>plain</p>");
+  });
+
+  it("exportPage gunzips a still-compressed body by magic bytes (no content-encoding header)", async () => {
+    const { client, fetchMock } = newClient();
+    const html = "<p>encoded</p>";
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-3", status: "inProgress", href: "h" } }),
+      )
+      .mockResolvedValueOnce(
+        fakeResponse({
+          body: {
+            id: "exp-3",
+            status: "complete",
+            href: "h",
+            downloadLink: "https://export.coda.io/signed/out.html",
+          },
+        }),
+      )
+      // A raw .gz object undici did NOT auto-decode: gzip magic present, no header.
+      .mockResolvedValueOnce(fakeDownload({ bytes: gzipSync(Buffer.from(html, "utf8")) }));
+
+    const result = await client.exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 });
+
+    expect(result).toBe(html);
+  });
+
+  it("exportPage does NOT double-gunzip an already-decoded body carrying a stale content-encoding:gzip header", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-g", status: "inProgress", href: "h" } }),
+      )
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-g", status: "complete", href: "h", downloadLink: "https://export.coda.io/signed/out.html" } }),
+      )
+      // undici already decompressed the body (plain HTML bytes) but left the header set —
+      // trusting the header would gunzip plain text → "incorrect header check".
+      .mockResolvedValueOnce(
+        fakeDownload({ text: "<p>decoded</p>", headers: { "content-encoding": "gzip" } }),
+      );
+
+    const result = await client.exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 });
+
+    expect(result).toBe("<p>decoded</p>");
+  });
+
+  it("exportPage keeps polling through the post-202 propagation 404 (request not queryable yet)", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-404", status: "inProgress", href: "h" } }),
+      )
+      // First status GET 404s ("No request was found …") — must be tolerated, not fatal.
+      .mockResolvedValueOnce(fakeResponse({ status: 404, body: { message: "No request was found with the given id, or it has expired." } }))
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-404", status: "complete", href: "h", downloadLink: "https://export.coda.io/signed/out.html" } }),
+      )
+      .mockResolvedValueOnce(fakeDownload({ text: "<p>recovered</p>" }));
+
+    const result = await client.exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 });
+
+    expect(result).toBe("<p>recovered</p>");
+  });
+
+  it("exportPage throws a 502 when the export status is failed", async () => {
+    const { client, fetchMock } = newClient();
+    fetchMock
+      .mockResolvedValueOnce(
+        fakeResponse({ body: { id: "exp-4", status: "inProgress", href: "h" } }),
+      )
+      .mockResolvedValueOnce(fakeResponse({ body: { id: "exp-4", status: "failed", href: "h" } }));
+
+    const err = (await client
+      .exportPage(TOKEN, "doc1", "canvas-1", { pollMs: 1 })
+      .catch((e) => e)) as HttpException;
+    expect(err).toBeInstanceOf(HttpException);
+    expect(err.getStatus()).toBe(502);
+    expect(err.getResponse()).toMatchObject({
+      error: "coda export failed",
+      status: 422,
+      requestId: "exp-4",
     });
   });
 });

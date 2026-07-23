@@ -4,6 +4,7 @@ import {
   ArrowOutOutlined,
   DeleteOutlined,
   ExportOutlined,
+  ImportOutlined,
   LinkOutlined,
   PageAPlusOutlined,
   PencilOutlined,
@@ -67,6 +68,7 @@ export function buildPageMenuItems(opts: {
   onRename: () => void;
   onDelete: () => void;
   onCopyToCoda?: () => void; // present only for workspace editor+ (Copy to Coda)
+  onImportFromCoda?: () => void; // present only for workspace editor+ (Import from Coda)
   codaMappings?: DocCodaMappingDto[]; // this doc's saved Coda destinations ("Open in Coda")
 }): PageMenuOption[] {
   const items: PageMenuOption[] = [];
@@ -118,6 +120,15 @@ export function buildPageMenuItems(opts: {
       label: 'Copy to Coda',
       icon: <ExportOutlined size="xx-small" />,
       onSelect: opts.onCopyToCoda,
+    });
+  }
+
+  if (opts.onImportFromCoda) {
+    items.push({
+      key: 'import-from-coda',
+      label: 'Import from Coda',
+      icon: <ImportOutlined size="xx-small" />,
+      onSelect: opts.onImportFromCoda,
     });
   }
 

@@ -84,3 +84,35 @@ export interface AwaitMutationOptions {
   timeoutMs?: number;
   pollMs?: number;
 }
+
+// One page of a Coda list response (GET /docs/{docId}/pages). The full page tree
+// is reconstructed by the caller from each page's `parent` ref (H6).
+export interface CodaPageList {
+  items: CodaPage[];
+  href?: string;
+  nextPageToken?: string;
+  nextPageLink?: string;
+}
+
+export type CodaExportStatusValue = "inProgress" | "complete" | "failed";
+
+// Acknowledgement of a page-export request (POST .../pages/{pageId}/export).
+export interface CodaExportBegin {
+  id: string;
+  status: CodaExportStatusValue;
+  href: string;
+}
+
+// Poll response for an in-flight export; `downloadLink` (a signed URL) appears
+// once `status === "complete"`.
+export interface CodaExportStatus {
+  id: string;
+  status: CodaExportStatusValue;
+  href: string;
+  downloadLink?: string;
+}
+
+export interface ExportPageOptions {
+  timeoutMs?: number;
+  pollMs?: number;
+}

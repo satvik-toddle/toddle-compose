@@ -17,6 +17,7 @@ import { RealmMembersTab } from './features/admin/RealmMembersTab';
 import { JoinRequestsTab } from './features/admin/JoinRequestsTab';
 import { RealmSettingsTab } from './features/admin/RealmSettingsTab';
 import { MigrationsAdminTab } from './features/admin/MigrationsAdminTab';
+import { CodaImportAdminTab } from './features/admin/CodaImportAdminTab';
 import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
@@ -51,6 +52,8 @@ export function AppRoutes() {
             <Route path="requests" element={<JoinRequestsTab />} />
             <Route path="migrations" element={<MigrationsAdminTab />} />
             <Route path="migrations/:jobId" element={<MigrationsAdminTab />} />
+            <Route path="coda-import" element={<CodaImportAdminTab />} />
+            <Route path="coda-import/:jobId" element={<CodaImportAdminTab />} />
             <Route path="settings" element={<RealmSettingsTab />} />
           </Route>
         </Route>

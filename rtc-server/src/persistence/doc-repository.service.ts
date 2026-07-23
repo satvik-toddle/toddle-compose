@@ -35,16 +35,28 @@ export class DocRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async ensureRtcDoc(id: string): Promise<void> {
-    await this.prisma.rtcDocument.upsert({
-      where: { id },
-      create: {
-        id,
-        version: 0,
-        updatedAt: BigInt(Date.now()),
-        snapshotAtSeq: 0,
-      },
-      update: {},
-    });
+    // Prisma emulates upsert as SELECT-then-INSERT (not a native ON CONFLICT) when the
+    // update clause is empty, so two concurrent ensures on a FRESH doc both see no row
+    // and both INSERT — one wins, the other hits P2002 on the `id` PK. That happens for
+    // real: documents.create fires initDoc best-effort (unawaited), the import worker
+    // calls initDoc again, and replace-html's bindState calls ensureRtcDoc — up to three
+    // concurrent ensures of the same brand-new id, and pool contention (batch>1) widens
+    // the window so they overlap. A P2002 here is exactly the post-condition we want (the
+    // row now exists), so swallow it; any other error still throws.
+    try {
+      await this.prisma.rtcDocument.upsert({
+        where: { id },
+        create: {
+          id,
+          version: 0,
+          updatedAt: BigInt(Date.now()),
+          snapshotAtSeq: 0,
+        },
+        update: {},
+      });
+    } catch (e) {
+      if ((e as { code?: string }).code !== "P2002") throw e;
+    }
   }
 
   getRtcDoc(id: string) {
@@ -86,31 +98,45 @@ export class DocRepository {
   }
 
   // Single-writer-per-doc: seq = max(seq)+1 in a tx — racy if horizontally scaled without doc-to-instance affinity.
+  // The cold-load seed and a fresh doc's first append can also race in-process (bindState seeds seq=1
+  // while another flow appends), so read-max-plus-one can hand two writers the same seq and collide on
+  // the (docId, seq) unique. Retry a bounded number of times on P2002: re-read max+1 and re-insert, which
+  // converges as soon as the competing writer commits. Serial callers never see P2002, so this is a no-op there.
   async appendDocUpdate(
     docId: string,
     blob: Buffer,
     origin: string | null,
     clientSub: string | null
   ): Promise<number> {
-    const seq = await this.prisma.$transaction(async (tx) => {
-      const agg = await tx.rtcDocumentUpdate.aggregate({
-        where: { docId },
-        _max: { seq: true },
-      });
-      const next = (agg._max.seq ?? 0) + 1;
-      await tx.rtcDocumentUpdate.create({
-        data: {
-          docId,
-          seq: next,
-          updateBlob: asBytes(blob),
-          byteLen: blob.byteLength,
-          origin,
-          clientSub,
-          createdAt: BigInt(Date.now()),
-        },
-      });
-      return next;
-    });
+    const MAX_ATTEMPTS = 5;
+    let seq = 0;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        seq = await this.prisma.$transaction(async (tx) => {
+          const agg = await tx.rtcDocumentUpdate.aggregate({
+            where: { docId },
+            _max: { seq: true },
+          });
+          const next = (agg._max.seq ?? 0) + 1;
+          await tx.rtcDocumentUpdate.create({
+            data: {
+              docId,
+              seq: next,
+              updateBlob: asBytes(blob),
+              byteLen: blob.byteLength,
+              origin,
+              clientSub,
+              createdAt: BigInt(Date.now()),
+            },
+          });
+          return next;
+        });
+        break;
+      } catch (e) {
+        if ((e as { code?: string }).code !== "P2002" || attempt >= MAX_ATTEMPTS) throw e;
+        log.debug(`appendDocUpdate '${docId}' seq race (attempt ${attempt}) — re-reading head`);
+      }
+    }
     log.debug(
       `appendDocUpdate '${docId}' seq=${seq} ${blob.byteLength}B origin=${origin ?? "-"} client=${clientSub ?? "-"}`
     );

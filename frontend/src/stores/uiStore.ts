@@ -36,7 +36,9 @@ export type ModalState =
       docTitle: string;
       owner: { id: string; name: string; email?: string; color?: string };
     }
-  | { type: 'copyToCoda'; docId: string; workspaceId: string };
+  | { type: 'copyToCoda'; docId: string; workspaceId: string }
+  | { type: 'importPageFromCoda'; docId: string; workspaceId: string }
+  | { type: 'importWorkspace' };
 
 interface UiState {
   modal: ModalState | null;

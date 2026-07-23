@@ -141,3 +141,16 @@ export class ListMigrationMappingsDto {
   @IsString()
   docIds?: string;
 }
+
+// POST /documents/:docId/import-from-coda — the scope and the in-scope Coda page URL
+// whose content destructively overwrites the current doc's body.
+export class ImportFromCodaDto {
+  @IsString()
+  @MinLength(1)
+  scopeId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  url!: string;
+}

@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "Toddle Compose — Workspaces & Docs",
+    "description": "Minimal chain to list all documents in the active workspace.\n\nRun the requests top-to-bottom (or use the Collection Runner). Each request captures the value the next one needs into collection variables:\n  login -> accessToken\n  list/create workspace -> workspaceId\n  enter workspace -> wsToken (workspace-scoped token)\n  get all docs -> uses wsToken\n\nSet `baseUrl`, `ownerEmail`, `ownerPassword` in the collection variables (or an environment) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "ownerEmail", "value": "owner@toddle.test" },
+    { "key": "ownerPassword", "value": "password123" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "workspaceId", "value": "" },
+    { "key": "wsToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login (owner)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const b = pm.response.json();",
+              "pm.collectionVariables.set('accessToken', b.accessToken);",
+              "pm.collectionVariables.set('refreshToken', b.refreshToken);",
+              "pm.test('got access token', () => pm.expect(b.accessToken).to.be.a('string'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. List workspaces (capture first id)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+        "url": { "raw": "{{baseUrl}}/workspaces", "host": ["{{baseUrl}}"], "path": ["workspaces"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const list = pm.response.json();",
+              "if (Array.isArray(list) && list.length > 0) {",
+              "  pm.collectionVariables.set('workspaceId', list[0].id);",
+              "  pm.test('captured a workspaceId', () => pm.expect(list[0].id).to.be.a('string'));",
+              "} else {",
+              "  console.log('No workspaces yet — run \"2b. Create workspace\" instead.');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2b. Create workspace (only if none exist)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/workspaces", "host": ["{{baseUrl}}"], "path": ["workspaces"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Engineering\",\n  \"visibility\": \"PRIVATE\",\n  \"defaultRole\": \"READ\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const b = pm.response.json();",
+              "if (b.id) pm.collectionVariables.set('workspaceId', b.id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Enter workspace (get wsToken)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/auth/workspace/enter", "host": ["{{baseUrl}}"], "path": ["auth", "workspace", "enter"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"workspaceId\": \"{{workspaceId}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const b = pm.response.json();",
+              "pm.collectionVariables.set('wsToken', b.accessToken);",
+              "pm.test('entered workspace', () => pm.expect(b.workspaceId).to.be.a('string'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Get all docs in active workspace",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{wsToken}}" }],
+        "url": { "raw": "{{baseUrl}}/documents", "host": ["{{baseUrl}}"], "path": ["documents"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('returns an array of docs', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

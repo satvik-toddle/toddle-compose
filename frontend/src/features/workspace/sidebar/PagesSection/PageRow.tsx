@@ -70,6 +70,9 @@ export function PageRow({
     onCopyToCoda: canCreate
       ? () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId: pages.ws })
       : undefined,
+    onImportFromCoda: canCreate
+      ? () => openModal({ type: 'importPageFromCoda', docId: doc.id, workspaceId: pages.ws })
+      : undefined,
     codaMappings: canCreate ? codaMappings : undefined,
   });
 

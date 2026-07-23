@@ -8,5 +8,7 @@ import { WorkspacesController } from "./workspaces.controller";
   imports: [AuthModule, RealmModule],
   providers: [WorkspacesService],
   controllers: [WorkspacesController],
+  // Exported so CodaImportModule can create the target workspace at enqueue.
+  exports: [WorkspacesService],
 })
 export class WorkspacesModule {}

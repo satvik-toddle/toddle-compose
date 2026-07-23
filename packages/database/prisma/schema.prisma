@@ -491,3 +491,119 @@ model MigrationJobItem {
   @@index([status, leasedUntil])
   @@map("migration_job_items")
 }
+
+// A durable "Import from Coda" run: the REVERSE of MigrationJob — it reads a Coda
+// doc subtree and materializes it as a NEW toddle-compose workspace + doc tree.
+// Resumable/lease-driven, mirroring MigrationJob. Reuses MigrationJobStatus.
+model CodaImportJob {
+  id                  String              @id @default(cuid())
+  // Source Coda doc being imported (resolved from codaDocUrl at enqueue).
+  codaDocId           String              @map("coda_doc_id")
+  // Import ROOT when the URL targets a page: null = whole-doc import (all pages),
+  // set = import only that page's descendants (the root page is a workspace folder,
+  // not a doc). The worker keys its item set + parenting off this.
+  codaRootPageId      String?             @map("coda_root_page_id")
+  codaDocUrl          String              @map("coda_doc_url")
+  // Which stored Coda credential authorizes this import; null for legacy jobs (the
+  // worker then falls back to the whole token pool).
+  credentialId        String?             @map("credential_id")
+  // Name for the workspace to create; the id is filled once that workspace exists
+  // (null until then) so a resumed run reuses it instead of creating a duplicate.
+  targetWorkspaceName String              @map("target_workspace_name")
+  targetWorkspaceId   String?             @map("target_workspace_id")
+  status              MigrationJobStatus  @default(QUEUED)
+  totalItems          Int                 @default(0) @map("total_items")
+  succeededItems      Int                 @default(0) @map("succeeded_items")
+  failedItems         Int                 @default(0) @map("failed_items")
+  skippedItems        Int                 @default(0) @map("skipped_items")
+  // Live worker activity ("Fetching pages…", "Importing documents (X/M)"); null when
+  // terminal. Surfaced in the admin UI so a long listing/planning phase looks alive.
+  progressMessage     String?             @map("progress_message")
+  // False until every source page has an item row. Whole-doc imports plan incrementally
+  // (items created per listPages batch), so this — not startedAt — gates finalize and
+  // orphan-skip: neither may run while more items could still be created.
+  planningComplete    Boolean             @default(false) @map("planning_complete")
+  // Enqueuing user; audit only, no relation (mirrors MigrationJob.createdById).
+  createdById         String              @map("created_by_id")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  startedAt           DateTime?           @map("started_at")
+  finishedAt          DateTime?           @map("finished_at")
+  items               CodaImportJobItem[]
+  events              CodaImportJobEvent[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("coda_import_jobs")
+}
+
+// An ordered, durable MILESTONE timeline for an import run (workspace created →
+// fetching pages → planned → importing → finalized). Separate rows (never a JSON
+// blob) so the batch=4 concurrent worker appends race-free — each milestone is an
+// independent INSERT, no read-modify-write. Milestones only, never per-item events.
+model CodaImportJobEvent {
+  id        String        @id @default(cuid())
+  jobId     String        @map("job_id")
+  job       CodaImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  message   String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([jobId, createdAt])
+  @@map("coda_import_job_events")
+}
+
+// One row per Coda page in an import job. Carries the source hierarchy and per-item
+// execution state; mirrors MigrationJobItem's lease/retry shape (reuses MigrationItemStatus).
+model CodaImportJobItem {
+  id                      String              @id @default(cuid())
+  jobId                   String              @map("job_id")
+  job                     CodaImportJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  codaPageId              String              @map("coda_page_id")
+  codaPageName            String              @map("coda_page_name")
+  // Source Coda page's browserLink, captured at plan → the prefill URL for the reverse
+  // Copy-to-Coda mapping so Update-existing round-trips to the same Coda page. Null if Coda didn't return one.
+  codaPageUrl             String?             @map("coda_page_url")
+  // Parent page id in Coda; null = top-level page (directly under the new workspace).
+  plannedParentCodaPageId String?             @map("planned_parent_coda_page_id")
+  // The toddle-compose doc created for this page — persisted BEFORE content write so a
+  // resumed run reuses it instead of creating a duplicate (idempotency, mirrors C3).
+  createdDocId            String?             @map("created_doc_id")
+  status                  MigrationItemStatus @default(PENDING)
+  attempts                Int                 @default(0)
+  // Split retry budgets: `attempts` counts PERMANENT errors, `transientAttempts`
+  // counts TRANSIENT ones, so a burned transient budget never starves permanent retries.
+  transientAttempts       Int                 @default(0) @map("transient_attempts")
+  lastError               String?             @map("last_error")
+  // Depth-first processing order within the job.
+  seq                     Int
+  // Worker lease (D9): who holds this item and until when, backing the claim query.
+  leasedBy                String?             @map("leased_by")
+  leasedUntil             DateTime?           @map("leased_until")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  // One item per source page per job — lets incremental planning re-run a createMany
+  // with skipDuplicates (idempotent re-plan after a mid-listing crash).
+  @@unique([jobId, codaPageId])
+  @@index([jobId])
+  @@index([jobId, seq])
+  @@index([status, leasedUntil])
+  @@map("coda_import_job_items")
+}
+
+// The GLOBAL, admin-managed Coda token pool for imports. Unlike MigrationScopeToken
+// (per-workspace, keyed to a write destination), imports run against a NEW workspace
+// that doesn't exist yet, so read tokens live here, unscoped. Realm-admin managed;
+// plaintext is encrypted at rest (AES-256-GCM) and never returned to a client.
+model CodaImportCredential {
+  id            String   @id @default(cuid())
+  codaTokenEnc  String   @map("coda_token_enc")
+  // Last 4 chars for masked display; optional human label (which Coda user).
+  codaTokenHint String?  @map("coda_token_hint")
+  label         String?
+  // Audit only (no relation), mirrors MigrationScope.createdById.
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("coda_import_credentials")
+}

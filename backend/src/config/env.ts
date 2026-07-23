@@ -160,6 +160,32 @@ export const envSchema = z.object({
   // is created/replaced with the first chunk, then streamed via paced appends.
   CODA_MAX_HTML_BYTES: z.coerce.number().int().positive().default(80_000),
 
+  // --- Import worker ("Import from Coda" background job engine, Phase 7) -------
+  // Base URL of the import worker's internal API. Optional: when unset, the
+  // enqueue wake-up ping is a no-op (the worker self-arms on its own timer).
+  // Authed with the same shared INTERNAL_TOKEN as the rtc internal channel.
+  IMPORT_WORKER_URL: z.string().url().optional(),
+  // Port the STANDALONE import-worker process (worker-main.ts) listens on for the
+  // /run wake-up ping. Distinct from BACKEND_PORT — the worker is a separate process.
+  IMPORT_WORKER_PORT: z.coerce.number().int().positive().default(4100),
+  // Self-arming safety-timer interval. The backend PINGS /run on enqueue for the fast
+  // path, so this is only a slow fallback that sweeps for stranded/QUEUED jobs; kept
+  // higher than MIGRATION_WORKER_INTERVAL_MS (pings, not polls, drive throughput).
+  // <=0 DISABLES the timer — pings still run — for a ping-only deployment.
+  IMPORT_WORKER_INTERVAL_MS: z.coerce.number().int().default(15_000),
+  // Lease TTL: how long a claimed import item stays RUNNING before another worker may
+  // reclaim it. Must exceed the worst-case per-item push (createDoc + Coda export poll
+  // + rtc HTML→Lexical hydration), so set it generously (mirrors MIGRATION_LEASE_TTL_MS).
+  IMPORT_LEASE_TTL_MS: z.coerce.number().int().positive().default(300_000),
+  // Ready items claimed per round (SKIP LOCKED batch), processed concurrently so
+  // independent pages overlap their Coda-export / rtc-write waits.
+  IMPORT_BATCH_SIZE: z.coerce.number().int().positive().default(4),
+  // PERMANENT-error retry budget before an item is FAILED (small — a 4xx won't self-heal).
+  IMPORT_MAX_ITEM_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  // TRANSIENT-error budget (dependency unreachable/overloaded, 429, 5xx, export timeout)
+  // — larger so a routine blip is ridden out, but bounded so it can't loop forever.
+  IMPORT_MAX_TRANSIENT_ATTEMPTS: z.coerce.number().int().positive().default(15),
+
   // --- Request tracing --------------------------------------------------------
   // Logs per-request timing + per-query DB durations to the console. Off by
   // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not

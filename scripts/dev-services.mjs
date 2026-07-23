@@ -10,6 +10,11 @@ const { result, commands } = concurrently(
     { command: 'pnpm --filter backend dev', name: 'backend', prefixColor: 'blue' },
     { command: 'pnpm --filter rtc-server dev', name: 'rtc', prefixColor: 'magenta' },
     { command: 'pnpm --filter frontend dev', name: 'frontend', prefixColor: 'green' },
+    // The import-worker is its OWN process (backend enqueues + pings :4100; the worker
+    // executes jobs). Without it, "Import from Coda" jobs sit QUEUED forever. Its own
+    // migration-worker is disabled here (MIGRATION_WORKER_INTERVAL_MS=0) so only the
+    // main backend runs that loop.
+    { command: 'MIGRATION_WORKER_INTERVAL_MS=0 pnpm --filter backend dev:worker', name: 'worker', prefixColor: 'yellow' },
   ],
   { killOthersOn: ['failure'] },
 );

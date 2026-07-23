@@ -6,6 +6,7 @@ import { pushToast } from '../stores/uiStore';
 import type {
   CreateMigrationScopeInput,
   EnqueueMigrationJobInput,
+  ImportPageFromCodaInput,
   MigrationJobStatus,
   MigrationJobSummary,
   UpdateMigrationScopeInput,
@@ -94,6 +95,16 @@ export function useDocCodaMappings(docId: string | undefined, enabled = true) {
     queryKey: docId ? qk.docCodaMappings(docId) : ['migrationScopes', 'docMappings', '_none'],
     queryFn: () => migrationsApi.docCodaMappings(docId as string),
     enabled: !!docId && enabled,
+  });
+}
+
+// ---- Import from Coda (per-doc, synchronous overwrite) ---------------------
+
+// Overwrite one doc's body with a Coda page. The rtc write broadcasts the new
+// content to any open editor, so there is nothing to invalidate on success.
+export function useImportPageFromCoda(docId: string) {
+  return useMutation({
+    mutationFn: (b: ImportPageFromCodaInput) => migrationsApi.importPageFromCoda(docId, b),
   });
 }
 

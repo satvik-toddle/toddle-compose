@@ -45,6 +45,7 @@ export const ICONS = {
   GridOutlined: OutlinedIcons.GridOutlined,
   ImageSquareOutlined: OutlinedIcons.ImageSquareOutlined,
   BulbOutlined: OutlinedIcons.BulbOutlined,
+  ImportOutlined: OutlinedIcons.ImportOutlined,
 } as unknown as Record<string, ComponentType<SystemIconProps>>;
 
 export type IconName = keyof typeof ICONS;

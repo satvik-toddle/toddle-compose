@@ -3,6 +3,8 @@ import type {
   CreateMigrationScopeInput,
   DocCodaMappingDto,
   EnqueueMigrationJobInput,
+  ImportPageFromCodaInput,
+  ImportPageFromCodaResult,
   MigrationJobDetail,
   MigrationJobSummary,
   MigrationMappingDto,
@@ -40,6 +42,10 @@ export const migrationsApi = {
   // "Open in Coda" — a doc's live Coda destination(s) across its workspace's scopes.
   docCodaMappings: (docId: string) =>
     http.get<DocCodaMappingDto[]>(`/documents/${docId}/coda-mappings`),
+
+  // "Import from Coda" — destructively overwrite this doc's body with a Coda page's content.
+  importPageFromCoda: (docId: string, b: ImportPageFromCodaInput) =>
+    http.post<ImportPageFromCodaResult>(`/documents/${docId}/import-from-coda`, b),
 
   // Jobs (runs).
   enqueueJob: (scopeId: string, b: EnqueueMigrationJobInput) =>

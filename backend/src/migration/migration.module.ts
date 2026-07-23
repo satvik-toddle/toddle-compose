@@ -12,6 +12,8 @@ import { MigrationJobsService } from "./migration-jobs.service";
 import { MigrationJobsController } from "./migration-jobs.controller";
 import { ScopeValidationService } from "./scope-validation.service";
 import { MigrationWorkerService } from "./migration-worker.service";
+import { ImportFromCodaService } from "./import-from-coda.service";
+import { ImportFromCodaController } from "./import-from-coda.controller";
 
 // "Copy to Coda" — Phase 4a: token encryption, credentials, destination
 // (MigrationScope) CRUD, destination-URL validation. Phase 4b: migration job
@@ -33,8 +35,13 @@ import { MigrationWorkerService } from "./migration-worker.service";
     MigrationJobsService,
     ScopeValidationService,
     MigrationWorkerService,
+    ImportFromCodaService,
   ],
-  controllers: [MigrationScopesController, MigrationJobsController],
+  controllers: [
+    MigrationScopesController,
+    MigrationJobsController,
+    ImportFromCodaController,
+  ],
   // Exported for other modules: decrypt pools + validate targets, and (for the
   // DocumentsModule delete hook) skip/finalize migration work for deleted docs.
   exports: [

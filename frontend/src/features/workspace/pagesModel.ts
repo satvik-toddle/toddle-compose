@@ -26,9 +26,15 @@ export function buildDocTree(docs: DocumentDto[]): DocTree {
     else roots.push(node); // no parent (or parent outside this list) → root page
   }
 
-  const byTitle = (a: TreeDoc, b: TreeDoc) => a.doc.title.localeCompare(b.doc.title);
+  // Stable append order: newest pages land at the end and never reshuffle existing
+  // rows (avoids layout shift as docs stream in, e.g. during a Coda import). Tie-break
+  // by id so equal timestamps stay deterministic.
+  const byCreatedAt = (a: TreeDoc, b: TreeDoc) => {
+    const diff = Date.parse(a.doc.createdAt) - Date.parse(b.doc.createdAt);
+    return diff !== 0 ? diff : a.doc.id.localeCompare(b.doc.id);
+  };
   const sortRec = (nodes: TreeDoc[]) => {
-    nodes.sort(byTitle);
+    nodes.sort(byCreatedAt);
     for (const n of nodes) sortRec(n.children);
   };
   sortRec(roots);

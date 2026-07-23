@@ -23,11 +23,18 @@ function makeService(opts: {
   resource: CodaResource | (() => never);
   // parent id keyed by page id, for the ancestor walk.
   parents?: Record<string, string | null>;
+  // true → a mapping targets the root page (imported root override).
+  importedRoot?: boolean;
 }) {
   const prisma = {
     migrationScope: {
       findFirst: jest.fn().mockResolvedValue(
         opts.scope ? { id: "s1", ...opts.scope } : null,
+      ),
+    },
+    migrationMapping: {
+      findFirst: jest.fn().mockResolvedValue(
+        opts.importedRoot ? { id: "m1" } : null,
       ),
     },
   } as unknown as PrismaService;
@@ -89,6 +96,17 @@ describe("ScopeValidationService.validateDestinationUrl", () => {
     await expect(svc.validateDestinationUrl("s1", "url")).rejects.toThrow(
       /root/,
     );
+  });
+
+  it("accepts the scope root itself when it is an imported root (a mapping points to it)", async () => {
+    const { svc } = makeService({
+      scope: { codaDocId: DOC, codaRootPageId: ROOT },
+      resource: pageResource(DOC, ROOT),
+      importedRoot: true,
+    });
+    await expect(svc.validateDestinationUrl("s1", "url")).resolves.toEqual({
+      codaPageId: ROOT,
+    });
   });
 
   it("rejects a non-descendant (parent chain never reaches root)", async () => {

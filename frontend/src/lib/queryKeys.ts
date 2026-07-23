@@ -41,6 +41,11 @@ export const qk = {
   migrationJobs: (params: { workspaceId?: string }) =>
     ['migrationJobs', params.workspaceId ?? null] as const,
   migrationJob: (id: string) => ['migrationJobs', 'detail', id] as const,
+
+  // Import from Coda (realm-admin, org-wide — imports create a new workspace).
+  codaImportJobs: ['codaImportJobs'] as const,
+  codaImportJob: (id: string) => ['codaImportJobs', 'detail', id] as const,
+  codaImportCredentials: ['codaImportCredentials'] as const,
 };
 
 // A query key that becomes invalid when the caller loses access to a workspace

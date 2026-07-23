@@ -10,6 +10,8 @@ import { ConfirmDeletePageModal } from '../features/modals/ConfirmDeletePageModa
 import { ConfirmRestoreVersionModal } from '../features/modals/ConfirmRestoreVersionModal';
 import { DocPermissionsModal } from '../features/modals/DocPermissionsModal';
 import { CopyToCodaModal } from '../features/migration/CopyToCodaModal';
+import { ImportPageFromCodaModal } from '../features/migration/ImportPageFromCodaModal';
+import { ImportFromCodaModal } from '../features/modals/ImportFromCodaModal';
 
 // Renders the active modal from the UI store. One mount point at the app root.
 export function ModalRoot() {
@@ -97,6 +99,12 @@ export function ModalRoot() {
       return (
         <CopyToCodaModal onClose={close} docId={modal.docId} workspaceId={modal.workspaceId} />
       );
+    case 'importPageFromCoda':
+      return (
+        <ImportPageFromCodaModal onClose={close} docId={modal.docId} workspaceId={modal.workspaceId} />
+      );
+    case 'importWorkspace':
+      return <ImportFromCodaModal onClose={close} />;
     default:
       return null;
   }

@@ -5,6 +5,7 @@ import {
   DeleteOutlined,
   DotsHorizontalOutlined,
   ExportOutlined,
+  ImportOutlined,
   LinkOutlined,
   LockOutlined,
 } from '@toddle-edu/ds-icons';
@@ -27,6 +28,7 @@ const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 const HISTORY_KEY = 'history';
 const COPY_TO_CODA_KEY = 'copy-to-coda';
+const IMPORT_FROM_CODA_KEY = 'import-from-coda';
 const OPEN_IN_CODA_KEY = 'open-in-coda';
 
 export function DocActions({
@@ -125,6 +127,13 @@ export function DocActions({
             label: 'Copy to Coda',
             icon: <ExportOutlined size="xxx-small" variant="subtle" />,
             onSelect: () => openModal({ type: 'copyToCoda', docId: doc.id, workspaceId }),
+          },
+          {
+            key: IMPORT_FROM_CODA_KEY,
+            label: 'Import from Coda',
+            icon: <ImportOutlined size="xxx-small" variant="subtle" />,
+            onSelect: () =>
+              openModal({ type: 'importPageFromCoda', docId: doc.id, workspaceId }),
           },
         ]
       : []),

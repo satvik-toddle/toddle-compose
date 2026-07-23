@@ -66,11 +66,18 @@ export class ScopeValidationService {
       return this.cacheHit(scopeId, url, target.pageId);
     }
 
-    // Page-root scope: the root itself is not overridable (§5).
+    // Page-root scope: the root is normally not overridable (§5), EXCEPT an imported root — a mapping in this scope pointing to the root page means it was imported as a doc and must round-trip in place.
     if (target.pageId === scope.codaRootPageId) {
-      throw new BadRequestException(
-        "the scope root page cannot be used as a destination",
-      );
+      const importedRoot = await this.prisma.migrationMapping.findFirst({
+        where: { scopeId: scope.id, codaPageId: scope.codaRootPageId },
+        select: { id: true },
+      });
+      if (!importedRoot) {
+        throw new BadRequestException(
+          "the scope root page cannot be used as a destination",
+        );
+      }
+      return this.cacheHit(scopeId, url, target.pageId);
     }
 
     await this.assertDescendantOfRoot(

@@ -14,6 +14,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { StorageModule } from "./storage/storage.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { MigrationModule } from "./migration/migration.module";
+import { CodaImportModule } from "./coda-import/coda-import.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -39,6 +40,7 @@ import { HealthController } from "./health.controller";
     StorageModule,
     RealtimeModule,
     MigrationModule,
+    CodaImportModule,
   ],
   controllers: [HealthController],
 })

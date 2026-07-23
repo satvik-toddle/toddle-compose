@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { HttpException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config/env";
@@ -5,14 +6,22 @@ import { CodaRateLimiter } from "./coda-rate-limiter";
 import type {
   AwaitMutationOptions,
   CodaDoc,
+  CodaExportBegin,
+  CodaExportStatus,
   CodaMutationResponse,
   CodaMutationStatus,
   CodaPage,
+  CodaPageList,
   CodaResource,
   CreatePageInput,
+  ExportPageOptions,
   PageContentInsertionMode,
   ResolveBrowserLinkResponse,
 } from "./coda.types";
+
+// Defensive ceiling on the pages-list pagination loop (H6): stops a malformed
+// nextPageToken from looping forever. 100 pages/request × 50 requests = 5000 pages.
+const MAX_PAGE_LIST_REQUESTS = 50;
 
 // Thin HTTP client for the Coda REST API. Mirrors RtcInternalClient: native
 // fetch, AbortSignal.timeout, network failure → 502, truncated upstream-body
@@ -85,6 +94,139 @@ export class CodaClient {
       }
       throw err;
     }
+  }
+
+  // List every page in a doc (flat). The caller rebuilds the tree from each
+  // page's `parent` ref (H6). Follows nextPageToken until absent, capped so a
+  // malformed token can't loop forever. onProgress (optional) is invoked after
+  // each page-batch with the cumulative page count, for live progress reporting.
+  // onBatch (optional, awaited) receives each batch as it arrives so a caller can
+  // persist items incrementally while listing is still in flight.
+  async listPages(
+    auth: CodaAuth,
+    docId: string,
+    onProgress?: (fetchedCount: number) => void,
+    onBatch?: (batch: CodaPage[], fetchedCount: number) => Promise<void> | void,
+  ): Promise<CodaPage[]> {
+    const pages: CodaPage[] = [];
+    let pageToken: string | undefined;
+    for (let i = 0; i < MAX_PAGE_LIST_REQUESTS; i++) {
+      // Coda rejects any other query param alongside pageToken (the cursor is
+      // self-contained): send limit only on the first request, the token alone after.
+      const qs = new URLSearchParams();
+      if (pageToken) qs.set("pageToken", pageToken);
+      else qs.set("limit", "100");
+      const body = await this.call<CodaPageList>(
+        "read",
+        auth,
+        "GET",
+        `/docs/${enc(docId)}/pages?${qs.toString()}`,
+      );
+      const batch = body.items ?? [];
+      pages.push(...batch);
+      onProgress?.(pages.length);
+      await onBatch?.(batch, pages.length);
+      if (!body.nextPageToken) return pages;
+      pageToken = body.nextPageToken;
+    }
+    this.log.warn(
+      `listPages(${docId}) hit the ${MAX_PAGE_LIST_REQUESTS}-request cap; returning ${pages.length} pages (list may be truncated)`,
+    );
+    return pages;
+  }
+
+  // Export a page's content as HTML. Coda's export is async: begin → poll → the
+  // completed status carries a signed downloadLink we fetch directly (NOT through
+  // the API base/auth/pacer). The begin POST creates an export request but does
+  // not mutate the doc, so it is paced as a READ. The download body may be gzipped.
+  async exportPage(
+    auth: CodaAuth,
+    docId: string,
+    pageId: string,
+    opts: ExportPageOptions = {},
+  ): Promise<string> {
+    const begin = await this.call<CodaExportBegin>(
+      "read",
+      auth,
+      "POST",
+      `/docs/${enc(docId)}/pages/${enc(pageId)}/export`,
+      { outputFormat: "html" },
+    );
+    const requestId = begin.id;
+    const statusPath = `/docs/${enc(docId)}/pages/${enc(pageId)}/export/${enc(requestId)}`;
+
+    const timeoutMs = opts.timeoutMs ?? 120_000;
+    let pollMs = opts.pollMs ?? 500;
+    const deadline = Date.now() + timeoutMs;
+    let downloadLink: string | undefined;
+    for (;;) {
+      // The begin POST returns 202; the request record isn't queryable for a short
+      // propagation window, so an early status GET 404s ("No request was found …").
+      // Treat that 404 as "not ready yet" and keep polling — NOT a failure (throwing
+      // here would fail the export before it ever materializes).
+      let status: CodaExportStatus | null = null;
+      try {
+        status = await this.call<CodaExportStatus>("read", auth, "GET", statusPath);
+      } catch (err) {
+        if (
+          !(err instanceof HttpException) ||
+          (err.getResponse() as { status?: number })?.status !== 404
+        ) {
+          throw err;
+        }
+      }
+      if (status?.status === "failed") {
+        this.log.warn(`export ${requestId} failed on Coda's side`);
+        throw new HttpException(
+          { error: "coda export failed", status: 422, requestId },
+          502,
+        );
+      }
+      if (status?.status === "complete") {
+        downloadLink = status.downloadLink;
+        break;
+      }
+      if (Date.now() + pollMs >= deadline) {
+        throw new HttpException({ error: "coda export timed out", requestId }, 504);
+      }
+      await sleep(pollMs);
+      pollMs = Math.min(pollMs * 1.5, 5_000);
+    }
+    if (!downloadLink) {
+      throw new HttpException(
+        { error: "coda export completed without a downloadLink", requestId },
+        502,
+      );
+    }
+    return this.downloadExport(downloadLink);
+  }
+
+  // Fetch a completed export's signed URL directly (bypasses call() — it is a
+  // GCS/S3-style URL, not the Coda API base, so no auth/pacer). Coda serves the
+  // object with `content-encoding: gzip`, which undici's fetch AUTO-DECOMPRESSES —
+  // so we can't trust the header. Sniff the gzip magic bytes instead: gunzip only a
+  // genuine still-compressed object (e.g. a .gz served as octet-stream that undici
+  // left alone), otherwise the bytes are already decompressed HTML.
+  private async downloadExport(downloadLink: string): Promise<string> {
+    const timeoutMs = this.config.get("CODA_REQUEST_TIMEOUT_MS", { infer: true });
+    let res: Response;
+    try {
+      res = await fetch(downloadLink, { signal: AbortSignal.timeout(timeoutMs) });
+    } catch {
+      this.log.warn("export download → network failure (signed url unreachable)");
+      throw new HttpException({ error: "coda export download unreachable" }, 502);
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      this.log.warn(`export download → ${res.status}: ${text.slice(0, 300)}`);
+      throw new HttpException(
+        { error: "coda export download error", status: res.status },
+        502,
+      );
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const isGzip = buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+    return (isGzip ? gunzipSync(buf) : buf).toString("utf8");
   }
 
   // Create a page from constrained HTML (H4). Async: returns a requestId to gate on (H2).

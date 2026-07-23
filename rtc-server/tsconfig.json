@@ -21,7 +21,18 @@
     "paths": {
       "lexical": ["node_modules/lexical/dist/index.d.ts"],
       "@lexical/headless": ["node_modules/@lexical/headless/dist/index.d.ts"],
-      "@lexical/yjs": ["node_modules/@lexical/yjs/dist/index.d.ts"]
+      "@lexical/yjs": ["node_modules/@lexical/yjs/dist/index.d.ts"],
+      "@lexical/html": ["node_modules/@lexical/html/dist/index.d.ts"],
+      "@lexical/table": ["node_modules/@lexical/table/dist/index.d.ts"],
+      "@lexical/rich-text": ["node_modules/@lexical/rich-text/dist/index.d.ts"],
+      "@lexical/list": ["node_modules/@lexical/list/dist/index.d.ts"],
+      "@lexical/link": ["node_modules/@lexical/link/dist/index.d.ts"],
+      "@lexical/code": ["node_modules/@lexical/code/dist/index.d.ts"],
+      "@lexical/utils": ["node_modules/@lexical/utils/dist/index.d.ts"],
+      "@lexical/selection": ["node_modules/@lexical/selection/dist/index.d.ts"],
+      "@lexical/markdown": ["node_modules/@lexical/markdown/dist/index.d.ts"],
+      "@lexical/overflow": ["node_modules/@lexical/overflow/dist/index.d.ts"],
+      "@lexical/hashtag": ["node_modules/@lexical/hashtag/dist/index.d.ts"]
     }
   }
 }

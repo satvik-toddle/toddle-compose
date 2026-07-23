@@ -9,6 +9,7 @@ import { HistoryModule } from "./history/history.module";
 import { TokensModule } from "./tokens/tokens.module";
 import { YjsModule } from "./yjs/yjs.module";
 import { InternalApiModule } from "./internal/internal-api.module";
+import { ContentModule } from "./content/content.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { InternalApiModule } from "./internal/internal-api.module";
     TokensModule,
     YjsModule,
     InternalApiModule,
+    ContentModule,
   ],
 })
 export class AppModule {}

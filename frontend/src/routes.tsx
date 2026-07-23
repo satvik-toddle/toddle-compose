@@ -24,7 +24,7 @@ import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
 import { LinkDocView } from './features/link/LinkDocView';
 
-// Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
+// Dev-only Zwibbler → excalidraw converter harness; lazy so excalidraw stays out of the main bundle.
 const ZwibblerPreviewPage = lazy(() =>
   import('./features/workspace/whiteboard/zwibbler/ZwibblerPreviewPage').then((m) => ({
     default: m.ZwibblerPreviewPage,

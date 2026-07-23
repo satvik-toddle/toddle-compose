@@ -1,70 +1,135 @@
-import { useEffect, useState } from 'react';
-import { DefaultFontStyle, Tldraw, type Editor } from 'tldraw';
-import 'tldraw/tldraw.css';
+import { useEffect, useRef, useState } from 'react';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { Excalidraw } from '@excalidraw/excalidraw';
+import '@excalidraw/excalidraw/index.css';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
+import { ExcalidrawBinding } from 'y-excalidraw';
 import { useAuthStore } from '../../../stores/authStore';
 import { useThemeStore } from '../../../stores/themeStore';
-import { RtcGate } from '../RtcGate';
-import { useYjsTldrawStore } from './useYjsTldrawStore';
-import { WHITEBOARD_THEMES } from './whiteboardTheme';
+import { RTC_WS_URL } from '../../../lib/env';
+import { RtcGate, type RtcSession } from '../RtcGate';
+import { attachTokenRecovery } from '../rtcReconnect';
 
-// tldraw's navigation panel starts with the minimap collapsed (localStorage
-// key "minimap", true = collapsed). Seed it once so the minimap is open by
-// default; later toggles by the user still persist.
-function seedMinimapOpen() {
-  try {
-    if (localStorage.getItem('minimap') === null) localStorage.setItem('minimap', 'false');
-  } catch {
-    // storage unavailable — tldraw falls back to collapsed
-  }
-}
+// Yjs shared-type keys, fixed by y-excalidraw's data model: an ordered element
+// list ({el, pos} maps) plus an assets map. Distinct from the sheet's 'rows'
+// key, which rtc-server history uses to sniff doc kinds.
+const ELEMENTS_KEY = 'elements';
+const ASSETS_KEY = 'assets';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
   canvas: 'flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
 };
 
-type WhiteboardCanvasProps = {
-  docId: string;
-  token: string;
-  canEdit: boolean;
-  refetchToken: () => Promise<unknown>;
-};
+// App theme resolved to what Excalidraw's `theme` prop accepts ('system' needs
+// the live media query, mirroring themeStore.applyPreference).
+function useResolvedTheme(): 'light' | 'dark' {
+  const preference = useThemeStore((s) => s.preference);
+  const [systemDark, setSystemDark] = useState(
+    () => globalThis.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+
+  useEffect(() => {
+    const query = globalThis.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setSystemDark(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  return preference === 'dark' || (preference === 'system' && systemDark) ? 'dark' : 'light';
+}
+
+type WhiteboardCanvasProps = { docId: string } & RtcSession;
 type WhiteboardEditorProps = { docId: string };
 
-// Mounted only once the RTC token is ready.
+// Owns the Y.Doc + websocket + Excalidraw binding lifecycle for one synced
+// whiteboard. Mounted only once the RTC token is ready.
 function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<WhiteboardCanvasProps>) {
+  // y-websocket re-reads params.token on every reconnect; mutating this ref keeps a
+  // long-lived session authed with a fresh token without tearing down the live doc.
+  const paramsRef = useRef<{ token: string }>({ token });
+  paramsRef.current.token = token;
+  const refetchTokenRef = useRef(refetchToken);
+  refetchTokenRef.current = refetchToken;
+  // Set by the session effect; lets name/color changes update awareness in place
+  // instead of tearing down the live provider.
+  const awarenessRef = useRef<WebsocketProvider['awareness'] | null>(null);
+
   const user = useAuthStore((s) => s.user);
-  const preference = useThemeStore((s) => s.preference);
-  const storeWithStatus = useYjsTldrawStore({ docId, token, user, refetchToken });
-  const [editor, setEditor] = useState<Editor | null>(null);
-  // Lazy initializer: runs once per mount, before <Tldraw> reads the key.
-  useState(seedMinimapOpen);
+  const theme = useResolvedTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
 
-  const onMount = (editor: Editor) => {
-    setEditor(editor);
-    // Set read-only before first paint: the effect below runs after mount, leaving
-    // a window where a viewer's local edits are accepted (then dropped server-side).
-    editor.updateInstanceState({ isReadonly: !canEdit });
-    // Default text/labels to the normal sans font, not tldraw's handwritten one.
-    editor.setStyleForNextShapes(DefaultFontStyle, 'sans');
-  };
-
-  // The role can flip mid-session (token re-mints); a demoted editor must lose
-  // write access live — rtc-server already drops their writes silently.
+  // The binding needs the imperative API, so the whole Yjs lifecycle waits for
+  // Excalidraw's first render to hand it over. Keyed on docId + canEdit only: the
+  // binding bakes in write access (a role flip rebuilds it), but auth-user
+  // hydration (null -> value) must not tear the live socket down — presence rides
+  // awareness and updates in place below.
   useEffect(() => {
-    editor?.updateInstanceState({ isReadonly: !canEdit });
-  }, [editor, canEdit]);
+    const excalidrawDom = containerRef.current;
+    if (!api || !excalidrawDom) return;
+
+    const ydoc = new Y.Doc();
+    const yElements = ydoc.getArray<Y.Map<unknown>>(ELEMENTS_KEY);
+    const yAssets = ydoc.getMap(ASSETS_KEY);
+
+    const provider = new WebsocketProvider(RTC_WS_URL, docId, ydoc, {
+      params: paramsRef.current,
+      connect: true,
+    });
+    awarenessRef.current = provider.awareness;
+    if (user) {
+      provider.awareness.setLocalStateField('user', {
+        name: user.name,
+        color: user.color,
+        colorLight: `${user.color}33`,
+      });
+    }
+
+    const excalidrawBinding = new ExcalidrawBinding(
+      yElements,
+      yAssets,
+      api,
+      provider.awareness,
+      canEdit ? { excalidrawDom, undoManager: new Y.UndoManager(yElements) } : undefined,
+    );
+    setBinding(excalidrawBinding);
+
+    // Shared re-mint protocol; the fresh token reaches the provider via paramsRef.
+    const detachRecovery = attachTokenRecovery(provider, () => refetchTokenRef.current?.());
+
+    return () => {
+      detachRecovery();
+      awarenessRef.current = null;
+      setBinding(null);
+      excalidrawBinding.destroy();
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [api, docId, canEdit]);
+
+  // Presence metadata rides the live session; never tears it down.
+  useEffect(() => {
+    if (!user) return;
+    awarenessRef.current?.setLocalStateField('user', {
+      name: user.name,
+      color: user.color,
+      colorLight: `${user.color}33`,
+    });
+  }, [user]);
 
   return (
     <div className={styles.shell}>
-      <div className={styles.canvas}>
-        <Tldraw
-          store={storeWithStatus}
-          colorScheme={preference}
-          themes={WHITEBOARD_THEMES}
-          onMount={onMount}
-          // No license key for the trial — tldraw shows its watermark. A business
-          // license is required for production.
+      <div ref={containerRef} className={styles.canvas}>
+        <Excalidraw
+          excalidrawAPI={setApi}
+          onPointerUpdate={binding?.onPointerUpdate}
+          theme={theme}
+          viewModeEnabled={!canEdit}
+          // Image assets are deferred until storage is designed.
+          UIOptions={{ tools: { image: false } }}
         />
       </div>
     </div>
@@ -72,7 +137,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
 }
 
 // Collaborative whiteboard (WHITEBOARD page type). Keyed by docId at the call
-// site; the RTC role drives editability.
+// site; the RTC role drives editability (viewers get a read-only canvas).
 export function WhiteboardEditor({ docId }: Readonly<WhiteboardEditorProps>) {
   return (
     <RtcGate docId={docId} noun="whiteboard">

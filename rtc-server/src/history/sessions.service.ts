@@ -3,7 +3,13 @@ import { ConfigService } from "@nestjs/config";
 import * as Y from "yjs";
 import { Env } from "../config/env";
 import { DocRepository } from "../persistence/doc-repository.service";
-import { SheetSnapshot, extractSheet } from "./versions.service";
+import {
+  SheetSnapshot,
+  extractSheet,
+  extractWhiteboard,
+  versionDisplayText,
+  versionFingerprint,
+} from "./versions.service";
 import { LexicalExtractService } from "../persistence/lexical-extract.service";
 import { createLogger } from "../logger";
 
@@ -218,7 +224,7 @@ export class SessionsService {
     };
   }
 
-  // Single-pass equivalent of previewAtSeq per boundary. `text` is the human-readable content (plainText for DOC, grid serialization for SHEET); `content` is the no-op fingerprint (full lexicalJson for DOC so non-text edits register, grid serialization for SHEET).
+  // Single-pass equivalent of previewAtSeq per boundary. `text` is the human-readable content (plainText for DOC, grid serialization for SHEET, shape/page summary for WHITEBOARD); `content` is the no-op fingerprint (full lexicalJson for DOC so non-text edits register, grid serialization for SHEET, canonical JSON serialization for WHITEBOARD so shape moves/resizes register).
   private async replayBoundaries(
     blobs: { seq: number; blob: Buffer }[],
     boundaries: number[]
@@ -233,16 +239,16 @@ export class SessionsService {
     let dirty = true;
     const capture = async (): Promise<Snap> => {
       if (dirty) {
-        // Read the grid off the live doc before worker extraction (see previewAtSeq).
+        // Read the grid/board off the live doc before worker extraction (see previewAtSeq).
         const sheet = extractSheet(ydoc);
-        const { plainText, lexicalJson } = await this.extract.extractFromBytes(
-          Y.encodeStateAsUpdate(ydoc)
-        );
-        const text = sheet
-          ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-          : plainText;
-        // SHEET: grid serialization already captures cell changes. DOC: lexicalJson captures media/embeds/formatting that plainText misses.
-        const content = sheet ? text : (lexicalJson ?? plainText);
+        const whiteboard = extractWhiteboard(ydoc);
+        // Only DOCs need worker extraction; sheets/whiteboards derive text + fingerprint straight off the Y.Doc, so skip the per-boundary encode + worker round-trip for them.
+        const extracted =
+          !sheet && !whiteboard
+            ? await this.extract.extractFromBytes(Y.encodeStateAsUpdate(ydoc))
+            : null;
+        const text = versionDisplayText(sheet, whiteboard, extracted?.plainText ?? "");
+        const content = versionFingerprint(ydoc, sheet, whiteboard, extracted);
         last = { text, content, sheet };
         dirty = false;
       }

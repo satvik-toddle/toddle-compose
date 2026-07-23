@@ -13,6 +13,9 @@ const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.Do
 const SheetEditor = lazy(() =>
   import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
 );
+const WhiteboardEditor = lazy(() =>
+  import('../whiteboard/WhiteboardEditor').then((m) => ({ default: m.WhiteboardEditor })),
+);
 
 const styles = {
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
@@ -54,7 +57,17 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const { id: openDocId, title: pageTitle } = openDoc;
   // Max of workspace role and per-page grant — else an EDIT-grantee guest would get a read-only editor.
   const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
-  const isSheet = openDoc.type === 'SHEET';
+  // Sheets and whiteboards fill the width; only docs center a readable column.
+  const isFullWidth = openDoc.type !== 'DOC';
+
+  let editor;
+  if (openDoc.type === 'SHEET') {
+    editor = <SheetEditor key={openDocId} docId={openDocId} />;
+  } else if (openDoc.type === 'WHITEBOARD') {
+    editor = <WhiteboardEditor key={openDocId} docId={openDocId} />;
+  } else {
+    editor = <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />;
+  }
 
   const titleNode = (
     <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
@@ -62,21 +75,17 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      {isSheet ? (
-        // Sheet: fixed title over the grid (the grid scrolls itself).
+      {isFullWidth ? (
+        // Sheet/whiteboard: fixed title over the editor (it scrolls/pans itself).
         <>
           <div className={styles.sheetTitle}>{titleNode}</div>
-          <Suspense fallback={<PageLoader />}>
-            <SheetEditor key={openDocId} docId={openDocId} />
-          </Suspense>
+          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
         </>
       ) : (
         // Keyed so scroll position (and the editor) resets per document.
         <div key={openDocId} className={styles.docScroll}>
           <div className={styles.docTitle}>{titleNode}</div>
-          <Suspense fallback={<PageLoader />}>
-            <DocEditor docId={openDocId} canEdit={canEdit} />
-          </Suspense>
+          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
         </div>
       )}
     </main>

@@ -115,13 +115,15 @@ export function LinkDocView() {
           </div>
         </div>
         <div className={styles.body}>
-          {doc.type === 'SHEET' ? (
+          {doc.type !== 'DOC' ? (
+            // Only the rich-text editor supports standalone share-token mode;
+            // sheets and whiteboards open in the workspace.
             <div className={styles.centered}>
               <EmptyState
                 dsVersion="2.0"
                 illustration={EmptyStateIllustrations.NoFoldersIllustration}
-                title="Open this sheet in the app"
-                subtitle="Shared sheets open in the workspace. Sign in to view this sheet."
+                title={`Open this ${doc.type === 'SHEET' ? 'sheet' : 'whiteboard'} in the app`}
+                subtitle="Shared pages of this type open in the workspace. Sign in to view it."
               />
             </div>
           ) : (

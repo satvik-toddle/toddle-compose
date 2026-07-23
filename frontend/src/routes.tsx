@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from './app/ProtectedRoute';
 import { MembershipGate } from './app/MembershipGate';
@@ -22,6 +23,20 @@ import { WorkspaceLayout } from './features/workspace/WorkspaceLayout';
 import { WorkspaceContent } from './features/workspace/content';
 import { StarredPagesView } from './features/workspace/content/StarredPagesView';
 import { LinkDocView } from './features/link/LinkDocView';
+
+// Dev-only Zwibbler → tldraw converter harness; lazy so tldraw stays out of the main bundle.
+const ZwibblerPreviewPage = lazy(() =>
+  import('./features/workspace/whiteboard/zwibbler/ZwibblerPreviewPage').then((m) => ({
+    default: m.ZwibblerPreviewPage,
+  })),
+);
+
+// Dev-only whiteboard perf harness.
+const WhiteboardBenchPage = lazy(() =>
+  import('./features/workspace/whiteboard/WhiteboardBenchPage').then((m) => ({
+    default: m.WhiteboardBenchPage,
+  })),
+);
 
 export function AppRoutes() {
   return (
@@ -65,6 +80,27 @@ export function AppRoutes() {
           </Route>
         </Route>
       </Route>
+
+      {import.meta.env.DEV && (
+        <>
+          <Route
+            path="/zwibbler-preview"
+            element={
+              <Suspense fallback={null}>
+                <ZwibblerPreviewPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/whiteboard-bench"
+            element={
+              <Suspense fallback={null}>
+                <WhiteboardBenchPage />
+              </Suspense>
+            }
+          />
+        </>
+      )}
 
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<RootRedirect />} />

@@ -148,7 +148,7 @@ export interface MyOrgJoinRequest {
   decidedAt?: string | null;
 }
 
-export type DocumentType = 'DOC' | 'SHEET';
+export type DocumentType = 'DOC' | 'SHEET' | 'WHITEBOARD';
 
 export type ShareLinkScope = 'REALM' | 'ANYONE';
 

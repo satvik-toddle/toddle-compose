@@ -40,6 +40,14 @@ function readUploadRegistry(ydoc: Y.Doc): Map<string, string> {
 // Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (legacy DOC render); 'render' = materialized lexicalJson (+ optional diffJson) only (DOC render); 'text' = sheet snapshot only (SHEET render).
 export type PreviewInclude = "all" | "state" | "render" | "text";
 
+// Whiteboard Yjs model (mirrors frontend useYjsTldrawStore): 'tldraw' Map of TLRecords keyed by record id.
+const TLDRAW_KEY = "tldraw";
+
+export type WhiteboardSnapshot = {
+  recordCount: number;
+  shapeCount: number;
+  pageCount: number;
+};
 export type VersionPreview = {
   docId: string;
   seq: number;
@@ -51,6 +59,8 @@ export type VersionPreview = {
   rawTexts: Record<string, string>;
   // SHEET docs only: reconstructed grid at this seq; null for DOCs.
   sheet: SheetSnapshot | null;
+  // WHITEBOARD docs only: record/shape/page counts at this seq; null otherwise.
+  whiteboard: WhiteboardSnapshot | null;
   // Full Yjs state at this seq (base64). The frontend binds it to a read-only
   // editor to render the snapshot through the exact live-collab path.
   yjsStateB64: string;
@@ -58,6 +68,76 @@ export type VersionPreview = {
   diffJson: string | null;
   elapsedMs: number;
 };
+
+// Whiteboard summary if this doc has the tldraw records root; null otherwise.
+export function extractWhiteboard(ydoc: Y.Doc): WhiteboardSnapshot | null {
+  if (!ydoc.share.has(TLDRAW_KEY)) return null;
+  const yrecords = ydoc.getMap(TLDRAW_KEY);
+  let shapeCount = 0;
+  let pageCount = 0;
+  for (const k of yrecords.keys()) {
+    if (k.startsWith("shape:")) shapeCount += 1;
+    else if (k.startsWith("page:")) pageCount += 1;
+  }
+  return { recordCount: yrecords.size, shapeCount, pageCount };
+}
+
+// Canonical whiteboard text for no-op detection: full record contents keyed by
+// sorted id, so moves/resizes/recolors (count-preserving edits) register as changes.
+// Fingerprint only — never surface this to the UI; use formatWhiteboardSummary for display.
+export function whiteboardCanonicalText(ydoc: Y.Doc): string | null {
+  if (!ydoc.share.has(TLDRAW_KEY)) return null;
+  const yrecords = ydoc.getMap(TLDRAW_KEY);
+  const records: Record<string, unknown> = {};
+  for (const k of [...yrecords.keys()].sort()) records[k] = yrecords.get(k);
+  return JSON.stringify(records);
+}
+
+// Short human-readable whiteboard label for version previews/diffs — a shape/page
+// count, not the multi-KB canonical JSON.
+export function formatWhiteboardSummary(stats: WhiteboardSnapshot): string {
+  const shapes = `${stats.shapeCount} ${stats.shapeCount === 1 ? "shape" : "shapes"}`;
+  const pages = `${stats.pageCount} ${stats.pageCount === 1 ? "page" : "pages"}`;
+  return `Whiteboard · ${shapes} · ${pages}`;
+}
+
+// The stable grid serialization used as both a sheet version's display text and its no-op fingerprint.
+export function sheetCanonicalText(sheet: SheetSnapshot): string {
+  return JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes });
+}
+
+// Per-kind display text + no-op fingerprint for a replayed doc, from its already-
+// extracted snapshots. Both history entry points (previewAtSeq, replayBoundaries)
+// share this so the three-way kind dispatch lives in one place. `extracted` is the
+// worker output; callers pass null for sheets/whiteboards, which derive both
+// straight off the Y.Doc and never need the worker. SHEET → grid for both.
+// WHITEBOARD → shape/page summary for display, canonical JSON for the fingerprint
+// (shape moves/resizes register). DOC → plainText for display, lexicalJson for the
+// fingerprint (media/embeds/formatting-only edits register). Doc kinds are mutually
+// exclusive (one root per doc), so the sheet/whiteboard branches short-circuit
+// before the DOC path; a non-empty plainText still wins over the whiteboard
+// fallback for the defensive case where a caller does pass both.
+type Extracted = { plainText: string; lexicalJson: string | null };
+
+export function versionDisplayText(
+  sheet: SheetSnapshot | null,
+  whiteboard: WhiteboardSnapshot | null,
+  plainText: string,
+): string {
+  if (sheet) return sheetCanonicalText(sheet);
+  return plainText || (whiteboard ? formatWhiteboardSummary(whiteboard) : "");
+}
+
+export function versionFingerprint(
+  ydoc: Y.Doc,
+  sheet: SheetSnapshot | null,
+  whiteboard: WhiteboardSnapshot | null,
+  extracted: Extracted | null,
+): string {
+  if (sheet) return sheetCanonicalText(sheet);
+  if (whiteboard) return whiteboardCanonicalText(ydoc) ?? "";
+  return extracted?.lexicalJson ?? extracted?.plainText ?? "";
+}
 
 @Injectable()
 export class VersionsService {
@@ -131,8 +211,9 @@ export class VersionsService {
       }
     }
 
-    // Extract sheet BEFORE the rawTexts getText() loop so it can't coerce 'rows' to Y.Text; cheap and local, so run it in every mode.
+    // Extract sheet/whiteboard BEFORE the rawTexts getText() loop so it can't coerce their Array/Map roots to Y.Text; cheap and local, so run it in every mode.
     const sheet = extractSheet(ydoc);
+    const whiteboard = extractWhiteboard(ydoc);
 
     // Only 'all' and 'state' read the yjs bytes; 'render'/'text' skip the O(doc) encode entirely.
     const yjsState =
@@ -143,8 +224,12 @@ export class VersionsService {
     const rawTexts: Record<string, string> = {};
     let plainText = "";
     if (include === "all" && yjsState) {
-      const extracted = await this.extract.extractFromBytes(yjsState);
-      lexicalJson = extracted.lexicalJson;
+      // Only DOCs need worker extraction; sheets/whiteboards derive their display text off the Y.Doc, so skip the worker round-trip for them (the yjsState encode above is still reused for yjsStateB64).
+      const extracted =
+        !sheet && !whiteboard
+          ? await this.extract.extractFromBytes(yjsState)
+          : null;
+      if (extracted) lexicalJson = extracted.lexicalJson;
 
       for (const key of ydoc.share.keys()) {
         try {
@@ -155,10 +240,7 @@ export class VersionsService {
         }
       }
 
-      // Sheets yield empty lexical text, so use a canonical grid serialization; DOC docs keep lexical text.
-      plainText = sheet
-        ? JSON.stringify({ rows: sheet.rows, colTypes: sheet.colTypes })
-        : extracted.plainText;
+      plainText = versionDisplayText(sheet, whiteboard, extracted?.plainText ?? "");
     }
 
     const yjsStateB64 = yjsState ? Buffer.from(yjsState).toString("base64") : "";
@@ -177,6 +259,7 @@ export class VersionsService {
       plainText,
       rawTexts,
       sheet,
+      whiteboard,
       yjsStateB64,
       diffJson,
       elapsedMs,

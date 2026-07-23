@@ -158,6 +158,12 @@ export type RtcSheetSnapshot = {
   colTypes: Record<string, unknown>;
 };
 
+export type RtcWhiteboardSnapshot = {
+  recordCount: number;
+  shapeCount: number;
+  pageCount: number;
+};
+
 // Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.
 // (rtc also accepts a legacy 'state' value for older backends; this backend never sends it.)
 export type RtcPreviewInclude = "all" | "render" | "text";
@@ -167,6 +173,7 @@ export type RtcVersionPreview = {
   seq: number;
   headSeq: number;
   sheet: RtcSheetSnapshot | null;
+  whiteboard: RtcWhiteboardSnapshot | null;
   lexicalJson: string | null;
   plainText: string;
   // include='render': merged diff editorState (baseline -> seq) or null; ABSENT (undefined) when

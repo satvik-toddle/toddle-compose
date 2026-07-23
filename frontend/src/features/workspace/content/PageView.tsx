@@ -15,12 +15,17 @@ const DocEditor = lazy(() => import('../DocEditor').then((m) => ({ default: m.Do
 const SheetEditor = lazy(() =>
   import('../sheet/SheetEditor').then((m) => ({ default: m.SheetEditor })),
 );
+const WhiteboardEditor = lazy(() =>
+  import('../whiteboard/WhiteboardEditor').then((m) => ({ default: m.WhiteboardEditor })),
+);
 
 const styles = {
   // Scroll happens HERE (title + editor together), below the fixed topbar; the editor's own
   // scroll container is neutralized so this is the single scroller.
-  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-[var(--panel-bg)]',
+  contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
   scrollBody: 'flex-1 overflow-auto pt-6 px-7.5 pb-10',
+  // Doc: title + editor share this scroll container so the title scrolls with the content.
+  docScroll: 'flex-1 min-h-0 overflow-y-auto flex flex-col',
   // Doc: title mirrors the editor column via the shared constants (inline style below).
   docTitle: 'flex-none w-full mx-auto pt-7',
   // Sheet: title full-width, left-aligned to the grid's left edge (matches its p-6 inset).
@@ -66,7 +71,17 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const { id: openDocId, title: pageTitle } = openDoc;
   // Max of workspace role and per-page grant — else an EDIT-grantee guest would get a read-only editor.
   const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
-  const isSheet = openDoc.type === 'SHEET';
+  // Sheets and whiteboards fill the width; only docs center a readable column.
+  const isFullWidth = openDoc.type !== 'DOC';
+
+  let editor;
+  if (openDoc.type === 'SHEET') {
+    editor = <SheetEditor key={openDocId} docId={openDocId} />;
+  } else if (openDoc.type === 'WHITEBOARD') {
+    editor = <WhiteboardEditor key={openDocId} docId={openDocId} />;
+  } else {
+    editor = <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />;
+  }
 
   const titleNode = (
     <PageTitle workspaceId={ctx.workspaceId} docId={openDocId} title={pageTitle} canEdit={canEdit} />
@@ -74,19 +89,24 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      <div
-        className={isSheet ? styles.sheetTitle : styles.docTitle}
-        style={isSheet ? undefined : { maxWidth: DOC_COLUMN_WIDTH, paddingLeft: DOC_TEXT_INSET, paddingRight: DOC_TEXT_INSET }}
-      >
-        {titleNode}
-      </div>
-      <Suspense fallback={<PageLoader />}>
-        {isSheet ? (
-          <SheetEditor key={openDocId} docId={openDocId} />
-        ) : (
-          <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />
-        )}
-      </Suspense>
+      {isFullWidth ? (
+        // Sheet/whiteboard: fixed title over the editor (it scrolls/pans itself).
+        <>
+          <div className={styles.sheetTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
+        </>
+      ) : (
+        // Keyed so scroll position (and the editor) resets per document.
+        <div key={openDocId} className={styles.docScroll}>
+          <div
+            className={styles.docTitle}
+            style={{ maxWidth: DOC_COLUMN_WIDTH, paddingLeft: DOC_TEXT_INSET, paddingRight: DOC_TEXT_INSET }}
+          >
+            {titleNode}
+          </div>
+          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
+        </div>
+      )}
     </main>
   );
 }

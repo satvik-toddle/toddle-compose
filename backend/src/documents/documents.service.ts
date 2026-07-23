@@ -9,6 +9,7 @@ import { DocumentType, Prisma, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuthzService } from "../realm/authz.service";
 import { DocumentCacheService } from "./document-cache.service";
+import type { DocumentTypeInput } from "./dto";
 import { RtcInternalClient } from "../rtc/rtc-internal.client";
 import { WorkspaceEventsService } from "../realtime/realtime.service";
 import type { RtcRole } from "../rtc/rtc-token.service";
@@ -38,7 +39,7 @@ type DocRow = Prisma.DocumentGetPayload<{ select: typeof SUMMARY_SELECT }>;
 type CreateDocumentInput = {
   title?: string;
   icon?: string;
-  type?: "DOC" | "SHEET";
+  type?: DocumentTypeInput;
   folderId?: string;
   // When set, folderId is ignored — a subdoc is located by its parent.
   parentId?: string;
@@ -625,10 +626,12 @@ export class DocumentsService {
     );
     const base = { docId, type: doc.type, seq: preview.seq, headSeq: preview.headSeq };
 
-    // Seam where DOC and SHEET data diverge.
+    // Seam where the per-kind payloads diverge.
     switch (doc.type) {
       case DocumentType.SHEET:
         return { ...base, sheet: preview.sheet };
+      case DocumentType.WHITEBOARD:
+        return { ...base, whiteboard: preview.whiteboard };
       case DocumentType.DOC:
       default:
         // Fail loud on both skew shapes: extraction failure (lexicalJson null) AND an old rtc-server that silently ignored include=render — it returns a lexicalJson WITHOUT materialized upload srcs and never emits the diffJson key (the render path always sets it, even as null).

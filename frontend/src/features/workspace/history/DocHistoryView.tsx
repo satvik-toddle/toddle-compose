@@ -16,8 +16,9 @@ const DocSnapshotViewer = lazy(() =>
 );
 
 const styles = {
-  // min-h-0 lets the editor pane shrink to the viewport so its own overflow scroll engages (long docs).
   contentShell: 'flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--panel-bg)]',
+  // Single scroller (title + banner + version content scroll as one), mirroring PageView's docScroll — the editor's own scroll is flattened via EDITOR_STYLES, so this must own the overflow or the whole page scrolls.
+  docScroll: 'flex-1 min-h-0 overflow-y-auto flex flex-col',
   center: 'flex-1 flex items-center justify-center',
   // Read-only banner marking this as a past version (matches the doc title inset); the restore action sits at its right edge.
   banner:
@@ -126,38 +127,40 @@ export function DocHistoryView({ doc, workspaceId }: Readonly<DocHistoryViewProp
 
   return (
     <main className={styles.contentShell}>
-      <div className={styles.docTitle}>
-        <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
-      </div>
-      <div className={styles.banner}>
-        <span>{banner}</span>
-        {canRestore && (
-          <Button
-            dsVersion="2.0"
-            variant="neutral"
-            type="outlined"
-            size="small"
-            icon={<ReloadArrowOutlined />}
-            onClick={openRestore}
-          >
-            Restore
-          </Button>
+      <div className={styles.docScroll}>
+        <div className={styles.docTitle}>
+          <PageTitle workspaceId={workspaceId} docId={doc.id} title={doc.title} canEdit={false} />
+        </div>
+        <div className={styles.banner}>
+          <span>{banner}</span>
+          {canRestore && (
+            <Button
+              dsVersion="2.0"
+              variant="neutral"
+              type="outlined"
+              size="small"
+              icon={<ReloadArrowOutlined />}
+              onClick={openRestore}
+            >
+              Restore
+            </Button>
+          )}
+        </div>
+        {effectiveSeq != null && (
+          <Suspense fallback={<PageLoader />}>
+            {loading ? (
+              <PageLoader />
+            ) : stateJson ? (
+              <DocSnapshotViewer
+                key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
+                editorStateJson={stateJson}
+              />
+            ) : (
+              <ErrorState />
+            )}
+          </Suspense>
         )}
       </div>
-      {effectiveSeq != null && (
-        <Suspense fallback={<PageLoader />}>
-          {loading ? (
-            <PageLoader />
-          ) : stateJson ? (
-            <DocSnapshotViewer
-              key={`${diffActive ? `diff-${diffBaseline}-` : ''}${effectiveSeq}`}
-              editorStateJson={stateJson}
-            />
-          ) : (
-            <ErrorState />
-          )}
-        </Suspense>
-      )}
     </main>
   );
 }

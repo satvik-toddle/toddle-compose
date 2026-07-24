@@ -3,15 +3,8 @@ import type { ExcalidrawElementSkeleton } from '@excalidraw/excalidraw/data/tran
 import type { FileId } from '@excalidraw/excalidraw/element/types';
 import type { BinaryFileData, DataURL } from '@excalidraw/excalidraw/types';
 
-// Converts a legacy Zwibbler workbook document into Excalidraw element skeletons
-// (for convertToExcalidrawElements) plus the binary files backing image elements.
-// Node mapping and rationale: docs/whiteboard-zwibbler-conversion.md.
-//
-// Mapping: PageNode → x-offset (pages flow left-to-right), SvgNode → image
-// element backed by the tinted workbook SVG as a data-URI file, TextNode → text,
-// BrushNode → line (freedraw isn't in the skeleton API; a dense polyline is
-// visually equivalent). Excalidraw takes arbitrary hex colors, so fills and
-// strokes keep their exact workbook values — no palette snapping.
+// Converts a legacy Zwibbler workbook (flat node array) into Excalidraw skeletons +
+// image files. Node mapping and rationale: docs/whiteboard-zwibbler-conversion.md.
 
 export type ZwibblerNode = {
   type: string;
@@ -41,24 +34,24 @@ export type ZwibblerExcalidrawConversion = {
   skipped: string[];
 };
 
-type Xform = { a: number; b: number; c: number; d: number; tx: number; ty: number };
+type Transform = { a: number; b: number; c: number; d: number; tx: number; ty: number };
 
-function xform(node: ZwibblerNode): Xform {
+const readTransform = (node: ZwibblerNode): Transform => {
   const [a = 1, b = 0, c = 0, d = 1, tx = 0, ty = 0] = node.matrix ?? [];
   return { a, b, c, d, tx, ty };
-}
+};
 
-const scaleX = (m: Xform) => Math.hypot(m.a, m.b);
-const scaleY = (m: Xform) => Math.hypot(m.c, m.d);
-const angle = (m: Xform) => Math.atan2(m.b, m.a);
+const scaleX = (transform: Transform) => Math.hypot(transform.a, transform.b);
+const scaleY = (transform: Transform) => Math.hypot(transform.c, transform.d);
+const rotationOf = (transform: Transform) => Math.atan2(transform.b, transform.a);
 
-function svgDimensions(svg: string): { w: number; h: number } | null {
-  const wm = /<svg[^>]*\swidth="([\d.]+)"/.exec(svg);
-  const hm = /<svg[^>]*\sheight="([\d.]+)"/.exec(svg);
-  if (wm && hm) return { w: +wm[1], h: +hm[1] };
-  const vb = /<svg[^>]*\sviewBox="[\d.-]+[ ,]+[\d.-]+[ ,]+([\d.]+)[ ,]+([\d.]+)"/.exec(svg);
-  return vb ? { w: +vb[1], h: +vb[2] } : null;
-}
+const svgDimensions = (svg: string): { width: number; height: number } | null => {
+  const widthMatch = /<svg[^>]*\swidth="([\d.]+)"/.exec(svg);
+  const heightMatch = /<svg[^>]*\sheight="([\d.]+)"/.exec(svg);
+  if (widthMatch && heightMatch) return { width: +widthMatch[1], height: +heightMatch[1] };
+  const viewBoxMatch = /<svg[^>]*\sviewBox="[\d.-]+[ ,]+[\d.-]+[ ,]+([\d.]+)[ ,]+([\d.]+)"/.exec(svg);
+  return viewBoxMatch ? { width: +viewBoxMatch[1], height: +viewBoxMatch[2] } : null;
+};
 
 // One file per unique (url, tint); image elements share it.
 const svgKey = (node: ZwibblerNode) =>
@@ -66,136 +59,156 @@ const svgKey = (node: ZwibblerNode) =>
 
 type SvgFile = { fileId: FileId; aspect: number };
 
-async function loadSvgFiles(
+const loadSvgFiles = async (
   nodes: ZwibblerNode[],
-): Promise<{ files: BinaryFileData[]; byKey: Map<string, SvgFile> }> {
-  const svgNodes = nodes.filter((n) => n.type === 'SvgNode' && typeof n.url === 'string');
-  const texts = new Map<string, string | null>();
+): Promise<{ files: BinaryFileData[]; fileByKey: Map<string, SvgFile> }> => {
+  const svgNodes = nodes.filter((node) => node.type === 'SvgNode' && typeof node.url === 'string');
+  const svgTextByUrl = new Map<string, string | null>();
   await Promise.all(
-    [...new Set(svgNodes.map((n) => n.url!))].map(async (url) => {
+    [...new Set(svgNodes.map((node) => node.url!))].map(async (url) => {
       try {
-        const res = await fetch(url);
-        texts.set(url, res.ok ? await res.text() : null);
+        const response = await fetch(url);
+        svgTextByUrl.set(url, response.ok ? await response.text() : null);
       } catch {
-        texts.set(url, null);
+        svgTextByUrl.set(url, null);
       }
     }),
   );
 
   const files: BinaryFileData[] = [];
-  const byKey = new Map<string, SvgFile>();
+  const fileByKey = new Map<string, SvgFile>();
   for (const node of svgNodes) {
     const key = svgKey(node);
-    if (byKey.has(key)) continue;
-    const raw = texts.get(node.url!);
-    if (!raw) continue;
+    if (fileByKey.has(key)) continue;
+    const rawSvg = svgTextByUrl.get(node.url!);
+    if (!rawSvg) continue;
+    // Zwibbler's "custom" fill mode repaints path fills with fillStyle.
     const tint = node.fillMode === 'custom' ? node.fillStyle : undefined;
-    const svg = tint ? raw.replace(/fill="#[0-9a-fA-F]{3,8}"/g, `fill="${tint}"`) : raw;
-    const dims = svgDimensions(raw) ?? { w: 100, h: 100 };
+    const tintedSvg = tint ? rawSvg.replace(/fill="#[0-9a-fA-F]{3,8}"/g, `fill="${tint}"`) : rawSvg;
+    const dimensions = svgDimensions(rawSvg) ?? { width: 100, height: 100 };
     const fileId = `zw-svg-${files.length}` as FileId;
     files.push({
       id: fileId,
-      dataURL: `data:image/svg+xml,${encodeURIComponent(svg)}` as DataURL,
+      dataURL: `data:image/svg+xml,${encodeURIComponent(tintedSvg)}` as DataURL,
       mimeType: 'image/svg+xml',
       created: 0,
     });
-    byKey.set(key, { fileId, aspect: dims.h / dims.w });
+    fileByKey.set(key, { fileId, aspect: dimensions.height / dimensions.width });
   }
-  return { files, byKey };
-}
+  return { files, fileByKey };
+};
 
-function convertSvgNode(node: ZwibblerNode, m: Xform, file: SvgFile): ExcalidrawElementSkeleton {
-  const w = (node.width ?? 100) * scaleX(m);
+const convertSvgNode = (
+  node: ZwibblerNode,
+  transform: Transform,
+  file: SvgFile,
+): ExcalidrawElementSkeleton => {
+  const width = (node.width ?? 100) * scaleX(transform);
   return {
     type: 'image',
     fileId: file.fileId,
-    x: m.tx,
-    y: m.ty,
-    width: w,
-    height: (node.width ?? 100) * file.aspect * scaleY(m),
-    angle: angle(m) as ExcalidrawElementSkeleton['angle'],
+    x: transform.tx,
+    y: transform.ty,
+    width,
+    height: (node.width ?? 100) * file.aspect * scaleY(transform),
+    angle: rotationOf(transform) as ExcalidrawElementSkeleton['angle'],
   };
-}
+};
 
 // Missing-asset fallback: a plain rectangle of the fill color at the same box.
-function convertSvgFallback(node: ZwibblerNode, m: Xform): ExcalidrawElementSkeleton {
-  const w = (node.width ?? 100) * scaleX(m);
+const convertSvgFallback = (node: ZwibblerNode, transform: Transform): ExcalidrawElementSkeleton => {
+  const width = (node.width ?? 100) * scaleX(transform);
   return {
     type: 'rectangle',
-    x: m.tx,
-    y: m.ty,
-    width: w,
-    height: w,
+    x: transform.tx,
+    y: transform.ty,
+    width,
+    height: width,
     backgroundColor: node.fillStyle ?? '#cccccc',
     fillStyle: 'solid',
   };
-}
+};
 
-function convertTextNode(node: ZwibblerNode, m: Xform): ExcalidrawElementSkeleton {
-  return {
-    type: 'text',
-    text: node.text ?? '',
-    x: m.tx,
-    y: m.ty,
-    fontSize: (node.fontSize ?? 24) * scaleX(m),
-    fontFamily: FONT_FAMILY.Nunito, // workbooks used Nunito Sans; excalidraw bundles Nunito
-    strokeColor: node.textFillStyle ?? node.fillStyle ?? '#222222',
-    textAlign: node.textAlign === 'center' ? 'center' : node.textAlign === 'right' ? 'right' : 'left',
-    angle: angle(m) as ExcalidrawElementSkeleton['angle'],
-  };
-}
+const convertTextNode = (node: ZwibblerNode, transform: Transform): ExcalidrawElementSkeleton => ({
+  type: 'text',
+  text: node.text ?? '',
+  x: transform.tx,
+  y: transform.ty,
+  fontSize: (node.fontSize ?? 24) * scaleX(transform),
+  fontFamily: FONT_FAMILY.Nunito, // workbooks used Nunito Sans; excalidraw bundles Nunito
+  strokeColor: node.textFillStyle ?? node.fillStyle ?? '#222222',
+  textAlign: node.textAlign === 'center' ? 'center' : node.textAlign === 'right' ? 'right' : 'left',
+  angle: rotationOf(transform) as ExcalidrawElementSkeleton['angle'],
+});
 
-function convertBrushNode(node: ZwibblerNode, m: Xform): ExcalidrawElementSkeleton | null {
-  const flat = node.points ?? [];
-  if (flat.length < 4) return null;
-  const pts: [number, number][] = [];
-  for (let i = 0; i + 1 < flat.length; i += 2) {
-    const [x, y] = [flat[i], flat[i + 1]];
-    pts.push([m.a * x + m.c * y + m.tx, m.b * x + m.d * y + m.ty]);
+// Freedraw isn't in the skeleton API, so a brush stroke maps to an equivalent dense line.
+const convertBrushNode = (
+  node: ZwibblerNode,
+  transform: Transform,
+): ExcalidrawElementSkeleton | null => {
+  const flatPoints = node.points ?? [];
+  if (flatPoints.length < 4) return null;
+  const points: [number, number][] = [];
+  for (let i = 0; i + 1 < flatPoints.length; i += 2) {
+    const x = flatPoints[i];
+    const y = flatPoints[i + 1];
+    points.push([
+      transform.a * x + transform.c * y + transform.tx,
+      transform.b * x + transform.d * y + transform.ty,
+    ]);
   }
-  const [ox, oy] = pts[0];
+  const [originX, originY] = points[0];
   return {
     type: 'line',
-    x: ox,
-    y: oy,
-    points: pts.map(([x, y]) => [x - ox, y - oy]) as never,
+    x: originX,
+    y: originY,
+    points: points.map(([x, y]) => [x - originX, y - originY]) as never,
     strokeColor: node.strokeStyle ?? node.fillStyle ?? '#222222',
-    strokeWidth: (node.lineWidth ?? 4) * scaleX(m),
+    strokeWidth: (node.lineWidth ?? 4) * scaleX(transform),
     roughness: 0,
   };
-}
+};
 
-export async function zwibblerToExcalidraw(
-  nodes: ZwibblerNode[],
-): Promise<ZwibblerExcalidrawConversion> {
-  const elements: ExcalidrawElementSkeleton[] = [];
-  const skipped: string[] = [];
-  const { files, byKey } = await loadSvgFiles(nodes);
-
+// Pages have no bounded frames; each contributes an x-offset so they flow left-to-right.
+const buildPageOffsets = (nodes: ZwibblerNode[]): Map<ZwibblerNode['id'], number> => {
   const PAGE_GAP = 80;
   const pageOffsets = new Map<ZwibblerNode['id'], number>();
-  let pageX = 0;
+  let nextPageX = 0;
   for (const node of nodes) {
     if (node.type !== 'PageNode') continue;
-    pageOffsets.set(node.id, pageX);
-    pageX += (node.width ?? 800) + PAGE_GAP;
+    pageOffsets.set(node.id, nextPageX);
+    nextPageX += (node.width ?? 800) + PAGE_GAP;
   }
+  return pageOffsets;
+};
+
+export const zwibblerToExcalidraw = async (
+  nodes: ZwibblerNode[],
+): Promise<ZwibblerExcalidrawConversion> => {
+  const elements: ExcalidrawElementSkeleton[] = [];
+  const skipped: string[] = [];
+  const { files, fileByKey } = await loadSvgFiles(nodes);
+  const pageOffsets = buildPageOffsets(nodes);
 
   for (const node of nodes) {
     if (node.type === 'PageNode' || node.type === 'BaseNode') continue;
-    const m = xform(node);
+    const transform = readTransform(node);
     let element: ExcalidrawElementSkeleton | null = null;
     if (node.type === 'SvgNode') {
-      const file = byKey.get(svgKey(node));
-      element = file ? convertSvgNode(node, m, file) : convertSvgFallback(node, m);
-    } else if (node.type === 'TextNode') element = convertTextNode(node, m);
-    else if (node.type === 'BrushNode') element = convertBrushNode(node, m);
-    else skipped.push(node.type);
+      const file = fileByKey.get(svgKey(node));
+      element = file ? convertSvgNode(node, transform, file) : convertSvgFallback(node, transform);
+    } else if (node.type === 'TextNode') {
+      element = convertTextNode(node, transform);
+    } else if (node.type === 'BrushNode') {
+      element = convertBrushNode(node, transform);
+    } else {
+      skipped.push(node.type);
+    }
     if (!element) continue;
-    const dx = node.parent != null ? (pageOffsets.get(node.parent) ?? 0) : 0;
-    if (dx) element = { ...element, x: (element.x ?? 0) + dx };
+    const pageOffset = node.parent != null ? (pageOffsets.get(node.parent) ?? 0) : 0;
+    if (pageOffset) element = { ...element, x: (element.x ?? 0) + pageOffset };
     elements.push(element);
   }
 
   return { elements, files, skipped };
-}
+};

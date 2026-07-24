@@ -16,9 +16,7 @@ const readStoredPreference = (): ThemePreference => {
   return stored !== null && isThemePreference(stored) ? stored : 'system';
 };
 
-// Resolve a preference to the effective dark/light the app renders. Single source
-// of truth for consumers that need the explicit value (e.g. Excalidraw's `theme`
-// prop, the share-link toggle) rather than keying off the `.dark` class.
+// Effective dark/light for consumers that need the value, not the `.dark` class.
 const resolveIsDark = (preference: ThemePreference) =>
   preference === 'dark' || (preference === 'system' && systemDarkQuery.matches);
 

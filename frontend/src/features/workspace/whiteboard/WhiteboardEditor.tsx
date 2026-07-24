@@ -11,9 +11,7 @@ import { RTC_WS_URL } from '../../../lib/env';
 import { RtcGate, type RtcSession } from '../RtcGate';
 import { attachTokenRecovery } from '../rtcReconnect';
 
-// Yjs shared-type keys, fixed by y-excalidraw's data model: an ordered element
-// list ({el, pos} maps) plus an assets map. Distinct from the sheet's 'rows'
-// key, which rtc-server history uses to sniff doc kinds.
+// Yjs shared-type keys fixed by y-excalidraw's data model.
 const ELEMENTS_KEY = 'elements';
 const ASSETS_KEY = 'assets';
 
@@ -22,11 +20,9 @@ const styles = {
   canvas: 'flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
 };
 
-// Stable across renders so Excalidraw (memoized) doesn't re-render on identity
-// churn. Image assets are deferred until storage is designed.
+// Hoisted so the memoized Excalidraw doesn't re-render on a fresh object identity.
 const UI_OPTIONS = { tools: { image: false } } as const;
 
-// Awareness cursor identity; colorLight is the translucent trail Excalidraw draws.
 const awarenessUser = (user: { name: string; color: string }) => ({
   name: user.name,
   color: user.color,
@@ -36,17 +32,13 @@ const awarenessUser = (user: { name: string; color: string }) => ({
 type WhiteboardCanvasProps = { docId: string } & RtcSession;
 type WhiteboardEditorProps = { docId: string };
 
-// Owns the Y.Doc + websocket + Excalidraw binding lifecycle for one synced
-// whiteboard. Mounted only once the RTC token is ready.
 function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<WhiteboardCanvasProps>) {
-  // y-websocket re-reads params.token on every reconnect; mutating this ref keeps a
-  // long-lived session authed with a fresh token without tearing down the live doc.
+  // y-websocket re-reads params.token on reconnect, so a fresh token stays live without a teardown.
   const paramsRef = useRef<{ token: string }>({ token });
   paramsRef.current.token = token;
   const refetchTokenRef = useRef(refetchToken);
   refetchTokenRef.current = refetchToken;
-  // Set by the session effect; lets name/color changes update awareness in place
-  // instead of tearing down the live provider.
+  // Lets the presence effect update the cursor in place instead of rebuilding the provider.
   const awarenessRef = useRef<WebsocketProvider['awareness'] | null>(null);
 
   const user = useAuthStore((s) => s.user);
@@ -55,11 +47,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
 
-  // The binding needs the imperative API, so the whole Yjs lifecycle waits for
-  // Excalidraw's first render to hand it over. Keyed on docId + canEdit only: the
-  // binding bakes in write access (a role flip rebuilds it), but auth-user
-  // hydration (null -> value) must not tear the live socket down — presence rides
-  // awareness and updates in place below.
+  // Waits for Excalidraw's first render (the imperative API); canEdit rebuilds the binding, user does not.
   useEffect(() => {
     const excalidrawDom = containerRef.current;
     if (!api || !excalidrawDom) return;
@@ -75,16 +63,19 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
     awarenessRef.current = provider.awareness;
     if (user) provider.awareness.setLocalStateField('user', awarenessUser(user));
 
+    // Supplied only for editors; a read-only binding omits it.
+    const editingOptions = canEdit
+      ? { excalidrawDom, undoManager: new Y.UndoManager(yElements) }
+      : undefined;
     const excalidrawBinding = new ExcalidrawBinding(
       yElements,
       yAssets,
       api,
       provider.awareness,
-      canEdit ? { excalidrawDom, undoManager: new Y.UndoManager(yElements) } : undefined,
+      editingOptions,
     );
     setBinding(excalidrawBinding);
 
-    // Shared re-mint protocol; the fresh token reaches the provider via paramsRef.
     const detachRecovery = attachTokenRecovery(provider, () => refetchTokenRef.current?.());
 
     return () => {
@@ -97,7 +88,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
     };
   }, [api, docId, canEdit]);
 
-  // Presence metadata rides the live session; never tears it down.
+  // Reflect name/color changes onto the live cursor without tearing the session down.
   useEffect(() => {
     if (user) awarenessRef.current?.setLocalStateField('user', awarenessUser(user));
   }, [user]);
@@ -117,8 +108,6 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
   );
 }
 
-// Collaborative whiteboard (WHITEBOARD page type). Keyed by docId at the call
-// site; the RTC role drives editability (viewers get a read-only canvas).
 export function WhiteboardEditor({ docId }: Readonly<WhiteboardEditorProps>) {
   return (
     <RtcGate docId={docId} noun="whiteboard">

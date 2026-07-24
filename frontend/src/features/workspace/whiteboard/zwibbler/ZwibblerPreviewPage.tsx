@@ -5,15 +5,16 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import zwibblerDoc from './fixture.json';
 import { zwibblerToExcalidraw, type ZwibblerNode } from './zwibblerToExcalidraw';
 
-// Dev-only harness (route /zwibbler-preview): renders a legacy Zwibbler workbook
-// on a local, non-synced Excalidraw canvas to validate the backward-compat converter.
+const fixtureNodes = zwibblerDoc as unknown as ZwibblerNode[];
+
+// Dev harness (/zwibbler-preview): renders a legacy workbook on a non-synced canvas to check the converter.
 export function ZwibblerPreviewPage() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
 
   useEffect(() => {
     if (!api) return;
     let cancelled = false;
-    void zwibblerToExcalidraw(zwibblerDoc as unknown as ZwibblerNode[]).then(
+    void zwibblerToExcalidraw(fixtureNodes).then(
       ({ elements, files, skipped }) => {
         if (cancelled) return;
         if (files.length) api.addFiles(files);

@@ -45,13 +45,34 @@ const scaleX = (transform: Transform) => Math.hypot(transform.a, transform.b);
 const scaleY = (transform: Transform) => Math.hypot(transform.c, transform.d);
 const rotationOf = (transform: Transform) => Math.atan2(transform.b, transform.a);
 
+// Only positive dimensions are usable; a 0/degenerate box would make aspect
+// non-finite downstream, so reject it and let the caller fall back to a square.
+const positiveDims = (width: number, height: number) =>
+  width > 0 && height > 0 ? { width, height } : null;
+
 const svgDimensions = (svg: string): { width: number; height: number } | null => {
   const widthMatch = /<svg[^>]*\swidth="([\d.]+)"/.exec(svg);
   const heightMatch = /<svg[^>]*\sheight="([\d.]+)"/.exec(svg);
-  if (widthMatch && heightMatch) return { width: +widthMatch[1], height: +heightMatch[1] };
+  if (widthMatch && heightMatch) {
+    const dims = positiveDims(+widthMatch[1], +heightMatch[1]);
+    if (dims) return dims;
+  }
   const viewBoxMatch = /<svg[^>]*\sviewBox="[\d.-]+[ ,]+[\d.-]+[ ,]+([\d.]+)[ ,]+([\d.]+)"/.exec(svg);
-  return viewBoxMatch ? { width: +viewBoxMatch[1], height: +viewBoxMatch[2] } : null;
+  return viewBoxMatch ? positiveDims(+viewBoxMatch[1], +viewBoxMatch[2]) : null;
 };
+
+// Colors we must never repaint: keywords and gradient/pattern refs (url(#id)).
+const TINT_SKIP = new Set(['none', 'transparent', 'currentcolor', 'inherit', 'url']);
+
+// Repaint fill colors set via presentation attribute (any quoting) or inline CSS
+// — Zwibbler clipart tints via `fill="#hex"`, `fill='#hex'`, `style="fill:#hex"`,
+// `fill="rgb(...)"`, or a named color, so a hex-only replace would miss most of them.
+const tintFills = (svg: string, tint: string): string =>
+  svg.replace(
+    /(fill\s*[:=]\s*)(["']?)(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|[a-zA-Z]+)\2/g,
+    (match, prefix, quote, value) =>
+      TINT_SKIP.has(value.toLowerCase()) ? match : `${prefix}${quote}${tint}${quote}`,
+  );
 
 // One file per unique (url, tint); image elements share it.
 const svgKey = (node: ZwibblerNode) =>
@@ -84,7 +105,7 @@ const loadSvgFiles = async (
     if (!rawSvg) continue;
     // Zwibbler's "custom" fill mode repaints path fills with fillStyle.
     const tint = node.fillMode === 'custom' ? node.fillStyle : undefined;
-    const tintedSvg = tint ? rawSvg.replace(/fill="#[0-9a-fA-F]{3,8}"/g, `fill="${tint}"`) : rawSvg;
+    const tintedSvg = tint ? tintFills(rawSvg, tint) : rawSvg;
     const dimensions = svgDimensions(rawSvg) ?? { width: 100, height: 100 };
     const fileId = `zw-svg-${files.length}` as FileId;
     files.push({
@@ -104,13 +125,16 @@ const convertSvgNode = (
   file: SvgFile,
 ): ExcalidrawElementSkeleton => {
   const width = (node.width ?? 100) * scaleX(transform);
+  // Prefer the node's stored box height; fall back to the SVG's intrinsic aspect
+  // only when the node never recorded one, so a stretched clipart keeps its shape.
+  const height = (node.height ?? (node.width ?? 100) * file.aspect) * scaleY(transform);
   return {
     type: 'image',
     fileId: file.fileId,
     x: transform.tx,
     y: transform.ty,
     width,
-    height: (node.width ?? 100) * file.aspect * scaleY(transform),
+    height,
     angle: rotationOf(transform) as ExcalidrawElementSkeleton['angle'],
   };
 };
@@ -118,13 +142,14 @@ const convertSvgNode = (
 // Missing-asset fallback: a plain rectangle of the fill color at the same box.
 const convertSvgFallback = (node: ZwibblerNode, transform: Transform): ExcalidrawElementSkeleton => {
   const width = (node.width ?? 100) * scaleX(transform);
+  const height = (node.height ?? node.width ?? 100) * scaleY(transform);
   return {
     type: 'rectangle',
     x: transform.tx,
     y: transform.ty,
     width,
-    height: width,
-    backgroundColor: node.fillStyle ?? '#cccccc',
+    height,
+    backgroundColor: node.fillStyle || '#cccccc',
     fillStyle: 'solid',
   };
 };
@@ -136,7 +161,7 @@ const convertTextNode = (node: ZwibblerNode, transform: Transform): ExcalidrawEl
   y: transform.ty,
   fontSize: (node.fontSize ?? 24) * scaleX(transform),
   fontFamily: FONT_FAMILY.Nunito, // workbooks used Nunito Sans; excalidraw bundles Nunito
-  strokeColor: node.textFillStyle ?? node.fillStyle ?? '#222222',
+  strokeColor: node.textFillStyle || node.fillStyle || '#222222',
   textAlign: node.textAlign === 'center' ? 'center' : node.textAlign === 'right' ? 'right' : 'left',
   angle: rotationOf(transform) as ExcalidrawElementSkeleton['angle'],
 });
@@ -163,7 +188,7 @@ const convertBrushNode = (
     x: originX,
     y: originY,
     points: points.map(([x, y]) => [x - originX, y - originY]) as never,
-    strokeColor: node.strokeStyle ?? node.fillStyle ?? '#222222',
+    strokeColor: node.strokeStyle || node.fillStyle || '#222222',
     strokeWidth: (node.lineWidth ?? 4) * scaleX(transform),
     roughness: 0,
   };

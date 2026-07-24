@@ -40,13 +40,16 @@ function readUploadRegistry(ydoc: Y.Doc): Map<string, string> {
 // Which slice the caller reads, so we skip the rest (see previewAtSeq): 'all' = everything; 'state' = yjs bytes only (legacy DOC render); 'render' = materialized lexicalJson (+ optional diffJson) only (DOC render); 'text' = sheet snapshot only (SHEET render).
 export type PreviewInclude = "all" | "state" | "render" | "text";
 
-// Whiteboard Yjs model (mirrors frontend useYjsTldrawStore): 'tldraw' Map of TLRecords keyed by record id.
-const TLDRAW_KEY = "tldraw";
+// Whiteboard Yjs model (mirrors the frontend WhiteboardEditor / y-excalidraw): an
+// 'elements' Array of Y.Map, each holding the excalidraw element under 'el' and its
+// fractional index under 'pos'.
+const ELEMENTS_KEY = "elements";
+
+// The element fields we read server-side; version bumps on every excalidraw edit.
+type StoredExcalidrawElement = { id: string; version: number; isDeleted?: boolean };
 
 export type WhiteboardSnapshot = {
-  recordCount: number;
-  shapeCount: number;
-  pageCount: number;
+  elementCount: number;
 };
 export type VersionPreview = {
   docId: string;
@@ -59,7 +62,7 @@ export type VersionPreview = {
   rawTexts: Record<string, string>;
   // SHEET docs only: reconstructed grid at this seq; null for DOCs.
   sheet: SheetSnapshot | null;
-  // WHITEBOARD docs only: record/shape/page counts at this seq; null otherwise.
+  // WHITEBOARD docs only: element count at this seq; null otherwise.
   whiteboard: WhiteboardSnapshot | null;
   // Full Yjs state at this seq (base64). The frontend binds it to a read-only
   // editor to render the snapshot through the exact live-collab path.
@@ -69,36 +72,41 @@ export type VersionPreview = {
   elapsedMs: number;
 };
 
-// Whiteboard summary if this doc has the tldraw records root; null otherwise.
+// Whiteboard summary if this doc has the excalidraw elements root; null otherwise.
 export function extractWhiteboard(ydoc: Y.Doc): WhiteboardSnapshot | null {
-  if (!ydoc.share.has(TLDRAW_KEY)) return null;
-  const yrecords = ydoc.getMap(TLDRAW_KEY);
-  let shapeCount = 0;
-  let pageCount = 0;
-  for (const k of yrecords.keys()) {
-    if (k.startsWith("shape:")) shapeCount += 1;
-    else if (k.startsWith("page:")) pageCount += 1;
+  if (!ydoc.share.has(ELEMENTS_KEY)) return null;
+  const yElements = ydoc.getArray<Y.Map<unknown>>(ELEMENTS_KEY);
+  let elementCount = 0;
+  for (const entry of yElements) {
+    const element = entry.get("el") as StoredExcalidrawElement | undefined;
+    if (element && !element.isDeleted) elementCount += 1;
   }
-  return { recordCount: yrecords.size, shapeCount, pageCount };
+  return { elementCount };
 }
 
-// Canonical whiteboard text for no-op detection: full record contents keyed by
-// sorted id, so moves/resizes/recolors (count-preserving edits) register as changes.
-// Fingerprint only — never surface this to the UI; use formatWhiteboardSummary for display.
+// Canonical whiteboard text for no-op detection: each live element's id -> version,
+// sorted by id. Excalidraw bumps an element's version on every edit (move, resize,
+// recolor), so this changes iff the board actually changed — unlike versionNonce/
+// updated, which churn on no-op saves. Fingerprint only — never surface this to the
+// UI; use formatWhiteboardSummary for display.
 export function whiteboardCanonicalText(ydoc: Y.Doc): string | null {
-  if (!ydoc.share.has(TLDRAW_KEY)) return null;
-  const yrecords = ydoc.getMap(TLDRAW_KEY);
-  const records: Record<string, unknown> = {};
-  for (const k of [...yrecords.keys()].sort()) records[k] = yrecords.get(k);
-  return JSON.stringify(records);
+  if (!ydoc.share.has(ELEMENTS_KEY)) return null;
+  const yElements = ydoc.getArray<Y.Map<unknown>>(ELEMENTS_KEY);
+  const versionById: Record<string, number> = {};
+  for (const entry of yElements) {
+    const element = entry.get("el") as StoredExcalidrawElement | undefined;
+    if (element && !element.isDeleted) versionById[element.id] = element.version;
+  }
+  const sortedById: Record<string, number> = {};
+  for (const id of Object.keys(versionById).sort()) sortedById[id] = versionById[id];
+  return JSON.stringify(sortedById);
 }
 
-// Short human-readable whiteboard label for version previews/diffs — a shape/page
-// count, not the multi-KB canonical JSON.
+// Short human-readable whiteboard label for version previews/diffs — an element
+// count, not the canonical fingerprint JSON.
 export function formatWhiteboardSummary(stats: WhiteboardSnapshot): string {
-  const shapes = `${stats.shapeCount} ${stats.shapeCount === 1 ? "shape" : "shapes"}`;
-  const pages = `${stats.pageCount} ${stats.pageCount === 1 ? "page" : "pages"}`;
-  return `Whiteboard · ${shapes} · ${pages}`;
+  const count = stats.elementCount;
+  return `Whiteboard · ${count} ${count === 1 ? "element" : "elements"}`;
 }
 
 // The stable grid serialization used as both a sheet version's display text and its no-op fingerprint.

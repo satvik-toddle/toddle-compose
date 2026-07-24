@@ -16,24 +16,34 @@ const readStoredPreference = (): ThemePreference => {
   return stored !== null && isThemePreference(stored) ? stored : 'system';
 };
 
+// Resolve a preference to the effective dark/light the app renders. Single source
+// of truth for consumers that need the explicit value (e.g. Excalidraw's `theme`
+// prop, the share-link toggle) rather than keying off the `.dark` class.
+const resolveIsDark = (preference: ThemePreference) =>
+  preference === 'dark' || (preference === 'system' && systemDarkQuery.matches);
+
 // Both Tailwind (`darkMode: ['class', '.dark']`) and the ds-web tokens key off
 // a `dark` class on <html>, so toggling it switches the whole app.
 const applyPreference = (preference: ThemePreference) => {
-  const isDark = preference === 'dark' || (preference === 'system' && systemDarkQuery.matches);
-  document.documentElement.classList.toggle('dark', isDark);
+  document.documentElement.classList.toggle('dark', resolveIsDark(preference));
 };
+
+const initialPreference = readStoredPreference();
 
 interface ThemeState {
   preference: ThemePreference;
+  // Effective dark/light after resolving 'system'; stays in sync with the OS.
+  isDark: boolean;
   setPreference: (preference: ThemePreference) => void;
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  preference: readStoredPreference(),
+  preference: initialPreference,
+  isDark: resolveIsDark(initialPreference),
   setPreference: (preference) => {
     localStorage.setItem(THEME_STORAGE_KEY, preference);
     applyPreference(preference);
-    set({ preference });
+    set({ preference, isDark: resolveIsDark(preference) });
   },
 }));
 
@@ -41,5 +51,7 @@ applyPreference(useThemeStore.getState().preference);
 
 // Follow live OS theme changes while in system mode.
 systemDarkQuery.addEventListener('change', () => {
-  if (useThemeStore.getState().preference === 'system') applyPreference('system');
+  if (useThemeStore.getState().preference !== 'system') return;
+  applyPreference('system');
+  useThemeStore.setState({ isDark: resolveIsDark('system') });
 });

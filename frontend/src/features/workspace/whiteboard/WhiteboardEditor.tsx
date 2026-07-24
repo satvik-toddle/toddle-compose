@@ -22,23 +22,16 @@ const styles = {
   canvas: 'flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
 };
 
-// App theme resolved to what Excalidraw's `theme` prop accepts ('system' needs
-// the live media query, mirroring themeStore.applyPreference).
-function useResolvedTheme(): 'light' | 'dark' {
-  const preference = useThemeStore((s) => s.preference);
-  const [systemDark, setSystemDark] = useState(
-    () => globalThis.matchMedia('(prefers-color-scheme: dark)').matches,
-  );
+// Stable across renders so Excalidraw (memoized) doesn't re-render on identity
+// churn. Image assets are deferred until storage is designed.
+const UI_OPTIONS = { tools: { image: false } } as const;
 
-  useEffect(() => {
-    const query = globalThis.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => setSystemDark(query.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-
-  return preference === 'dark' || (preference === 'system' && systemDark) ? 'dark' : 'light';
-}
+// Awareness cursor identity; colorLight is the translucent trail Excalidraw draws.
+const awarenessUser = (user: { name: string; color: string }) => ({
+  name: user.name,
+  color: user.color,
+  colorLight: `${user.color}33`,
+});
 
 type WhiteboardCanvasProps = { docId: string } & RtcSession;
 type WhiteboardEditorProps = { docId: string };
@@ -57,7 +50,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
   const awarenessRef = useRef<WebsocketProvider['awareness'] | null>(null);
 
   const user = useAuthStore((s) => s.user);
-  const theme = useResolvedTheme();
+  const theme = useThemeStore((s) => s.isDark) ? 'dark' : 'light';
   const containerRef = useRef<HTMLDivElement>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
@@ -80,13 +73,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
       connect: true,
     });
     awarenessRef.current = provider.awareness;
-    if (user) {
-      provider.awareness.setLocalStateField('user', {
-        name: user.name,
-        color: user.color,
-        colorLight: `${user.color}33`,
-      });
-    }
+    if (user) provider.awareness.setLocalStateField('user', awarenessUser(user));
 
     const excalidrawBinding = new ExcalidrawBinding(
       yElements,
@@ -112,12 +99,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
 
   // Presence metadata rides the live session; never tears it down.
   useEffect(() => {
-    if (!user) return;
-    awarenessRef.current?.setLocalStateField('user', {
-      name: user.name,
-      color: user.color,
-      colorLight: `${user.color}33`,
-    });
+    if (user) awarenessRef.current?.setLocalStateField('user', awarenessUser(user));
   }, [user]);
 
   return (
@@ -128,8 +110,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
           onPointerUpdate={binding?.onPointerUpdate}
           theme={theme}
           viewModeEnabled={!canEdit}
-          // Image assets are deferred until storage is designed.
-          UIOptions={{ tools: { image: false } }}
+          UIOptions={UI_OPTIONS}
         />
       </div>
     </div>

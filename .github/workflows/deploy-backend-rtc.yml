@@ -8,7 +8,7 @@ name: Deploy Backend + RTC (Render)
 #                  deploy hooks. (Render auto-deploy stays OFF; the hook is the trigger.)
 #
 # Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
-# RENDER_DEPLOY_HOOK_BACKEND, RENDER_DEPLOY_HOOK_RTC.
+# RENDER_DEPLOY_HOOK_BACKEND, RENDER_DEPLOY_HOOK_RTC, RENDER_DEPLOY_HOOK_INDEXER.
 on:
   pull_request:
     branches: [staging/backend-rtc-server] # build-only check on the deploy PR
@@ -67,3 +67,6 @@ jobs:
 
       - name: Trigger Render — rtc-server
         run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_RTC }}"
+
+      - name: Trigger Render — indexer
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_INDEXER }}"

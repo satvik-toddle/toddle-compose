@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useDocuments } from '../../../hooks/usePages';
+import { useDocuments, useOpenDoc } from '../../../hooks/usePages';
 
 // URL-driven history: `?history=true` puts the open doc into history mode and `?v=<seq>` selects the version — kept in the URL so a version is shareable and survives reload.
 export function useHistoryMode() {
@@ -9,8 +9,9 @@ export function useHistoryMode() {
   const docId = params.get('doc');
 
   // History is DOC-only (SHEET has no read-only lexical render); resolving the open doc here keeps that invariant in ONE place and is reused by callers (see openDoc below).
-  const { data: docs } = useDocuments(workspaceId);
-  const openDoc = docId ? docs?.find((d) => d.id === docId) : undefined;
+  // useOpenDoc (not a bare list.find) so a deep-linked doc OUTSIDE the paginated list still resolves — else history mode never activates on a direct link.
+  const { data: docs = [] } = useDocuments(workspaceId);
+  const openDoc = useOpenDoc(docId ?? undefined, docs).doc;
   const active = params.get('history') === 'true' && openDoc?.type === 'DOC';
 
   const seqParam = params.get('v');

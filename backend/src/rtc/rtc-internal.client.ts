@@ -159,9 +159,7 @@ export type RtcSheetSnapshot = {
 };
 
 export type RtcWhiteboardSnapshot = {
-  recordCount: number;
-  shapeCount: number;
-  pageCount: number;
+  elementCount: number;
 };
 
 // Which slice of the preview to fetch (skips work the caller won't read); see VersionsService.

@@ -24,11 +24,8 @@ const styles = {
 
 // Flips the effective theme for anonymous visitors: dark -> light, else -> dark.
 function ThemeToggle() {
-  const preference = useThemeStore((s) => s.preference);
+  const isDark = useThemeStore((s) => s.isDark);
   const setPreference = useThemeStore((s) => s.setPreference);
-  const isDark =
-    preference === 'dark' ||
-    (preference === 'system' && globalThis.matchMedia('(prefers-color-scheme: dark)').matches);
   return (
     <IconButton
       icon="BulbOutlined"

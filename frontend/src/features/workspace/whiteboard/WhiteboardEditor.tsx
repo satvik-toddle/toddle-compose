@@ -4,8 +4,6 @@ import type { WebsocketProvider } from 'y-websocket';
 import { Excalidraw, FONT_FAMILY } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
-// y-excalidraw@2.0.12 peers on excalidraw ^0.17.6; we pin ^0.18.0. No published
-// version supports 0.18, so verify multi-peer sync/z-order manually on upgrades.
 import { ExcalidrawBinding } from 'y-excalidraw';
 import { useAuthStore } from '../../../stores/authStore';
 import { useThemeStore } from '../../../stores/themeStore';
@@ -73,8 +71,36 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
   const [session, setSession] = useState<WhiteboardSession | null>(null);
   const [status, setStatus] = useState<WhiteboardStatus>('loading');
 
+  // Declared before the session effect so on unmount React runs this cleanup first:
+  // the binding unobserves session.yElements while its Y.Doc is still alive, before
+  // the session effect below destroys the doc. Rebuilt when the session or editable
+  // role changes; the session's Y.Doc is already synced, so a canEdit flip re-binds
+  // over the existing elements. No-ops until the session effect sets `session`.
+  useEffect(() => {
+    const excalidrawDom = containerRef.current;
+    if (!api || !session || !excalidrawDom) return;
+
+    // Supplied only for editors; a read-only binding omits it.
+    const editingOptions = canEdit
+      ? { excalidrawDom, undoManager: new Y.UndoManager(session.yElements) }
+      : undefined;
+    const excalidrawBinding = new ExcalidrawBinding(
+      session.yElements,
+      session.yAssets,
+      api,
+      session.awareness,
+      editingOptions,
+    );
+    setBinding(excalidrawBinding);
+
+    return () => {
+      setBinding(null);
+      excalidrawBinding.destroy();
+    };
+  }, [api, session, canEdit]);
+
   // Session (Y.Doc + provider) lives for as long as the doc is open. Keyed on
-  // docId/api only, so a mid-session role flip rebuilds just the binding (below) —
+  // docId/api only, so a mid-session role flip rebuilds just the binding (above) —
   // never the synced doc — and can't blank the board. Waits for Excalidraw's first
   // render (the imperative API).
   useEffect(() => {
@@ -117,31 +143,6 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
       ydoc.destroy();
     };
   }, [api, docId]);
-
-  // Rebuilt when the session or the editable role changes. The session's Y.Doc is
-  // already synced, so a canEdit flip re-binds over the existing elements.
-  useEffect(() => {
-    const excalidrawDom = containerRef.current;
-    if (!api || !session || !excalidrawDom) return;
-
-    // Supplied only for editors; a read-only binding omits it.
-    const editingOptions = canEdit
-      ? { excalidrawDom, undoManager: new Y.UndoManager(session.yElements) }
-      : undefined;
-    const excalidrawBinding = new ExcalidrawBinding(
-      session.yElements,
-      session.yAssets,
-      api,
-      session.awareness,
-      editingOptions,
-    );
-    setBinding(excalidrawBinding);
-
-    return () => {
-      setBinding(null);
-      excalidrawBinding.destroy();
-    };
-  }, [api, session, canEdit]);
 
   // Reflect name/color changes onto the live cursor without tearing the session down.
   useEffect(() => {

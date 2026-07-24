@@ -161,7 +161,7 @@ importers:
   frontend:
     dependencies:
       '@excalidraw/excalidraw':
-        specifier: ^0.18.0
+        specifier: 0.18.1
         version: 0.18.1(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tanstack/react-query':
         specifier: 5.59.16
@@ -203,7 +203,7 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
       y-excalidraw:
-        specifier: ^2.0.12
+        specifier: 2.0.12
         version: 2.0.12(@excalidraw/excalidraw@0.18.1(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(yjs@13.6.27)
       y-websocket:
         specifier: 2.0.4

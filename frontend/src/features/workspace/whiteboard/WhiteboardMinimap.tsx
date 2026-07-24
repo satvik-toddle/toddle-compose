@@ -59,6 +59,64 @@ const createProjection = (world: Rect, viewWidth: number, viewHeight: number): P
 const projectX = (projection: Projection, sceneX: number) => sceneX * projection.scale + projection.offsetX;
 const projectY = (projection: Projection, sceneY: number) => sceneY * projection.scale + projection.offsetY;
 
+// The element fields the minimap draws from; points carry linear/freedraw geometry.
+type MinimapElement = {
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  angle: number;
+  points?: readonly (readonly [number, number])[];
+};
+
+// Lines, arrows and freedraw are polylines whose points are relative to the element origin.
+const drawPolyline = (context: CanvasRenderingContext2D, projection: Projection, element: MinimapElement) => {
+  const points = element.points;
+  if (!points || points.length < 2) return;
+  context.beginPath();
+  points.forEach(([localX, localY], index) => {
+    const x = projectX(projection, element.x + localX);
+    const y = projectY(projection, element.y + localY);
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
+  context.stroke();
+};
+
+// Draws one element with type-appropriate geometry, rotated about its center.
+const drawElement = (context: CanvasRenderingContext2D, projection: Projection, element: MinimapElement) => {
+  if (element.type === 'line' || element.type === 'arrow' || element.type === 'freedraw') {
+    drawPolyline(context, projection, element);
+    return;
+  }
+
+  const width = Math.max(1, element.width * projection.scale);
+  const height = Math.max(1, element.height * projection.scale);
+  const centerX = projectX(projection, element.x + element.width / 2);
+  const centerY = projectY(projection, element.y + element.height / 2);
+
+  context.save();
+  context.translate(centerX, centerY);
+  context.rotate(element.angle || 0);
+  if (element.type === 'ellipse') {
+    context.beginPath();
+    context.ellipse(0, 0, width / 2, height / 2, 0, 0, Math.PI * 2);
+    context.fill();
+  } else if (element.type === 'diamond') {
+    context.beginPath();
+    context.moveTo(0, -height / 2);
+    context.lineTo(width / 2, 0);
+    context.lineTo(0, height / 2);
+    context.lineTo(-width / 2, 0);
+    context.closePath();
+    context.fill();
+  } else {
+    context.fillRect(-width / 2, -height / 2, width, height);
+  }
+  context.restore();
+};
+
 type WhiteboardMinimapProps = { api: ExcalidrawImperativeAPI };
 
 // Overview + click/drag navigation that Excalidraw lacks natively (tldraw had it built in).
@@ -112,13 +170,10 @@ export function WhiteboardMinimap({ api }: Readonly<WhiteboardMinimapProps>) {
 
       context.save();
       context.fillStyle = colors.element;
-      for (const element of elements) {
-        context.fillRect(
-          projectX(projection, element.x),
-          projectY(projection, element.y),
-          Math.max(1, element.width * projection.scale),
-          Math.max(1, element.height * projection.scale),
-        );
+      context.strokeStyle = colors.element;
+      context.lineWidth = 1;
+      for (const element of elements as readonly MinimapElement[]) {
+        drawElement(context, projection, element);
       }
       context.restore();
 

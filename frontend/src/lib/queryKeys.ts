@@ -55,8 +55,10 @@ export function isWorkspaceScopedKey(key: readonly unknown[]): boolean {
   // Migration scopes/mappings/jobs tied to a workspace (or a scope/job within it):
   // a string second segment is a workspaceId / scopeId / 'detail'; a null second
   // segment is the realm-wide admin-console listing, which is not workspace-scoped.
+  // The per-document 'docMappings' read is NOT workspace-scoped: a single doc's
+  // coda-mappings 403/404 must not drop the whole workspace session.
   if (key[0] === 'migrationScopes' || key[0] === 'migrationJobs') {
-    return typeof key[1] === 'string';
+    return typeof key[1] === 'string' && key[1] !== 'docMappings';
   }
   return (
     key[0] === 'workspaces' &&

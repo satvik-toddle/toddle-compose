@@ -4,8 +4,6 @@ import { getCommonBounds } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { useThemeStore } from '../../../stores/themeStore';
 
-const MINIMAP_WIDTH = 200;
-const MINIMAP_HEIGHT = 140;
 // Breathing room around the content/viewport union so nothing sits on the edge.
 const WORLD_PADDING_RATIO = 0.1;
 
@@ -127,7 +125,8 @@ export function WhiteboardMinimap({ api }: Readonly<WhiteboardMinimapProps>) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const projectionRef = useRef<Projection | null>(null);
-  const isPanningRef = useRef(false);
+  // Frozen at drag start so redraws (which refit the world) don't shift the mapping mid-drag.
+  const dragProjectionRef = useRef<Projection | null>(null);
   const scheduleDrawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -220,7 +219,7 @@ export function WhiteboardMinimap({ api }: Readonly<WhiteboardMinimapProps>) {
 
   // Centers the canvas viewport on the scene point under the pointer.
   const panToPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const projection = projectionRef.current;
+    const projection = dragProjectionRef.current;
     if (!projection) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const sceneX = (event.clientX - bounds.left - projection.offsetX) / projection.scale;
@@ -236,25 +235,24 @@ export function WhiteboardMinimap({ api }: Readonly<WhiteboardMinimapProps>) {
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!projectionRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    isPanningRef.current = true;
+    dragProjectionRef.current = projectionRef.current;
     panToPointer(event);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (isPanningRef.current) panToPointer(event);
+    if (dragProjectionRef.current) panToPointer(event);
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    isPanningRef.current = false;
+    dragProjectionRef.current = null;
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   return (
     <canvas
       ref={canvasRef}
-      width={MINIMAP_WIDTH}
-      height={MINIMAP_HEIGHT}
       className={styles.minimap}
       aria-label="Whiteboard minimap"
       onPointerDown={handlePointerDown}

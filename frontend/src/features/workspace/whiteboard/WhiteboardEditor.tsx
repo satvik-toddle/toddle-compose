@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { Excalidraw } from '@excalidraw/excalidraw';
+import { Excalidraw, FONT_FAMILY } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { ExcalidrawBinding } from 'y-excalidraw';
@@ -23,6 +23,10 @@ const styles = {
 
 // Hoisted so the memoized Excalidraw doesn't re-render on a fresh object identity.
 const UI_OPTIONS = { tools: { image: false } } as const;
+
+// Default new text to a clean sans (closest bundled font to Avenir Next) instead of
+// Excalidraw's hand-drawn default. Local UI state only — not part of the synced scene.
+const INITIAL_DATA = { appState: { currentItemFontFamily: FONT_FAMILY.Nunito } };
 
 const awarenessUser = (user: { name: string; color: string }) => ({
   name: user.name,
@@ -99,6 +103,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
       <div ref={containerRef} className={styles.canvas}>
         <Excalidraw
           excalidrawAPI={setApi}
+          initialData={INITIAL_DATA}
           onPointerUpdate={binding?.onPointerUpdate}
           theme={theme}
           viewModeEnabled={!canEdit}

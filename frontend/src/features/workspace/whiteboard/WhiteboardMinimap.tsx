@@ -1,0 +1,210 @@
+import { useEffect, useRef } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { getCommonBounds } from '@excalidraw/excalidraw';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
+import { useThemeStore } from '../../../stores/themeStore';
+
+const MINIMAP_WIDTH = 200;
+const MINIMAP_HEIGHT = 140;
+// Breathing room around the content/viewport union so nothing sits on the edge.
+const WORLD_PADDING_RATIO = 0.1;
+
+const styles = {
+  minimap:
+    'absolute top-3 right-3 z-10 h-[140px] w-[200px] cursor-pointer rounded-2 border border-secondary shadow-lg',
+};
+
+const MINIMAP_PALETTE = {
+  light: { surface: 'rgba(255, 255, 255, 0.92)', element: 'rgba(15, 23, 42, 0.35)', viewport: '#4465e9' },
+  dark: { surface: 'rgba(32, 33, 36, 0.92)', element: 'rgba(226, 232, 240, 0.45)', viewport: '#7c93f5' },
+};
+
+type Rect = { x: number; y: number; width: number; height: number };
+// Maps scene coordinates onto the minimap: minimapPx = scene * scale + offset.
+type Projection = { scale: number; offsetX: number; offsetY: number };
+type ExcalidrawAppState = ReturnType<ExcalidrawImperativeAPI['getAppState']>;
+
+const getViewportSceneRect = (appState: ExcalidrawAppState): Rect => {
+  const zoom = appState.zoom.value;
+  return {
+    x: -appState.scrollX,
+    y: -appState.scrollY,
+    width: appState.width / zoom,
+    height: appState.height / zoom,
+  };
+};
+
+const unionRect = (a: Rect, b: Rect): Rect => {
+  const minX = Math.min(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  const maxX = Math.max(a.x + a.width, b.x + b.width);
+  const maxY = Math.max(a.y + a.height, b.y + b.height);
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+};
+
+const padRect = (rect: Rect, ratio: number): Rect => {
+  const padX = rect.width * ratio;
+  const padY = rect.height * ratio;
+  return { x: rect.x - padX, y: rect.y - padY, width: rect.width + padX * 2, height: rect.height + padY * 2 };
+};
+
+// Fits the world into the minimap, centered, preserving aspect ratio.
+const createProjection = (world: Rect, viewWidth: number, viewHeight: number): Projection => {
+  const scale = Math.min(viewWidth / world.width, viewHeight / world.height);
+  const offsetX = (viewWidth - world.width * scale) / 2 - world.x * scale;
+  const offsetY = (viewHeight - world.height * scale) / 2 - world.y * scale;
+  return { scale, offsetX, offsetY };
+};
+
+const projectX = (projection: Projection, sceneX: number) => sceneX * projection.scale + projection.offsetX;
+const projectY = (projection: Projection, sceneY: number) => sceneY * projection.scale + projection.offsetY;
+
+type WhiteboardMinimapProps = { api: ExcalidrawImperativeAPI };
+
+// Overview + click/drag navigation that Excalidraw lacks natively (tldraw had it built in).
+export function WhiteboardMinimap({ api }: Readonly<WhiteboardMinimapProps>) {
+  const isDark = useThemeStore((s) => s.isDark);
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const projectionRef = useRef<Projection | null>(null);
+  const isPanningRef = useRef(false);
+  const scheduleDrawRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    let pendingFrame = 0;
+
+    const draw = () => {
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext('2d');
+      if (!canvas || !context) return;
+
+      const elements = api.getSceneElements();
+      const appState = api.getAppState();
+      const viewportRect = getViewportSceneRect(appState);
+
+      let world = viewportRect;
+      if (elements.length) {
+        const [minX, minY, maxX, maxY] = getCommonBounds(elements);
+        world = unionRect(world, { x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+      }
+      world = padRect(world, WORLD_PADDING_RATIO);
+      if (world.width <= 0 || world.height <= 0) return;
+
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const cssWidth = canvas.clientWidth;
+      const cssHeight = canvas.clientHeight;
+      const backingWidth = Math.round(cssWidth * devicePixelRatio);
+      const backingHeight = Math.round(cssHeight * devicePixelRatio);
+      if (canvas.width !== backingWidth) canvas.width = backingWidth;
+      if (canvas.height !== backingHeight) canvas.height = backingHeight;
+
+      const projection = createProjection(world, cssWidth, cssHeight);
+      projectionRef.current = projection;
+      const colors = isDarkRef.current ? MINIMAP_PALETTE.dark : MINIMAP_PALETTE.light;
+
+      context.save();
+      context.scale(devicePixelRatio, devicePixelRatio);
+
+      context.fillStyle = colors.surface;
+      context.fillRect(0, 0, cssWidth, cssHeight);
+
+      context.save();
+      context.fillStyle = colors.element;
+      for (const element of elements) {
+        context.fillRect(
+          projectX(projection, element.x),
+          projectY(projection, element.y),
+          Math.max(1, element.width * projection.scale),
+          Math.max(1, element.height * projection.scale),
+        );
+      }
+      context.restore();
+
+      context.save();
+      context.strokeStyle = colors.viewport;
+      context.fillStyle = `${colors.viewport}22`;
+      context.lineWidth = 1.5;
+      const viewportX = projectX(projection, viewportRect.x);
+      const viewportY = projectY(projection, viewportRect.y);
+      const viewportWidth = viewportRect.width * projection.scale;
+      const viewportHeight = viewportRect.height * projection.scale;
+      context.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
+      context.strokeRect(viewportX, viewportY, viewportWidth, viewportHeight);
+      context.restore();
+
+      context.restore();
+    };
+
+    // Coalesce bursts of changes (onChange fires on every pointer move) to one draw per frame.
+    const scheduleDraw = () => {
+      if (pendingFrame) return;
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = 0;
+        draw();
+      });
+    };
+    scheduleDrawRef.current = scheduleDraw;
+
+    scheduleDraw();
+    const unsubscribeChange = api.onChange(scheduleDraw);
+    const unsubscribeScroll = api.onScrollChange(scheduleDraw);
+
+    return () => {
+      if (pendingFrame) cancelAnimationFrame(pendingFrame);
+      unsubscribeChange();
+      unsubscribeScroll();
+    };
+  }, [api]);
+
+  // Repaint on theme flip (colors come from the isDark ref inside draw).
+  useEffect(() => {
+    scheduleDrawRef.current();
+  }, [isDark]);
+
+  // Centers the canvas viewport on the scene point under the pointer.
+  const panToPointer = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const projection = projectionRef.current;
+    if (!projection) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const sceneX = (event.clientX - bounds.left - projection.offsetX) / projection.scale;
+    const sceneY = (event.clientY - bounds.top - projection.offsetY) / projection.scale;
+    const appState = api.getAppState();
+    const zoom = appState.zoom.value;
+    api.updateScene({
+      appState: {
+        scrollX: appState.width / zoom / 2 - sceneX,
+        scrollY: appState.height / zoom / 2 - sceneY,
+      },
+    });
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isPanningRef.current = true;
+    panToPointer(event);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (isPanningRef.current) panToPointer(event);
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    isPanningRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={MINIMAP_WIDTH}
+      height={MINIMAP_HEIGHT}
+      className={styles.minimap}
+      aria-label="Whiteboard minimap"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    />
+  );
+}

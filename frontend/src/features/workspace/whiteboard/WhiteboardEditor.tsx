@@ -10,6 +10,7 @@ import { useThemeStore } from '../../../stores/themeStore';
 import { RTC_WS_URL } from '../../../lib/env';
 import { RtcGate, type RtcSession } from '../RtcGate';
 import { attachTokenRecovery } from '../rtcReconnect';
+import { WhiteboardMinimap } from './WhiteboardMinimap';
 
 // Yjs shared-type keys fixed by y-excalidraw's data model.
 const ELEMENTS_KEY = 'elements';
@@ -17,7 +18,7 @@ const ASSETS_KEY = 'assets';
 
 const styles = {
   shell: 'flex-1 min-h-0 flex flex-col p-6',
-  canvas: 'flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
+  canvas: 'relative flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
 };
 
 // Hoisted so the memoized Excalidraw doesn't re-render on a fresh object identity.
@@ -103,6 +104,7 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
           viewModeEnabled={!canEdit}
           UIOptions={UI_OPTIONS}
         />
+        {api && <WhiteboardMinimap api={api} />}
       </div>
     </div>
   );

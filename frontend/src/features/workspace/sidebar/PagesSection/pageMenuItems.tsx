@@ -18,6 +18,7 @@ export interface PageMenuOption {
   label?: string;
   icon?: ReactElement;
   subText?: string;
+  suffix?: ReactElement | string; // right-aligned trailing content (e.g. a toggle switch)
   isDivider?: boolean;
   isDestructive?: boolean;
   isSubMenu?: boolean;

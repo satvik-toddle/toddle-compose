@@ -28,6 +28,7 @@ const SUMMARY_SELECT = {
   workspaceId: true,
   folderId: true,
   parentId: true,
+  fullWidth: true,
   createdAt: true,
   updatedAt: true,
   owner: { select: OWNER_SELECT },
@@ -664,13 +665,22 @@ export class DocumentsService {
       : { ...base, lexicalJson: p.lexicalJson, plainText: p.plainText };
   }
 
-  // Content/metadata edit — any workspace EDITor (or the creator).
-  async rename(userId: string, id: string, title: string) {
+  // Metadata edit (title and/or layout) — any workspace EDITor (or the creator).
+  async update(
+    userId: string,
+    id: string,
+    input: { title?: string; fullWidth?: boolean }
+  ) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
     const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
-        data: { title },
+        data: {
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.fullWidth !== undefined
+            ? { fullWidth: input.fullWidth }
+            : {}),
+        },
         select: this.summarySelect(),
       })
     );

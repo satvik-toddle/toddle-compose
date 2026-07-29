@@ -279,6 +279,9 @@ model Document {
   permissions DocumentPermission[]
   // At most one live share link per doc (cascade on doc delete).
   shareLink   DocumentShareLink?
+  // Persisted per-page layout: DOC pages honor this to render full-width vs the centered
+  // readable column. SHEET/WHITEBOARD are always full-width and ignore it.
+  fullWidth   Boolean      @default(false) @map("full_width")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   // Collaborative content (yjsState / update log) lives in the SEPARATE

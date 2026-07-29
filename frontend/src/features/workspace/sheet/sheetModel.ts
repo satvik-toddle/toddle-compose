@@ -312,6 +312,14 @@ export function readSheetCell(yRows: SheetRows, rowId: string, colId: string): s
 
 const makeOptionSetId = (): string => crypto.randomUUID();
 
+// New sets start with two placeholder options, mirroring Google Sheets.
+const DEFAULT_OPTION_LABELS = ['Option 1', 'Option 2'] as const;
+
+const makeDefaultOptionSet = (): SheetOptionSet => ({
+  options: DEFAULT_OPTION_LABELS.map((label) => ({ id: crypto.randomUUID(), label })),
+  isMulti: false,
+});
+
 const rowsById = (yRows: SheetRows): Map<string, Y.Map<unknown>> =>
   new Map(yRows.toArray().map((row) => [row.get(ID_KEY) as string, row]));
 
@@ -387,7 +395,7 @@ export function setSheetCellType(
       // Reuse the range's common set so re-picking "Dropdown"/"Tag" keeps existing options.
       const setId = sharedOptionSetId(yRows, cells) ?? makeOptionSetId();
       if (!yOptionSets.has(setId)) {
-        yOptionSets.set(setId, { options: [], isMulti: false } satisfies SheetOptionSet);
+        yOptionSets.set(setId, makeDefaultOptionSet());
       }
       for (const { rowId, colId } of cells) {
         rows.get(rowId)?.set(cellMetaKey(colId), {

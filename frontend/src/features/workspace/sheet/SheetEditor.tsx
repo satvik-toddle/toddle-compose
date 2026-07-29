@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Y from 'yjs';
+import type { WebsocketProvider } from 'y-websocket';
 import { DataGrid } from '@toddle-edu/ds-data-grid';
 // The grid's styles (canvas chrome, inline editor, scrollbars).
 import '@toddle-edu/ds-data-grid/dist/main.css';
@@ -14,16 +15,21 @@ import { Tooltip } from '@toddle-edu/ds-web';
 import { RtcGate } from '../RtcGate';
 import { connectRtcProvider, useRtcParams } from '../useRtcProvider';
 import { cn } from '../../../lib/cn';
+import { useAuthStore } from '../../../stores/authStore';
 import {
   COL_TYPE_KEY,
   OPTION_SETS_KEY,
+  PRESENCE_KEY,
   ROWS_KEY,
   appendSheetColumn,
   appendSheetRow,
+  applyPresenceToRows,
   applySheetEdits,
+  buildPresenceByCell,
   buildSheetColumns,
   formatSelectionRange,
   isOptionSetCellType,
+  makePresenceState,
   saveDropdownOptions,
   setSheetCellType,
   setSheetDateTimeVariant,
@@ -38,6 +44,7 @@ import {
   type SheetColTypes,
   type SheetOptionSet,
   type SheetOptionSets,
+  type SheetPresenceByCell,
   type SheetRows,
 } from './sheetModel';
 import { createSheetCellContextMenu } from './sheetContextMenu';
@@ -91,6 +98,17 @@ function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridPr
   const { isOpen: isPanelOpen, open: openPanel, close: closePanel } = useSheetPanel(canEdit);
   const [selectedCells, setSelectedCells] = useState<DataGridSelectedCell[]>([]);
   const selectionLabel = useMemo(() => formatSelectionRange(selectedCells), [selectedCells]);
+
+  const user = useAuthStore((state) => state.user);
+  // In state (not a ref) so the publish effect re-runs when a reconnect swaps providers.
+  const [awareness, setAwareness] = useState<WebsocketProvider['awareness'] | null>(null);
+  const [presenceByCell, setPresenceByCell] = useState<SheetPresenceByCell>(() => new Map());
+
+  // Rows as rendered: remote collaborators' selections overlaid as cell notifications.
+  const displayRows = useMemo(
+    () => applyPresenceToRows(rows, columnIds, presenceByCell),
+    [rows, columnIds, presenceByCell],
+  );
 
   // The shared type of the selected cells, driving the panel's cell-type dropdown.
   const selectedCellType = useMemo((): SheetCellType | 'mixed' | null => {
@@ -209,6 +227,15 @@ function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridPr
 
     const { provider, teardown } = connectRtcProvider(docId, ydoc, rtc);
 
+    // Presence: expose awareness for the publish effect and mirror remote states in.
+    setAwareness(provider.awareness);
+    const onAwarenessChange = () => {
+      setPresenceByCell(
+        buildPresenceByCell(provider.awareness.getStates(), provider.awareness.clientID),
+      );
+    };
+    provider.awareness.on('change', onAwarenessChange);
+
     // Seed the default grid once — only after the server's initial state confirms the
     // sheet is genuinely empty, so an existing doc's rows are never duplicated.
     const onSync = (isSynced: boolean) => {
@@ -223,6 +250,9 @@ function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridPr
       yRows.unobserveDeep(refresh);
       yColTypes.unobserve(refresh);
       yOptionSets.unobserve(refresh);
+      provider.awareness.off('change', onAwarenessChange);
+      setAwareness(null);
+      setPresenceByCell(new Map());
       provider.off('sync', onSync);
       teardown();
       ydoc.destroy();
@@ -232,6 +262,16 @@ function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridPr
       optionSetsRef.current = null;
     };
   }, [docId, canEdit, openPanel]);
+
+  // Broadcast our identity + selected cells over awareness so other clients can mark
+  // them; the provider clears our state for everyone on disconnect.
+  useEffect(() => {
+    if (!awareness || !user) return;
+    awareness.setLocalStateField(
+      PRESENCE_KEY,
+      makePresenceState({ name: user.name, color: user.color }, selectedCellRefs),
+    );
+  }, [awareness, user, selectedCellRefs]);
 
   // Focus the appended row/column cell once it lands over Yjs. Deferred a tick:
   // the grid's ref API resolves colIds against internal state synced one render
@@ -263,7 +303,7 @@ function SheetGrid({ docId, token, canEdit, refetchToken }: Readonly<SheetGridPr
               <DataGrid
                 ref={gridRef}
                 headers={headers}
-                data={rows}
+                data={displayRows}
                 isViewMode={!canEdit}
                 onCellEdit={onCellEdit}
                 onCellSelectionChange={setSelectedCells}

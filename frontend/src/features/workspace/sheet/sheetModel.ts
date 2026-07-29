@@ -3,6 +3,7 @@ import moment from 'moment';
 import type {
   DataGridCell,
   DataGridCellEdit,
+  DataGridCellNotification,
   DataGridContextMenu,
   DataGridHeader,
   DataGridRow,
@@ -308,6 +309,78 @@ export function readSheetRows(
 // A single cell's content as text; an absent key reads as empty.
 export function readSheetCell(yRows: SheetRows, rowId: string, colId: string): string {
   return toDisplayText(findRowMap(yRows, rowId)?.get(colId));
+}
+
+// Live-presence payload each client publishes over Yjs awareness (ephemeral — the
+// provider removes it for everyone on disconnect): who they are + their selected cells.
+export const PRESENCE_KEY = 'presence';
+
+export type SheetPresenceUser = { name: string; color: string };
+export type SheetPresenceState = { user: SheetPresenceUser; cells: SheetCellRef[] };
+// Remote collaborators per cell, keyed by `${rowId}:${colId}`.
+export type SheetPresenceByCell = Map<string, SheetPresenceUser[]>;
+
+// Cap one client's broadcast so a select-all doesn't flood every peer with a huge
+// awareness payload; cells beyond the cap simply show no marker.
+const MAX_PRESENCE_CELLS = 200;
+
+export function makePresenceState(
+  user: SheetPresenceUser,
+  cells: readonly SheetCellRef[],
+): SheetPresenceState {
+  return { user, cells: cells.slice(0, MAX_PRESENCE_CELLS) };
+}
+
+const presenceCellKey = (rowId: string, colId: string): string => `${rowId}:${colId}`;
+
+// Fold every remote client's published selection into cell -> collaborators, in
+// clientId order so a shared cell's rendered color stays stable across updates.
+export function buildPresenceByCell(
+  states: ReadonlyMap<number, Record<string, unknown>>,
+  localClientId: number,
+): SheetPresenceByCell {
+  const byCell: SheetPresenceByCell = new Map();
+  const clientIds = [...states.keys()].sort((left, right) => left - right);
+  for (const clientId of clientIds) {
+    if (clientId === localClientId) continue;
+    const presence = states.get(clientId)?.[PRESENCE_KEY] as SheetPresenceState | undefined;
+    if (!presence?.user) continue;
+    for (const { rowId, colId } of presence.cells ?? []) {
+      const key = presenceCellKey(rowId, colId);
+      const collaborators = byCell.get(key) ?? [];
+      collaborators.push(presence.user);
+      byCell.set(key, collaborators);
+    }
+  }
+  return byCell;
+}
+
+// The grid's notification slot is single-valued, so collaborators on the same cell
+// merge: the first client's color, every name in the tooltip.
+const toPresenceNotification = (collaborators: SheetPresenceUser[]): DataGridCellNotification => ({
+  isVisible: true,
+  color: collaborators[0].color,
+  tooltip: collaborators.map((collaborator) => collaborator.name).join(', '),
+});
+
+// Overlay remote selections onto built grid rows as corner-triangle notifications.
+// Rows without presence keep their identity so the grid can skip re-rendering them.
+export function applyPresenceToRows(
+  rows: DataGridRow[],
+  columnIds: string[],
+  presenceByCell: SheetPresenceByCell,
+): DataGridRow[] {
+  if (presenceByCell.size === 0) return rows;
+  return rows.map((row) => {
+    let hasPresence = false;
+    const columns = row.columns.map((cell, index) => {
+      const collaborators = presenceByCell.get(presenceCellKey(row.rowId, columnIds[index]));
+      if (!collaborators) return cell;
+      hasPresence = true;
+      return { ...cell, notification: toPresenceNotification(collaborators) };
+    });
+    return hasPresence ? { ...row, columns } : row;
+  });
 }
 
 const makeOptionSetId = (): string => crypto.randomUUID();

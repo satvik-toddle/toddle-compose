@@ -60,6 +60,11 @@ type MoveDocumentInput = {
   parentId?: string | null;
 };
 
+type UpdateDocumentInput = {
+  title?: string;
+  fullWidth?: boolean;
+};
+
 type Breadcrumb = { id: string; title: string; icon: string | null };
 
 // `children` is populated only for nodes on the expanded spine; off-path siblings get null + childCount.
@@ -666,11 +671,7 @@ export class DocumentsService {
   }
 
   // Metadata edit (title and/or layout) — any workspace EDITor (or the creator).
-  async update(
-    userId: string,
-    id: string,
-    input: { title?: string; fullWidth?: boolean }
-  ) {
+  async update(userId: string, id: string, input: UpdateDocumentInput) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
     const row = await this.writeThrough(
       this.prisma.document.update({

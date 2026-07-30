@@ -70,11 +70,19 @@ declare module '@toddle-edu/ds-data-grid' {
     containerStyles?: CSSProperties;
   }
 
+  // Colored triangle on the cell's top-right corner, with an optional hover tooltip.
+  export interface DataGridCellNotification {
+    isVisible: boolean;
+    color: string;
+    tooltip?: string;
+  }
+
   export interface DataGridCell {
     cellType: DataGridCellType;
     value: unknown;
     isEditable?: boolean;
     contextMenu?: DataGridContextMenu;
+    notification?: DataGridCellNotification;
     [key: string]: unknown;
   }
 

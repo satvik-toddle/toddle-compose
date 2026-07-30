@@ -1,4 +1,5 @@
 import { Outlet, useParams } from 'react-router-dom';
+import { cn } from '../../lib/cn';
 import { PageLoader } from '../../components/Loader';
 import { WorkspaceSidebar } from './sidebar';
 import { WorkspaceTopbar } from './topbar';
@@ -6,6 +7,8 @@ import { useRealm, useWorkspace } from '../../hooks/queries';
 import { useWorkspaceEvents } from '../../hooks/useWorkspaceEvents';
 import { effectiveWorkspaceRole } from '../../lib/roles';
 import { useSidebarCollapse } from './useSidebarCollapse';
+import { useFullScreenMode } from './useFullScreenMode';
+import { FullScreenControls } from './FullScreenControls';
 import type { WorkspaceCtx } from './context';
 
 // Re-exported so existing callers can keep importing from './WorkspaceLayout'.
@@ -25,6 +28,8 @@ export function WorkspaceLayout() {
   // Live sidebar: refetch the doc list when another member changes a doc.
   useWorkspaceEvents(workspaceId);
   const { collapsed, toggle } = useSidebarCollapse();
+  // Sole owner of the full-screen hotkeys (Esc / Cmd+Shift+F) — see useFullScreenMode.
+  const fullScreen = useFullScreenMode({ bindHotkeys: true });
 
   if (isLoading || !ws || !workspaceId) {
     return (
@@ -47,9 +52,12 @@ export function WorkspaceLayout() {
   return (
     <div className="rbac">
       <div className={styles.shell}>
-        <WorkspaceSidebar ctx={ctx} collapsed={collapsed} />
-        <div className={styles.content}>
-          <WorkspaceTopbar ctx={ctx} sidebarCollapsed={collapsed} onToggleSidebar={toggle} />
+        {!fullScreen.active && <WorkspaceSidebar ctx={ctx} collapsed={collapsed} />}
+        <div className={cn(styles.content, fullScreen.active && 'relative')}>
+          {!fullScreen.active && (
+            <WorkspaceTopbar ctx={ctx} sidebarCollapsed={collapsed} onToggleSidebar={toggle} />
+          )}
+          {fullScreen.active && <FullScreenControls ctx={ctx} />}
           <Outlet context={ctx} />
         </div>
       </div>

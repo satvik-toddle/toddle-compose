@@ -54,6 +54,9 @@ export const documentsApi = {
       ...(b.type ? { type: b.type } : {}),
     }),
   rename: (id: string, title: string) => http.patch<DocumentDto>(`/documents/${id}`, { title }),
+  // Persist the DOC full-width layout toggle (same PATCH as rename).
+  setFullWidth: (id: string, fullWidth: boolean) =>
+    http.patch<DocumentDto>(`/documents/${id}`, { fullWidth }),
   // Short-lived RTC token for real-time collaboration (editor|viewer role).
   rtcToken: (id: string) =>
     http.post<{ token: string; docId: string; role: 'editor' | 'viewer' }>(

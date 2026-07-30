@@ -23,8 +23,8 @@ import {
   ListDocumentsDto,
   ListStarredDocumentsDto,
   MoveDocumentDto,
-  RenameDocumentDto,
   SearchDocumentsDto,
+  UpdateDocumentDto,
   UpdateDocumentPermissionDto,
   UpsertShareLinkDto,
 } from "./dto";
@@ -158,12 +158,12 @@ export class DocumentsController {
   }
 
   @Patch(":id")
-  rename(
+  update(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
-    @Body() dto: RenameDocumentDto
+    @Body() dto: UpdateDocumentDto
   ) {
-    return this.documents.rename(user.id, id, dto.title);
+    return this.documents.update(user.id, id, dto);
   }
 
   @Patch(":id/move")

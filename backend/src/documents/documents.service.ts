@@ -28,6 +28,7 @@ const SUMMARY_SELECT = {
   workspaceId: true,
   folderId: true,
   parentId: true,
+  fullWidth: true,
   createdAt: true,
   updatedAt: true,
   owner: { select: OWNER_SELECT },
@@ -57,6 +58,11 @@ type MoveDocumentInput = {
   folderId?: string | null;
   // Re-parent under another document (omit/null → detach). Wins over folderId.
   parentId?: string | null;
+};
+
+type UpdateDocumentInput = {
+  title?: string;
+  fullWidth?: boolean;
 };
 
 type Breadcrumb = { id: string; title: string; icon: string | null };
@@ -664,13 +670,20 @@ export class DocumentsService {
       : { ...base, lexicalJson: p.lexicalJson, plainText: p.plainText };
   }
 
-  // Content/metadata edit — any workspace EDITor (or the creator).
-  async rename(userId: string, id: string, title: string) {
+  // Metadata edit (title and/or layout) — any workspace EDITor (or the creator).
+  async update(userId: string, id: string, input: UpdateDocumentInput) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const data = {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.fullWidth !== undefined ? { fullWidth: input.fullWidth } : {}),
+    };
+    // Nothing to patch: skip the write (and its updatedAt bump + event) and return the
+    // current row — requireDocWrite already loaded it in summarySelect shape.
+    if (Object.keys(data).length === 0) return doc;
     const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
-        data: { title },
+        data,
         select: this.summarySelect(),
       })
     );

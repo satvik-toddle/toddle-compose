@@ -1,16 +1,21 @@
-import { Button, Dropdown, DropdownMenu, IconButton } from '@toddle-edu/ds-web';
+import { Button, Dropdown, DropdownMenu, IconButton, ToggleSwitch } from '@toddle-edu/ds-web';
 import {
   AddOutlined,
   ClockRecentsOutlined,
+  CornersInOutlined,
+  CornersOutOutlined,
   DeleteOutlined,
   DotsHorizontalOutlined,
   LockOutlined,
+  PageFoldLandscapeOutlined,
 } from '@toddle-edu/ds-icons';
 import { useUiStore } from '../../../stores/uiStore';
-import { wsAtLeast } from '../../../lib/roles';
+import { maxWsRole, wsAtLeast } from '../../../lib/roles';
+import { useSetDocFullWidth } from '../../../hooks/usePages';
 import type { DocumentDto, User } from '../../../types/api';
 import type { WorkspaceCtx } from '../context';
 import { useHistoryMode } from '../history';
+import { useFullScreenMode } from '../useFullScreenMode';
 import { CreatePageDropdown } from '../CreatePageDropdown';
 import {
   findPageMenuOption,
@@ -23,6 +28,13 @@ const SUB_PAGE_KEY = 'subpage';
 const PERMISSIONS_KEY = 'permissions';
 const DELETE_KEY = 'delete';
 const HISTORY_KEY = 'history';
+const FULL_WIDTH_KEY = 'fullWidth';
+const FULL_SCREEN_KEY = 'fullScreen';
+
+// Full-screen shortcut hint shown in the menu; platform-aware so Mac shows ⌘ not Ctrl.
+const IS_MAC =
+  typeof navigator !== 'undefined' && /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent);
+const FULL_SCREEN_HINT = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
 
 export function DocActions({
   ctx,
@@ -31,10 +43,15 @@ export function DocActions({
 }: Readonly<{ ctx: WorkspaceCtx; doc?: DocumentDto; user: User }>) {
   const openModal = useUiStore((state) => state.openModal);
   const history = useHistoryMode();
+  const fullScreen = useFullScreenMode();
+  const setFullWidth = useSetDocFullWidth();
   const { newPage, addSubPage, isPending } = usePageActions(ctx.workspaceId);
   const { workspaceId, isAdmin, role } = ctx;
   const canCreate = wsAtLeast(role, 'EDIT');
   const canManage = !!doc && (isAdmin || doc.owner.id === user.id || doc.myRole === 'ADMIN');
+  // Effective write right (ws role OR per-doc grant) — mirrors PageView; gates the persisted
+  // full-width toggle. Full screen is a pure view and stays ungated.
+  const canEditDoc = !!doc && wsAtLeast(maxWsRole(role, doc.myRole ?? null), 'EDIT');
 
   if (!doc) {
     return (
@@ -73,6 +90,11 @@ export function DocActions({
   // Version history is only meaningful for DOC pages (SHEET has no lexical
   // projection to render read-only yet).
   const showHistory = doc.type === 'DOC';
+  // Full width is a DOC-only layout choice (sheets/whiteboards are always full-width);
+  // it persists, so it needs write rights.
+  const showFullWidth = doc.type === 'DOC' && canEditDoc;
+  const toggleFullWidth = () =>
+    setFullWidth.mutate({ workspaceId, id: doc.id, fullWidth: !doc.fullWidth });
 
   // Same option shape + click dispatch as the sidebar's page menu: each leaf carries its
   // own onSelect, and the create action reuses the shared Doc/Sheet submenu builder.
@@ -109,6 +131,41 @@ export function DocActions({
           },
         ]
       : []),
+    // Page layout: persisted full-width toggle (DOC, editors) + ephemeral full-screen (all, any viewer).
+    ...(showFullWidth
+      ? [
+          {
+            key: FULL_WIDTH_KEY,
+            label: 'Full width',
+            icon: <PageFoldLandscapeOutlined size="xxx-small" variant="subtle" />,
+            // shouldStopPropagation keeps the click off the menu item, so toggling here doesn't
+            // dismiss the menu (the DS menu closes itself on any item click). onChange drives the
+            // switch; a click on the row label still toggles via onSelect (and closes, as usual).
+            suffix: (
+              <ToggleSwitch
+                dsVersion="2.0"
+                size="medium"
+                checked={doc.fullWidth}
+                onChange={toggleFullWidth}
+                shouldStopPropagation
+                aria-label="Full width"
+              />
+            ),
+            onSelect: toggleFullWidth,
+          },
+        ]
+      : []),
+    {
+      key: FULL_SCREEN_KEY,
+      label: fullScreen.active ? 'Exit full screen' : 'Full screen',
+      icon: fullScreen.active ? (
+        <CornersInOutlined size="xxx-small" variant="subtle" />
+      ) : (
+        <CornersOutOutlined size="xxx-small" variant="subtle" />
+      ),
+      suffix: FULL_SCREEN_HINT,
+      onSelect: () => (fullScreen.active ? fullScreen.exit() : fullScreen.enter()),
+    },
     // Divider before Delete; Share (also canManage) always sits above it when Delete renders.
     ...(canManage ? [{ key: `${DELETE_KEY}__divider`, isDivider: true }] : []),
     ...(canManage
@@ -125,30 +182,27 @@ export function DocActions({
   ];
 
   return (
-    <>
-      {(canCreate || canManage || showHistory) && (
-        <Dropdown
-          trigger={['click']}
-          placement="bottomRight"
-          overlay={
-            <DropdownMenu
-              dsVersion="2.0"
-              options={menuOptions}
-              onClick={(option: { key: string }) =>
-                findPageMenuOption(menuOptions, option.key)?.onSelect?.()
-              }
-            />
+    // Always renders: even a pure viewer gets the Full screen action.
+    <Dropdown
+      trigger={['click']}
+      placement="bottomRight"
+      overlay={
+        <DropdownMenu
+          dsVersion="2.0"
+          options={menuOptions}
+          onClick={(option: { key: string }) =>
+            findPageMenuOption(menuOptions, option.key)?.onSelect?.()
           }
-        >
-          <IconButton
-            dsVersion="2.0"
-            variant="neutral"
-            type="plain"
-            icon={<DotsHorizontalOutlined />}
-            aria-label="Page actions"
-          />
-        </Dropdown>
-      )}
-    </>
+        />
+      }
+    >
+      <IconButton
+        dsVersion="2.0"
+        variant="neutral"
+        type="plain"
+        icon={<DotsHorizontalOutlined />}
+        aria-label="Page actions"
+      />
+    </Dropdown>
   );
 }

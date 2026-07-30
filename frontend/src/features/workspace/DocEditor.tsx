@@ -30,6 +30,14 @@ const DOC_STYLES = {
   contentBgProvider: { minHeight: '100%', padding: `0 ${DOC_SIDE_PADDING}px 80px`, background: 'var(--panel-bg)' },
 };
 
+// Full-width doc page (page setting on): fills the pane, same generous side padding as the
+// centered column — only the 900px cap is dropped, so text aligns with the full-width title.
+const FULL_WIDTH_STYLES = {
+  scrollableContainer: { overflow: 'visible', maxHeight: 'none', background: 'var(--panel-bg)' },
+  anchorElement: { width: '100%', maxWidth: '100%' },
+  contentBgProvider: { minHeight: '100%', padding: `0 ${DOC_SIDE_PADDING}px 80px`, background: 'var(--panel-bg)' },
+};
+
 // Search preview pane: full-width in the narrow pane with tight 16px side padding.
 const PREVIEW_STYLES = {
   scrollableContainer: { height: '100%', background: 'var(--panel-bg)' },
@@ -110,6 +118,7 @@ export function DocEditor({
   awarenessColor,
   viewOnly: forceViewOnly,
   preview = false,
+  fullWidth = false,
 }: {
   docId: string;
   canEdit?: boolean;
@@ -118,6 +127,8 @@ export function DocEditor({
   viewOnly?: boolean;
   // Compact layout for the search preview pane (full-width, tight padding) vs the 900px doc page.
   preview?: boolean;
+  // Page setting: drop the centered 900px column and let the editor fill the page width.
+  fullWidth?: boolean;
   // Identity minted into a share-link RTC token (random guest name for logged-out viewers); takes precedence over the auth-store identity.
   awarenessName?: string;
   awarenessColor?: string;
@@ -199,9 +210,10 @@ export function DocEditor({
         }
         config={EDITOR_CONFIG}
         minHeight={0}
-        // 900px readable column on the full doc page; full-width (100%) in the narrow preview pane.
-        width={preview ? '100%' : DOC_COLUMN_WIDTH}
-        styles={preview ? PREVIEW_STYLES : DOC_STYLES}
+        // 900px readable column by default; full width (100%) for the preview pane and when the
+        // page's full-width setting is on.
+        width={preview || fullWidth ? '100%' : DOC_COLUMN_WIDTH}
+        styles={preview ? PREVIEW_STYLES : fullWidth ? FULL_WIDTH_STYLES : DOC_STYLES}
       />
     </div>
   );

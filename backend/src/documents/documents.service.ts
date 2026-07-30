@@ -673,15 +673,17 @@ export class DocumentsService {
   // Metadata edit (title and/or layout) — any workspace EDITor (or the creator).
   async update(userId: string, id: string, input: UpdateDocumentInput) {
     const doc = await this.requireDocWrite(userId, id, "EDIT");
+    const data = {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.fullWidth !== undefined ? { fullWidth: input.fullWidth } : {}),
+    };
+    // Nothing to patch: skip the write (and its updatedAt bump + event) and return the
+    // current row — requireDocWrite already loaded it in summarySelect shape.
+    if (Object.keys(data).length === 0) return doc;
     const row = await this.writeThrough(
       this.prisma.document.update({
         where: { id },
-        data: {
-          ...(input.title !== undefined ? { title: input.title } : {}),
-          ...(input.fullWidth !== undefined
-            ? { fullWidth: input.fullWidth }
-            : {}),
-        },
+        data,
         select: this.summarySelect(),
       })
     );

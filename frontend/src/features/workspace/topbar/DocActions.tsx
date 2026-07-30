@@ -31,6 +31,11 @@ const HISTORY_KEY = 'history';
 const FULL_WIDTH_KEY = 'fullWidth';
 const FULL_SCREEN_KEY = 'fullScreen';
 
+// Full-screen shortcut hint shown in the menu; platform-aware so Mac shows ⌘ not Ctrl.
+const IS_MAC =
+  typeof navigator !== 'undefined' && /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent);
+const FULL_SCREEN_HINT = IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
+
 export function DocActions({
   ctx,
   doc,
@@ -158,6 +163,7 @@ export function DocActions({
       ) : (
         <CornersOutOutlined size="xxx-small" variant="subtle" />
       ),
+      suffix: FULL_SCREEN_HINT,
       onSelect: () => (fullScreen.active ? fullScreen.exit() : fullScreen.enter()),
     },
     // Divider before Delete; Share (also canManage) always sits above it when Delete renders.

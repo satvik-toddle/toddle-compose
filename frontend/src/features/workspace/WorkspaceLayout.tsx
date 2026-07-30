@@ -28,7 +28,8 @@ export function WorkspaceLayout() {
   // Live sidebar: refetch the doc list when another member changes a doc.
   useWorkspaceEvents(workspaceId);
   const { collapsed, toggle } = useSidebarCollapse();
-  const fullScreen = useFullScreenMode();
+  // Sole owner of the full-screen hotkeys (Esc / Cmd+Shift+F) — see useFullScreenMode.
+  const fullScreen = useFullScreenMode({ bindHotkeys: true });
 
   if (isLoading || !ws || !workspaceId) {
     return (

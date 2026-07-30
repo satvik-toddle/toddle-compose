@@ -1,6 +1,4 @@
 import { Outlet, useParams } from 'react-router-dom';
-import { IconButton } from '@toddle-edu/ds-web';
-import { CornersInOutlined } from '@toddle-edu/ds-icons';
 import { cn } from '../../lib/cn';
 import { PageLoader } from '../../components/Loader';
 import { WorkspaceSidebar } from './sidebar';
@@ -10,6 +8,7 @@ import { useWorkspaceEvents } from '../../hooks/useWorkspaceEvents';
 import { effectiveWorkspaceRole } from '../../lib/roles';
 import { useSidebarCollapse } from './useSidebarCollapse';
 import { useFullScreenMode } from './useFullScreenMode';
+import { FullScreenControls } from './FullScreenControls';
 import type { WorkspaceCtx } from './context';
 
 // Re-exported so existing callers can keep importing from './WorkspaceLayout'.
@@ -20,8 +19,6 @@ const styles = {
   shell: 'flex min-h-0 flex-1 overflow-hidden',
   // min-w-0 + overflow-hidden so wide editors scroll internally instead of growing the page.
   content: 'flex min-w-0 flex-1 flex-col overflow-hidden',
-  // Floating exit affordance shown in full-screen (topbar is hidden, so this is the way back).
-  exitFullScreen: 'absolute right-3 top-3 z-50',
 };
 
 export function WorkspaceLayout() {
@@ -59,18 +56,7 @@ export function WorkspaceLayout() {
           {!fullScreen.active && (
             <WorkspaceTopbar ctx={ctx} sidebarCollapsed={collapsed} onToggleSidebar={toggle} />
           )}
-          {fullScreen.active && (
-            <div className={styles.exitFullScreen}>
-              <IconButton
-                dsVersion="2.0"
-                variant="neutral"
-                type="fill"
-                icon={<CornersInOutlined />}
-                aria-label="Exit full screen (Esc)"
-                onClick={fullScreen.exit}
-              />
-            </div>
-          )}
+          {fullScreen.active && <FullScreenControls ctx={ctx} />}
           <Outlet context={ctx} />
         </div>
       </div>

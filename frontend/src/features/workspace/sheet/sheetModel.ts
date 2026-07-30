@@ -212,6 +212,13 @@ const toDisplayText = (stored: unknown): string => {
   return typeof stored === 'object' ? JSON.stringify(stored) : String(stored);
 };
 
+// A number cell's stored value as a finite number; null when empty or non-numeric.
+const toNumericValue = (stored: unknown): number | null => {
+  if (stored == null || stored === '') return null;
+  const numeric = typeof stored === 'number' ? stored : Number(stored);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
 // A dropdown/tag cell stores selected option ids; resolve them against the cell's set
 // (ids whose option was deleted drop out silently).
 function toOptionSetCell(
@@ -242,11 +249,8 @@ function toGridCell(
 ): DataGridCell {
   const type = meta?.type ?? 'text';
   switch (type) {
-    case 'number': {
-      const numeric = typeof stored === 'number' ? stored : Number(stored);
-      const hasNumericValue = stored != null && stored !== '' && Number.isFinite(numeric);
-      return { cellType: 'number', value: hasNumericValue ? numeric : '' };
-    }
+    case 'number':
+      return { cellType: 'number', value: toNumericValue(stored) ?? '' };
     case 'checkbox':
       return {
         cellType: 'checkbox',
@@ -384,14 +388,38 @@ export function applyPresenceToRows(
 }
 
 const makeOptionSetId = (): string => crypto.randomUUID();
+const makeOptionId = (): string => crypto.randomUUID();
 
-// New sets start with two placeholder options, mirroring Google Sheets.
+// A new set seeded from cells that contribute no value falls back to two placeholder
+// options, mirroring Google Sheets.
 const DEFAULT_OPTION_LABELS = ['Option 1', 'Option 2'] as const;
 
 const makeDefaultOptionSet = (): SheetOptionSet => ({
-  options: DEFAULT_OPTION_LABELS.map((label) => ({ id: crypto.randomUUID(), label })),
+  options: DEFAULT_OPTION_LABELS.map((label) => ({ id: makeOptionId(), label })),
   isMulti: false,
 });
+
+// The option a cell contributes when converted to dropdown/tag, mirroring Google
+// Sheets: text/number cells contribute their displayed value, boolean cells
+// (checkbox/toggle/radio) contribute their state as 'true'/'false'; empty cells and
+// the remaining types contribute nothing.
+function conversionSeedLabel(meta: SheetCellMeta | undefined, stored: unknown): string | null {
+  switch (meta?.type ?? 'text') {
+    case 'text':
+      return toDisplayText(stored) || null;
+    case 'number': {
+      const numeric = toNumericValue(stored);
+      return numeric == null ? null : String(numeric);
+    }
+    case 'checkbox':
+      return stored === 'checked' ? 'TRUE' : 'FALSE';
+    case 'toggle':
+    case 'radio':
+      return stored === true ? 'TRUE' : 'FALSE';
+    default:
+      return null;
+  }
+}
 
 const rowsById = (yRows: SheetRows): Map<string, Y.Map<unknown>> =>
   new Map(yRows.toArray().map((row) => [row.get(ID_KEY) as string, row]));
@@ -455,6 +483,62 @@ export function setSheetDateTimeVariant(
   });
 }
 
+// Option ids for the labels the cells contribute on conversion, deduped across the
+// selection in first-seen order.
+function collectSeedOptionIdsByLabel(
+  rows: Map<string, Y.Map<unknown>>,
+  cells: readonly SheetCellRef[],
+): Map<string, string> {
+  const optionIdByLabel = new Map<string, string>();
+  for (const { rowId, colId } of cells) {
+    const row = rows.get(rowId);
+    if (!row) continue;
+    const label = conversionSeedLabel(readCellMeta(row, colId), row.get(colId));
+    if (label != null && !optionIdByLabel.has(label)) {
+      optionIdByLabel.set(label, makeOptionId());
+    }
+  }
+  return optionIdByLabel;
+}
+
+// Google-Sheets-style conversion to dropdown/tag: a brand-new set takes its options
+// from the converted cells' current values, and each contributing cell keeps its value
+// as the selected option (dropdown/tag cells store selected option ids).
+function applyOptionSetCellType(
+  yRows: SheetRows,
+  yOptionSets: SheetOptionSets,
+  cells: readonly SheetCellRef[],
+  type: SheetOptionSetCellType,
+): void {
+  const rows = rowsById(yRows);
+  // Reuse the range's common set so re-picking "Dropdown"/"Tag" keeps existing options.
+  const setId = sharedOptionSetId(yRows, cells) ?? makeOptionSetId();
+  const isNewSet = !yOptionSets.has(setId);
+  const optionIdByLabel = isNewSet
+    ? collectSeedOptionIdsByLabel(rows, cells)
+    : new Map<string, string>();
+  if (isNewSet) {
+    const seededOptions = [...optionIdByLabel].map(([label, id]) => ({ id, label }));
+    yOptionSets.set(
+      setId,
+      seededOptions.length > 0
+        ? ({ options: seededOptions, isMulti: false } satisfies SheetOptionSet)
+        : makeDefaultOptionSet(),
+    );
+  }
+  for (const { rowId, colId } of cells) {
+    const row = rows.get(rowId);
+    if (!row) continue;
+    const label = conversionSeedLabel(readCellMeta(row, colId), row.get(colId));
+    const seededOptionId = label == null ? undefined : optionIdByLabel.get(label);
+    if (seededOptionId != null) row.set(colId, [seededOptionId]);
+    row.set(cellMetaKey(colId), {
+      type,
+      config: { optionSetId: setId },
+    } satisfies SheetCellMeta);
+  }
+}
+
 export function setSheetCellType(
   ydoc: Y.Doc,
   yRows: SheetRows,
@@ -465,17 +549,7 @@ export function setSheetCellType(
   const rows = rowsById(yRows);
   ydoc.transact(() => {
     if (isOptionSetCellType(type)) {
-      // Reuse the range's common set so re-picking "Dropdown"/"Tag" keeps existing options.
-      const setId = sharedOptionSetId(yRows, cells) ?? makeOptionSetId();
-      if (!yOptionSets.has(setId)) {
-        yOptionSets.set(setId, makeDefaultOptionSet());
-      }
-      for (const { rowId, colId } of cells) {
-        rows.get(rowId)?.set(cellMetaKey(colId), {
-          type,
-          config: { optionSetId: setId },
-        } satisfies SheetCellMeta);
-      }
+      applyOptionSetCellType(yRows, yOptionSets, cells, type);
       return;
     }
     if (type === 'dateTime') {

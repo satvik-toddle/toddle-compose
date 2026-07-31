@@ -178,6 +178,7 @@ export interface DocumentDto {
   parentId: string | null;
   createdAt: string;
   updatedAt: string;
+  fullWidth: boolean; // DOC pages: full-width vs centered readable column. Ignored by SHEET/WHITEBOARD (always full-width).
   owner: { id: string; name: string; color: string };
   isStarred?: boolean; // whether the current user has starred this page (always true in the starred list)
   myRole?: WorkspaceRole | null; // caller's effective role on this doc = owner ? ADMIN : max(ws role, per-doc grant); null for public-only viewers

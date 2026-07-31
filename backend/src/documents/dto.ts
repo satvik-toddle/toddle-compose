@@ -1,5 +1,6 @@
 import { Transform } from "class-transformer";
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
@@ -45,11 +46,18 @@ export class CreateDocumentDto {
   workspaceId?: string;
 }
 
-export class RenameDocumentDto {
+// PATCH /documents/:id — partial metadata edit. Every field optional so a caller can
+// patch title, fullWidth, or both.
+export class UpdateDocumentDto {
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(200)
-  title!: string;
+  title?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  fullWidth?: boolean;
 }
 
 export class MoveDocumentDto {

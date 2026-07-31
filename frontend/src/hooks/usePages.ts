@@ -209,6 +209,31 @@ export function useRenameDocument() {
   });
 }
 
+// Full-width layout toggle: patch the flag into every cache immediately (optimistic — the
+// layout should flip without a round-trip), then reconcile the server's updatedAt on success.
+export function useSetDocFullWidth() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { workspaceId: string; id: string; fullWidth: boolean }) =>
+      documentsApi.setFullWidth(v.id, v.fullWidth),
+    onMutate: (v) => {
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({ ...d, fullWidth: v.fullWidth }));
+    },
+    onSuccess: (updated, v) => {
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({
+        ...d,
+        fullWidth: v.fullWidth,
+        updatedAt: updated.updatedAt,
+      }));
+    },
+    onError: (e, v) => {
+      // Roll back the optimistic flip.
+      patchDocEverywhere(qc, v.workspaceId, v.id, (d) => ({ ...d, fullWidth: !v.fullWidth }));
+      pushToast({ kind: 'error', message: messageOf(e) });
+    },
+  });
+}
+
 export function useDeleteDocument() {
   const { docs, qc } = useInvalidatePages();
   return useMutation({

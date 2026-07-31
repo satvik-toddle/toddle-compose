@@ -71,8 +71,10 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   const { id: openDocId, title: pageTitle } = openDoc;
   // Max of workspace role and per-page grant — else an EDIT-grantee guest would get a read-only editor.
   const canEdit = wsAtLeast(maxWsRole(ctx.role, openDoc.myRole ?? null), 'EDIT');
-  // Sheets and whiteboards fill the width; only docs center a readable column.
-  const isFullWidth = openDoc.type !== 'DOC';
+  const isDoc = openDoc.type === 'DOC';
+  // Docs center a readable column unless the page's full-width setting is on (Page actions →
+  // Full width). Sheets/whiteboards always fill the width.
+  const docFullWidth = isDoc && openDoc.fullWidth;
 
   let editor;
   if (openDoc.type === 'SHEET') {
@@ -80,7 +82,9 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
   } else if (openDoc.type === 'WHITEBOARD') {
     editor = <WhiteboardEditor key={openDocId} docId={openDocId} />;
   } else {
-    editor = <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} />;
+    editor = (
+      <DocEditor key={openDocId} docId={openDocId} canEdit={canEdit} fullWidth={docFullWidth} />
+    );
   }
 
   const titleNode = (
@@ -89,23 +93,30 @@ export function PageView({ ctx, docs, selDoc }: Readonly<PageViewProps>) {
 
   return (
     <main className={styles.contentShell}>
-      {isFullWidth ? (
-        // Sheet/whiteboard: fixed title over the editor (it scrolls/pans itself).
-        <>
-          <div className={styles.sheetTitle}>{titleNode}</div>
-          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
-        </>
-      ) : (
+      {isDoc ? (
+        // Doc: title + editor share one scroll container so the title scrolls with the content.
         // Keyed so scroll position (and the editor) resets per document.
         <div key={openDocId} className={styles.docScroll}>
           <div
             className={styles.docTitle}
-            style={{ maxWidth: DOC_COLUMN_WIDTH, paddingLeft: DOC_TEXT_INSET, paddingRight: DOC_TEXT_INSET }}
+            style={{
+              // Full-width setting drops the 900px cap; the side inset stays so the title keeps
+              // aligning with the editor's text.
+              maxWidth: docFullWidth ? '100%' : DOC_COLUMN_WIDTH,
+              paddingLeft: DOC_TEXT_INSET,
+              paddingRight: DOC_TEXT_INSET,
+            }}
           >
             {titleNode}
           </div>
           <Suspense fallback={<PageLoader />}>{editor}</Suspense>
         </div>
+      ) : (
+        // Sheet/whiteboard: fixed title over the editor (it scrolls/pans itself).
+        <>
+          <div className={styles.sheetTitle}>{titleNode}</div>
+          <Suspense fallback={<PageLoader />}>{editor}</Suspense>
+        </>
       )}
     </main>
   );

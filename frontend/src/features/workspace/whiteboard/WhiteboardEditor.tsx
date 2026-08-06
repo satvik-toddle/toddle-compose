@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import type { WebsocketProvider } from 'y-websocket';
-import { Excalidraw, FONT_FAMILY } from '@excalidraw/excalidraw';
+import { Excalidraw, FONT_FAMILY, MainMenu } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { ExcalidrawBinding } from 'y-excalidraw';
@@ -159,7 +159,21 @@ function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<Whit
           theme={theme}
           viewModeEnabled={!canEdit}
           UIOptions={UI_OPTIONS}
-        />
+        >
+          {/* Custom menu: default items minus Excalidraw's external socials/links. */}
+          <MainMenu>
+            <MainMenu.DefaultItems.LoadScene />
+            <MainMenu.DefaultItems.SaveToActiveFile />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.SearchMenu />
+            <MainMenu.DefaultItems.Help />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+        </Excalidraw>
         {api && status === 'ready' && <WhiteboardMinimap api={api} />}
         {status !== 'ready' && (
           <div className={styles.overlay}>

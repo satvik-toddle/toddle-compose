@@ -7,7 +7,7 @@ import { RealmRole, WorkspaceRole } from "@app/database";
 import { PrismaService } from "../prisma/prisma.service";
 import { ActiveRealmService } from "./active-realm.service";
 
-/** Cumulative rank for each ladder; higher number = strictly more capable. */
+// Rank per ladder; higher = more capable.
 const REALM_ORDER: Record<RealmRole, number> = {
   MEMBER: 0,
   MAINTAINER: 1,
@@ -20,12 +20,7 @@ const WS_ORDER: Record<WorkspaceRole, number> = {
   ADMIN: 3,
 };
 
-/**
- * Single authorization choke point. Roles are resolved per-request from the DB
- * (never trusted from the JWT) so demotions take effect immediately and there is
- * one source of truth. Realm OWNER/MAINTAINER project to workspace ADMIN on every
- * workspace in the realm (the "overlay").
- */
+// Authz choke point: roles resolved per-request from the DB (not the JWT) so demotions take effect immediately. Realm OWNER/MAINTAINER overlay as workspace ADMIN.
 @Injectable()
 export class AuthzService {
   constructor(
@@ -58,27 +53,32 @@ export class AuthzService {
     return ws;
   }
 
-  /**
-   * Effective workspace role = MAX(direct membership, realm overlay).
-   * Returns null when the user exists in the realm but has no access to this workspace.
-   * 404s when the workspace is not in this realm.
-   */
+  // Effective role = MAX(direct membership, realm overlay); null if no access, 404 if workspace not in realm.
   async effectiveWorkspaceRole(
     userId: string,
     workspaceId: string
   ): Promise<WorkspaceRole | null> {
-    await this.getWorkspaceInRealm(workspaceId);
+    // These three reads are independent — they share only userId/workspaceId/realm.id and
+    // none consumes another's result. Run them together so the role check costs one DB
+    // round trip instead of three (the dominant fixed cost on every authed request).
+    const [ws, realmRole, member] = await Promise.all([
+      this.getWorkspaceInRealm(workspaceId), // 404s if the workspace isn't in this realm
+      this.realmRole(userId),
+      this.prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId, userId } },
+      }),
+    ]);
 
-    const realmRole = await this.realmRole(userId);
     const overlay: WorkspaceRole | null =
       realmRole === "OWNER" || realmRole === "MAINTAINER" ? "ADMIN" : null;
-
-    const member = await this.prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId } },
-    });
     const direct = member?.role ?? null;
+    // PUBLIC workspaces are READABLE by any realm member without joining — read only,
+    // regardless of defaultRole (an EDIT/ADMIN defaultRole applies on join, not by visibility;
+    // an unclamped overlay would hand write/manage rights to non-members).
+    const publicOverlay: WorkspaceRole | null =
+      ws.visibility === "PUBLIC" && realmRole !== null ? "READ" : null;
 
-    return this.maxWorkspaceRole(overlay, direct);
+    return this.maxWorkspaceRole(this.maxWorkspaceRole(overlay, direct), publicOverlay);
   }
 
   /** Throws 403 unless the user holds at least `min` in the workspace. Returns the actual role. */
@@ -94,12 +94,110 @@ export class AuthzService {
     return role;
   }
 
-  private maxWorkspaceRole(
+  maxWorkspaceRole(
     a: WorkspaceRole | null,
     b: WorkspaceRole | null
   ): WorkspaceRole | null {
     if (a === null) return b;
     if (b === null) return a;
     return WS_ORDER[a] >= WS_ORDER[b] ? a : b;
+  }
+
+  // Per-page grant for this user on this exact document (never cascades to sub-pages); null if none.
+  async docGrantRole(
+    userId: string,
+    documentId: string
+  ): Promise<WorkspaceRole | null> {
+    const grant = await this.prisma.documentPermission.findUnique({
+      where: { userId_documentId: { userId, documentId } },
+    });
+    return grant?.role ?? null;
+  }
+
+  // True if `role` (nullable) ranks at or above `min` on the workspace ladder.
+  meetsWorkspaceRole(role: WorkspaceRole | null, min: WorkspaceRole): boolean {
+    return role !== null && WS_ORDER[role] >= WS_ORDER[min];
+  }
+
+  // Load a doc and assert the actor can manage its sharing; 404 if missing, 403 if not a manager.
+  // Single source for the "load + manage gate" both doc-permissions and share-links need.
+  async requireDocManageOrThrow(actorId: string, documentId: string) {
+    const doc = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, title: true, ownerId: true, workspaceId: true },
+    });
+    if (!doc) throw new NotFoundException("document not found");
+    await this.requireDocManage(actorId, doc);
+    return doc;
+  }
+
+  // Manage gate shared by doc permissions + share links: owner OR effective ws-ADMIN OR doc-ADMIN grantee; else 403.
+  async requireDocManage(
+    userId: string,
+    doc: { id: string; ownerId: string; workspaceId: string }
+  ): Promise<void> {
+    if (doc.ownerId === userId) return;
+    const [wsRole, grant] = await Promise.all([
+      this.effectiveWorkspaceRole(userId, doc.workspaceId),
+      this.docGrantRole(userId, doc.id),
+    ]);
+    if (wsRole === "ADMIN" || grant === "ADMIN") return;
+    throw new ForbiddenException("requires document ADMIN to manage sharing");
+  }
+
+  // Workspace entry gate shared by the list/get/enter read paths: the effective role, or
+  // {role:null,isGuest:true} for a grant-only guest; 403 if neither member nor grantee.
+  async requireWorkspaceAccess(
+    userId: string,
+    workspaceId: string
+  ): Promise<{ role: WorkspaceRole | null; isGuest: boolean }> {
+    const role = await this.effectiveWorkspaceRole(userId, workspaceId);
+    if (role !== null) return { role, isGuest: false };
+    if (await this.hasDocGrantInWorkspace(userId, workspaceId)) {
+      return { role: null, isGuest: true };
+    }
+    throw new ForbiddenException("requires workspace role READ or higher");
+  }
+
+  // Workspace ids the user can read in the active realm: every workspace for a realm
+  // OWNER/MAINTAINER (overlay = ADMIN); else their direct memberships PLUS every PUBLIC
+  // workspace (readable by any realm member — see effectiveWorkspaceRole's public overlay).
+  async memberWorkspaceIds(userId: string): Promise<string[]> {
+    const realmRole = await this.realmRole(userId);
+    if (realmRole === "OWNER" || realmRole === "MAINTAINER") {
+      const workspaces = await this.prisma.workspace.findMany({
+        where: { realmId: this.realm.id },
+        select: { id: true },
+      });
+      return workspaces.map((w) => w.id);
+    }
+    const [memberships, publicWs] = await Promise.all([
+      this.prisma.workspaceMember.findMany({
+        where: { userId, workspace: { realmId: this.realm.id } },
+        select: { workspaceId: true },
+      }),
+      // Only realm members get implicit public-workspace read; a non-member (null) sees just grants.
+      realmRole !== null
+        ? this.prisma.workspace.findMany({
+            where: { realmId: this.realm.id, visibility: "PUBLIC" },
+            select: { id: true },
+          })
+        : Promise.resolve([] as { id: string }[]),
+    ]);
+    const ids = new Set(memberships.map((m) => m.workspaceId));
+    for (const w of publicWs) ids.add(w.id);
+    return [...ids];
+  }
+
+  // Whether the user holds any per-page grant on a document in this workspace (drives guest entry).
+  async hasDocGrantInWorkspace(
+    userId: string,
+    workspaceId: string
+  ): Promise<boolean> {
+    const grant = await this.prisma.documentPermission.findFirst({
+      where: { userId, document: { workspaceId } },
+      select: { documentId: true },
+    });
+    return grant !== null;
   }
 }

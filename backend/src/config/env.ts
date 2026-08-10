@@ -1,19 +1,16 @@
 import { z } from "zod";
+import { RATE_LIMIT_DEFAULTS } from "./rate-limit";
 
-/**
- * Backend env schema (modules wired so far: Config, Prisma, Keys, Auth, Users).
- * Secrets are REQUIRED with no insecure defaults — the app refuses to boot without
- * them. Unknown vars in the root .env are ignored by zod.
- */
+// In production, secrets are REQUIRED with no defaults; outside production some carry dev-only defaults (see INTERNAL_TOKEN).
+const isProduction = process.env.NODE_ENV === "production";
+
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
-  // The single realm this backend instance is pinned to. Every realm/workspace
-  // operation scopes to it; the backend refuses to boot if no realm row matches
-  // (run the seed to create it). See packages/database/prisma/seed.ts.
+  // The single realm this backend is pinned to; refuses to boot if no realm row matches (run the seed).
   REALM_ID: z.string().min(1, "REALM_ID is required"),
 
-  // Signs access JWTs (HS256). Required; must be long/high-entropy. No default.
+  // Signs access JWTs (HS256); must be long/high-entropy, no default.
   JWT_USER_SECRET: z
     .string()
     .min(32, "JWT_USER_SECRET must be at least 32 characters"),
@@ -25,11 +22,126 @@ export const envSchema = z.object({
   REFRESH_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(86400), // 24 h
 
   // CORS allowlist (comma-separated origins). No wildcard in production.
-  CORS_ORIGINS: z.string().default("http://localhost:5173"),
+  CORS_ORIGINS: z.string().default("http://localhost:5173,http://127.0.0.1:5173"),
+
+  // --- Email verification -----------------------------------------------------
+  // Public origin of the frontend; used to build the verification link emailed
+  // on sign-up (`${FRONTEND_URL}/verify-email?token=...`).
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+  // How long a sign-up verification token stays valid. Short-lived by design.
+  EMAIL_VERIFICATION_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // How long a "forgot password" reset token stays valid. Short-lived by design.
+  PASSWORD_RESET_TTL_SEC: z.coerce.number().int().positive().default(900), // 15 min
+  // Minimum gap between verification/reset emails to the SAME account, in
+  // seconds. Enforced server-side (per email, not per IP) so a fresh token +
+  // email is issued at most once per window. 0 disables the cooldown.
+  EMAIL_RESEND_COOLDOWN_SEC: z.coerce.number().int().nonnegative().default(60),
+  // Which email transport to use. "nodemailer" (default) preserves today's Gmail/console behaviour; "resend" sends via Resend.
+  EMAIL_SERVICE_TYPE: z.enum(["nodemailer", "resend"]).default("nodemailer"),
+  // Gmail SMTP credentials; when both set, mail goes via Gmail, else logged to console (dev).
+  // Required in production unless BYPASS_EMAIL_SERVICE=true (checked in superRefine below).
+  GMAIL_SERVICE_EMAIL: z.string().email().optional(),
+  GMAIL_SERVICE_PASSWORD: z.string().min(1).optional(),
+  // Resend API key; when EMAIL_SERVICE_TYPE=resend and set, mail goes via Resend, else logged to console (dev).
+  RESEND_API_KEY: z.string().min(1).optional(),
+  // Resend requires a verified-domain sender; falls back to Resend's test sender (onboarding@resend.dev) in the service.
+  RESEND_FROM_EMAIL: z.string().email().optional(),
+  // Display name on the From header.
+  MAIL_FROM_NAME: z.string().default("Toddle Compose"),
+  // No email service: auto-verifies sign-ups, mints no reset token. Strict enum so it's explicit.
+  BYPASS_EMAIL_SERVICE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
+  // --- Rate limiting (@nestjs/throttler) -------------------------------------
+  // Window all limits below are measured over, in milliseconds.
+  RATE_LIMIT_TTL_MS: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.ttlMs),
+  // Global default (per client IP) for routes guarded by ThrottlerGuard.
+  RATE_LIMIT_GLOBAL_LIMIT: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.globalLimit),
+  // Stricter per-route caps on the unauthenticated auth endpoints (anti credential-stuffing).
+  RATE_LIMIT_AUTH_REGISTER: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authRegister),
+  RATE_LIMIT_AUTH_LOGIN: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authLogin),
+  RATE_LIMIT_AUTH_REFRESH: z.coerce.number().int().positive().default(RATE_LIMIT_DEFAULTS.authRefresh),
+
+  // --- Document metadata cache -----------------------------------------------
+  // How long a cached document row stays fresh before the next read reloads it from the DB.
+  // In-memory + per-instance (like the throttler above), so N replicas each keep their own copy.
+  DOCUMENT_CACHE_TTL_MS: z.coerce.number().int().positive().default(300_000), // 5 min
 
   // RS256 keypair backing the JWKS endpoint (rtc-server verifies against it later).
   RTC_PRIVATE_KEY_PATH: z.string().default("./.keys/rtc-private.pem"),
   RTC_PUBLIC_KEY_PATH: z.string().default("./.keys/rtc-public.pem"),
+
+  // RTC access tokens (RS256, verified by rtc-server via JWKS); short-lived since they only cover the WS handshake.
+  RTC_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(300),
+  RTC_TOKEN_ISS: z.string().default("toddlecompose-backend"),
+  RTC_TOKEN_AUD: z.string().default("rtc-server"),
+
+  // Internal HTTP channel to rtc-server (shared-secret authed); production REQUIRES a long random secret.
+  // rtc-server serves its internal API on the same port as WS (RTC_PORT, default 4001).
+  RTC_INTERNAL_URL: z.string().url().default("http://localhost:4001"),
+  INTERNAL_TOKEN: isProduction
+    ? z.string().min(32, "INTERNAL_TOKEN must be at least 32 characters in production")
+    : z.string().min(1).default("dev-internal-secret-change-me"),
+
+  // --- Object storage ---------------------------------------------------------
+  // Public origin of THIS backend; used to build absolute URLs for objects served by the local driver.
+  BACKEND_PUBLIC_URL: z.string().url().default("http://localhost:4000"),
+  // ObjectStorage provider: local filesystem or s3-compatible (swappable with no consumer changes).
+  STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+  // Local driver: directory uploaded files are written to (gitignored).
+  STORAGE_DIR: z.string().default("./.storage"),
+  // Max accepted upload size, in megabytes (both drivers).
+  STORAGE_MAX_UPLOAD_MB: z.coerce.number().int().positive().default(100),
+
+  // S3 driver settings (only consulted when STORAGE_DRIVER=s3); optional so the app boots on the local driver.
+  STORAGE_S3_BUCKET: z.string().optional(),
+  STORAGE_S3_REGION: z.string().optional(),
+  STORAGE_S3_ENDPOINT: z.string().optional(), // custom endpoint for MinIO / R2
+  STORAGE_S3_ACCESS_KEY_ID: z.string().optional(),
+  STORAGE_S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // If set, objects link to this public/CDN base URL; otherwise the provider returns pre-signed GET URLs.
+  STORAGE_S3_PUBLIC_URL: z.string().optional(),
+  STORAGE_S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false), // true for MinIO
+
+  // --- Request tracing --------------------------------------------------------
+  // Logs per-request timing + per-query DB durations to the console. Off by
+  // default; set TRACE_REQUESTS=true for local debugging. Strict enum (not
+  // z.coerce.boolean, which treats "false" as true) so the value is explicit.
+  TRACE_REQUESTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+}).superRefine((env, ctx) => {
+  // Production must have deliverable mail unless the email service is bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "nodemailer" &&
+    (!env.GMAIL_SERVICE_EMAIL || !env.GMAIL_SERVICE_PASSWORD)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["GMAIL_SERVICE_EMAIL"],
+      message:
+        "GMAIL_SERVICE_EMAIL and GMAIL_SERVICE_PASSWORD are required in production unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
+  // Mirror rule for the Resend transport: production needs an API key unless bypassed.
+  if (
+    isProduction &&
+    !env.BYPASS_EMAIL_SERVICE &&
+    env.EMAIL_SERVICE_TYPE === "resend" &&
+    !env.RESEND_API_KEY
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["RESEND_API_KEY"],
+      message:
+        "RESEND_API_KEY is required in production when EMAIL_SERVICE_TYPE=resend unless BYPASS_EMAIL_SERVICE=true",
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

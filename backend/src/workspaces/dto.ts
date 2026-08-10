@@ -7,8 +7,8 @@ import {
   MinLength,
 } from "class-validator";
 
-// Full workspace ladder is assignable (unlike realm OWNER, which is reserved).
-const WORKSPACE_ROLES = ["READ", "COMMENT", "EDIT", "ADMIN"] as const;
+// Exported: per-document permission DTOs reuse the same grantable role list.
+export const WORKSPACE_ROLES = ["READ", "COMMENT", "EDIT", "ADMIN"] as const;
 type WorkspaceRoleInput = (typeof WORKSPACE_ROLES)[number];
 
 const VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;

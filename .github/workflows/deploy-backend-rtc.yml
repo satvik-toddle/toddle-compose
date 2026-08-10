@@ -1,0 +1,72 @@
+name: Deploy Backend + RTC (Render)
+
+# Deploy flow: open a PR into staging/backend-rtc-server (base) from develop, get
+# it reviewed, and merge.
+#   • On the PR  → the `build` job runs as a required check (compiles backend + rtc,
+#                  but does NOT touch Render). This is the review gate.
+#   • On merge   → the same build runs, then the `deploy` job triggers the two Render
+#                  deploy hooks. (Render auto-deploy stays OFF; the hook is the trigger.)
+#
+# Required repo secrets: GH_PACKAGES_TOKEN (read:packages for @toddle-edu/*),
+# RENDER_DEPLOY_HOOK_BACKEND, RENDER_DEPLOY_HOOK_RTC, RENDER_DEPLOY_HOOK_INDEXER.
+on:
+  pull_request:
+    branches: [staging/backend-rtc-server] # build-only check on the deploy PR
+  push:
+    branches: [staging/backend-rtc-server] # merge → build + deploy
+  workflow_dispatch: {} # allow manual re-deploys from the Actions tab
+
+concurrency:
+  group: deploy-backend-rtc
+  cancel-in-progress: false # never abandon a deploy mid-trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+      # @app/database / @app/rtc-database resolve to their generated Prisma
+      # clients (generated/ is gitignored), so generate them before the build —
+      # otherwise the model types are missing and the backend won't compile.
+      - name: Generate Prisma clients
+        run: pnpm db:generate
+
+      # Build = the gate. If either service fails to compile, we never trigger
+      # Render, so a broken push can't reach staging.
+      - name: Build backend
+        run: pnpm --filter backend build
+
+      - name: Build rtc-server
+        run: pnpm --filter rtc-server build
+
+  deploy:
+    needs: build
+    # Only deploy on merge/push (or manual run) — never on a PR build check.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      # Each Render service exposes a Deploy Hook URL (Settings → Deploy Hook).
+      # Store them as secrets; hitting the URL makes Render pull the branch and deploy.
+      - name: Trigger Render — backend
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}"
+
+      - name: Trigger Render — rtc-server
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_RTC }}"
+
+      - name: Trigger Render — indexer
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_INDEXER }}"

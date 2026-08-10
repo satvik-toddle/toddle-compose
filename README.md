@@ -1,171 +1,100 @@
 # Toddle Compose
 
-Collaborative document app — greenfield build. Four components (built in later phases):
+Collaborative document app — a pnpm monorepo. Documents live in workspaces with
+realm/workspace RBAC; real-time editing is Yjs over WebSocket, persisted in a
+separate write-heavy database.
 
-- **backend/** — NestJS HTTP API (`:4000`)
-- **rtc-server/** — NestJS Yjs WebSocket collab (`:4001`) + internal HTTP (`:4002`)
-- **frontend/** — Vite + React workspace (`:5173`)
-- **packages/** — shared packages (e.g. `@app/database` Prisma client)
+## Architecture
 
-The build roadmap lives in Coda. This repo currently contains **Phase 0 · Foundation** only:
-the pnpm monorepo scaffold, shared tooling, and the Postgres container.
+| Component | Port | Purpose |
+|-----------|------|---------|
+| **backend/** | `:4000` | NestJS HTTP API (`/api`). Auth (JWT access + refresh), realm/workspace RBAC, folders, documents. Mints the **RS256 RTC tokens** and serves the **JWKS** the rtc-server verifies against. |
+| **rtc-server/** | `:4001` WS · `:4002` internal | NestJS Yjs collaboration server. Verifies RTC tokens via JWKS, enforces editor/viewer, persists Yjs updates + snapshots, runs tiered compaction. Internal HTTP API (shared-secret) for provisioning + history. |
+| **frontend/** | `:5173` | Vite + React app (consumes `@toddle-edu/ds-doc-editor`). |
+| **packages/database** | — | `@app/database` — app Prisma client (users, realms, workspaces, folders, documents). DB: `toddle_compose`. |
+| **packages/rtc-database** | — | `@app/rtc-database` — Prisma client for the **separate** RTC store (`RtcDocument`, `RtcDocumentUpdate`). DB: `toddle_compose_rtc`. No FK to the app DB by design. |
+
+### How a document gets edited
+
+1. `POST /api/documents` → backend creates the doc and best-effort provisions its RTC
+   row in the rtc DB (rtc-server also lazily creates it on first connect).
+2. `POST /api/documents/:id/rtc-token` → backend checks access and returns a short-lived
+   **RS256 JWT** with claims `{ docId, role: editor|viewer, name, email, color }`
+   (403 if no access — "denied" is never minted).
+3. Client connects `ws://localhost:4001/yjs/:docId?token=…` → rtc-server verifies the
+   token via the backend JWKS, enforces the role (**viewer writes are dropped**), and
+   persists updates to `toddle_compose_rtc`.
+
+**Access model:** folders/documents are workspace-scoped. Read = workspace `READ`
+(members + workspace `ADMIN` + the realm `OWNER`/`MAINTAINER` → `ADMIN` overlay).
+Create needs `EDIT`; rename/move need `EDIT`; visibility/delete need owner or `ADMIN`.
+A `PUBLIC` document is also readable by any realm member. Deleted folders are
+**soft-deleted** (hidden immediately, hard-purged after 30 days by a daily cron).
 
 ## Prerequisites
 
-- Node `>=20`
-- pnpm `9` (`corepack enable` picks up the pinned `packageManager`)
-- Docker (for Postgres)
-- `GITHUB_TOKEN` exported — required to install `@toddle-edu/*` packages from GitHub Packages
+- Node `>=20`, pnpm `9` (`corepack enable`)
+- Docker (Postgres)
+- `GITHUB_TOKEN` exported — only to install `@toddle-edu/*` (the frontend editor)
 
 ## Setup
 
 ```bash
-# 1. Environment
-cp .env.example .env            # adjust secrets as needed
-
-# 2. Database (Postgres 16 in Docker)
-pnpm db:up                      # docker compose up -d postgres
-#   → postgresql://toddle:toddle@localhost:5432/toddlecompose
-
-# 3. Install (once workspace packages exist)
+cp .env.example .env                 # set JWT_USER_SECRET (≥32 chars: openssl rand -hex 32)
+pnpm db:up                           # Postgres 16; creates BOTH databases on first boot
 pnpm install
+pnpm db:push                         # push @app/database + @app/rtc-database schemas
+pnpm db:init                         # realm + OWNER from env (prod-safe; required to boot the backend)
+pnpm db:seed                         # demo users (alice@…, password: password123) — LOCAL only
 ```
 
-## Backend (Phase 1 · auth + user creation)
-
-NestJS API on `:4000` with email/password auth (**access + refresh tokens**) and a
-shared Prisma database package. Implemented modules: **Config · Prisma · Keys (JWKS) ·
-Auth**. Full route/payload reference for frontend integration:
-**[`backend/routes.md`](backend/routes.md)**.
-
-**Auth model:** short-lived **access JWT** (`ACCESS_TOKEN_TTL_SEC`, default 15 min) +
-longer-lived **refresh token** (`REFRESH_TOKEN_TTL_SEC`, default 24 h) that is persisted
-hashed, **rotating**, and **revocable**. Endpoints: `register`, `login`, `refresh`,
-`logout`, `me`. Passwords hashed with bcrypt (cost 12).
-
-### Run it
+## Run
 
 ```bash
-cp .env.example .env                              # see "Files to change" below
-pnpm db:up                                        # Postgres 16 in Docker
-
-# backend + database only (skips frontend/rtc, so no GITHUB_TOKEN needed)
-pnpm install --filter backend --filter @app/database
-pnpm --filter @app/database generate              # prisma client → packages/database/generated
-pnpm --filter @app/database migrate               # create tables (fresh DB)
-pnpm --filter @app/database seed                  # demo users, password: password123
-
-pnpm dev:backend                                  # http://localhost:4000
-pnpm --filter backend test:e2e                    # e2e: every auth/users route (needs DB up)
+pnpm dev                # backend + rtc-server + frontend together
+# — or individually —
+pnpm dev:backend        # :4000  HTTP API
+pnpm dev:rtc            # :4001 WS + :4002 internal
+pnpm dev:frontend       # :5173
 ```
 
-### Files to change
+Routes are under `/api`; `GET /health` and `GET /.well-known/rtc-jwks.json` are unprefixed.
 
-| File | Change |
-|------|--------|
-| `.env` | copy from `.env.example`; set `DATABASE_URL` and a **real `JWT_USER_SECRET` (required, ≥32 chars** — `openssl rand -hex 32`). Optional: `ACCESS_TOKEN_TTL_SEC`, `REFRESH_TOKEN_TTL_SEC`, `CORS_ORIGINS`. |
-| `packages/database/prisma/schema.prisma` | source of truth for the data model; re-run `generate` + `migrate`/`db push` after edits. |
-| `packages/database/prisma/seed.ts` | demo users / shared login password. |
-| `backend/src/config/env.ts` | add an env var here (zod-validated) before using it in a module. |
-
-### Notes
-
-- Routes: app routes under `/api`; `GET /health` and `GET /.well-known/rtc-jwks.json` are unprefixed.
-- Access tokens are Bearer JWTs (HS256); refresh tokens are opaque, rotating, revocable (table `refresh_tokens`).
-- Security: `JWT_USER_SECRET` is **required** (no insecure default); CORS is restricted to `CORS_ORIGINS` (no wildcard); bcrypt cost 12. Token lifetimes are env-tunable.
-- The RS256 JWKS endpoint exists for the rtc-server to consume later — the keypair is generated on first boot into `./.keys/` (gitignored).
-- **Realms are created internally — no public API** for them yet; workspace/RBAC endpoints land in the RBAC phase (`docs/realm-workspace-rbac.md`).
-
-## Doc-editor integration (`@toddle-edu/ds-doc-editor`)
-
-The collaborative editor is **not** built in this repo — it lives in the separate
-[`doc-editor`](https://github.com/satvik-toddle) monorepo and is consumed as a package.
-
-- **Package name:** `@toddle-edu/ds-doc-editor` (currently `0.8.1`)
-- **Local checkout:** `/Users/apple/Documents/doc-editor/packages/doc-editor`
-- **Branch to use:** `temp/lexical-yjs` (the Lexical + Yjs collab line)
-- **Exports:** `.` → `dist/main.js` (browser bundle, consumed by **frontend**),
-  `./server` → `src/nodes/AllNodesServer.js` (server node classes, consumed by **rtc-server**)
-- **Pinned deps:** Lexical `0.30.0`, React 17 (peer). Yjs / `@lexical/*` must resolve to a
-  **single instance** across this repo and the editor, or collab silently breaks.
+## Test
 
 ```bash
-# in the doc-editor repo
-cd /Users/apple/Documents/doc-editor
-git checkout temp/lexical-yjs
+pnpm test                       # backend e2e: auth · realm · workspaces · folders · documents (needs DB up)
+node tests/rtc-multiuser.cjs    # RTC: multi-user convergence, viewer write-drop, persistence
+#                                 (needs backend :4000 + rtc-server running)
 ```
 
-### Which files to change in this repo
+`backend/api.http` is a ready-to-run request collection (JetBrains/VS Code REST Client);
+`tests/TEST-PLAN.md` lists the covered scenarios.
 
-| File | Change |
-|------|--------|
-| `frontend/package.json` | add `"@toddle-edu/ds-doc-editor": "workspace:*"` (or the published `^0.8.1`) to `dependencies` |
-| `rtc-server/package.json` | add the same dep — needed for the `/server` export (server-side Lexical extraction) |
-| `package.json` (root) | add the `pnpm.overrides` block below to link the local branch + pin Lexical/Yjs to one instance |
-| `.npmrc` | already wired — used only when installing the **published** version from GitHub Packages (needs `GITHUB_TOKEN`) |
+## Databases
 
-### Pinning Lexical / Yjs to a single instance
+Two Postgres databases on one instance (both created by `docker/postgres-init` on first
+`db:up`):
 
-Yjs and Lexical **must resolve to exactly one physical copy** across this repo and the
-editor — two copies break CRDT convergence (`Type … is not registered`, failed sync).
-Pin the versions doc-editor uses via plain version overrides and let pnpm dedupe to one
-copy in the store (CI-safe, no sibling-path coupling):
+- `DATABASE_URL` → `toddle_compose` (app: auth, RBAC, folders, documents)
+- `RTC_DATABASE_URL` → `toddle_compose_rtc` (write-heavy Yjs update log + snapshots)
 
-```jsonc
-// package.json (root) → "pnpm": { "overrides": { ... } }
-{
-  "pnpm": {
-    "overrides": {
-      "lexical": "0.30.0",
-      "@lexical/react": "0.30.0",
-      "@lexical/yjs": "0.30.0",
-      "yjs": "13.6.27",
-      "y-websocket": "2.0.4"
-    }
-  }
-}
-```
+Edit `packages/*/prisma/schema.prisma`, then `pnpm db:push` (or `db:generate`).
 
-> Add **every** `@lexical/*` subpackage you actually import (code, list, rich-text, table,
-> utils, selection, history, markdown, …), all pinned to `0.30.0`. These versions track the
-> `temp/lexical-yjs` branch of doc-editor — bump them in lockstep when the editor upgrades.
+## Notes
 
-**Build-time backstops** (keep regardless of the pins):
-
-- **Frontend (Vite):** `resolve.dedupe: ['yjs', 'lexical', '@lexical/*', …]` forces one copy
-  at bundle time even if install dedup slips.
-- **rtc-server (`/server`):** esbuild-bundle the server nodes with `yjs`/`lexical`/`@lexical/*`
-  **externalized**, so the bundle shares rtc-server's single instance (Phase 2 `bundle:nodes`).
-
-### Testing branch changes locally
-
-Build the branch and drop its `dist` into this repo's installed copy — good for a quick check:
-
-```bash
-cd /Users/apple/Documents/doc-editor/packages/doc-editor && yarn build
-cp -R dist/* \
-  /Users/apple/Documents/toddle-compose/node_modules/@toddle-edu/ds-doc-editor/dist/
-```
-
-Overwritten on the next `pnpm install`, so it's a smoke-test path only. For sustained
-branch work, consume doc-editor as a workspace package (`workspace:*`) or its published
-version and rebuild it on change.
-
-**The `/server` export caveat:** `./server` ships raw ESM source pulling its own Lexical/Yjs.
-For rtc-server (CJS), esbuild-bundle the server nodes with `lexical`/`@lexical/*`/`yjs`
-**externalized** so they share rtc-server's single instances — see the rtc-server `bundle:nodes`
-script (added in Phase 2). Pass Yjs **bytes** across the boundary, never live `Y.Doc` objects.
+- **Secrets:** `JWT_USER_SECRET` required (no default); the RS256 RTC keypair is generated
+  on first backend boot into `./.keys/` (gitignored); `INTERNAL_TOKEN` guards the
+  backend↔rtc internal API.
+- **doc-editor / `vendor/`:** the rtc-server extracts text via the editor's server nodes,
+  pre-bundled to `rtc-server/vendor/server-nodes.cjs` (gitignored — regenerate with
+  `pnpm --filter rtc-server bundle:nodes`, which needs the `doc-editor` checkout). Lexical/Yjs
+  must resolve to a single instance — see the `pnpm.overrides` in root `package.json`.
 
 ## Tooling
 
-| Command              | What it does                          |
-|----------------------|---------------------------------------|
-| `pnpm lint`          | ESLint (flat config) across the repo  |
-| `pnpm format`        | Prettier write                        |
-| `pnpm format:check`  | Prettier check (CI)                   |
-| `pnpm typecheck`     | Per-package `tsc --noEmit`            |
-| `pnpm dev`           | Run backend + rtc + frontend together |
-| `pnpm db:up` / `db:down` | Start / stop the Postgres container |
-
-Shared config: `tsconfig.base.json`, `eslint.config.mjs`, `.prettierrc`, `.editorconfig`.
-Per-package `tsconfig.json` files extend `../tsconfig.base.json`.
+| Command | Does |
+|---------|------|
+| `pnpm lint` / `format` / `typecheck` | ESLint · Prettier · per-package `tsc --noEmit` |
+| `pnpm db:up` / `db:down` | start / stop Postgres |
+| `pnpm db:push` / `db:init` / `db:seed` / `db:generate` | sync schemas · realm+owner bootstrap · demo users · regenerate clients |

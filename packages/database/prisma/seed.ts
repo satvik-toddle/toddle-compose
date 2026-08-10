@@ -1,17 +1,14 @@
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+// Demo users only — LOCAL/dev convenience (shared password). Do NOT run in production.
+// Prisma 7 requires a driver adapter; DATABASE_URL is exported by the db:seed script.
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 const PASSWORD = "password123";
-
-// Realm bootstrap. Defaults mirror .env.example so the seeded realm id matches the
-// backend's REALM_ID even when the seed is run without the root .env loaded.
-const REALM_ID = process.env.REALM_ID ?? "realm_toddle";
-const REALM_NAME = process.env.REALM_NAME ?? "Toddle";
-const OWNER_EMAIL = process.env.REALM_OWNER_EMAIL ?? "owner@toddle.test";
-const OWNER_PASSWORD = process.env.REALM_OWNER_PASSWORD ?? PASSWORD;
-const OWNER_NAME = process.env.REALM_OWNER_NAME ?? "Realm Owner";
 
 const USERS = [
   { email: "alice@toddle.test", name: "Alice", color: "#f04c54" },
@@ -31,43 +28,23 @@ async function main() {
   for (const u of USERS) {
     await prisma.user.upsert({
       where: { email: u.email },
+      // Only touch profile fields on re-run — never backfill emailVerifiedAt on
+      // an existing row (legacy/organic users stay unverified by design).
       update: { name: u.name, color: u.color },
-      create: { email: u.email, name: u.name, color: u.color, passwordHash },
+      // Freshly-seeded demo users are provisioned as verified so they can log in
+      // without the email flow.
+      create: {
+        email: u.email,
+        name: u.name,
+        color: u.color,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      },
     });
   }
   console.log(`Seeded ${USERS.length} demo users. Login password for all: "${PASSWORD}"`);
   for (const u of USERS) console.log(`  - ${u.email}`);
-
-  // Realm + static owner. The backend (REALM_ID) refuses to boot without this realm row.
-  const realm = await prisma.realm.upsert({
-    where: { id: REALM_ID },
-    update: { name: REALM_NAME },
-    create: { id: REALM_ID, name: REALM_NAME },
-  });
-
-  const ownerHash = await bcrypt.hash(OWNER_PASSWORD, 10);
-  const owner = await prisma.user.upsert({
-    where: { email: OWNER_EMAIL },
-    update: { name: OWNER_NAME },
-    create: {
-      email: OWNER_EMAIL,
-      name: OWNER_NAME,
-      color: "#f04c54",
-      passwordHash: ownerHash,
-    },
-  });
-
-  await prisma.realmMember.upsert({
-    where: { realmId_userId: { realmId: realm.id, userId: owner.id } },
-    update: { role: "OWNER" },
-    create: { realmId: realm.id, userId: owner.id, role: "OWNER" },
-  });
-
-  console.log(
-    `\nRealm "${realm.name}" (${realm.id}) ready.\n` +
-      `  Owner: ${OWNER_EMAIL} / "${OWNER_PASSWORD}" (role OWNER)\n` +
-      `  Set REALM_ID=${realm.id} in your .env.`
-  );
+  console.log(`\nRealm + owner come from \`pnpm db:init\` — run it first if you haven't.`);
 }
 
 main()

@@ -6,13 +6,15 @@ services:
     environment:
       POSTGRES_USER: toddle
       POSTGRES_PASSWORD: toddle
-      POSTGRES_DB: toddlecompose
+      POSTGRES_DB: toddle_compose
     ports:
       - "5432:5432"
     volumes:
       - toddle_compose_pgdata:/var/lib/postgresql/data
+      # Creates the separate RTC database (toddle_compose_rtc) on first init.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U toddle -d toddlecompose"]
+      test: ["CMD-SHELL", "pg_isready -U toddle -d toddle_compose"]
       interval: 5s
       timeout: 5s
       retries: 10

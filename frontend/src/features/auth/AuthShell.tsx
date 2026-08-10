@@ -1,0 +1,49 @@
+import type { ReactNode } from 'react';
+import { cn } from '../../lib/cn';
+
+// `rbac auth-bg` (theme scope + the 3-stop radial-gradient backdrop, with a dark
+// variant) stays in CSS — it isn't sensible as a Tailwind arbitrary value.
+const styles = {
+  card: 'w-[412px] max-w-[calc(100%_-_48px)] rounded-[20px] border border-[var(--line)] bg-[var(--panel-bg)] px-9 pb-[30px] pt-[34px] shadow-elevation-3-bottom',
+  brand: 'mb-2 flex items-center gap-[11px]',
+  // No tile: the logo SVG is self-contained; the box just sizes/centers it.
+  logo: 'flex h-[38px] w-[38px] items-center justify-center',
+  logoImage: 'h-6 w-6',
+  word: 'font-[family-name:var(--font-family-display)] text-[18px] font-extrabold tracking-[-0.01em]',
+  wordAccent: 'text-[var(--brand-educator)]',
+  // Layout for the footer row. The `auth-foot` class is kept only for the shared
+  // `.auth-foot a` link styling in rbac.css (used across every auth page).
+  foot: 'mt-[18px] flex flex-wrap items-center justify-center gap-1 text-[13px] text-secondary',
+};
+
+export function AuthShell({
+  children,
+  foot,
+  lead,
+  cardClassName,
+}: {
+  children: ReactNode;
+  foot?: ReactNode;
+  // Rendered above the brand (e.g. a back button).
+  lead?: ReactNode;
+  // Extra classes on the card (e.g. a wider layout).
+  cardClassName?: string;
+}) {
+  return (
+    <div className="rbac auth-bg">
+      <div className={cn(styles.card, cardClassName)}>
+        {lead}
+        <div className={styles.brand}>
+          <div className={styles.logo}>
+            <img className={styles.logoImage} src="/brand/ToddleLogo.svg" alt="" />
+          </div>
+          <div className={styles.word}>
+            Toddle <span className={styles.wordAccent}>Compose</span>
+          </div>
+        </div>
+        {children}
+      </div>
+      {foot && <div className={cn('auth-foot', styles.foot)}>{foot}</div>}
+    </div>
+  );
+}

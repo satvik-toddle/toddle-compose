@@ -5,7 +5,7 @@ export type AuthUser = {
   email: string;
   name: string;
   color: string;
-  // Present when the session has "entered" a workspace; null otherwise.
+  // Set when the session has entered a workspace; null otherwise.
   activeWorkspaceId: string | null;
 };
 

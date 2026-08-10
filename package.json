@@ -4,10 +4,11 @@
   "private": true,
   "packageManager": "pnpm@9.12.3",
   "engines": {
-    "node": ">=20"
+    "node": "^20.19 || ^22.12 || >=24.0"
   },
   "scripts": {
-    "dev": "concurrently -n backend,rtc,frontend -c blue,magenta,green \"pnpm --filter backend dev\" \"pnpm --filter rtc-server dev\" \"pnpm --filter frontend dev\"",
+    "dev": "bash scripts/dev.sh",
+    "dev:services": "node scripts/dev-services.mjs",
     "dev:backend": "pnpm --filter backend dev",
     "dev:rtc": "pnpm --filter rtc-server dev",
     "dev:frontend": "pnpm --filter frontend dev",
@@ -17,12 +18,19 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:generate": "pnpm --filter @app/database generate",
+    "db:generate": "pnpm --filter @app/database generate && pnpm --filter @app/rtc-database generate",
     "db:migrate": "pnpm --filter @app/database migrate",
-    "db:seed": "pnpm --filter @app/database seed",
+    "db:init": "set -a && . ./.env && set +a && pnpm --filter @app/database run init",
+    "db:seed": "set -a && . ./.env && set +a && pnpm --filter @app/database run seed",
     "db:reset": "pnpm --filter @app/database reset",
+    "db:push": "set -a && . ./.env && set +a && pnpm --filter @app/database exec prisma db push && pnpm --filter @app/rtc-database exec prisma db push",
+    "db:provision": "bash scripts/provision-db.sh",
     "db:up": "docker compose up -d postgres",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "test": "set -a && . ./.env && set +a && pnpm --filter backend test:e2e",
+    "release": "bash scripts/release.sh all",
+    "staging:frontend": "bash scripts/release.sh frontend",
+    "staging:backend": "bash scripts/release.sh backend"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
@@ -34,15 +42,23 @@
     "typescript-eslint": "^8.11.0"
   },
   "pnpm": {
-    "comment": "Single-instance pins for the doc-editor (@toddle-edu/ds-doc-editor). Plain versions track its temp/lexical-yjs branch; bump in lockstep on editor upgrades. Add every @lexical/* subpackage you import. react/react-dom pinned to 17 to match the @toddle-edu/* peer ranges and guarantee a single React instance.",
+    "comment": "Single-instance pins for the doc-editor (@toddle-edu/ds-doc-editor). Plain versions track its temp/lexical-yjs branch; bump in lockstep on editor upgrades. Add every @lexical/* subpackage you import. react/react-dom pinned to 18 for the new frontend (@toddle-edu/ds-* peer ranges allow ^18 and guarantee a single React instance). lexical/yjs/y-websocket stay pinned for rtc-server.",
     "overrides": {
-      "react": "17.0.2",
-      "react-dom": "17.0.2",
-      "lexical": "0.30.0",
-      "@lexical/react": "0.30.0",
-      "@lexical/yjs": "0.30.0",
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
+      "lexical": "0.45.0",
+      "@lexical/react": "0.45.0",
+      "@lexical/yjs": "0.45.0",
+      "@lexical/rich-text": "0.45.0",
+      "@lexical/list": "0.45.0",
+      "@lexical/code": "0.45.0",
+      "@lexical/link": "0.45.0",
+      "@lexical/utils": "0.45.0",
       "yjs": "13.6.27",
       "y-websocket": "2.0.4"
+    },
+    "patchedDependencies": {
+      "@toddle-edu/ds-icons": "patches/@toddle-edu__ds-icons.patch"
     }
   }
 }

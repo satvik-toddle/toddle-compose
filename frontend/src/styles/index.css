@@ -1,0 +1,143 @@
+/* The DS bundle (ds-web main.css, imported in main.tsx) provides the full color /
+   spacing / elevation token set + dark mode. This file adds the app-specific
+   tokens, the shared rbac component styles, base typography, and a few helpers. */
+@import './rbac.css';
+@import './search.css';
+
+/* Neutralize Ant Design's blue ::selection (injected at runtime by antd's reset) with the
+   DS selection tint, app-wide. !important beats antd's later-injected rule regardless of order. */
+::selection {
+  background-color: color-mix(in srgb, var(--interactive-secondary) 25%, transparent) !important;
+  color: currentColor !important;
+}
+
+/* App-specific tokens (the DS uses different token names for these) */
+:root {
+  --font-family-base: "AvenirNext", "Nunito Sans", "Avenir Next",
+                      "AvenirNextWorld", Arial, sans-serif, system-ui;
+  --font-family-display: "Nunito", "AvenirNext", sans-serif;
+  --font-weight-medium: 500;
+
+  /* Page canvas; at :root so <body> resolves it. Flipping DS surface. */
+  --app-bg: var(--surface-secondary-enabled);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-100);
+  line-height: var(--line-height-100);
+  color: var(--text-primary);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+#root {
+  height: 100%;
+}
+
+/* Base headings: size/weight fallback. Color set here (after antd.css) so headings
+   use the flipping token, not antd's fixed dark reset. */
+h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
+h1 { font-weight: 700; font-size: var(--font-size-800); line-height: var(--line-height-500); margin: 0; }
+h2 { font-weight: 700; font-size: var(--font-size-700); line-height: var(--line-height-400); margin: 0; }
+h3 { font-weight: 700; font-size: var(--font-size-600); line-height: var(--line-height-300); margin: 0; }
+h4 { font-weight: 700; font-size: var(--font-size-400); line-height: var(--line-height-400); margin: 0; }
+h5 { font-weight: 700; font-size: var(--font-size-300); line-height: var(--line-height-300); margin: 0; }
+h6 { font-weight: 700; font-size: var(--font-size-200); line-height: var(--line-height-200); margin: 0; }
+
+/* antd hardcodes a light #f5f5f5 hover/active background on dropdown rows and only ties
+   with ds-web's token rule, so any load-order flip makes the row near-white in dark
+   theme. One class deeper than both, so the DS token always wins. */
+.ant-dropdown .ant-dropdown-menu-item:not(.ant-dropdown-menu-item-danger):hover,
+.ant-dropdown
+  .ant-dropdown-menu-item:not(.ant-dropdown-menu-item-danger).ant-dropdown-menu-item-active,
+.ant-dropdown .ant-dropdown-menu-submenu-title:hover,
+.ant-dropdown .ant-dropdown-menu-submenu-title.ant-dropdown-menu-submenu-title-active {
+  background-color: var(--surface-primary-hover);
+}
+
+/* In dark, --surface-secondary-hover/-active resolve to neutral-400 (#707070), a glaring
+   mid-gray, while DS dropdown rows hover with --surface-primary-hover (neutral-300).
+   Align every app row hover/selected on that subtler gray; light theme pairing is fine. */
+.dark {
+  --surface-secondary-hover: var(--neutral-300);
+  --surface-secondary-active: var(--neutral-300);
+}
+
+/* ds-web fill buttons color label/icon with --text-inverse/--icon-inverse (black in
+   dark). Fine for the neutral fill, wrong on colored fills (bg stays saturated) —
+   force those to --text-on/--icon-on (white in both themes). */
+[class*='bg-interactive-primary'].text-inverse,
+[class*='bg-interactive-semantic'].text-inverse,
+[class*='bg-[var(--purple'].text-inverse {
+  color: var(--text-on);
+}
+[class*='bg-interactive-primary'] .icon-inverse,
+[class*='bg-interactive-semantic'] .icon-inverse,
+[class*='bg-[var(--purple'] .icon-inverse {
+  color: var(--icon-on);
+}
+
+/* ---- app-level helpers not in the design CSS ---- */
+.rbac .tc-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* account-menu popover content (the ds-web Dropdown positions the popup; these
+   styles are unscoped from .rbac so they apply even if antd portals it to body) */
+.acct-menu {
+  width: 240px;
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--elevation-3-bottom);
+  padding: 6px;
+  z-index: 60;
+}
+.acct-menu .am-head {
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.acct-menu .am-head .nm {
+  font-size: 13px;
+  font-weight: 700;
+}
+.acct-menu .am-head .sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+.acct-menu .am-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.acct-menu .am-row:hover {
+  background: var(--surface-secondary-enabled);
+}
+/* account pill as a button (the ds Dropdown trigger) */
+.rbac .appbar .acct,
+.rbac .ws-acct {
+  cursor: pointer;
+  background: var(--panel-bg);
+}
+

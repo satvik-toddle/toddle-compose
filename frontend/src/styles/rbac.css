@@ -1,0 +1,732 @@
+/* ============================================================
+   TODDLE COMPOSE — RBAC / Workspace management surfaces
+   All component styles, authored against DS semantic tokens so the
+   DS bundle's .dark scope flips them automatically.
+   ============================================================ */
+
+.rbac {
+  /* --app-bg is set at :root (index.css) and inherited here. */
+  --panel-bg: var(--surface-primary-enabled); /* white / neutral-100 */
+  --line: var(--border-secondary);
+  --line-strong: var(--border-primary);
+  font-family: var(--font-family-base);
+  color: var(--text-primary);
+  background: var(--app-bg);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+.rbac * {
+  box-sizing: border-box;
+}
+.rbac button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* icon helpers (outlined svg as <img>, tint via filter) */
+/* Icons: ds-icons SVGs whose paths use fill: currentColor, so `color` drives the
+   fill. The Icon component sets size + color inline; this is just the marker the
+   component tags every icon with (for context styles) + the currentColor rule.
+   (Replaces the old icons.css adaptation layer.) */
+.rbac .ic {
+  flex: none;
+  display: block;
+}
+.rbac .fill-current {
+  fill: currentColor;
+}
+
+/* ---------------- Avatars ---------------- */
+/* .av/.av-stack/.av-ring removed as dead — Avatar/AvStack render the ds-web Avatar. */
+
+/* ---------------- Role chips ---------------- */
+/* .rchip/.wchip removed as dead — RealmChip/WSChip render the ds-web Tag. */
+
+/* ---------------- Buttons ---------------- */
+/* .btn* removed as dead — Button/IconButton wrappers render the ds-web Button. */
+.rbac .ibtn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+}
+.rbac .ibtn:hover {
+  background: var(--surface-secondary-enabled);
+}
+
+/* ---------------- Form fields ---------------- */
+/* .field → Field.module.scss */
+.rbac .inp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-bg);
+}
+.rbac .inp:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 16%, transparent);
+}
+.rbac .inp input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  flex: 1;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  min-width: 0;
+}
+.rbac .inp input::placeholder {
+  color: var(--text-placeholder);
+}
+.rbac .inp.sm {
+  height: 36px;
+  border-radius: 8px;
+}
+.rbac .inp.err {
+  border-color: var(--border-semantic-error);
+}
+.rbac .inp.err:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-semantic-error) 16%, transparent);
+}
+.rbac .err-text {
+  font-size: 12px;
+  color: var(--text-semantic-error);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* .sel (fake dropdown) removed as dead — RoleSelect renders the ds-web SelectDropdown. */
+
+/* ---------------- App chrome (post-login) ---------------- */
+.rbac .appbar {
+  height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--line);
+}
+.rbac .appbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rbac .appbar .brand .logo {
+  /* No tile: the logo SVG is self-contained; the box just sizes/centers it. */
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .appbar .brand .logo img {
+  width: 20px;
+  height: 20px;
+}
+.rbac .appbar .realm {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.rbac .appbar .realm .nm {
+  font-size: 14px;
+  font-weight: 700;
+}
+.rbac .appbar .realm .sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.rbac .appbar .gap {
+  flex: 1;
+}
+.rbac .appbar .acct {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.rbac .appbar .acct .who {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.rbac .appbar .acct .who .nm {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rbac .appbar .acct .who .sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* divider dot */
+.rbac .dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--icon-secondary);
+  display: inline-block;
+}
+
+/* ---------------- Generic card ---------------- */
+.rbac .card {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+/* ---------------- Tables ---------------- */
+.rbac .tbl {
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.rbac .tbl .thead,
+.rbac .tbl .trow {
+  display: grid;
+  align-items: center;
+}
+.rbac .tbl .thead {
+  background: var(--surface-secondary-enabled);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.rbac .tbl .thead > div {
+  padding: 11px 16px;
+}
+.rbac .tbl .trow {
+  border-bottom: 1px solid var(--line);
+}
+.rbac .tbl .trow:last-child {
+  border-bottom: 0;
+}
+.rbac .tbl .trow:hover {
+  background: var(--surface-secondary-enabled);
+}
+.rbac .tbl .trow > div {
+  padding: 13px 16px;
+  font-size: 13px;
+}
+.rbac .cell-main {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.rbac .cell-main .nm {
+  font-weight: 600;
+  font-size: 13px;
+}
+.rbac .cell-main .sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+/* .role-dd (inline role dropdown chip) → RoleSelect.module.scss */
+
+/* ---------------- Modal / overlay ---------------- */
+/* .scrim/.modal/.modal.wide removed as dead — the ds-web <Modal> renders the
+   overlay + centered box; Modal.tsx mounts content via .tc-modal (below). */
+
+/* The ds-web <Modal> already renders the centered, white (surface-primary),
+   rounded + shadowed, content-sized box. Modal.tsx mounts our content inside it
+   under `.rbac` only to inherit the design tokens + `.rbac .m-*` rules — so strip
+   `.rbac`'s full-page app-shell sizing (height:100%, column-flex, gray app-bg).
+   Without this the wrapper stretches to the modal's full height and paints a gray
+   gap below the footer; transparent lets the box's white surface show through. */
+.rbac.tc-modal {
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  background: transparent;
+}
+
+/* react-modal pins .ReactModal__Content inline at top:40px/bottom:40px; combined
+   with the ds-web box's height:auto that STRETCHES the box to the full viewport
+   height, leaving a large empty area below our content. Scope to OUR modals (those
+   wrapping .tc-modal) so other ds-web modals are untouched: center the box in the
+   overlay and release the inline top/bottom pin (needs !important to beat inline)
+   so the box collapses to its content height. */
+.ReactModal__Overlay:has(.tc-modal) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+.ReactModal__Content:has(.tc-modal) {
+  position: static !important;
+  inset: auto !important;
+}
+.rbac .m-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 22px 0;
+}
+.rbac .m-head .m-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.rbac .m-head h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+.rbac .m-head p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 3px 0 0;
+  line-height: 1.45;
+}
+.rbac .m-body {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.rbac .m-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-secondary-enabled);
+}
+.rbac .m-foot .gap {
+  flex: 1;
+}
+
+/* Share-document modal styles → ShareDocumentModal.module.scss */
+
+/* preview row inside add-member modal */
+.rbac .found {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-secondary-enabled);
+}
+.rbac .found .nm {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rbac .found .sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* .role-opt (radio role picker) → RoleRadios.module.scss */
+
+/* ---------------- Empty states ---------------- */
+/* .empty* removed as dead — EmptyState renders the ds-web EmptyState. */
+
+/* ---------------- Toast ---------------- */
+/* .toast → Toast.module.scss */
+
+/* .tabs/.tab/.tab.on/.tab .ct removed as dead — AdminConsole uses the ds-web <Tabs>. */
+
+/* ---------------- Misc ---------------- */
+.rbac .page {
+  flex: 1;
+  overflow: auto;
+  padding: 26px 30px 40px;
+}
+.rbac .page-wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+.rbac .page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.rbac .page-head h1 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.rbac .page-head .sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+/* .seg (segmented control) removed as dead — unused. */
+.rbac .lock-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.rbac .lock-note .ic {
+  opacity: 0.7;
+}
+
+/* ============================================================
+   AUTH screens
+   ============================================================ */
+.rbac.auth-bg {
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(900px 520px at 18% -8%, rgba(240, 76, 84, 0.16), transparent 60%),
+    radial-gradient(820px 520px at 100% 8%, rgba(90, 90, 226, 0.16), transparent 58%),
+    radial-gradient(700px 600px at 60% 116%, rgba(0, 172, 138, 0.13), transparent 60%),
+    var(--app-bg);
+}
+.rbac.dark.auth-bg,
+.dark .rbac.auth-bg {
+  background:
+    radial-gradient(900px 520px at 18% -8%, rgba(240, 76, 84, 0.22), transparent 60%),
+    radial-gradient(820px 520px at 100% 8%, rgba(90, 90, 226, 0.22), transparent 58%),
+    radial-gradient(700px 600px at 60% 116%, rgba(0, 172, 138, 0.16), transparent 60%),
+    var(--app-bg);
+}
+/* auth card/brand/logo/word → Tailwind in AuthShell.tsx */
+.rbac .auth-h {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+.rbac .auth-p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 6px 0 22px;
+}
+.rbac .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.rbac .auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.rbac .auth-row a,
+.rbac .auth-foot a,
+.rbac .auth-fine a {
+  color: var(--text-link-default);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.rbac .auth-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.rbac .cbx {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .cbx.on {
+  background: var(--interactive-primary);
+  border-color: var(--interactive-primary);
+}
+.rbac .auth-fine {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+/* .auth-foot container layout/typography lives in AuthShell (Tailwind); only the
+   shared `.auth-foot a` link styling above still comes from here. */
+.rbac .auth-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 18px;
+}
+.rbac .auth-banner.err {
+  background: var(--surface-semantic-error);
+  color: var(--text-semantic-error);
+  border: 1px solid var(--border-semantic-error);
+}
+/* .pw-strength/.bar/.pw-label → PasswordStrength.module.scss
+   .auth-success/.suc-glyph/.suc-wait/.pulse (+ @keyframes rbacpulse) → RegisterSuccessPage.module.scss */
+
+/* request-access / discover workspaces → fully Tailwind in RequestAccessPage.tsx */
+
+/* ============================================================
+   LAUNCHER
+   ============================================================ */
+/* .lc-greet/.lc-greet-actions/.lc-note/.lc-grid/.lc-waitcard → LauncherPage.module.scss
+   The workspace card + add tile are fully Tailwind in WorkspaceCard.tsx.
+   The list layout (.lc-list/.lc-list-head/.lc-row*) was removed as dead — the
+   launcher renders a card grid, not a list.
+   Kept global: .ws-emoji (+ .sm), used cross-feature. */
+.rbac .ws-emoji {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.rbac .ws-emoji.sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 19px;
+}
+
+/* ============================================================
+   ADMIN CONSOLE
+   ============================================================ */
+/* Moved to co-located CSS Modules:
+     .ad-subbar/.ad-title           → AdminConsolePage.module.scss
+     .ad-ws-tbl/.ad-foot            → WorkspacesTab.module.scss
+     .ad-mem-tbl                    → RealmMembersTab.module.scss
+     .ad-req-tbl/.ws-pill           → JoinRequestsTab.module.scss
+   Removed as dead (unused after the table redesign):
+     .srch-box, .ad-ws-grid, .ad-ws-card, .ad-mem-group, .ad-mem-cards, .mem-card, .grp-h
+   Kept global (used cross-feature): .you-tag (also workspace MembersPanel). */
+.rbac .you-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-highlight);
+  background: var(--surface-primary-selected);
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   INSIDE A WORKSPACE
+   ============================================================ */
+/* Moved to co-located CSS Modules:
+     topbar + body split (ws-topbar, ws-switch, ws-tb-left/right, ws-crumb, ws-body) → WorkspaceLayout.module.scss
+     sidebar rail (ws-nav, qk-row, qk-ct, ws-nav-foot)                      → WsNav.module.scss
+     pages tree (ws-nav-grp, ws-tree, tree-row, chev, tw-lbl, tw-more, new-page-row) → PagesTree.module.scss
+   Removed as dead (menus now render via the ds ActionMenu/Dropdown):
+     .ws-switch-wrap, .ws-switch-menu/.sm-*, .folder-menu/.fm-*, .tree-row.menu-open
+   Kept global: .ws-acct (owned by AcctPill), .tw-emoji (shared with PagesPanel). */
+.rbac .ws-acct {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.rbac .tw-emoji {
+  font-size: 15px;
+  line-height: 1;
+  width: 18px;
+  text-align: center;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .tw-emoji.big {
+  font-size: 20px;
+  width: 24px;
+}
+
+/* main panel */
+.rbac .ws-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+}
+/* .tc-editor (+ .ds-de-* editor internals) moved to DocEditor.module.scss */
+
+/* .ws-doc-titlewrap / .ws-doc-title-field moved to PagesPanel.module.scss */
+.rbac .ws-crumbbar {
+  height: 50px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+.rbac .ws-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.rbac .ws-crumbs .sep {
+  opacity: 0.5;
+}
+.rbac .ws-crumbs .cur {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.rbac .ws-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 24px 30px 40px;
+}
+.rbac .ws-scroll.doc {
+  padding: 0;
+}
+.rbac .ws-folder-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.rbac .ws-folder-head h1 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.rbac .ws-folder-head .sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* .ws-docs-tbl / .ws-mem-tbl / .ws-req-tbl column grids → their per-panel modules */
+/* .qk-ct (+ .alert) → WsNav.module.scss */
+
+/* .blocked-wrap/.blocked-tip moved to MembersPanel.module.scss.
+   The static doc-reader mockup (.ws-docbar, .ws-doc*, .doc-callout, .sel-*,
+   .fl-* floating toolbar, .ibtn.sm) was removed as dead — superseded by the live
+   DocEditor (@toddle-edu/ds-doc-editor) and its DocEditor.module.scss. */
+
+/* ============================================================
+   MODALS — extra bits
+   ============================================================ */
+/* .modal-host/.modal-bg removed as dead (the ds-web <Modal> handles the overlay). */
+.rbac .m-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--surface-secondary-enabled);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 12px;
+}
+.rbac .inp.inp-emoji {
+  padding-left: 5px;
+  gap: 5px;
+}
+.rbac .emoji-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: var(--surface-secondary-enabled);
+  border-radius: 7px;
+  font-size: 18px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 5px;
+}
+.rbac .emoji-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  background: var(--panel-bg);
+  border-radius: 8px;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rbac .emoji-cell:hover {
+  background: var(--surface-secondary-enabled);
+}
+.rbac .emoji-cell.on {
+  border-color: var(--border-selected);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--border-selected) 18%, transparent);
+}
+/* .role-radios → RoleRadios.module.scss */
+.rbac .invite-fallback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-primary);
+  border-radius: 10px;
+  background: var(--surface-secondary-enabled);
+}
+.rbac .invite-fallback .t {
+  font-size: 13px;
+  font-weight: 700;
+}
+.rbac .invite-fallback .d {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.rbac .danger-box {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  background: var(--surface-semantic-error);
+  border: 1px solid var(--border-semantic-error);
+  color: var(--text-semantic-error);
+  font-size: 13px;
+  font-weight: 600;
+}

@@ -1,0 +1,80 @@
+// RTC persistence database — kept SEPARATE from the app database because the
+// update log is write-heavy (one row per debounced edit) and should not contend
+// with transactional auth/workspace queries. No FK to the app's Document model
+// exists here (cross-database FKs aren't possible); `RtcDocument.id` simply holds
+// the Document id minted by the backend. Cleanup of orphans is the backend's job
+// (internal delete API / reconciliation), not a cascade.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  // Prisma 7 no longer allows `url` here. The connection string lives in
+  // prisma.config.ts (for Migrate) and is passed via the @prisma/adapter-pg
+  // driver adapter to the PrismaClient constructor (for the app runtime).
+  provider = "postgresql"
+}
+
+model RtcDocument {
+  id            String  @id
+  // The CRDT source of truth: the encoded Yjs document. ALL content (DOC lexical
+  // tree or SHEET grid) lives here. History/preview re-derive by replaying the
+  // update log against this snapshot.
+  yjsState      Bytes?  @map("yjs_state")
+  // DEPRECATED / vestigial: search text now lives only in the backend DB, populated by the
+  // detached indexer worker via stale_documents. Nothing reads or writes this column anymore;
+  // the physical drop is deferred to a follow-up migration (needs --accept-data-loss).
+  contentText   String? @map("content_text")
+  version       Int     @default(0)
+  updatedAt     BigInt  @map("updated_at")
+  snapshotAtSeq Int     @default(0) @map("snapshot_at_seq")
+
+  @@map("rtc_documents")
+}
+
+// Durable dirty set (transactional outbox) for the search indexer. One row per doc whose
+// content projection is behind, upserted in the SAME tx as the snapshot flush (G1). The
+// detached indexer worker drains it, extracts text, and pushes to the backend. PK = doc_id
+// coalesces many edits into one pending row.
+model StaleDocument {
+  docId   String @id @map("doc_id")
+  // The flush seq this dirtiness represents; overwritten with the newer seq on re-flush.
+  seq     Int
+  // Epoch ms of the enqueue; drives the oldest-staleness-age metric.
+  dirtyAt BigInt @map("dirty_at")
+
+  @@index([dirtyAt])
+  @@map("stale_documents")
+}
+
+model RtcDocumentUpdate {
+  id         BigInt  @id @default(autoincrement())
+  docId      String  @map("doc_id")
+  seq        Int
+  updateBlob Bytes   @map("update_blob")
+  byteLen    Int     @map("byte_len")
+  origin     String?
+  clientSub  String? @map("client_sub")
+  createdAt  BigInt  @map("created_at")
+  // Raw updates coalesced into this row by tier-1 compaction (null = 1); keeps the history UI's edit count honest after a merge.
+  mergedCount Int?   @map("merged_count")
+
+  @@unique([docId, seq])
+  @@index([docId, seq])
+  @@map("rtc_document_updates")
+}
+
+model RtcCompactionRun {
+  id                   BigInt  @id @default(autoincrement())
+  startedAt            BigInt  @map("started_at")
+  finishedAt           BigInt? @map("finished_at")
+  docsScanned          Int     @default(0) @map("docs_scanned")
+  tier1SessionsMerged  Int     @default(0) @map("tier1_sessions_merged")
+  tier2DocsArchived    Int     @default(0) @map("tier2_docs_archived")
+  errors               Int     @default(0)
+
+  @@index([startedAt(sort: Desc)])
+  @@map("rtc_compaction_runs")
+}

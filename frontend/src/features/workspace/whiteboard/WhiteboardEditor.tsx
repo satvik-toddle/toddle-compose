@@ -1,0 +1,200 @@
+import { useEffect, useRef, useState } from 'react';
+import * as Y from 'yjs';
+import type { WebsocketProvider } from 'y-websocket';
+import { Excalidraw, FONT_FAMILY, MainMenu } from '@excalidraw/excalidraw';
+import '@excalidraw/excalidraw/index.css';
+import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
+import { ExcalidrawBinding } from 'y-excalidraw';
+import { useAuthStore } from '../../../stores/authStore';
+import { useThemeStore } from '../../../stores/themeStore';
+import { Loader } from '../../../components/Loader';
+import { RtcGate, type RtcSession } from '../RtcGate';
+import { connectRtcProvider, useRtcParams } from '../useRtcProvider';
+import { WhiteboardMinimap } from './WhiteboardMinimap';
+
+// Yjs shared-type keys fixed by y-excalidraw's data model.
+const ELEMENTS_KEY = 'elements';
+const ASSETS_KEY = 'assets';
+
+// Surface an error after this many failed connects with no sync, rather than
+// leaving an editable-looking blank canvas that silently drops the user's work.
+const CONNECT_FAILURE_LIMIT = 5;
+
+// Presence identity for logged-out (link-shared) collaborators.
+const ANON_USER = { name: 'Anonymous', color: '#4f52d9' };
+
+const styles = {
+  shell: 'flex-1 min-h-0 flex flex-col p-6',
+  canvas: 'relative flex-1 min-h-0 overflow-hidden rounded-2 border border-secondary',
+  overlay: 'absolute inset-0 flex items-center justify-center bg-surface-primary-enabled',
+  overlayText: 'text-body-s text-secondary',
+};
+
+// Hoisted so the memoized Excalidraw doesn't re-render on a fresh object identity.
+const UI_OPTIONS = { tools: { image: false } } as const;
+
+// Default new text to a clean sans (closest bundled font to Avenir Next) instead of
+// Excalidraw's hand-drawn default. Local UI state only — not part of the synced scene.
+const INITIAL_DATA = { appState: { currentItemFontFamily: FONT_FAMILY.Nunito } };
+
+const awarenessUser = (user: { name: string; color: string } | null) => {
+  const identity = user ?? ANON_USER;
+  return {
+    name: identity.name,
+    color: identity.color,
+    colorLight: `${identity.color}33`,
+  };
+};
+
+// The Y.Doc-backed shared types + awareness the binding reads from; kept in state so
+// a canEdit flip re-binds over the live (already-synced) doc instead of an empty one.
+type WhiteboardSession = {
+  yElements: Y.Array<Y.Map<unknown>>;
+  yAssets: Y.Map<unknown>;
+  awareness: WebsocketProvider['awareness'];
+};
+type WhiteboardStatus = 'loading' | 'ready' | 'error';
+
+type WhiteboardCanvasProps = { docId: string } & RtcSession;
+type WhiteboardEditorProps = { docId: string };
+
+function WhiteboardCanvas({ docId, token, canEdit, refetchToken }: Readonly<WhiteboardCanvasProps>) {
+  const rtc = useRtcParams(token, refetchToken);
+  // Lets the presence effect update the cursor in place instead of rebuilding the provider.
+  const awarenessRef = useRef<WebsocketProvider['awareness'] | null>(null);
+
+  const user = useAuthStore((s) => s.user);
+  const theme = useThemeStore((s) => s.isDark) ? 'dark' : 'light';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  const [binding, setBinding] = useState<ExcalidrawBinding | null>(null);
+  const [session, setSession] = useState<WhiteboardSession | null>(null);
+  const [status, setStatus] = useState<WhiteboardStatus>('loading');
+
+  // Declared before the session effect so on unmount React runs this cleanup first:
+  // the binding unobserves session.yElements while its Y.Doc is still alive, before
+  // the session effect below destroys the doc. Rebuilt when the session or editable
+  // role changes; the session's Y.Doc is already synced, so a canEdit flip re-binds
+  // over the existing elements. No-ops until the session effect sets `session`.
+  useEffect(() => {
+    const excalidrawDom = containerRef.current;
+    if (!api || !session || !excalidrawDom) return;
+
+    // Supplied only for editors; a read-only binding omits it.
+    const editingOptions = canEdit
+      ? { excalidrawDom, undoManager: new Y.UndoManager(session.yElements) }
+      : undefined;
+    const excalidrawBinding = new ExcalidrawBinding(
+      session.yElements,
+      session.yAssets,
+      api,
+      session.awareness,
+      editingOptions,
+    );
+    setBinding(excalidrawBinding);
+
+    return () => {
+      setBinding(null);
+      excalidrawBinding.destroy();
+    };
+  }, [api, session, canEdit]);
+
+  // Session (Y.Doc + provider) lives for as long as the doc is open. Keyed on
+  // docId/api only, so a mid-session role flip rebuilds just the binding (above) —
+  // never the synced doc — and can't blank the board. Waits for Excalidraw's first
+  // render (the imperative API).
+  useEffect(() => {
+    if (!api || !containerRef.current) return;
+
+    const ydoc = new Y.Doc();
+    const yElements = ydoc.getArray<Y.Map<unknown>>(ELEMENTS_KEY);
+    const yAssets = ydoc.getMap(ASSETS_KEY);
+
+    setStatus('loading');
+    let hasSynced = false;
+
+    const { provider, teardown } = connectRtcProvider(docId, ydoc, rtc, (failures) => {
+      if (!hasSynced && failures >= CONNECT_FAILURE_LIMIT) {
+        provider.disconnect();
+        setStatus('error');
+      }
+    });
+    awarenessRef.current = provider.awareness;
+    provider.awareness.setLocalStateField('user', awarenessUser(user));
+
+    // Gate the canvas on the first server sync so the user can't edit against a
+    // blank board before the existing elements load in.
+    const onSync = (isSynced: boolean) => {
+      if (isSynced && !hasSynced) {
+        hasSynced = true;
+        setStatus('ready');
+      }
+    };
+    provider.on('sync', onSync);
+    if (provider.synced) onSync(true);
+
+    setSession({ yElements, yAssets, awareness: provider.awareness });
+
+    return () => {
+      provider.off('sync', onSync);
+      teardown();
+      awarenessRef.current = null;
+      setSession(null);
+      ydoc.destroy();
+    };
+  }, [api, docId]);
+
+  // Reflect name/color changes onto the live cursor without tearing the session down.
+  useEffect(() => {
+    awarenessRef.current?.setLocalStateField('user', awarenessUser(user));
+  }, [user]);
+
+  return (
+    <div className={styles.shell}>
+      <div ref={containerRef} className={styles.canvas}>
+        <Excalidraw
+          excalidrawAPI={setApi}
+          initialData={INITIAL_DATA}
+          onPointerUpdate={binding?.onPointerUpdate}
+          theme={theme}
+          viewModeEnabled={!canEdit}
+          UIOptions={UI_OPTIONS}
+        >
+          {/* Custom menu: default items minus Excalidraw's external socials/links. */}
+          <MainMenu>
+            <MainMenu.DefaultItems.LoadScene />
+            <MainMenu.DefaultItems.SaveToActiveFile />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.SearchMenu />
+            <MainMenu.DefaultItems.Help />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+        </Excalidraw>
+        {api && status === 'ready' && <WhiteboardMinimap api={api} />}
+        {status !== 'ready' && (
+          <div className={styles.overlay}>
+            {status === 'error' ? (
+              <span className={styles.overlayText}>
+                Couldn&apos;t connect to the whiteboard server.
+              </span>
+            ) : (
+              <Loader />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function WhiteboardEditor({ docId }: Readonly<WhiteboardEditorProps>) {
+  return (
+    <RtcGate docId={docId} noun="whiteboard">
+      {(session) => <WhiteboardCanvas docId={docId} {...session} />}
+    </RtcGate>
+  );
+}

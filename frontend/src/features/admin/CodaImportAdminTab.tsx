@@ -1,15 +1,27 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button as DsButton, EmptyState, SpinnerLoader, Table, Tooltip } from '@toddle-edu/ds-web';
 import { EmptyStateIllustrations } from '@toddle-edu/ds-theme';
 import { ChevronRightOutlined } from '@toddle-edu/ds-icons';
 import { Button } from '../../components/Button';
+import { IconButton } from '../../components/IconButton';
+import { Modal, ModalHead } from '../../components/Modal';
+import { Field } from '../../components/Field';
+import { TextInput } from '../../components/TextInput';
+import { Icon } from '../../components/Icon';
 import { PageLoader } from '../../components/Loader';
 import { ItemStatusTag, JobStatusTag } from '../migration/migrationStatus';
-import { useCancelCodaImportJob, useCodaImportJob, useCodaImportJobs } from '../../hooks/useCodaImport';
+import {
+  useCancelCodaImportJob,
+  useCodaImportCredentials,
+  useCodaImportJob,
+  useCodaImportJobs,
+  useCreateCodaImportCredential,
+  useDeleteCodaImportCredential,
+} from '../../hooks/useCodaImport';
 import { relativeTime } from '../../lib/time';
-import type { CodaImportJobDetail, CodaImportJobSummary } from '../../types/api';
+import type { CodaImportCredentialView, CodaImportJobDetail, CodaImportJobSummary } from '../../types/api';
 
 const styles = {
   page: 'flex-1 min-h-0 overflow-auto pt-6 px-7.5 pb-10',
@@ -37,6 +49,17 @@ const styles = {
   stepNumDone: 'text-label-s text-white',
   stepNumPending: 'text-label-s text-inverse',
   statusWord: 'text-body text-secondary',
+  tokensSection: 'mb-8',
+  tokensHead: 'mb-3 flex items-end justify-between gap-4',
+  tokensTitle: 'm-0 text-heading-4 text-primary',
+  tokensSub: 'mt-1 text-body text-secondary',
+  tokenList: 'flex flex-col gap-2',
+  tokenRow: 'flex items-center gap-3 border border-secondary rounded-2 px-3.5 py-2.5',
+  tokenMask: 'text-body text-primary',
+  tokenMeta: 'text-body text-secondary',
+  tokenGap: 'ml-auto',
+  tokensLoading: 'flex items-center gap-2 text-body text-secondary py-2',
+  note: 'flex items-start gap-2 text-body text-secondary',
 };
 
 // The two exact DS tokens the stepper paints with. Only bg-interactive-semantic-info
@@ -341,6 +364,155 @@ function JobDetailView({ jobId }: Readonly<{ jobId: string }>) {
   );
 }
 
+function maskCredential(c: CodaImportCredentialView): string {
+  return `${c.label ?? 'Token'} ··· ${c.hint ?? '????'}`;
+}
+
+// Realm-wide token an import can be pinned to. Adding opens the modal; deleting a
+// token in use will fail its imports, so it's confirmed first.
+function CodaTokensPanel() {
+  const { data: credentials, isLoading } = useCodaImportCredentials();
+  const del = useDeleteCodaImportCredential();
+  const [adding, setAdding] = useState(false);
+  const deletingId = del.isPending ? (del.variables ?? null) : null;
+
+  const onDelete = (id: string) => {
+    if (window.confirm('Delete this Coda token? Imports pinned to it will fail.')) {
+      del.mutate(id);
+    }
+  };
+
+  return (
+    <section className={styles.tokensSection}>
+      <div className={styles.tokensHead}>
+        <div>
+          <h2 className={styles.tokensTitle}>Coda tokens</h2>
+          <div className={styles.tokensSub}>
+            Tokens the realm's Coda imports run under. Each token is a Coda user with read access
+            to the docs you import.
+          </div>
+        </div>
+        <Button icon="AddOutlined" onClick={() => setAdding(true)}>
+          Add token
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className={styles.tokensLoading}>
+          <SpinnerLoader size="xxx-small" variant="default" />
+          Loading tokens…
+        </div>
+      ) : (credentials?.length ?? 0) === 0 ? (
+        <div className={styles.muted}>No tokens yet — add one to enable Coda imports.</div>
+      ) : (
+        <div className={styles.tokenList}>
+          {credentials?.map((c) => (
+            <div key={c.id} className={styles.tokenRow}>
+              <span className={styles.tokenMask}>{maskCredential(c)}</span>
+              <span className={styles.tokenGap} />
+              <span className={styles.tokenMeta}>Added {relativeTime(c.createdAt)}</span>
+              {deletingId === c.id ? (
+                <SpinnerLoader size="xxx-small" variant="default" />
+              ) : (
+                <IconButton
+                  icon="DeleteOutlined"
+                  red
+                  title="Delete token"
+                  aria-label="Delete token"
+                  disabled={del.isPending}
+                  onClick={() => onDelete(c.id)}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding && <AddCodaTokenModal onClose={() => setAdding(false)} />}
+    </section>
+  );
+}
+
+function AddCodaTokenModal({ onClose }: Readonly<{ onClose: () => void }>) {
+  const create = useCreateCodaImportCredential();
+  const [token, setToken] = useState('');
+  const [label, setLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = () => {
+    const trimmed = token.trim();
+    if (!trimmed || create.isPending) return;
+    setError(null);
+    create.mutate(
+      { token: trimmed, ...(label.trim() ? { label: label.trim() } : {}) },
+      {
+        onSuccess: () => {
+          setToken('');
+          setLabel('');
+          onClose();
+        },
+        // The hook already toasts; surface it inline too so the modal stays open on error.
+        onError: (e) => setError((e as Error)?.message ?? 'Could not add the token.'),
+      },
+    );
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalHead
+        tone="brand"
+        icon="ImportOutlined"
+        title="Add Coda token"
+        sub="A Coda API token the realm's imports can run under."
+        onClose={onClose}
+      />
+      <div className="m-body">
+        <Field label="Coda API token">
+          <TextInput
+            type="password"
+            autoComplete="new-password"
+            placeholder="Paste a Coda API token"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            autoFocus
+          />
+        </Field>
+
+        <Field label="Label (optional)">
+          <TextInput
+            placeholder="Who/what this token is for"
+            maxLength={120}
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </Field>
+
+        <div className={styles.note}>
+          <Icon name="InformationOutlined" size={14} muted />
+          <span>Generate a token at coda.io → Account Settings → API Settings.</span>
+        </div>
+
+        {error && <Alert dsVersion="2.0" type="error" message={error} />}
+      </div>
+
+      <div className="m-foot">
+        <span className="gap" />
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          icon="AddOutlined"
+          disabled={!token.trim() || create.isPending}
+          onClick={submit}
+        >
+          {create.isPending ? 'Adding…' : 'Add token'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 export function CodaImportAdminTab() {
   const navigate = useNavigate();
   const { jobId } = useParams<{ jobId: string }>();
@@ -379,6 +551,7 @@ export function CodaImportAdminTab() {
             </div>
           </div>
         </div>
+        <CodaTokensPanel />
         <JobsList
           jobs={jobs}
           loading={isLoading}

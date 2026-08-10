@@ -20,6 +20,26 @@ export function useCodaImportCredentials(enabled = true) {
   });
 }
 
+// Add a new realm-wide Coda import token; the list refetches to show it (masked).
+export function useCreateCodaImportCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { token: string; label?: string }) => codaImportApi.createCredential(b),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.codaImportCredentials }),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
+// Delete a stored Coda import token; imports pinned to it will fail afterwards.
+export function useDeleteCodaImportCredential() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => codaImportApi.deleteCredential(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.codaImportCredentials }),
+    onError: (e) => pushToast({ kind: 'error', message: messageOf(e) }),
+  });
+}
+
 // Modal step 1 — resolve a Coda URL to its doc name + page count via the picked
 // credential's token. Fired on click, so a mutation (not a query); a bad/unreachable
 // URL (or a token without access) surfaces as an error.

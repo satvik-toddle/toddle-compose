@@ -22,6 +22,10 @@ export const codaImportApi = {
     http.post<CreateCodaImportJobResult>('/admin/coda-import/jobs', b),
   listCredentials: () =>
     http.get<CodaImportCredentialView[]>('/admin/coda-import/credentials'),
+  createCredential: (b: { token: string; label?: string }) =>
+    http.post<CodaImportCredentialView>('/admin/coda-import/credentials', b),
+  deleteCredential: (id: string) =>
+    http.del<{ id: string }>(`/admin/coda-import/credentials/${id}`),
   listJobs: () => http.get<CodaImportJobSummary[]>('/admin/coda-import/jobs'),
   getJob: (id: string) => http.get<CodaImportJobDetail>(`/admin/coda-import/jobs/${id}`),
   // Stop a QUEUED/RUNNING import; returns the updated summary.
